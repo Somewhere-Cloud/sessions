@@ -93,6 +93,17 @@ For harness development on another Unix host, `SESSIONS_ACCEPTANCE_FIXTURE=1`
 allows running against existing local binaries. Its receipt explicitly records
 the actual platform and cannot count as native Linux AMD64 acceptance.
 
+To check an exact **published** package on native Linux AMD64, run
+`node scripts/linux-published-npm-acceptance.mjs VERSION RECEIPT_JSON`.
+The optional `published_npm_version` CI dispatch input runs this same check.
+It installs from the public registry into a scratch prefix with no user npm
+configuration, explicitly runs the installed package's postinstall, checks the
+wrapper's version and help, then exercises that package's runtime with the
+isolated communication/restart/authentication harness. Its receipt distinguishes
+the harness source from the published version; it does not prove automatic npm
+script approval, systemd, OS reboot, provider login, or Linux ARM64. Explicit
+macOS ARM64 fixture mode checks the harness without claiming Linux execution.
+
 ## Development app artifacts
 
 ### Signed macOS runtime acceptance

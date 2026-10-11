@@ -11,6 +11,10 @@ on:
         description: Build an ad-hoc Apple Silicon app for local verification
         type: boolean
         default: false
+      published_npm_version:
+        description: Optional exact published npm version for isolated native Linux acceptance
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -63,6 +67,12 @@ jobs:
         run: node scripts/linux-runtime-acceptance.mjs "$RUNNER_TEMP/linux-runtime" "$RUNNER_TEMP/linux-acceptance.json"
       - name: Verify offline npm wrapper lifecycle fixtures on Linux
         run: npm --prefix npm test
+      - name: Exercise an explicitly selected public npm release on native Linux
+        if: github.event_name == 'workflow_dispatch' && inputs.published_npm_version != ''
+        env:
+          PUBLISHED_VERSION: ${{ inputs.published_npm_version }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: node scripts/linux-published-npm-acceptance.mjs "$PUBLISHED_VERSION" "$RUNNER_TEMP/linux-npm-acceptance.json"
       # The macOS job is the only other place Go tests run, so Linux-only code
       # (/proc liveness and ancestry, boot identity, resource enumeration, the
       # detached launcher, the systemd installer's fake-service tests) was
@@ -93,6 +103,7 @@ jobs:
           path: |
             ${{ runner.temp }}/linux-acceptance.json
             ${{ runner.temp }}/linux-acceptance.json.daemon.log
+            ${{ runner.temp }}/linux-npm-acceptance.json*
           if-no-files-found: warn
 
   verify:
