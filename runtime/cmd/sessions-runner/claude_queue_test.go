@@ -45,11 +45,32 @@ func newClaudeQueueFixture(t *testing.T) (*claudeStructuredRunner, string) {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
 	r := &claudeStructuredRunner{paths: paths, ctx: ctx, client: provider, sessionID: "fixture-claude",
 		historyFile: history, logger: log.New(io.Discard, "", 0), clients: make(map[*client]struct{}),
 		cfg: config{cwd: root}, active: true}
+	t.Cleanup(func() { stopClaudeQueueFixture(t, r, cancel) })
 	return r, logPath
+}
+
+// Canceling alone does not join runTurn: its deferred queue write can race
+// history.Close and TempDir removal, especially after a failed assertion.
+func stopClaudeQueueFixture(t *testing.T, r *claudeStructuredRunner, cancel context.CancelFunc) {
+	t.Helper()
+	cancel()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		r.queueMu.Lock()
+		r.mu.Lock()
+		// The fixture's initial busy state has no real provider turn to join.
+		waiting := r.active && r.queueCurrent != ""
+		r.mu.Unlock()
+		r.queueMu.Unlock()
+		if !waiting {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Error("canceled fixture turn did not finish before history cleanup")
 }
 
 func waitClaudeQueue(t *testing.T, r *claudeStructuredRunner, condition func(claudeMessageQueue) bool) {
@@ -98,6 +119,45 @@ func TestClaudeQueueSavesBusyMessagesAndRunsFIFOOnce(t *testing.T) {
 	}
 	if result := r.submitMessage(proto.MessageControl{OperationID: "first", Text: "different"}); result.Accepted {
 		t.Fatal("reused operation id changed an accepted message")
+	}
+}
+
+func TestClaudeQueueFixtureJoinsCanceledTurn(t *testing.T) {
+	r, logPath := newClaudeQueueFixture(t)
+	command := filepath.Join(r.cfg.cwd, "fake-claude")
+	script := "#!/bin/sh\nprintf 'started\\n' >> \"$QUEUE_TEST_LOG\"\nexec /bin/sleep 30\n"
+	if err := os.WriteFile(command, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if result := r.submitMessage(proto.MessageControl{OperationID: "slow", Text: "slow"}); !result.Accepted {
+		t.Fatal(result)
+	}
+	r.finishClaudeTurn("", true)
+	deadline := time.Now().Add(3 * time.Second)
+	var started bool
+	for time.Now().Before(deadline) {
+		if data, _ := os.ReadFile(logPath); string(data) == "started\n" {
+			started = true
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if !started {
+		t.Fatal("inert provider never started")
+	}
+	r.mu.Lock()
+	cancel := r.turnCancel
+	r.mu.Unlock()
+	if cancel == nil {
+		t.Fatal("running fixture has no cancellation")
+	}
+	stopClaudeQueueFixture(t, r, cancel)
+	r.queueMu.Lock()
+	defer r.queueMu.Unlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.active || !r.queue.Paused {
+		t.Fatal("canceled turn was not joined and paused before cleanup")
 	}
 }
 
