@@ -193,6 +193,7 @@ export function ResumeActions({
   const [historyChoice, setHistoryChoice] = useState<HistoryChoice>('all');
   const [lastMessages, setLastMessages] = useState(40);
   const [confirmed, setConfirmed] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(Boolean(preferredDestinationProvider && preferredDestinationProvider !== selected?.tool));
   const sourceProvider = selected?.tool ?? 'claude';
   const plan = usePaidStartPlan({
     sourceProvider,
@@ -203,6 +204,7 @@ export function ResumeActions({
   const { preview, loading: previewLoading, error: previewError } = useContinuationPreview(selected, plan.destination, historyChoice, lastMessages, preferredSourceSessionId);
   const crossProvider = Boolean(selected && selected.tool !== plan.destination);
   const same = useSameProviderResume(selected, preferredSourceSessionId, plan.destination, plan.runtime, plan.model, plan.effort, refresh, onResumed, onClose);
+  const access = !crossProvider && same.permissions === 'full' ? 'Full access (YOLO)' : 'Ask me';
   const continuation = useContinuationRun(refresh, onResumed, onClose);
   const working = crossProvider ? continuation.busy || continuation.job?.status === 'running' : same.busy;
   const error = crossProvider ? continuation.error : same.error;
@@ -214,7 +216,7 @@ export function ResumeActions({
     : working ? 'Starting…'
     : plan.ready
       ? `Start ${providerName(plan.destination)} (${plan.modelName})`
-      : 'Preparing details…';
+      : plan.modelError ? 'Cannot start yet' : 'Preparing details…';
   const title = selected?.title?.trim() || selected?.firstUserMessage?.trim() || 'Saved conversation';
   const sizeLine = crossProvider
     ? previewLoading
@@ -236,8 +238,10 @@ export function ResumeActions({
           onOpenSession={() => { if (continuation.job?.laneId) onResumed(continuation.job.laneId); }}
         />
       ) : selected ? (
+        <details className="resume-settings" open={settingsOpen} onToggle={(event) => setSettingsOpen(event.currentTarget.open)}>
+          <summary><strong>{providerName(plan.destination)} · {plan.modelName} · {plan.runtime === 'rich' ? 'Conversation' : 'Terminal'} · {access}</strong><span>Change agent, model or permissions</span></summary>
         <PaidStartPlan
-          plan={{ ...plan, access: !crossProvider && same.permissions === 'full' ? 'Full access (YOLO)' : 'Ask me' }}
+          plan={{ ...plan, access }}
           title={title}
           sizeLine={sizeLine}
           intro={crossProvider
@@ -265,7 +269,10 @@ export function ResumeActions({
             />
           ) : !selected.transcriptRecovery ? <ResumePermissions value={same.permissions} onChange={same.setPermissions} disabled={Boolean(working)} /> : null}
         </PaidStartPlan>
+        </details>
       ) : null}
+      {selected && !settingsOpen && !continuation.job ? <p className="resume-start-note">{crossProvider ? 'A new conversation copies your chosen history; the original stays unchanged.' : 'Continues the original conversation.'} {access === 'Full access (YOLO)' ? 'Commands can change files without approval.' : ''}</p> : null}
+      {selected && !settingsOpen && plan.modelError ? <div className="dialog-error" role="alert">{plan.modelError}</div> : null}
       {error ? <div className="dialog-error" role="alert">{error}</div> : null}
       {same.partialResult ? (
         <div className="dialog-warning" role="status" aria-live="assertive">

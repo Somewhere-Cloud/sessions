@@ -1,0 +1,25 @@
+.resume-discovery { display: grid; min-height: 0; gap: 16px; }
+.resume-dialog { width: min(720px, calc(92vw * var(--interface-scale-inverse, 1))); max-height: calc(92dvh * var(--interface-scale-inverse, 1)); gap: 8px; }
+.resume-dialog:has(.resume-preview) .resume-safety-note { display: none; }
+.resume-dialog-body { min-height: 160px; }
+.resume-discovery-list { min-width: 0; }
+.resume-preview { border-top: 1px solid var(--border); padding-top: 12px; min-width: 0; }
+.resume-preview h3 { font-size: 14px; margin: 0 0 12px; }
+.resume-preview h3 small { display: block; font-weight: 400; color: var(--fg-dim); margin-top: 4px; }
+.resume-preview-message { margin: 12px 0; }
+.resume-preview-message strong { font-size: 12px; }
+.resume-preview p { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.5; margin: 4px 0; }
+.resume-settings { flex: 0 0 auto; margin-top: 12px; max-height: calc(28dvh * var(--interface-scale-inverse, 1)); overflow: auto; border-top: 1px solid var(--border); }
+.resume-settings summary { cursor: pointer; padding: 12px 0; font-size: 13px; }
+.resume-settings summary strong { font-weight: 500; }
+.resume-settings summary span { display: block; color: var(--fg-dim); margin-top: 4px; }
+.resume-start-note { margin: 0; font-size: 12px; line-height: 1.5; color: var(--fg-dim); }
+.resume-dialog-head, .resume-dialog-foot { flex-shrink: 0; }
+@media (min-width: 720px) {
+  .resume-discovery.has-preview { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+  .resume-preview { position: sticky; top: 0; max-height: calc(42dvh * var(--interface-scale-inverse, 1)); overflow: auto; }
+}
+@media (max-width: 719px) {
+  .resume-preview { order: -1; }
+  .resume-dialog .dialog-kicker { display: none; }
+}

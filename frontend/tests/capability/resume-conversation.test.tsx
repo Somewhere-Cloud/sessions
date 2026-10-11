@@ -71,6 +71,7 @@ describe('capability: resume a conversation', () => {
 
     await user.click(screen.getByRole('button', { name: 'Resume' }));
     await user.click(await screen.findByRole('button', { name: /Thursday migration plan/ }));
+    await user.click(await screen.findByText('Change agent, model or permissions'));
     expect(await screen.findByRole('group', { name: 'Start plan' })).toHaveTextContent('Claude');
     expect(screen.getByText('Nothing runs until you press Start')).toBeInTheDocument();
     expect(daemon.adopted).toEqual([]);
@@ -97,6 +98,7 @@ describe('capability: resume a conversation', () => {
     render(<ResumeFlow onResumed={() => {}} />);
     await user.click(screen.getByRole('button', { name: 'Resume' }));
     await user.click(await screen.findByRole('button', { name: /Thursday migration plan/ }));
+    await user.click(await screen.findByText('Change agent, model or permissions'));
     const permissions = screen.getByRole('combobox', { name: 'Resume permissions' });
     expect(permissions).toHaveValue('full');
     await user.selectOptions(permissions, 'constrained');

@@ -127,8 +127,8 @@ function readSearchState(): SavedSearchState {
     const storedMode = typeof value.mode === 'string' ? value.mode : '';
     return {
       query: typeof value.query === 'string' ? value.query : '',
-      mode: storedMode === 'ai' || storedMode === 'ranked' ? storedMode : storedMode ? 'ranked' : 'ai',
-      speaker: value.speaker === '' || value.speaker === 'assistant' || value.speaker === 'tool' ? value.speaker : 'user',
+      mode: storedMode === 'ai' ? 'ai' : 'ranked',
+      speaker: value.speaker === 'user' || value.speaker === 'assistant' || value.speaker === 'tool' ? value.speaker : '',
       tool: value.tool === 'claude' || value.tool === 'codex' ? value.tool : '',
       sort: value.sort === 'timeline' ? 'timeline' : 'relevance',
       dateRange: value.dateRange === 'today' || value.dateRange === '7d' || value.dateRange === '30d' ? value.dateRange : 'all',
@@ -136,7 +136,7 @@ function readSearchState(): SavedSearchState {
       cwd: typeof value.cwd === 'string' ? value.cwd : ''
     };
   } catch {
-    return { query: '', mode: 'ai', speaker: 'user', tool: '', sort: 'relevance', dateRange: 'all', sessionName: '', cwd: '' };
+    return { query: '', mode: 'ranked', speaker: '', tool: '', sort: 'relevance', dateRange: 'all', sessionName: '', cwd: '' };
   }
 }
 

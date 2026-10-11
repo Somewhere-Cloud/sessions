@@ -59,6 +59,20 @@ describe('capability: search', () => {
     ).toBeInTheDocument();
     // And a way in.
     expect(await screen.findByRole('button', { name: /Open conversation/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Everything' })).toHaveClass('is-active');
+    expect(screen.getByRole('button', { name: 'Keywords' })).toHaveClass('is-active');
+    expect(await screen.findByText('Noted — flag first, then a staged rollout.')).toBeInTheDocument();
+  });
+
+  it('preserves a deliberately saved speaker filter', async () => {
+    const machine = localMachine();
+    installFakeDaemon([machine]);
+    useFakeMachines([machine]);
+    window.localStorage.setItem('sessions:search-state:v3', JSON.stringify({ query: 'rollout', mode: 'ranked', speaker: 'user' }));
+    render(<SearchView onResumeConversation={async () => {}} />);
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Search' }));
+    expect(await screen.findByRole('button', { name: 'What you said' })).toHaveClass('is-active');
+    expect(screen.getByRole('button', { name: 'Everything' })).not.toHaveClass('is-active');
   });
 
   it('says so plainly when nothing matches', async () => {
