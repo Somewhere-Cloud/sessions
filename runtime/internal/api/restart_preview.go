@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"os"
@@ -16,13 +17,24 @@ import (
 
 // These are provider-owned saved observations, not a network connection check.
 // Never read or expose credentials, or rewrite Claude's reconnection records.
+//
+// State, Restartable, Action and Command say what the destructive restart
+// would do with this record right now. A saved record that restart cannot end
+// is still a record: the preview names the command that does bring it back
+// rather than reading as if the runtime did not exist.
 type restartPreview struct {
-	SourceSessionID string `json:"sourceSessionId"`
-	Profile         string `json:"profile,omitempty"`
-	RemoteURL       string `json:"remoteUrl,omitempty"`
-	SavedLoginEmail string `json:"savedLoginEmail,omitempty"`
-	AccountChanged  bool   `json:"accountChanged"`
-	Warning         string `json:"warning,omitempty"`
+	SourceSessionID string          `json:"sourceSessionId"`
+	State           string          `json:"state"`
+	Restartable     bool            `json:"restartable"`
+	Action          string          `json:"action"`
+	Command         string          `json:"command,omitempty"`
+	Reason          string          `json:"reason,omitempty"`
+	RecordedRestart *restartRequest `json:"recordedRestart,omitempty"`
+	Profile         string          `json:"profile,omitempty"`
+	RemoteURL       string          `json:"remoteUrl,omitempty"`
+	SavedLoginEmail string          `json:"savedLoginEmail,omitempty"`
+	AccountChanged  bool            `json:"accountChanged"`
+	Warning         string          `json:"warning,omitempty"`
 }
 
 func (s *Server) handleRestartPreview(w http.ResponseWriter, r *http.Request, origin string) {
@@ -33,17 +45,163 @@ func (s *Server) handleRestartPreview(w http.ResponseWriter, r *http.Request, or
 		s.sendJSON(w, 400, map[string]any{"error": "sourceSessionId is required"}, origin)
 		return
 	}
-	source, found := s.registry.Get(body.SourceSessionID)
+	info, live, listing, found := s.restartPreviewSource(body.SourceSessionID)
 	if !found {
-		s.sendJSON(w, 404, map[string]any{"error": "This runtime is not available on this computer. Nothing was restarted."}, origin)
+		s.sendJSON(w, 404, map[string]any{"error": "This computer has no session record " + body.SourceSessionID +
+			". Nothing was restarted. If it runs on another machine, preview it there with `sessions --machine NAME restart " +
+			body.SourceSessionID + " --preview`."}, origin)
 		return
 	}
-	info := source.Info()
 	result := restartPreview{SourceSessionID: info.ID, Profile: info.Profile}
 	if info.Tool == state.ToolClaude {
 		result = claudeRestartPreview(info)
 	}
+	s.describeRestartOptions(&result, info, live, listing)
 	s.sendJSON(w, 200, result, origin)
+}
+
+// restartPreviewSource finds the record a preview describes. live is the test
+// the destructive restart applies to its target; any other record comes from
+// the same listing `sessions resume` and `sessions recover` read, including a
+// session that stayed paused after a reboot. Nothing here wakes or attaches it.
+func (s *Server) restartPreviewSource(id string) (state.SessionInfo, bool, []state.SessionInfo, bool) {
+	source, attached := s.registry.Get(id)
+	if attached && !source.HasExited() {
+		return source.Info(), true, nil, true
+	}
+	listing := s.registry.List(true)
+	for _, candidate := range listing {
+		if candidate.ID == id {
+			return candidate, false, listing, true
+		}
+	}
+	if attached {
+		return source.Info(), false, listing, true
+	}
+	if _, paused := s.pendingRestore(id); paused {
+		info := state.SessionInfo{ID: id, Unreachable: true, UnreachableReason: "restart-restore-pending"}
+		return info, false, listing, true
+	}
+	return state.SessionInfo{}, false, nil, false
+}
+
+func (s *Server) describeRestartOptions(result *restartPreview, info state.SessionInfo, live bool, listing []state.SessionInfo) {
+	paused := info.UnreachableReason == "restart-restore-pending"
+	result.State = restartPreviewState(info, live, paused)
+	result.Action = "none"
+	if s.describeRecordedRestart(result, info.ID, live) {
+		return
+	}
+	switch {
+	case live:
+		describeLiveRestart(result, info)
+	case info.MovedToEndpoint != "":
+		result.Reason = "This conversation moved to " + info.MovedToEndpoint + restartMovedLane(info) +
+			". Open it there; resuming or restarting it here would fork it."
+	case !paused && info.Tool != state.ToolClaude && info.Tool != state.ToolCodex:
+		result.Reason = "Restart and resume reopen a Claude or Codex conversation; this record has none. Inspect it with `sessions status " + info.ID + "`."
+	default:
+		describeSavedResume(result, info, listing, paused)
+	}
+}
+
+func restartPreviewState(info state.SessionInfo, live, paused bool) string {
+	switch {
+	case live && info.Unreachable:
+		return "unreachable"
+	case live:
+		return "running"
+	case paused:
+		return "needs-recovery"
+	case info.MovedToEndpoint != "":
+		return "moved"
+	case info.Exited:
+		return "exited"
+	default:
+		return "lost"
+	}
+}
+
+func restartMovedLane(info state.SessionInfo) string {
+	if info.MovedToSessionID == "" {
+		return ""
+	}
+	return " as " + info.MovedToSessionID
+}
+
+func describeLiveRestart(result *restartPreview, info state.SessionInfo) {
+	if info.Tool != state.ToolClaude && info.Tool != state.ToolCodex {
+		result.Reason = "Restart requires a Claude or Codex conversation."
+		return
+	}
+	if _, err := resolveRestartConversation(info); err != nil {
+		result.Reason = "The conversation cannot be reopened, so restart would refuse and leave this runtime running: " + err.Error()
+		return
+	}
+	result.Restartable, result.Action = true, "restart"
+}
+
+// describeSavedResume answers with the decision `sessions resume` itself makes,
+// including its refusal when a successor of this record is already running.
+// A reboot-paused record is answered the same way: `sessions resume` is the
+// command the paused-read contract already names for it.
+func describeSavedResume(result *restartPreview, info state.SessionInfo, listing []state.SessionInfo, paused bool) {
+	target := resolveResumeTarget(listing, info, "")
+	if target.Refusal != "" {
+		result.Reason = target.Refusal
+		if sessionStillRunning(target.Session) && target.Session.ID != info.ID {
+			result.Action, result.Command = "open", "sessions attach "+target.Session.ID
+		}
+		return
+	}
+	result.Action, result.Command = "resume", "sessions resume "+info.ID
+	result.Reason = "This runtime is no longer running, so restart has nothing to end. Resume reopens the same saved conversation with its recorded profile."
+	if paused {
+		result.Reason = "This session stayed paused after a reboot, so there is no running runtime to end. Resume reopens the same saved conversation with its recorded profile."
+	}
+}
+
+// describeRecordedRestart reports a restart already recorded for this source.
+// Repeating its exact choices is the idempotent way to finish it; resuming
+// instead would start a second runtime beside the recorded replacement. The
+// receipt is only read here.
+func (s *Server) describeRecordedRestart(result *restartPreview, id string, live bool) bool {
+	encoded, err := os.ReadFile(s.restartReceiptPath(restartOperationID(id)))
+	if errors.Is(err, os.ErrNotExist) {
+		return false
+	}
+	var receipt restartReceipt
+	if err == nil {
+		err = json.Unmarshal(encoded, &receipt)
+	}
+	if err != nil {
+		result.Reason = "The restart recorded for this runtime cannot be read: " + err.Error() + ". Restore state storage before retrying."
+		return true
+	}
+	request := receipt.Request
+	result.RecordedRestart = &request
+	if receipt.SourceEnded && live {
+		result.Reason = "A recorded restart already ended this runtime and it is live again, so a retry would refuse to end it. Inspect `sessions status " + id + "` before choosing a new operation."
+		return true
+	}
+	result.Restartable, result.Action = true, "retry-restart"
+	result.Command = restartRetryCommand(request)
+	result.Reason = "A restart of this runtime is already recorded. Repeating exactly these choices finishes it or returns its replacement without starting another runtime; different choices are refused."
+	return true
+}
+
+func restartRetryCommand(request restartRequest) string {
+	parts := []string{"sessions", "restart", request.SourceSessionID, "--confirm", request.ConfirmSessionID, "--permissions", request.Permissions}
+	switch request.RuntimeMode {
+	case "terminal":
+		parts = append(parts, "--terminal")
+	case "rich":
+		parts = append(parts, "--structured")
+	}
+	if request.RemoteControl {
+		parts = append(parts, "--remote-control")
+	}
+	return strings.Join(parts, " ")
 }
 
 func claudeRestartPreview(info state.SessionInfo) restartPreview {
@@ -61,7 +219,7 @@ func claudeRestartPreview(info state.SessionInfo) restartPreview {
 	}
 	adoption, err := recovery.ResolveAdoption(uuid, options)
 	if err != nil {
-		result.Warning = "Could not read the recorded Remote Control account. Restart uses this computer's current login; the previous Claude link is not guaranteed."
+		result.Warning = "Could not read the recorded Remote Control account. Reopening the conversation uses this computer's current login; the previous Claude link is not guaranteed."
 		return result
 	}
 	owner, url := recordedClaudeBridge(adoption.Path)
@@ -75,9 +233,9 @@ func claudeRestartPreview(info state.SessionInfo) restartPreview {
 	result.SavedLoginEmail = email
 	result.AccountChanged = owner != "" && account != "" && owner != account
 	if result.AccountChanged {
-		result.Warning = "Claude's saved login differs from the recorded Remote Control owner. To keep the previous Claude-app connection, sign into its original account on this computer before restarting. Otherwise Claude may create a different link under the current login. Local history stays intact."
+		result.Warning = "Claude's saved login differs from the recorded Remote Control owner. To keep the previous Claude-app connection, sign into its original account on this computer before reopening it. Otherwise Claude may create a different link under the current login. Local history stays intact."
 	} else if owner == "" || account == "" {
-		result.Warning = "The Remote Control account could not be compared. Restart uses this computer's current login; the previous Claude link is not guaranteed."
+		result.Warning = "The Remote Control account could not be compared. Reopening the conversation uses this computer's current login; the previous Claude link is not guaranteed."
 	}
 	return result
 }

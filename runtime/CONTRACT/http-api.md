@@ -1820,8 +1820,30 @@ saved login differs from the transcript's Remote Control owner or cannot be
 compared. These are provider-owned saved observations, not proof of a live
 connection or verified current authentication. The transcript scan reads at
 most its last 1 MiB; absent metadata is unknown. No credential is exposed and
-no receipt, history, account, or runtime is changed. Unknown sources return
-404; malformed requests return 400. CLI: `sessions restart SESSION --preview`.
+no receipt, history, account, ledger record, or runtime is changed, and a
+paused runner is not woken.
+
+The source may be any record `GET /api/sessions?include_exited=1` lists, not only a live
+runtime. The additive fields say what the destructive restart would do with it:
+
+| Field | Meaning |
+|---|---|
+| `state` | `running`, `unreachable` (live runtime the daemon cannot currently reach), `needs-recovery` (paused after reboot), `lost`, `exited`, or `moved` |
+| `restartable` | `true` only when `POST /api/recovery/restart` would act on this source now |
+| `action` | `restart`, `retry-restart`, `resume`, `open`, or `none` |
+| `command` | optional exact CLI command for `action`; absent for `restart` and `none` |
+| `reason` | optional instructional sentence |
+| `recordedRestart` | optional choices of a restart already recorded for this source |
+
+A Claude or Codex record that is not live is not restartable; its action is
+`resume` with `sessions resume <id>`, the same decision resume makes, or `open`
+with `sessions attach <successor>` when a successor of the record is running.
+A record moved to another machine names that machine and offers no command,
+because reopening it here forks it. When a restart receipt exists, the action is
+`retry-restart` and `command` repeats its exact choices, which finishes or
+replays that operation without another runtime. Only an id with no record on
+this daemon returns 404; malformed requests return 400. CLI:
+`sessions restart SESSION --preview`.
 
 Auth required. Ends exactly one live Claude or Codex runtime and creates a
 replacement for its native provider conversation. It never follows the source's
