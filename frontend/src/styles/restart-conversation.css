@@ -10,3 +10,6 @@
 .restart-conversation-dialog details p { margin-top: 8px; }
 .restart-conversation-dialog label { display: flex; align-items: center; gap: 10px; }
 .restart-conversation-dialog .dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.restart-conversation-dialog .restart-recorded-choices { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0; }
+.restart-conversation-dialog .restart-recorded-choices dt { color: var(--fg-dim); }
+.restart-conversation-dialog .restart-recorded-choices dd { margin: 0; font-weight: 600; }

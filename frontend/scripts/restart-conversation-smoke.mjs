@@ -79,6 +79,15 @@ try {
   // resume or open gets that action, never a button that ends a runtime.
   const source = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
   const buttons = () => page.$$eval('[role=dialog] button', (items) => items.map((item) => item.textContent));
+  const heading = () => page.$eval('[role=dialog] h2', (element) => element.textContent);
+  // Private review evidence only: the same mocked dialog at desktop and phone widths.
+  const capture = async (name) => {
+    if (!process.env.RESTART_UI_SCREENSHOT_DIR) return;
+    await page.screenshot({ path: `${process.env.RESTART_UI_SCREENSHOT_DIR}/${name}.png` });
+    await page.setViewport({ width: 390, height: 844 });
+    await page.screenshot({ path: `${process.env.RESTART_UI_SCREENSHOT_DIR}/${name}-narrow.png` });
+    await page.setViewport({ width: 1100, height: 850 });
+  };
   const reviewWith = async (answer) => {
     previewAnswer = answer; partial = false; requests.length = 0;
     await page.reload(); await page.waitForSelector('textarea');
@@ -88,7 +97,8 @@ try {
     reason: 'This runtime is no longer running, so restart has nothing to end. Resume reopens the same saved conversation with its recorded profile.' });
   await page.waitForFunction(() => [...document.querySelectorAll('[role=dialog] button')].some((item) => item.textContent === 'Resume conversation'));
   assert.deepEqual(await buttons(), ['Close', 'Resume conversation']);
-  if (process.env.RESTART_UI_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.RESTART_UI_SCREENSHOT_DIR}/restart-preview-resume.png` });
+  assert.equal(await heading(), 'Resume “Restart fixture”');
+  await capture('restart-preview-resume');
   await clickText('Resume conversation'); await page.waitForSelector('[data-resumed]');
   assert.equal(await page.$eval('[data-resumed]', (element) => element.textContent), source);
   assert.deepEqual(requests, [], 'a resume answer never posts a restart');
@@ -97,7 +107,8 @@ try {
     reason: 'aaaaaaaa was already continued, and bbbbbbbb is running now; open it instead of starting a second runner on the same conversation' });
   await page.waitForFunction(() => [...document.querySelectorAll('[role=dialog] button')].some((item) => item.textContent === 'Open running copy'));
   assert.deepEqual(await buttons(), ['Close', 'Open running copy']);
-  if (process.env.RESTART_UI_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.RESTART_UI_SCREENSHOT_DIR}/restart-preview-open.png` });
+  assert.equal(await heading(), 'Open running copy of “Restart fixture”');
+  await capture('restart-preview-open');
   await clickText('Open running copy'); await page.waitForSelector('[data-opened]');
   assert.equal(await page.$eval('[data-opened]', (element) => element.textContent), laneId);
   assert.deepEqual(requests, [], 'opening the running copy never posts a restart');
@@ -106,7 +117,7 @@ try {
     reason: 'This conversation moved to https://mini.example.test:8787. Open it there; resuming or restarting it here would fork it.' });
   await page.waitForFunction(() => document.querySelector('[role=dialog] [role=status]')?.textContent?.includes('would fork it'));
   assert.deepEqual(await buttons(), ['Close']);
-  if (process.env.RESTART_UI_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.RESTART_UI_SCREENSHOT_DIR}/restart-preview-none.png` });
+  await capture('restart-preview-none');
   await clickText('Close');
   assert.deepEqual(requests, []);
 
@@ -115,12 +126,25 @@ try {
     command: `sessions restart ${source} --confirm ${source} --permissions constrained --terminal`,
     reason: 'A restart of this runtime is already recorded. Repeating exactly these choices finishes it or returns its replacement without starting another runtime; different choices are refused.' });
   await page.waitForFunction(() => [...document.querySelectorAll('[role=dialog] button')].some((item) => item.textContent === 'Retry recorded restart'));
-  assert.equal(await page.$eval('[aria-label="Restart permissions"]', (element) => element.value), 'constrained');
-  assert.equal(await page.$eval('[aria-label="Restart permissions"]', (element) => element.disabled), true);
-  if (process.env.RESTART_UI_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.RESTART_UI_SCREENSHOT_DIR}/restart-preview-recorded.png` });
+  assert.equal(await page.$('[aria-label="Restart permissions"]'), null, 'recorded choices are stated, not offered');
+  assert.equal(await page.$eval('[aria-label="Recorded choices"]', (element) => element.textContent), 'PermissionsAsk for approvalRuntimeTerminalRemote ControlOff');
+  assert.match(await page.$eval('[role=dialog]', (element) => element.textContent), /Retrying ends runtime aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee first/);
+  await capture('restart-preview-recorded');
+  await clickText('Retry recorded restart'); await page.waitForSelector('[data-opened]');
+  assert.deepEqual(requests, [{ sourceSessionId: source, confirmSessionId: source, ...recorded }]);
+
+  // The recorded restart already ended the source: retrying interrupts nothing.
+  await reviewWith({ state: 'exited', restartable: true, action: 'retry-restart', recordedRestart: recorded,
+    command: `sessions restart ${source} --confirm ${source} --permissions constrained --terminal`,
+    reason: 'A restart of this runtime is already recorded. Repeating exactly these choices finishes it or returns its replacement without starting another runtime; different choices are refused.' });
+  await page.waitForFunction(() => [...document.querySelectorAll('[role=dialog] button')].some((item) => item.textContent === 'Retry recorded restart'));
+  const ended = await page.$eval('[role=dialog]', (element) => element.textContent);
+  assert.match(ended, /already ended, so retrying interrupts nothing/);
+  assert.doesNotMatch(ended, /interrupted|interrupts its current turn|different choices are refused/);
+  await capture('restart-preview-recorded-ended');
   await clickText('Retry recorded restart'); await page.waitForSelector('[data-opened]');
   assert.deepEqual(requests, [{ sourceSessionId: source, confirmSessionId: source, ...recorded }]);
 
   assert.deepEqual(errors, []); assert.deepEqual(failed, []);
-  console.log('restart UI passed: exact runtime review, cancel, YOLO + Remote Control, automatic reopen, draft copy, source retirement, partial retry, preview resume/open/none without a restart, recorded retry with exact choices, no failed requests');
+  console.log('restart UI passed: exact runtime review, cancel, YOLO + Remote Control, automatic reopen, draft copy, source retirement, partial retry, preview resume/open/none without a restart and with matching headings, recorded retry with exact choices before and after the source ended, no failed requests');
 } finally { await closeBrowser(browser); await closeServer(server); await rm(work, { recursive: true, force: true }); }

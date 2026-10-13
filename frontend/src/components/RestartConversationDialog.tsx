@@ -38,6 +38,31 @@ function RestartChoices({ session, choice, locked, onPermissions, onRuntimeMode,
   </>;
 }
 
+const permissionLabel = { constrained: 'Ask for approval', full: 'Full access (YOLO)' } as const;
+const runtimeLabel = { rich: 'Rich', terminal: 'Terminal' } as const;
+
+/** A recorded restart's choices, read-only, and whether retrying still interrupts anything. */
+function RecordedRestart({ session, choice, sourceRunning }: { session: SessionInfo; choice: RestartChoice; sourceRunning: boolean }): JSX.Element {
+  return <>
+    <p role="status">A restart is already recorded. Retrying repeats its choices and never starts a second replacement.</p>
+    <dl className="restart-recorded-choices" aria-label="Recorded choices">
+      <dt>Permissions</dt><dd>{permissionLabel[choice.permissions]}</dd>
+      <dt>Runtime</dt><dd>{choice.runtimeMode ? runtimeLabel[choice.runtimeMode] : `${runtimeLabel[sessionMode(session)]}, unchanged`}</dd>
+      {session.tool === 'claude-code' ? <><dt>Remote Control</dt><dd>{choice.remoteControl ? 'On' : 'Off'}</dd></> : null}
+    </dl>
+    {choice.permissions === 'full' ? <p>Full access lets the replacement run commands without approval.</p> : null}
+    {sourceRunning
+      ? <p>Retrying ends runtime <code>{session.id}</code> first; {session.working ? 'its current turn and ' : ''}running commands are interrupted.</p>
+      : <p>The original runtime has already ended, so retrying interrupts nothing.</p>}
+  </>;
+}
+
+/** The verb the daemon's preview offers, so the heading matches the one action button. */
+function dialogVerb(unavailable: RestartPreview | null, offer: { label: string } | null): string {
+  if (!offer) return 'Restart';
+  return unavailable?.action === 'open' ? 'Open running copy of' : 'Resume';
+}
+
 /** What the daemon offers instead when this record has no runtime to end. */
 function unavailableAction(preview: RestartPreview, canResume: boolean): { label: string; target: string } | null {
   if (preview.action === 'resume' && canResume) return { label: 'Resume conversation', target: preview.targetSessionId ?? preview.sourceSessionId };
@@ -79,6 +104,8 @@ export function RestartConversationDialog({ session, onOpen, onResume, serverId,
   const recorded = preview?.action === 'retry-restart' ? preview.recordedRestart : undefined;
   const choice: RestartChoice = recorded ?? { permissions, remoteControl, runtimeMode: remoteControl ? 'terminal' : runtimeMode };
   const offer = unavailable ? unavailableAction(unavailable, Boolean(onResume)) : null;
+  // Older daemons omit state; only a runtime that is still there can be interrupted.
+  const sourceRunning = !preview?.state || preview.state === 'running' || preview.state === 'unreachable';
   const show = async (id: string, elsewhere: string, unlisted: string): Promise<void> => {
     if (getActiveServer().id !== machineId) throw new Error(elsewhere);
     const { useSessions } = await import('../store/sessions');
@@ -129,19 +156,21 @@ export function RestartConversationDialog({ session, onOpen, onResume, serverId,
   };
   return createPortal(<div className="dialog-backdrop" onClick={(event) => event.stopPropagation()}>
       <section className="dialog restart-conversation-dialog" role="dialog" aria-modal="true" aria-labelledby={`restart-title-${session.id}`}>
-        <h2 id={`restart-title-${session.id}`}>Restart “{resolvedSessionLabel(session)}”</h2>
+        <h2 id={`restart-title-${session.id}`}>{dialogVerb(unavailable, offer)} “{resolvedSessionLabel(session)}”</h2>
         <p><strong>On {machineName}</strong> · This does not move the conversation to another computer.</p>
         {unavailable ? <p role="status">{unavailable.reason || 'This runtime is not running here, so there is nothing to restart.'}</p> : <>
+        {recorded ? <RecordedRestart session={session} choice={recorded} sourceRunning={sourceRunning} /> : <>
         <p>Keeps the saved conversation and your unsent draft. Running commands are interrupted. Your draft is never sent automatically.</p>
         <details><summary>What restarts</summary><p>This ends only runtime <code>{session.id}</code>{session.pid ? ` (PID ${session.pid})` : ''} and reopens the same {session.tool === 'codex' ? 'Codex' : 'Claude'} conversation.</p><p>Login profile: {session.profile || 'default'} · Model: {session.model || 'current'}</p></details>
-        <p>Uses this profile’s current sign-in, not necessarily the account that originally opened this chat.</p>
-        {preview?.savedLoginEmail ? <p>Saved sign-in: {preview.savedLoginEmail} (not verified live).</p> : null}
+        </>}
+        <p>Uses this profile’s current sign-in, not necessarily the account that originally opened this chat.{preview?.savedLoginEmail ? ` Saved sign-in: ${preview.savedLoginEmail} (not verified live).` : ''}</p>
         {preview?.warning || previewError ? <p role="status">{preview?.warning ?? previewError}</p> : null}
-        {recorded && !submitted ? <p role="status">{preview?.reason ?? 'A restart of this runtime is already recorded. Retrying finishes it with the same choices.'}</p> : null}
         {choice.remoteControl && !preview?.accountChanged ? <p>A changed Claude login may use a different Remote Control link.</p> : null}
+        {recorded ? null : <>
         {session.working ? <p role="status">This agent is working. Restart interrupts its current turn.</p> : null}
-        <RestartChoices session={session} choice={choice} locked={busy || submitted || Boolean(recorded)}
+        <RestartChoices session={session} choice={choice} locked={busy || submitted}
           onPermissions={setPermissions} onRuntimeMode={setRuntimeMode} onRemoteControl={setRemoteControl} />
+        </>}
         </>}
         {error ? <p role="alert">{error}</p> : null}
         {result?.sourceEnded ? <p role="status">Original runtime ended.{result.laneId ? ` Replacement: ${result.laneId}.` : ' Replacement creation is incomplete.'}</p> : null}

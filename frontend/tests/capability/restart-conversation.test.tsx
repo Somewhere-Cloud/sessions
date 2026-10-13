@@ -177,7 +177,9 @@ describe('restart follows the daemon preview', () => {
       reason: 'This runtime is no longer running, so restart has nothing to end. Resume reopens the same saved conversation with its recorded profile.' });
     render(<><RestartConversation session={source} onOpen={onOpen} onResume={onResume} /><RestartConversationHost /></>);
     await user.click(screen.getByRole('button', { name: 'Restart / change permissions…' }));
-    await user.click(await screen.findByRole('button', { name: 'Resume conversation' }));
+    await screen.findByRole('button', { name: 'Resume conversation' });
+    expect(screen.getByRole('heading')).toHaveTextContent('Resume “Restart fixture”');
+    await user.click(screen.getByRole('button', { name: 'Resume conversation' }));
     expect(onResume).toHaveBeenCalledExactlyOnceWith(source);
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(screen.queryByRole('button', { name: 'End this runtime and reopen' })).toBeNull();
@@ -193,6 +195,7 @@ describe('restart follows the daemon preview', () => {
     render(<><RestartConversation session={source} onOpen={onOpen} onResume={onResume} /><RestartConversationHost /></>);
     await user.click(screen.getByRole('button', { name: 'Restart / change permissions…' }));
     expect(await screen.findByRole('status')).toHaveTextContent('open it instead');
+    expect(screen.getByRole('heading')).toHaveTextContent('Open running copy of “Restart fixture”');
     expect(screen.queryByRole('combobox', { name: 'Restart permissions' })).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Open running copy' }));
     await waitFor(() => expect(onOpen).toHaveBeenCalledExactlyOnceWith(laneId));
@@ -208,6 +211,7 @@ describe('restart follows the daemon preview', () => {
     render(<><RestartConversation session={source} onOpen={vi.fn()} onResume={vi.fn()} /><RestartConversationHost /></>);
     await user.click(screen.getByRole('button', { name: 'Restart / change permissions…' }));
     expect(await screen.findByRole('status')).toHaveTextContent('would fork it');
+    expect(screen.getByRole('heading')).toHaveTextContent('Restart “Restart fixture”');
     const dialog = screen.getByRole('dialog');
     expect([...dialog.querySelectorAll('button')].map((button) => button.textContent)).toEqual(['Close']);
     expect(restartPosts()).toEqual([]);
@@ -228,19 +232,48 @@ describe('restart follows the daemon preview', () => {
     expect(restartPosts()).toEqual([{ sourceSessionId: source.id, confirmSessionId: source.id, ...recorded }]);
   });
 
-  it('shows recorded choices locked, and omits a runtime the recorded restart left unset', async () => {
+  it('shows recorded choices read-only, and omits a runtime the recorded restart left unset', async () => {
     const user = userEvent.setup(); const onOpen = vi.fn();
     vi.stubGlobal('fetch', listing([makeSession({ id: laneId })]));
     preview({ state: 'running', restartable: true, action: 'retry-restart', recordedRestart: { permissions: 'full', remoteControl: false } });
     render(<><RestartConversation session={source} onOpen={onOpen} /><RestartConversationHost /></>);
     await user.click(screen.getByRole('button', { name: 'Restart / change permissions…' }));
     await screen.findByRole('button', { name: 'Retry recorded restart' });
-    expect(screen.getByRole('combobox', { name: 'Restart permissions' })).toHaveValue('full');
-    expect(screen.getByRole('combobox', { name: 'Restart permissions' })).toBeDisabled();
-    expect(screen.getByRole('combobox', { name: 'Restart runtime' })).toBeDisabled();
+    // Nothing to choose: the recorded choices are stated, not offered.
+    expect(screen.queryByRole('combobox')).toBeNull();
+    const choices = screen.getByLabelText('Recorded choices');
+    expect(choices).toHaveTextContent('PermissionsFull access (YOLO)');
+    expect(choices).toHaveTextContent('RuntimeRich, unchanged');
+    expect(choices).toHaveTextContent('Remote ControlOff');
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent('run commands without approval');
+    // The source is still running, so the retry still ends it.
+    expect(dialog).toHaveTextContent(`Retrying ends runtime ${source.id} first; its current turn and running commands are interrupted.`);
     await user.click(screen.getByRole('button', { name: 'Retry recorded restart' }));
     await waitFor(() => expect(onOpen).toHaveBeenCalledExactlyOnceWith(laneId));
     expect(restartPosts()).toEqual([{ sourceSessionId: source.id, confirmSessionId: source.id, permissions: 'full', remoteControl: false }]);
+  });
+
+  it('does not claim a second interruption when the recorded restart already ended the source', async () => {
+    const user = userEvent.setup(); const onOpen = vi.fn();
+    vi.stubGlobal('fetch', listing([makeSession({ id: laneId })]));
+    const recorded = { permissions: 'constrained' as const, remoteControl: true, runtimeMode: 'terminal' as const };
+    preview({ state: 'exited', restartable: true, action: 'retry-restart', recordedRestart: recorded,
+      reason: 'A restart of this runtime is already recorded. Repeating exactly these choices finishes it or returns its replacement without starting another runtime; different choices are refused.' });
+    render(<><RestartConversation session={source} onOpen={onOpen} /><RestartConversationHost /></>);
+    await user.click(screen.getByRole('button', { name: 'Restart / change permissions…' }));
+    await screen.findByRole('button', { name: 'Retry recorded restart' });
+    const dialog = screen.getByRole('dialog');
+    expect(screen.getByRole('heading')).toHaveTextContent('Restart “Restart fixture”');
+    expect(dialog).toHaveTextContent('The original runtime has already ended, so retrying interrupts nothing.');
+    expect(dialog).not.toHaveTextContent('interrupted');
+    expect(dialog).not.toHaveTextContent('interrupts its current turn');
+    // The daemon's long retry paragraph is summarized, not repeated.
+    expect(dialog).not.toHaveTextContent('different choices are refused');
+    expect(screen.getByLabelText('Recorded choices')).toHaveTextContent('PermissionsAsk for approvalRuntimeTerminalRemote ControlOn');
+    await user.click(screen.getByRole('button', { name: 'Retry recorded restart' }));
+    await waitFor(() => expect(onOpen).toHaveBeenCalledExactlyOnceWith(laneId));
+    expect(restartPosts()).toEqual([{ sourceSessionId: source.id, confirmSessionId: source.id, ...recorded }]);
   });
 
   it('does not offer restart on a row paused after a reboot', () => {
