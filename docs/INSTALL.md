@@ -4,10 +4,9 @@ Sessions.app is the primary macOS package, carrying a bundled-runtime installer
 and a signed updater. Public releases are Developer ID signed, notarized,
 stapled, and backed by an immutable updater artifact; see
 [GitHub Releases](https://github.com/somewhere-tech/sessions/releases/latest)
-for the current version. The current public release is 0.2.26. This branch
-targets the unpublished 0.2.28 candidate; its Linux systemd installer and npm
-package require candidate bytes until that release is published. These
-instructions do not make candidate assets publicly available.
+for the current published version. This branch can contain unreleased changes;
+these instructions do not make candidate assets publicly available. npm
+publication and installed-app updates are separate from GitHub publication.
 
 The standalone instructions below remain useful for agents, developers, and
 headless installs. Prefer the native app for interactive macOS use. Do not
@@ -140,9 +139,8 @@ For a public repository, the same command works without authentication. Agents
 that do not have `gh` can use the direct HTTPS form:
 
 ```sh
-# This candidate example works only after v0.2.28 assets are published.
-# Until then, select an existing tag from the releases page or build from source.
-VERSION=0.2.28
+# Example published version; select the desired release explicitly.
+VERSION=0.2.29
 ARCHIVE="sessions_${VERSION}_darwin_arm64.tar.gz"
 curl -fLO "https://github.com/somewhere-tech/sessions/releases/download/v${VERSION}/${ARCHIVE}"
 curl -fLO "https://github.com/somewhere-tech/sessions/releases/download/v${VERSION}/${ARCHIVE}.sha256"
@@ -174,7 +172,7 @@ fully usable from the CLI. Interactive browser control is deprecated.
 
 ### Start on Linux
 
-With the 0.2.28 candidate on a Linux machine running systemd, install the user service:
+On a Linux machine running systemd, install the user service:
 
 ```sh
 sessions install

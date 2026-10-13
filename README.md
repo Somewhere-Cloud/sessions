@@ -23,9 +23,8 @@ agent CLI you want to run separately.
 
 ## Install
 
-This branch targets the **0.2.28 release candidate**, which is not yet published.
-The current public release is 0.2.26; candidate-only behavior below requires a
-candidate build, not the current Homebrew or GitHub download.
+Use a published release from the link below. This branch may include changes
+not yet published; source availability does not mean an installed app is current.
 
 Sessions.app is the primary macOS package. The current signed, notarized Apple
 Silicon build is available from
@@ -44,12 +43,11 @@ sessions install
 ```
 
 Release automation produces static archives for macOS arm64 and Linux
-arm64/amd64. Once 0.2.28 is published, an agent can fetch that exact immutable
-version without parsing a web page. Until then, use an existing published tag
-or follow the [development build guide](docs/DEV.md):
+arm64/amd64. An agent can fetch an exact published version without parsing a
+web page, or follow the [development build guide](docs/DEV.md):
 
 ```sh
-VERSION=0.2.28 # Requires published v0.2.28 assets; not available yet.
+VERSION=0.2.29 # Example published version; select the desired release explicitly.
 ARCHIVE="sessions_${VERSION}_darwin_arm64.tar.gz"
 gh release download "v${VERSION}" --repo somewhere-tech/sessions \
   --pattern "$ARCHIVE" --pattern "$ARCHIVE.sha256"
@@ -61,7 +59,7 @@ sessions install
 sessions status --json
 ```
 
-In the 0.2.28 candidate, Linux `sessions install` registers and starts a systemd user service.
+On Linux, `sessions install` registers and starts a systemd user service.
 Runners are separate processes; `sessions install --restart-daemon` switches the
 daemon only when systemd reports the unit's effective `KillMode=process`, under
 which a stop signals only the daemon. After a reboot the service discovers retained conversations as
@@ -77,10 +75,10 @@ label explicitly with `SESSIONS_DAEMON_LABEL` when needed. Direct loopback use i
 zero-setup; LAN and remote clients normally authenticate with the token printed
 by the command. Print it again later with `sessions token`.
 
-The candidate [npm distribution](npm/README.md) wraps the same native Go binaries and pins
+The [npm distribution](npm/README.md) wraps the same native Go binaries and pins
 their archive and binary checksums. Its checked-in release manifest remains
-unprepared until the matching release assets exist; this is not a claim that
-0.2.28 is available on npm. There is no `curl | sh` installer. See
+unprepared until the matching release assets exist. npm publication is a separate
+step from GitHub publication. There is no `curl | sh` installer. See
 [installation details](docs/INSTALL.md) for exact archive names, agent-safe
 downloads, PATH setup, Linux startup, upgrades, and uninstalling.
 
