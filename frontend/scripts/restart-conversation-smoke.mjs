@@ -11,7 +11,12 @@ import { closeBrowser, closeServer } from './lib/smoke.mjs';
 const work = await mkdtemp(join(tmpdir(), 'sessions-restart-ui-'));
 const laneId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 let browser; let server; let partial = false; let previewAnswer = {};
+// When set, the next preview is held unanswered so the dialog can be cancelled while it is in flight.
+let holdPreview = null;
+const deferred = () => { let resolve; const promise = new Promise((done) => { resolve = done; }); return { promise, resolve }; };
 const requests = []; const failed = []; const errors = [];
+// The one request this smoke cancels on purpose. Only its browser abort is expected; any other failure counts.
+let cancelOnPurpose = null; const cancelled = [];
 try {
   await build({ entryPoints: [fileURLToPath(new URL('./restart-conversation-fixture.tsx', import.meta.url))], outdir: work,
     bundle: true, platform: 'browser', format: 'esm', entryNames: 'app',
@@ -19,6 +24,10 @@ try {
   await writeFile(join(work, 'index.html'), '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><link rel="stylesheet" href="/app.css"></head><body><div id="root"></div><script type="module" src="/app.js"></script></body></html>');
   server = createServer(async (request, response) => {
     if (request.url === '/api/recovery/restart/preview') {
+      if (holdPreview) {
+        const hold = holdPreview; holdPreview = null;
+        response.on('close', () => hold.closed.resolve(response.writableFinished)); hold.arrived.resolve(); return;
+      }
       response.writeHead(200, { 'content-type': 'application/json' });
       response.end(JSON.stringify({ sourceSessionId: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', accountChanged: true, savedLoginEmail: 'fixture@example.test', warning: 'Saved login differs from the recorded Remote Control owner.', ...previewAnswer })); return;
     }
@@ -43,7 +52,10 @@ try {
   browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] });
   const page = await browser.newPage(); page.setDefaultTimeout(10000);
   page.on('pageerror', (error) => errors.push(error.message));
-  page.on('requestfailed', (request) => failed.push(request.url()));
+  page.on('requestfailed', (request) => {
+    const reason = request.failure()?.errorText;
+    if (request === cancelOnPurpose && reason === 'net::ERR_ABORTED') cancelled.push(request.url()); else failed.push(`${request.url()} ${reason}`);
+  });
   page.on('response', (response) => { if (response.status() >= 400) failed.push(`${response.status()} ${response.url()}`); });
   await page.setViewport({ width: 1100, height: 850 });
   const url = `http://127.0.0.1:${server.address().port}`;
@@ -52,11 +64,36 @@ try {
     await page.evaluate((label) => { const button = [...document.querySelectorAll('button')].find((item) => item.textContent === label && !item.disabled); if (!button) throw new Error(`missing enabled button ${label}`); button.click(); }, text);
   };
   await page.goto(url); await page.waitForSelector('textarea');
-  await clickText('Restart / change permissions…'); await page.waitForSelector('[role=dialog]');
+  // Normal review: Cancel only after the preview has answered, so nothing is in flight to abort.
+  const previewAnswered = () => page.waitForFunction(() => document.querySelector('[role=dialog]')?.textContent?.includes('Saved login differs from the recorded Remote Control owner.'));
+  const pendingRestartButton = () => page.$$eval('[role=dialog] button', (items) => items.filter((item) => item.textContent === 'End this runtime and reopen').map((item) => item.disabled));
+  await clickText('Restart / change permissions…'); await page.waitForSelector('[role=dialog]'); await previewAnswered();
   const review = await page.$eval('[role=dialog]', (element) => element.textContent);
   assert.match(review, /aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee/); assert.match(review, /PID 4242/); assert.match(review, /fixture-work/); assert.match(review, /fixture-model/);
-  assert.match(review, /On This computer/); assert.match(review, /not necessarily the account/);
-  await clickText('Cancel'); assert.equal(requests.length, 0);
+  assert.match(review, /On This computer/); assert.match(review, /not necessarily the account/); assert.match(review, /Saved sign-in: fixture@example\.test/);
+  assert.deepEqual(await pendingRestartButton(), [false]);
+  await clickText('Cancel'); await page.waitForFunction(() => !document.querySelector('[role=dialog]')); assert.equal(requests.length, 0);
+
+  // Cancel while the preview is still in flight: closing aborts exactly that request, posts no restart,
+  // shows no error, and a reopened dialog asks again instead of reusing anything from the cancelled one.
+  const hold = { arrived: deferred(), closed: deferred() }; holdPreview = hold;
+  const inFlight = page.waitForRequest((request) => request.url().endsWith('/api/recovery/restart/preview'));
+  await clickText('Restart / change permissions…'); await page.waitForSelector('[role=dialog]');
+  const cancelling = await inFlight; await hold.arrived.promise;
+  assert.deepEqual(await pendingRestartButton(), [true], 'restart waits for the preview');
+  const abortReason = new Promise((resolve) => {
+    const settle = (request) => { if (request === cancelling) { page.off('requestfailed', settle); resolve(request.failure()?.errorText); } };
+    page.on('requestfailed', settle);
+  });
+  cancelOnPurpose = cancelling; await clickText('Cancel');
+  assert.equal(await abortReason, 'net::ERR_ABORTED');
+  assert.equal(await hold.closed.promise, false, 'the browser dropped the preview before the server answered it');
+  assert.equal(await page.$('[role=dialog]'), null); assert.equal(await page.$('[role=alert]'), null); assert.equal(requests.length, 0);
+  await clickText('Restart / change permissions…'); await page.waitForSelector('[role=dialog]'); await previewAnswered();
+  const reopened = await page.$eval('[role=dialog]', (element) => element.textContent);
+  assert.doesNotMatch(reopened, /Account check unavailable|abort/i); assert.equal(await page.$('[role=alert]'), null);
+  assert.deepEqual(await pendingRestartButton(), [false]);
+  await clickText('Cancel'); await page.waitForFunction(() => !document.querySelector('[role=dialog]')); assert.equal(requests.length, 0);
   await page.type('textarea', 'My exact unsent draft');
   await clickText('Restart / change permissions…');
   await page.select('[aria-label="Restart permissions"]', 'full'); await page.click('input[type=checkbox]');
@@ -145,6 +182,6 @@ try {
   await clickText('Retry recorded restart'); await page.waitForSelector('[data-opened]');
   assert.deepEqual(requests, [{ sourceSessionId: source, confirmSessionId: source, ...recorded }]);
 
-  assert.deepEqual(errors, []); assert.deepEqual(failed, []);
-  console.log('restart UI passed: exact runtime review, cancel, YOLO + Remote Control, automatic reopen, draft copy, source retirement, partial retry, preview resume/open/none without a restart and with matching headings, recorded retry with exact choices before and after the source ended, no failed requests');
+  assert.deepEqual(errors, []); assert.deepEqual(failed, []); assert.deepEqual(cancelled, [`${url}/api/recovery/restart/preview`]);
+  console.log('restart UI passed: exact runtime review, cancel after the preview answered, cancel during the preview aborting only that request, YOLO + Remote Control, automatic reopen, draft copy, source retirement, partial retry, preview resume/open/none without a restart and with matching headings, recorded retry with exact choices before and after the source ended, no failed requests');
 } finally { await closeBrowser(browser); await closeServer(server); await rm(work, { recursive: true, force: true }); }
