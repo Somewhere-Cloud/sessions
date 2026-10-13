@@ -528,6 +528,61 @@ func TestPullRequestOlderRefreshDoesNotOverwriteNewerConfirmation(t *testing.T) 
 	}
 }
 
+// A read that began under an earlier link of the same URL belongs to that
+// link. Relinking A, then B, then A again while it is in flight starts a new
+// link with no observation; the old read must not become its first one,
+// labelled fresh, even though the URL matches again.
+func TestPullRequestReadFromAnEarlierLinkOfTheSameURLIsDropped(t *testing.T) {
+	ctx := context.Background()
+	fetcher := newOrderedFetcher(pendingObservation, passingObservation)
+	manager, _, store := newPullRequestTestManager(t, filepath.Join(t.TempDir(), "lanes.sqlite3"), fetcher)
+	created, err := manager.Create(ctx, state.CreateSessionRequest{Cmd: "/bin/sh", Cwd: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.LinkPullRequest(ctx, created.ID, testPRURL); err != nil {
+		t.Fatal(err)
+	}
+	type answer struct {
+		status pullrequest.Status
+		err    error
+	}
+	done := make(chan answer, 1)
+	go func() {
+		status, err := manager.RefreshPullRequest(ctx, created.ID)
+		done <- answer{status, err}
+	}()
+	<-fetcher.started
+	for _, url := range []string{"https://github.com/acme/app/pull/43", testPRURL} {
+		if _, err := manager.LinkPullRequest(ctx, created.ID, url); err != nil {
+			t.Fatal(err)
+		}
+	}
+	close(fetcher.release)
+	answered := <-done
+	if answered.err != nil {
+		t.Fatal(answered.err)
+	}
+	old := answered.status
+	if old.Refresh == nil || old.Refresh.ErrorKind != pullrequest.ErrorLinkChanged || old.Refresh.Recorded {
+		t.Fatalf("read from the earlier link = %#v, want link_changed with nothing recorded", old.Refresh)
+	}
+	if old.Freshness != pullrequest.FreshnessUnknown || (old.Status != nil && old.Status.Checks != "unknown") {
+		t.Fatalf("relinked pull request = %#v (freshness %s), want never read", old.Status, old.Freshness)
+	}
+	if count := countEvents(t, store, created.ID, ledger.EventPullRequestObserved); count != 0 {
+		t.Fatalf("observed events = %d, want none", count)
+	}
+	// A read of the current link records as usual.
+	current, err := manager.RefreshPullRequest(ctx, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !current.Refresh.Recorded || current.Status == nil || current.Status.Checks != "passing" {
+		t.Fatalf("refresh of the current link = %#v %#v, want passing recorded", current.Refresh, current.Status)
+	}
+}
+
 // A cancelled read is a cancellation, not a GitHub failure or a timeout.
 func TestPullRequestRefreshFailureKeepsCancellationDistinct(t *testing.T) {
 	if got := refreshFailure(context.Canceled); got.ErrorKind != pullrequest.ErrorCancelled {

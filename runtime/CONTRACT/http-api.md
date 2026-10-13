@@ -1515,7 +1515,9 @@ repository, a renamed or transferred repository, or an answer with no URL is
 recorded. The answer always describes the link as it is after the read. If the
 lane was relinked or unlinked while gh was running, the refresh answers
 `refresh.ok:false` with `error_kind:"link_changed"`, records nothing, and
-reports the current link. `cancelled` means the caller stopped waiting (for
+reports the current link. That includes relinks that end on the same URL
+(A, then B, then A again): the read belongs to the earlier link, and the new
+link starts with no observation. `cancelled` means the caller stopped waiting (for
 example, it disconnected) before gh answered; it says nothing about GitHub.
 `timeout` means the read ran out of time.
 

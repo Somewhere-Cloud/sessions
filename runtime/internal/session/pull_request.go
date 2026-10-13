@@ -31,12 +31,16 @@ var (
 // read whose answer was recorded or confirmed for the current link; a link
 // change discards it along with the observation it ordered. A read holding an
 // older ticket began before that answer was asked for, so it is dropped rather
-// than allowed to overwrite newer information. Tickets are process-local
-// because a read is: a daemon restart ends every read in flight.
+// than allowed to overwrite newer information. linked holds, per lane, the
+// first ticket taken after its link last changed: a read below it belongs to
+// an earlier link, even when a relink restored the same URL, and is dropped
+// as a link change. Tickets are process-local because a read is: a daemon
+// restart ends every read in flight.
 type pullRequestLinks struct {
 	writeMu   sync.Mutex
 	tickets   atomic.Uint64
 	applied   map[string]uint64 // guarded by writeMu
+	linked    map[string]uint64 // guarded by writeMu
 	confirmMu sync.Mutex
 	confirmed map[string]pullRequestConfirmation
 }
@@ -110,12 +114,23 @@ func (m *Manager) LinkPullRequest(ctx context.Context, id, rawURL string) (pullr
 		}); err != nil {
 			return pullrequest.Status{}, err
 		}
-		delete(m.pullRequests.applied, id)
+		m.pullRequestLinkChanged(id)
 		if lane, err = m.pullRequestLane(ctx, id); err != nil {
 			return pullrequest.Status{}, err
 		}
 	}
 	return m.withChanged(lane, changed), nil
+}
+
+// pullRequestLinkChanged starts a new link generation for the lane, after its
+// link event is recorded and under writeMu: every read already holding a
+// ticket began under the earlier link.
+func (m *Manager) pullRequestLinkChanged(id string) {
+	delete(m.pullRequests.applied, id)
+	if m.pullRequests.linked == nil {
+		m.pullRequests.linked = make(map[string]uint64)
+	}
+	m.pullRequests.linked[id] = m.pullRequests.tickets.Load() + 1
 }
 
 // UnlinkPullRequest removes the lane's link. Unlinking a lane with no link
@@ -137,7 +152,7 @@ func (m *Manager) UnlinkPullRequest(ctx context.Context, id string) (pullrequest
 		}); err != nil {
 			return pullrequest.Status{}, err
 		}
-		delete(m.pullRequests.applied, id)
+		m.pullRequestLinkChanged(id)
 		if lane, err = m.pullRequestLane(ctx, id); err != nil {
 			return pullrequest.Status{}, err
 		}
@@ -183,7 +198,7 @@ func (m *Manager) RefreshPullRequest(ctx context.Context, id string) (pullreques
 	}
 	status := m.composePullRequest(lane)
 	switch {
-	case lane.PullRequest.URL != read:
+	case lane.PullRequest.URL != read || applied.linkChanged:
 		status.Refresh = &pullrequest.RefreshResult{ErrorKind: pullrequest.ErrorLinkChanged, Error: fmt.Sprintf(
 			"the pull request link changed while %s was being read, so nothing was recorded; refresh again to read the current link", read)}
 	case fetchErr != nil:
@@ -195,11 +210,13 @@ func (m *Manager) RefreshPullRequest(ctx context.Context, id string) (pullreques
 }
 
 // pullRequestApplied is what became of one successful read: recorded as a new
-// observation, superseded by a newer read, or neither (an unchanged read that
-// confirmed the recorded one, or an answer about a link the lane no longer has).
+// observation, superseded by a newer read, dropped because it began under an
+// earlier link, or none of these (an unchanged read that confirmed the
+// recorded one, or an answer about a URL the lane no longer has).
 type pullRequestApplied struct {
-	recorded   bool
-	superseded bool
+	recorded    bool
+	superseded  bool
+	linkChanged bool
 }
 
 // recordPullRequestObservation records what was read about url and returns
@@ -221,6 +238,9 @@ func (m *Manager) recordPullRequestObservation(ctx context.Context, id, url stri
 	current := lane.PullRequest
 	if current.URL != url {
 		return lane, pullRequestApplied{}, nil
+	}
+	if ticket < m.pullRequests.linked[id] {
+		return lane, pullRequestApplied{linkChanged: true}, nil
 	}
 	if ticket < m.pullRequests.applied[id] {
 		return lane, pullRequestApplied{superseded: true}, nil
