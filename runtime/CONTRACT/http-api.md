@@ -653,7 +653,11 @@ that this daemon has not re-attached yet after a restart returns
 rather than starting the same work again. A repeat that asks for different work
 is also 409 with that body, naming the session the id already created; nothing
 is launched. Different work is a different tool (Claude, Codex, terminal, or a
-headless lane) or a different request fingerprint. The daemon computes the
+headless lane), a different parent session, or a different request
+fingerprint. The parent, from the trusted `X-Sessions-Creator-Session` header,
+decides what omitted permissions and an omitted account mean, so a root
+request and a child request, or two parents' children, never share an id; a
+retry from the same parent, or from no parent, replays. The daemon computes the
 fingerprint, a SHA-256 digest, from the request as received, before any
 default is resolved, and records it as `request_fingerprint` in the `created`
 ledger event beside `start_operation_id`. It covers `cmd`, `args`, `cwd`,
@@ -667,8 +671,8 @@ them. A first request sent through `/submit` is not: only its delivery receipt
 guards it. A replay of that id with different text is refused there once a
 first request was sent; when none was sent, the next submit under the
 recorded `prompt_operation_id` delivers whatever text it carries. An operation
-recorded before the fingerprint existed has none and is compared by tool
-only. A malformed id is 400, and a daemon without ledger access
+recorded before the fingerprint existed has none and is compared by tool and
+parent only. A malformed id is 400, and a daemon without ledger access
 refuses `operation_id` with 400 because it cannot keep the promise. A repeat
 is answered from the recorded operation before account inheritance, Claude
 settings, or the live Codex model catalog are consulted: it contacts no

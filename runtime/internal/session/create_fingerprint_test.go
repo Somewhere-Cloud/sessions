@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"testing"
 
 	"github.com/somewhere-tech/sessions/runtime/internal/ledger"
@@ -136,5 +137,84 @@ func TestReplayMismatchKeepsRecordsWithoutFingerprint(t *testing.T) {
 	lane.Kind = state.KindLane
 	if reason := replayMismatch(lane, legacy); reason == "" {
 		t.Fatal("a headless lane request replayed a recorded terminal session")
+	}
+}
+
+// Whether a create is a child, and of which session, decides what an omitted
+// permission choice means: a root agent gets full access, a child gets its
+// parent's access. The creator comes from trusted headers rather than the
+// request body, so the fingerprint cannot cover it; the replay compares it
+// with the recorded creator instead. A retry from the same creator, root or
+// child, still replays. The person chose inherited access for children here;
+// with autonomous delegation the defaults agree, but the account still does not.
+func TestCreateReplayRefusesAnotherCreator(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("HOME", root)
+	config := testConfig(root)
+	config.SettingsPath = filepath.Join(root, "config", "settings.json")
+	if err := state.SaveSettings(config.SettingsPath, state.Settings{
+		Delegation: &state.DelegationSettings{Access: state.DelegatedAccessConsentInherited},
+		Onboarding: &state.OnboardingSettings{
+			Version: state.OnboardingCurrentVersion, RemoteControlConsent: state.RemoteControlConsentLocalOnly,
+			DelegatedAccessConsent: state.DelegatedAccessConsentInherited,
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	store := openStartLedger(t, root)
+	launcher := prototest.NewLauncher()
+	manager := replayManager(t, root, config, launcher, store, nil, nil)
+	ctx := context.Background()
+	parent, err := manager.Create(ctx, state.CreateSessionRequest{Cmd: "claude", Cwd: root, Permissions: state.PermissionsConstrained})
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherParent, err := manager.Create(ctx, state.CreateSessionRequest{Cmd: "claude", Cwd: root, Permissions: state.PermissionsConstrained})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := func(operation, creator string) state.CreateSessionRequest {
+		return state.CreateSessionRequest{Cmd: "claude", Cwd: root, NoWorktree: true, OperationID: operation, CreatorSessionID: creator}
+	}
+
+	rootLane, err := manager.Create(ctx, request(testStartOperation, ""))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rootLane.Permissions != state.PermissionsFull {
+		t.Fatalf("root default permissions = %q, want full", rootLane.Permissions)
+	}
+	againRoot, err := manager.Create(ctx, request(testStartOperation, ""))
+	if err != nil || againRoot.ID != rootLane.ID || againRoot.Start == nil || !againRoot.Start.Replayed {
+		t.Fatalf("root retry = %s %#v, %v; want %s replayed", againRoot.ID, againRoot.Start, err, rootLane.ID)
+	}
+	// A constrained parent's child asking with the same body would inherit
+	// Ask me; the recorded root session runs with full access.
+	child, err := manager.Create(ctx, request(testStartOperation, parent.ID))
+	var refusal *state.StartCreateReplayError
+	if !errors.As(err, &refusal) || refusal.SessionID != rootLane.ID {
+		t.Fatalf("a child reusing a root operation returned %s (permissions %q), err %v; want a refusal naming %s", child.ID, child.Permissions, err, rootLane.ID)
+	}
+
+	const childOperation = "5a000000-0000-4000-8000-0000000000c1"
+	first, err := manager.Create(ctx, request(childOperation, parent.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Permissions != state.PermissionsConstrained {
+		t.Fatalf("child permissions = %q, want its parent's constrained", first.Permissions)
+	}
+	again, err := manager.Create(ctx, request(childOperation, parent.ID))
+	if err != nil || again.ID != first.ID || again.Start == nil || !again.Start.Replayed {
+		t.Fatalf("child retry = %s %#v, %v; want %s replayed", again.ID, again.Start, err, first.ID)
+	}
+	for _, creator := range []string{"", otherParent.ID} {
+		other, err := manager.Create(ctx, request(childOperation, creator))
+		if !errors.As(err, &refusal) || refusal.SessionID != first.ID {
+			t.Fatalf("creator %q reusing a child operation returned %s, err %v; want a refusal naming %s", creator, other.ID, err, first.ID)
+		}
+	}
+	if len(launcher.Launches) != 4 {
+		t.Fatalf("launches = %d, want the two parents, the root and the child only", len(launcher.Launches))
 	}
 }

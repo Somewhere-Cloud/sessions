@@ -547,6 +547,18 @@ func replayMismatch(request state.CreateSessionRequest, lane ledger.LaneState) s
 	if lane.RequestFingerprint != "" && lane.RequestFingerprint != request.RequestFingerprint {
 		return "was created by a different request (its command, arguments, folder, permissions, account, worktree, runtime or provider options differ); use a new operation id for different work"
 	}
+	// The parent decides what omitted permissions and account mean, and it
+	// arrives in trusted headers rather than the fingerprinted body.
+	if lane.CreatorKind != "" && recordedParent(lane) != request.CreatorSessionID {
+		return "was created for a different parent session, whose access and account its defaults follow; use a new operation id for different work"
+	}
+	return ""
+}
+
+func recordedParent(lane ledger.LaneState) string {
+	if lane.CreatorKind == ledger.CreatorSession {
+		return lane.CreatorID
+	}
 	return ""
 }
 
