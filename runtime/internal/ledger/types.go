@@ -121,6 +121,10 @@ type Created struct {
 	// are identifiers only; the request text never enters the ledger.
 	StartOperationID  string
 	PromptOperationID string
+	// RequestFingerprint is a digest of the create request as sent, recorded
+	// with StartOperationID so a repeated id is replayed only for the same
+	// work. It is a hash, never the request itself; older events lack it.
+	RequestFingerprint string
 }
 
 type UserKill struct {

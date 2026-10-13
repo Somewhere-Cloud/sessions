@@ -299,16 +299,20 @@ type CreateSessionRequest struct {
 	// returns the session the first one created instead of starting another.
 	// PromptOperationID is the delivery operation id the caller will use for
 	// the first request, recorded so the start receipt can follow it.
-	OperationID       string            `json:"operation_id,omitempty"`
-	PromptOperationID string            `json:"prompt_operation_id,omitempty"`
-	Cwd               string            `json:"cwd,omitempty"`
-	Cols              int               `json:"cols,omitempty"`
-	Rows              int               `json:"rows,omitempty"`
-	Env               map[string]string `json:"env,omitempty"`
-	Name              string            `json:"name,omitempty"`
-	Description       string            `json:"description,omitempty"`
-	Tags              map[string]string `json:"tags,omitempty"`
-	Profile           string            `json:"profile,omitempty"`
+	OperationID       string `json:"operation_id,omitempty"`
+	PromptOperationID string `json:"prompt_operation_id,omitempty"`
+	// RequestFingerprint is CreateRequestFingerprint of the request as the
+	// caller sent it, computed by the daemon and recorded with OperationID so
+	// a repeated id asking for different work is refused, not replayed.
+	RequestFingerprint string            `json:"-"`
+	Cwd                string            `json:"cwd,omitempty"`
+	Cols               int               `json:"cols,omitempty"`
+	Rows               int               `json:"rows,omitempty"`
+	Env                map[string]string `json:"env,omitempty"`
+	Name               string            `json:"name,omitempty"`
+	Description        string            `json:"description,omitempty"`
+	Tags               map[string]string `json:"tags,omitempty"`
+	Profile            string            `json:"profile,omitempty"`
 	// DefaultProfile explicitly chooses the provider's default login. Without
 	// it, an omitted profile lets a same-provider child start on its parent's
 	// recorded account; with it, the child uses the default login instead.

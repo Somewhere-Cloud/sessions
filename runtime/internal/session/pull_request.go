@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/somewhere-tech/sessions/runtime/internal/ledger"
@@ -24,8 +25,18 @@ var (
 // pullRequestLinks serializes association writes and remembers, for this
 // daemon's lifetime only, when an unchanged observation was last confirmed.
 // It is usable at its zero value.
+//
+// Reads are ordered by ticket, not by clock. Every refresh takes the next
+// ticket before gh runs, and applied holds, per lane, the ticket of the latest
+// read whose answer was recorded or confirmed for the current link; a link
+// change discards it along with the observation it ordered. A read holding an
+// older ticket began before that answer was asked for, so it is dropped rather
+// than allowed to overwrite newer information. Tickets are process-local
+// because a read is: a daemon restart ends every read in flight.
 type pullRequestLinks struct {
 	writeMu   sync.Mutex
+	tickets   atomic.Uint64
+	applied   map[string]uint64 // guarded by writeMu
 	confirmMu sync.Mutex
 	confirmed map[string]pullRequestConfirmation
 }
@@ -99,6 +110,7 @@ func (m *Manager) LinkPullRequest(ctx context.Context, id, rawURL string) (pullr
 		}); err != nil {
 			return pullrequest.Status{}, err
 		}
+		delete(m.pullRequests.applied, id)
 		if lane, err = m.pullRequestLane(ctx, id); err != nil {
 			return pullrequest.Status{}, err
 		}
@@ -125,6 +137,7 @@ func (m *Manager) UnlinkPullRequest(ctx context.Context, id string) (pullrequest
 		}); err != nil {
 			return pullrequest.Status{}, err
 		}
+		delete(m.pullRequests.applied, id)
 		if lane, err = m.pullRequestLane(ctx, id); err != nil {
 			return pullrequest.Status{}, err
 		}
@@ -157,10 +170,11 @@ func (m *Manager) RefreshPullRequest(ctx context.Context, id string) (pullreques
 		fetcher = pullrequest.GH{}
 	}
 	read := lane.PullRequest.URL
+	ticket := m.pullRequests.tickets.Add(1)
 	observation, fetchErr := fetcher.Fetch(ctx, lane.PullRequest.PullRequestRef)
-	recorded := false
+	applied := pullRequestApplied{}
 	if fetchErr == nil {
-		lane, recorded, err = m.recordPullRequestObservation(ctx, id, read, observation)
+		lane, applied, err = m.recordPullRequestObservation(ctx, id, read, ticket, observation)
 	} else {
 		lane, err = m.pullRequestLane(ctx, id)
 	}
@@ -175,17 +189,26 @@ func (m *Manager) RefreshPullRequest(ctx context.Context, id string) (pullreques
 	case fetchErr != nil:
 		status.Refresh = refreshFailure(fetchErr)
 	default:
-		status.Refresh = &pullrequest.RefreshResult{OK: true, Recorded: recorded}
+		status.Refresh = &pullrequest.RefreshResult{OK: true, Recorded: applied.recorded, Superseded: applied.superseded}
 	}
 	return status, nil
 }
 
+// pullRequestApplied is what became of one successful read: recorded as a new
+// observation, superseded by a newer read, or neither (an unchanged read that
+// confirmed the recorded one, or an answer about a link the lane no longer has).
+type pullRequestApplied struct {
+	recorded   bool
+	superseded bool
+}
+
 // recordPullRequestObservation records what was read about url and returns
 // the lane as it stands afterwards, both under the write lock, so the answer
-// and the decision describe the same link.
-func (m *Manager) recordPullRequestObservation(ctx context.Context, id, url string, observation ledger.PullRequestObservation) (ledger.LaneState, bool, error) {
+// and the decision describe the same link. ticket orders the read against
+// every other refresh of the lane.
+func (m *Manager) recordPullRequestObservation(ctx context.Context, id, url string, ticket uint64, observation ledger.PullRequestObservation) (ledger.LaneState, pullRequestApplied, error) {
 	if m.options.PullRequests == nil {
-		return ledger.LaneState{}, false, ErrPullRequestUnavailable
+		return ledger.LaneState{}, pullRequestApplied{}, ErrPullRequestUnavailable
 	}
 	m.pullRequests.writeMu.Lock()
 	defer m.pullRequests.writeMu.Unlock()
@@ -193,26 +216,34 @@ func (m *Manager) recordPullRequestObservation(ctx context.Context, id, url stri
 	// and an answer about a pull request that is no longer linked is dropped.
 	lane, err := m.pullRequestLane(ctx, id)
 	if err != nil {
-		return ledger.LaneState{}, false, err
+		return ledger.LaneState{}, pullRequestApplied{}, err
 	}
 	current := lane.PullRequest
 	if current.URL != url {
-		return lane, false, nil
+		return lane, pullRequestApplied{}, nil
+	}
+	if ticket < m.pullRequests.applied[id] {
+		return lane, pullRequestApplied{superseded: true}, nil
+	}
+	if m.pullRequests.applied == nil {
+		m.pullRequests.applied = make(map[string]uint64)
 	}
 	if current.Merged || (current.Observed && current.Observation == observation) {
+		m.pullRequests.applied[id] = ticket
 		m.confirmPullRequest(id, url)
-		return lane, false, nil
+		return lane, pullRequestApplied{}, nil
 	}
 	if err := m.options.PullRequests.RecordPullRequestObserved(ctx, ledger.PullRequestObserved{
 		Meta: ledger.Meta{LaneID: id}, URL: url, Observation: observation,
 	}); err != nil {
-		return ledger.LaneState{}, false, err
+		return ledger.LaneState{}, pullRequestApplied{}, err
 	}
+	m.pullRequests.applied[id] = ticket
 	m.confirmPullRequest(id, "")
 	if lane, err = m.pullRequestLane(ctx, id); err != nil {
-		return ledger.LaneState{}, false, err
+		return ledger.LaneState{}, pullRequestApplied{}, err
 	}
-	return lane, true, nil
+	return lane, pullRequestApplied{recorded: true}, nil
 }
 
 // confirmPullRequest remembers an unchanged read, or forgets one when url is
@@ -235,8 +266,11 @@ func refreshFailure(err error) *pullrequest.RefreshResult {
 	if errors.As(err, &fetchErr) {
 		return &pullrequest.RefreshResult{ErrorKind: fetchErr.Kind, Error: fetchErr.Message}
 	}
-	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-		return &pullrequest.RefreshResult{ErrorKind: pullrequest.ErrorTimeout, Error: "the refresh was cancelled before GitHub answered; run it again"}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return &pullrequest.RefreshResult{ErrorKind: pullrequest.ErrorTimeout, Error: "the refresh ran out of time before GitHub answered; run it again"}
+	}
+	if errors.Is(err, context.Canceled) {
+		return &pullrequest.RefreshResult{ErrorKind: pullrequest.ErrorCancelled, Error: "the refresh was cancelled before GitHub answered; run it again"}
 	}
 	return &pullrequest.RefreshResult{ErrorKind: pullrequest.ErrorFailed, Error: err.Error()}
 }

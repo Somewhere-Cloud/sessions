@@ -58,6 +58,7 @@ func applyCreatedEvent(state *LaneState, event Event) {
 		state.DelegationKind = payload.DelegationKind
 		state.StartOperationID = payload.StartOperationID
 		state.PromptOperationID = payload.PromptOperationID
+		state.RequestFingerprint = payload.RequestFingerprint
 	}
 }
 

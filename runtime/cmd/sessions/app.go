@@ -156,6 +156,11 @@ type app struct {
 	// linuxService replaces systemctl and health checks in installer tests.
 	linuxService *linuxServiceManager
 	commands     []commandSpec
+	// scope is the global target the user typed, as shell words, and machine
+	// the --machine alias within it. Daemon-written instructional commands
+	// are printed with scope so they reach the same daemon (command_scope.go).
+	scope   string
+	machine string
 }
 
 func explainAPIClientNetworkError(client *apiClient, err error) error {
@@ -181,6 +186,7 @@ func newApp(arguments []string, stdin io.Reader, stdout, stderr io.Writer) (*app
 		runUpdate:    runNativeAppUpdate,
 		cliIsCurrent: installedCLIMatches,
 		commands:     commandTable,
+		scope:        commandScope(arguments),
 	}
 	app.attachSupport = app.attachSupportWithSomewhere
 	tokenPath := ""
@@ -192,6 +198,7 @@ func newApp(arguments []string, stdin io.Reader, stdout, stderr io.Writer) (*app
 		}
 	}
 	if machineName, selected := strings.CutPrefix(host, "machine:"); selected {
+		app.machine = machineName
 		machine, err := loadSavedMachine(home, machineName)
 		if err != nil {
 			return nil, err

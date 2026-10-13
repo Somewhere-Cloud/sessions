@@ -429,6 +429,7 @@ func (w boundaryWriter) RecordCreated(ctx context.Context, value Created) error 
 		LaneUUID:   value.LaneUUID, ProviderUUID: value.ProviderUUID,
 		CreatorKind: value.CreatorKind, CreatorID: value.CreatorID, DelegationKind: value.DelegationKind,
 		StartOperationID: value.StartOperationID, PromptOperationID: value.PromptOperationID,
+		RequestFingerprint: value.RequestFingerprint,
 	}
 	return w.store.append(ctx, EventCreated, value.Meta, payload, false)
 }
@@ -890,26 +891,27 @@ func (s *Store) QuickCheck(ctx context.Context) error {
 type emptyPayload struct{}
 
 type createdPayload struct {
-	Name              string            `json:"name,omitempty"`
-	Description       string            `json:"description,omitempty"`
-	DescriptionSource DescriptionSource `json:"description_source,omitempty"`
-	Kind              string            `json:"kind,omitempty"`
-	Tool              string            `json:"tool"`
-	Cwd               string            `json:"cwd"`
-	Profile           string            `json:"profile,omitempty"`
-	ConfigDir         string            `json:"config_dir,omitempty"`
-	WorktreePath      string            `json:"worktree_path,omitempty"`
-	Branch            string            `json:"branch,omitempty"`
-	Base              string            `json:"base,omitempty"`
-	SourceRepo        string            `json:"source_repo,omitempty"`
-	ResumeArgv        []string          `json:"argv"`
-	LaneUUID          string            `json:"lane_uuid"`
-	ProviderUUID      string            `json:"provider_uuid,omitempty"`
-	CreatorKind       CreatorKind       `json:"creator_kind"`
-	CreatorID         string            `json:"creator_id"`
-	DelegationKind    string            `json:"delegation_kind,omitempty"`
-	StartOperationID  string            `json:"start_operation_id,omitempty"`
-	PromptOperationID string            `json:"prompt_operation_id,omitempty"`
+	Name               string            `json:"name,omitempty"`
+	Description        string            `json:"description,omitempty"`
+	DescriptionSource  DescriptionSource `json:"description_source,omitempty"`
+	Kind               string            `json:"kind,omitempty"`
+	Tool               string            `json:"tool"`
+	Cwd                string            `json:"cwd"`
+	Profile            string            `json:"profile,omitempty"`
+	ConfigDir          string            `json:"config_dir,omitempty"`
+	WorktreePath       string            `json:"worktree_path,omitempty"`
+	Branch             string            `json:"branch,omitempty"`
+	Base               string            `json:"base,omitempty"`
+	SourceRepo         string            `json:"source_repo,omitempty"`
+	ResumeArgv         []string          `json:"argv"`
+	LaneUUID           string            `json:"lane_uuid"`
+	ProviderUUID       string            `json:"provider_uuid,omitempty"`
+	CreatorKind        CreatorKind       `json:"creator_kind"`
+	CreatorID          string            `json:"creator_id"`
+	DelegationKind     string            `json:"delegation_kind,omitempty"`
+	StartOperationID   string            `json:"start_operation_id,omitempty"`
+	PromptOperationID  string            `json:"prompt_operation_id,omitempty"`
+	RequestFingerprint string            `json:"request_fingerprint,omitempty"`
 }
 
 type providerPayload struct {

@@ -45,6 +45,12 @@ func (a *app) cmdPR(args []string) error {
 	if err != nil {
 		return err
 	}
+	if result.Closure != nil {
+		result.Closure.Reason = a.scopedText(result.Closure.Reason)
+	}
+	if result.Refresh != nil {
+		result.Refresh.Error = a.scopedText(result.Refresh.Error)
+	}
 	if a.wantJSON {
 		err = writeJSON(a.stdout, result, true)
 	} else {

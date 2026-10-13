@@ -185,6 +185,15 @@ func TestGHFetchClassifiesFailures(t *testing.T) {
 		t.Fatalf("slow gh error = %v, want timeout", err)
 	}
 
+	// A caller that stops waiting (an HTTP client disconnecting) kills gh; that
+	// is a cancellation, not a GitHub failure and not a timeout.
+	cancelled, cancel := context.WithCancel(context.Background())
+	time.AfterFunc(50*time.Millisecond, cancel)
+	_, err = GH{Path: path}.Fetch(cancelled, ref)
+	if !errors.As(err, &fetchErr) || fetchErr.Kind != ErrorCancelled || !strings.Contains(fetchErr.Message, "cancelled") {
+		t.Fatalf("cancelled gh error = %v, want cancelled", err)
+	}
+
 	_, err = GH{Path: filepath.Join(t.TempDir(), "missing-gh")}.Fetch(context.Background(), ref)
 	if !errors.As(err, &fetchErr) || fetchErr.Kind != ErrorGHMissing {
 		t.Fatalf("missing gh error = %v, want gh_missing", err)

@@ -38,12 +38,15 @@ const (
 
 // Error kinds a client can branch on.
 const (
-	ErrorGHMissing         = "gh_missing"
-	ErrorAuth              = "auth"
-	ErrorNotFound          = "not_found"
-	ErrorNetwork           = "network"
-	ErrorRateLimited       = "rate_limited"
-	ErrorTimeout           = "timeout"
+	ErrorGHMissing   = "gh_missing"
+	ErrorAuth        = "auth"
+	ErrorNotFound    = "not_found"
+	ErrorNetwork     = "network"
+	ErrorRateLimited = "rate_limited"
+	ErrorTimeout     = "timeout"
+	// ErrorCancelled means the caller stopped waiting (for example, it
+	// disconnected) before gh answered. It says nothing about GitHub.
+	ErrorCancelled         = "cancelled"
 	ErrorMalformedResponse = "malformed_response"
 	ErrorMismatch          = "mismatch"
 	ErrorFailed            = "failed"
@@ -98,9 +101,15 @@ func (g GH) Fetch(ctx context.Context, ref ledger.PullRequestRef) (ledger.PullRe
 	var stdout, stderr bytes.Buffer
 	command.Stdout, command.Stderr = &stdout, &stderr
 	err := command.Run()
-	if ctx.Err() == context.DeadlineExceeded {
+	// gh is killed when the context ends, and its exit then says nothing about
+	// GitHub, so the context's reason is reported instead of the exit.
+	switch {
+	case errors.Is(ctx.Err(), context.DeadlineExceeded):
 		return ledger.PullRequestObservation{}, &FetchError{Kind: ErrorTimeout, Message: fmt.Sprintf(
-			"reading %s timed out after %s; check the network and run the refresh again", ref.URL, timeout)}
+			"reading %s timed out before GitHub answered (limit %s); check the network and run the refresh again", ref.URL, timeout)}
+	case errors.Is(ctx.Err(), context.Canceled):
+		return ledger.PullRequestObservation{}, &FetchError{Kind: ErrorCancelled, Message: fmt.Sprintf(
+			"reading %s was cancelled before GitHub answered, so nothing is known about it; run the refresh again", ref.URL)}
 	}
 	if err != nil {
 		var missing *exec.Error

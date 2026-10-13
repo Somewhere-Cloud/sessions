@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -169,17 +170,20 @@ func TestReplayedChildCreateTouchesNoAccountHome(t *testing.T) {
 	}
 	before := len(launcher.Launches)
 
-	for _, request := range []state.CreateSessionRequest{
-		{Cmd: "codex", Cwd: root, CreatorSessionID: parent.ID, OperationID: operation},
-		{Cmd: "codex", Cwd: root, CreatorSessionID: parent.ID, OperationID: operation, Profile: "elsewhere"},
-	} {
-		replayed, err := manager.Create(context.Background(), request)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if replayed.ID != first.ID || replayed.Start == nil || !replayed.Start.Replayed {
-			t.Fatalf("replay = %#v, want %s", replayed, first.ID)
-		}
+	replayed, err := manager.Create(context.Background(), state.CreateSessionRequest{Cmd: "codex", Cwd: root, CreatorSessionID: parent.ID, OperationID: operation})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if replayed.ID != first.ID || replayed.Start == nil || !replayed.Start.Replayed {
+		t.Fatalf("replay = %#v, want %s", replayed, first.ID)
+	}
+	// Naming another account is different work under the same id: refused,
+	// and refused before any account home is resolved or created.
+	_, err = manager.Create(context.Background(), state.CreateSessionRequest{
+		Cmd: "codex", Cwd: root, CreatorSessionID: parent.ID, OperationID: operation, Profile: "elsewhere"})
+	var refusal *state.StartCreateReplayError
+	if !errors.As(err, &refusal) || refusal.SessionID != first.ID {
+		t.Fatalf("a different account under the same operation = %v, want a refusal naming %s", err, first.ID)
 	}
 	if len(launcher.Launches) != before {
 		t.Fatalf("a replay launched: %d -> %d", before, len(launcher.Launches))

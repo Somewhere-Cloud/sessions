@@ -616,7 +616,7 @@ Auth required. Every request field is optional:
 | `providerTerminal` | boolean | explicit escape hatch for an agent-created Claude child that needs the interactive provider terminal; otherwise newly attributed agent children use the structured Claude runtime |
 | `permissions` | `"inherit" \| "constrained" \| "full"` | optional requested access; `inherit` requires a parent, and a child cannot exceed its parent unless the user explicitly enabled autonomous delegated work |
 | `lifecycle` | `"task" \| "session"` | optional runtime intent; all sessions, including agent-created children, default to `session`; callers must explicitly request a bounded `task` |
-| `operation_id` | string | optional lowercase UUID v4 create idempotency key, recorded in the ledger before launch; a repeat returns the session it created |
+| `operation_id` | string | optional lowercase UUID v4 create idempotency key, recorded in the ledger before launch; a repeat of the same request returns the session it created, and a repeat asking for different work is refused |
 | `prompt_operation_id` | string | optional lowercase UUID v4, different from `operation_id`: the `/submit` operation id the caller will use for the first request, recorded so the start receipt can follow it |
 
 `RUNNER_*`, `NODE_OPTIONS`, `DYLD_INSERT_LIBRARIES`, `DYLD_LIBRARY_PATH`, and
@@ -650,9 +650,25 @@ session is live (including unreachable) returns **200** with that session's
 nothing is launched. A repeat whose session has ended, whose launch failed, or
 that this daemon has not re-attached yet after a restart returns
 `409 {"error":"<message>","operation_id":"<id>","session_id":"<session>"}`
-rather than starting the same work again. A repeat for a different Claude or
-Codex tool is also 409 with that body, naming the session the id already
-created; nothing is launched. A malformed id is 400, and a daemon without ledger access
+rather than starting the same work again. A repeat that asks for different work
+is also 409 with that body, naming the session the id already created; nothing
+is launched. Different work is a different tool (Claude, Codex, terminal, or a
+headless lane) or a different request fingerprint. The daemon computes the
+fingerprint, a SHA-256 digest, from the request as received, before any
+default is resolved, and records it as `request_fingerprint` in the `created`
+ledger event beside `start_operation_id`. It covers `cmd`, `args`, `cwd`,
+`kind`, `specPath`, `profile`, `defaultProfile`, `worktree`, `noWorktree`,
+`base`, `providerTerminal`, `permissions`, `lifecycle`, `onIdle`, and `claude`.
+It leaves out the operation ids, a Claude `--session-id` (clients mint a
+fresh one on every attempt), and `name`, `description`, `tags`, `env`, `cols`,
+`rows`, `waitReady`, `force`, `delegationKind`, and `initialInput`. A first
+request a terminal Codex process takes from `args` is therefore compared with
+them. A first request sent through `/submit` is not: only its delivery receipt
+guards it. A replay of that id with different text is refused there once a
+first request was sent; when none was sent, the next submit under the
+recorded `prompt_operation_id` delivers whatever text it carries. An operation
+recorded before the fingerprint existed has none and is compared by tool
+only. A malformed id is 400, and a daemon without ledger access
 refuses `operation_id` with 400 because it cannot keep the promise. A repeat
 is answered from the recorded operation before account inheritance, Claude
 settings, or the live Codex model catalog are consulted: it contacts no
@@ -1495,7 +1511,16 @@ repository, a renamed or transferred repository, or an answer with no URL is
 recorded. The answer always describes the link as it is after the read. If the
 lane was relinked or unlinked while gh was running, the refresh answers
 `refresh.ok:false` with `error_kind:"link_changed"`, records nothing, and
-reports the current link.
+reports the current link. `cancelled` means the caller stopped waiting (for
+example, it disconnected) before gh answered; it says nothing about GitHub.
+`timeout` means the read ran out of time.
+
+Overlapping refreshes are ordered by when each read began, not by clock. A
+read that began before another refresh of the same lane whose answer was
+already recorded or confirmed is dropped, so an older answer never overwrites
+a newer one. It answers `refresh.ok:true`, `recorded:false`,
+`superseded:true`, and the newer observation. The order is kept by this
+daemon process, which is what runs every read. A link change resets it.
 
 Every success answers one status object:
 
@@ -1505,7 +1530,7 @@ Every success answers one status object:
  "status":{"state":"open|closed|merged|unknown","draft":false,"checks":"passing|failing|pending|none|unknown","checks_total":3,"checks_failing":0,"checks_pending":1,"mergeable":"mergeable|conflicting|unknown","head_ref":"...","head_sha":"...","base_ref":"main","merged_at":"...","merge_commit":"..."},
  "observed_at":"<RFC3339>","freshness":"fresh|stale|final|unknown","fresh_for_ms":540000,"branch_match":"match|mismatch|unknown",
  "work":"open|merged|closed_unmerged|unknown","closure":{"action":"none|keep|archive_available","reason":"..."},
- "refresh":{"ok":false,"error_kind":"gh_missing|auth|not_found|network|rate_limited|timeout|malformed_response|mismatch|link_changed|failed","error":"...","recorded":false}}
+ "refresh":{"ok":false,"error_kind":"gh_missing|auth|not_found|network|rate_limited|timeout|cancelled|malformed_response|mismatch|link_changed|failed","error":"...","recorded":false,"superseded":false}}
 ```
 
 An unlinked lane answers only `session_id`, `linked:false`, and `runner`.
@@ -1892,7 +1917,7 @@ runtime. The additive fields say what the destructive restart would do with it:
 | `state` | `running`, `unreachable` (live runtime the daemon cannot currently reach), `needs-recovery` (paused after reboot), `lost`, `exited`, or `moved` |
 | `restartable` | `true` only when `POST /api/recovery/restart` would act on this source now |
 | `action` | `restart`, `retry-restart`, `resume`, `open`, or `none` |
-| `command` | optional exact CLI command for `action`; absent for `restart` and `none` |
+| `command` | optional exact CLI command for `action`, relative to the daemon that answered; absent for `restart` and `none` |
 | `targetSessionId` | optional record `action` acts on: the source for `resume`, the running successor for `open`; absent otherwise. Clients use it instead of parsing `command` |
 | `reason` | optional instructional sentence |
 | `recordedRestart` | optional choices of a restart already recorded for this source |
@@ -1906,6 +1931,13 @@ because reopening it here forks it. When a restart receipt exists, the action is
 replays that operation without another runtime. Only an id with no record on
 this daemon returns 404; malformed requests return 400. CLI:
 `sessions restart SESSION --preview`.
+
+`command` and any command quoted in `reason` name only the daemon that wrote
+them; that daemon cannot know the alias or address a client used to reach it.
+A client that reached another machine adds its own target. The CLI repeats
+the global `--machine`, `--host`, `--port`, and `--direct` flags it was given,
+shell-quoted, in both fields, and adds `machine` with the `--machine` alias.
+On the default target it passes both fields on unchanged.
 
 Auth required. Ends exactly one live Claude or Codex runtime and creates a
 replacement for its native provider conversation. It never follows the source's

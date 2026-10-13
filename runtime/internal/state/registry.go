@@ -57,6 +57,8 @@ type PreparedSession struct {
 	Lifecycle         string
 	StartOperationID  string
 	PromptOperationID string
+	// RequestFingerprint travels with StartOperationID into the created event.
+	RequestFingerprint string
 }
 
 type SessionMetadata struct {
@@ -246,7 +248,8 @@ func (r *Registry) CreateWithLifecycle(
 		Info: runnerInfo, Name: strings.TrimSpace(request.Name), Description: description,
 		DescriptionSource: descriptionSource, Tags: tags, Kind: kind, SpecPath: specPath, Tool: tool,
 		Profile: profile, ConfigDir: configDir, StartOperationID: request.OperationID, PromptOperationID: request.PromptOperationID,
-		WorktreePath: request.WorktreePath, WorktreeBranch: request.WorktreeBranch,
+		RequestFingerprint: request.RequestFingerprint,
+		WorktreePath:       request.WorktreePath, WorktreeBranch: request.WorktreeBranch,
 		WorktreeBase: request.WorktreeBase, SourceRepo: request.SourceRepo,
 		DelegationKind: request.DelegationKind, Permissions: request.Permissions, Lifecycle: request.Lifecycle,
 	}

@@ -361,6 +361,9 @@ func (m *Manager) reconcileLedger(ctx context.Context) {
 }
 
 func (m *Manager) Create(ctx context.Context, request state.CreateSessionRequest) (state.SessionInfo, error) {
+	// Fingerprint the request as sent, before any default is resolved, so a
+	// replay is judged by what the caller asked for, not by today's defaults.
+	request.RequestFingerprint = state.CreateRequestFingerprint(request)
 	if replayed, answered, err := m.answerRecordedStart(ctx, request); answered || err != nil {
 		return replayed, err
 	}
@@ -528,6 +531,25 @@ func (m *Manager) finishCreate(ctx context.Context, id string, request state.Cre
 	return m.withProvenance(ctx, []state.SessionInfo{session.Info()})[0], nil
 }
 
+// replayMismatch says why a repeated operation id asks for different work than
+// the session it already created, or "" when the request may be replayed. The
+// tool is compared for every record; the request fingerprint only for records
+// that carry one, so an operation recorded before fingerprints existed keeps
+// replaying as it always did.
+func replayMismatch(request state.CreateSessionRequest, lane ledger.LaneState) string {
+	wanted := state.CommandTool(request.Cmd)
+	if request.Kind == state.KindLane {
+		wanted = state.ToolLane
+	}
+	if lane.Tool != "" && lane.Tool != string(wanted) {
+		return fmt.Sprintf("runs %s, not the %s this request asks for; use a new operation id for different work", lane.Tool, wanted)
+	}
+	if lane.RequestFingerprint != "" && lane.RequestFingerprint != request.RequestFingerprint {
+		return "was created by a different request (its command, arguments, folder, permissions, account, worktree, runtime or provider options differ); use a new operation id for different work"
+	}
+	return ""
+}
+
 // replayStart returns the session an earlier create with the same operation
 // id produced, so a caller that lost the first response cannot start the same
 // work twice. Create holds bindGate around this lookup and the created-event
@@ -552,9 +574,8 @@ func (m *Manager) replayStart(ctx context.Context, request state.CreateSessionRe
 		if !lane.Created || lane.StartOperationID != request.OperationID {
 			continue
 		}
-		if wanted := state.CommandTool(request.Cmd); (wanted == state.ToolClaude || wanted == state.ToolCodex) && lane.Tool != string(wanted) {
-			return state.SessionInfo{}, true, &state.StartCreateReplayError{OperationID: request.OperationID, SessionID: lane.LaneID,
-				Reason: "belongs to a different provider; inspect the existing session and use a new operation id for different work"}
+		if refusal := replayMismatch(request, lane); refusal != "" {
+			return state.SessionInfo{}, true, &state.StartCreateReplayError{OperationID: request.OperationID, SessionID: lane.LaneID, Reason: refusal}
 		}
 		session, live := m.registry.Get(lane.LaneID)
 		if !live || session.Info().Exited {

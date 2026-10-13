@@ -398,3 +398,142 @@ func TestPullRequestConcurrentRefreshAndRelinkStayConsistent(t *testing.T) {
 		t.Fatal("pull request activity ended the lane's runner")
 	}
 }
+
+// orderedFetcher answers its first call only after release is closed, and
+// every later call at once: two overlapping refreshes (the CLI and the GUI, or
+// two windows) whose first read answers last.
+type orderedFetcher struct {
+	mu      sync.Mutex
+	calls   int
+	started chan struct{}
+	release chan struct{}
+	older   ledger.PullRequestObservation
+	newer   ledger.PullRequestObservation
+}
+
+func newOrderedFetcher(older, newer ledger.PullRequestObservation) *orderedFetcher {
+	return &orderedFetcher{started: make(chan struct{}), release: make(chan struct{}), older: older, newer: newer}
+}
+
+func (f *orderedFetcher) Fetch(_ context.Context, _ ledger.PullRequestRef) (ledger.PullRequestObservation, error) {
+	f.mu.Lock()
+	f.calls++
+	call := f.calls
+	f.mu.Unlock()
+	if call == 1 {
+		close(f.started)
+		<-f.release
+		return f.older, nil
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.newer, nil
+}
+
+func (f *orderedFetcher) setNewer(observation ledger.PullRequestObservation) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.newer = observation
+}
+
+// overlapRefreshes starts a refresh that blocks in gh, completes a second one
+// meanwhile, then lets the first answer. It returns the first refresh's answer.
+func overlapRefreshes(t *testing.T, manager *Manager, fetcher *orderedFetcher, id string) pullrequest.Status {
+	t.Helper()
+	type answer struct {
+		status pullrequest.Status
+		err    error
+	}
+	done := make(chan answer, 1)
+	go func() {
+		status, err := manager.RefreshPullRequest(context.Background(), id)
+		done <- answer{status, err}
+	}()
+	<-fetcher.started
+	if _, err := manager.RefreshPullRequest(context.Background(), id); err != nil {
+		t.Fatal(err)
+	}
+	close(fetcher.release)
+	first := <-done
+	if first.err != nil {
+		t.Fatal(first.err)
+	}
+	return first.status
+}
+
+var (
+	pendingObservation = ledger.PullRequestObservation{State: "open", Mergeable: "mergeable", Checks: "pending", ChecksTotal: 1, ChecksPending: 1}
+	passingObservation = ledger.PullRequestObservation{State: "open", Mergeable: "mergeable", Checks: "passing", ChecksTotal: 1}
+)
+
+// A read that began first but answered last must not replace the newer
+// recorded observation, or "checks passing" regresses to "pending" and is
+// labelled fresh. Ordering is by when each read began, never by clock.
+func TestPullRequestOlderRefreshDoesNotOverwriteNewerObservation(t *testing.T) {
+	ctx := context.Background()
+	fetcher := newOrderedFetcher(pendingObservation, passingObservation)
+	manager, _, store := newPullRequestTestManager(t, filepath.Join(t.TempDir(), "lanes.sqlite3"), fetcher)
+	created, err := manager.Create(ctx, state.CreateSessionRequest{Cmd: "/bin/sh", Cwd: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.LinkPullRequest(ctx, created.ID, testPRURL); err != nil {
+		t.Fatal(err)
+	}
+	older := overlapRefreshes(t, manager, fetcher, created.ID)
+	if older.Refresh == nil || !older.Refresh.OK || older.Refresh.Recorded || !older.Refresh.Superseded {
+		t.Fatalf("older refresh result = %#v, want ok, not recorded, superseded", older.Refresh)
+	}
+	if older.Status == nil || older.Status.Checks != "passing" || older.Freshness != pullrequest.FreshnessFresh {
+		t.Fatalf("older refresh answered %#v (freshness %s), want the newer passing observation", older.Status, older.Freshness)
+	}
+	if count := countEvents(t, store, created.ID, ledger.EventPullRequestObserved); count != 1 {
+		t.Fatalf("observed events = %d, want only the newer read", count)
+	}
+	// Ordering never stops a later read from recording a real change.
+	fetcher.setNewer(ledger.PullRequestObservation{State: "open", Mergeable: "conflicting", Checks: "failing", ChecksTotal: 1, ChecksFailing: 1})
+	later, err := manager.RefreshPullRequest(ctx, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !later.Refresh.Recorded || later.Status.Checks != "failing" {
+		t.Fatalf("sequential refresh = %#v %#v, want the change recorded", later.Refresh, later.Status)
+	}
+}
+
+// A newer read that found nothing changed still outranks an older one: the
+// older answer is dropped instead of being recorded as the latest state.
+func TestPullRequestOlderRefreshDoesNotOverwriteNewerConfirmation(t *testing.T) {
+	ctx := context.Background()
+	fetcher := newOrderedFetcher(pendingObservation, passingObservation)
+	manager, _, store := newPullRequestTestManager(t, filepath.Join(t.TempDir(), "lanes.sqlite3"), fetcher)
+	created, err := manager.Create(ctx, state.CreateSessionRequest{Cmd: "/bin/sh", Cwd: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.LinkPullRequest(ctx, created.ID, testPRURL); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.PullRequests().RecordPullRequestObserved(ctx, ledger.PullRequestObserved{
+		Meta: ledger.Meta{LaneID: created.ID}, URL: testPRURL, Observation: passingObservation,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	older := overlapRefreshes(t, manager, fetcher, created.ID)
+	if !older.Refresh.Superseded || older.Status.Checks != "passing" {
+		t.Fatalf("older refresh = %#v %#v, want superseded and still passing", older.Refresh, older.Status)
+	}
+	if count := countEvents(t, store, created.ID, ledger.EventPullRequestObserved); count != 1 {
+		t.Fatalf("observed events = %d, want the stale read dropped", count)
+	}
+}
+
+// A cancelled read is a cancellation, not a GitHub failure or a timeout.
+func TestPullRequestRefreshFailureKeepsCancellationDistinct(t *testing.T) {
+	if got := refreshFailure(context.Canceled); got.ErrorKind != pullrequest.ErrorCancelled {
+		t.Fatalf("cancelled = %#v", got)
+	}
+	if got := refreshFailure(context.DeadlineExceeded); got.ErrorKind != pullrequest.ErrorTimeout {
+		t.Fatalf("deadline = %#v", got)
+	}
+}

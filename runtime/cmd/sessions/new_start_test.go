@@ -5,9 +5,12 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/somewhere-tech/sessions/runtime/internal/state"
 )
 
 const startSessionID = "cccccccc-dddd-4eee-8fff-000000000001"
@@ -371,6 +374,43 @@ func TestNewJSONRecordAndStartReceiptAreOneSnapshot(t *testing.T) {
 		}
 		if record["ok"] != true || record["first_request"] == nil {
 			t.Fatalf("attempt %d lost the additive fields: %v", attempt, record)
+		}
+	}
+}
+
+// Re-running the same `sessions new --operation-id` is a replay: each run mints
+// a fresh Claude --session-id and first-request operation id, and the daemon's
+// create fingerprint ignores both, so the two bodies ask for the same work.
+func TestNewRerunKeepsTheCreateFingerprint(t *testing.T) {
+	const operation = "5a000000-0000-4000-8000-0000000000f1"
+	for _, args := range [][]string{
+		{"new", "--operation-id", operation, "--tool", "claude", "--cwd", "/tmp", "fix the flaky test"},
+		{"new", "--operation-id", operation, "--tool", "claude", "--structured", "--cwd", "/tmp", "fix the flaky test"},
+	} {
+		daemon := &startDaemon{
+			submitReceipt: map[string]any{"status": "accepted", "delivered": true, "acceptance": "runner"},
+			start:         map[string]any{"phase": "prompt-delivered", "evidence": "accepted", "evidence_source": "delivery-receipt"},
+		}
+		server := daemon.serve(t)
+		for range 2 {
+			runStartCLI(t, server, append([]string{"--json"}, args...)...)
+		}
+		server.Close()
+		if len(daemon.createBodies) != 2 {
+			t.Fatalf("%v: creates = %d, want 2", args, len(daemon.createBodies))
+		}
+		var bodies [2]state.CreateSessionRequest
+		for index, body := range daemon.createBodies {
+			encoded, _ := json.Marshal(body)
+			if err := json.Unmarshal(encoded, &bodies[index]); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if reflect.DeepEqual(bodies[0].Args, bodies[1].Args) && bodies[0].PromptOperationID == bodies[1].PromptOperationID {
+			t.Fatalf("%v: the two runs sent identical bodies, so this test proves nothing: %#v", args, bodies[0])
+		}
+		if first, second := state.CreateRequestFingerprint(bodies[0]), state.CreateRequestFingerprint(bodies[1]); first != second {
+			t.Fatalf("%v: re-run changed the create fingerprint:\n%#v\n%#v", args, bodies[0], bodies[1])
 		}
 	}
 }

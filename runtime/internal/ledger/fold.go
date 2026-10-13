@@ -25,6 +25,7 @@ type LaneState struct {
 	DelegationKind           string
 	StartOperationID         string
 	PromptOperationID        string
+	RequestFingerprint       string
 	CreatedAtMS              int64
 	LastEventAtMS            int64
 	LastActivityAtMS         int64

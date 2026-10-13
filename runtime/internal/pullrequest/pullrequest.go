@@ -142,6 +142,10 @@ type RefreshResult struct {
 	ErrorKind string `json:"error_kind,omitempty"`
 	Error     string `json:"error,omitempty"`
 	Recorded  bool   `json:"recorded"`
+	// Superseded means the read succeeded but began before another refresh
+	// whose answer was already applied, so its older answer was dropped and
+	// the status shows the newer one.
+	Superseded bool `json:"superseded,omitempty"`
 }
 
 type Status struct {

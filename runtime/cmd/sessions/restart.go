@@ -82,5 +82,16 @@ func (a *app) cmdRestartPreview(args []string) error {
 	if err := a.postJSON("/api/recovery/restart/preview", map[string]string{"sourceSessionId": id}, &result, 2); err != nil {
 		return err
 	}
+	// The daemon's command and reason name only itself; print them for the
+	// target this preview was read from.
+	if command, ok := result["command"].(string); ok {
+		result["command"] = a.scopedCommand(command)
+	}
+	if reason, ok := result["reason"].(string); ok {
+		result["reason"] = a.scopedText(reason)
+	}
+	if a.machine != "" {
+		result["machine"] = a.machine
+	}
 	return writeJSON(a.stdout, result, true)
 }
