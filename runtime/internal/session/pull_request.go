@@ -141,7 +141,9 @@ func (m *Manager) withChanged(lane ledger.LaneState, changed bool) pullrequest.S
 // RefreshPullRequest reads the linked pull request once, read-only, and records
 // the observation when it differs from the last one recorded. A failed read
 // records nothing and leaves the previous observation, reported with its real
-// age. Nothing here ends, closes, or signals the lane's runner.
+// age. The answer always describes the link as it is after the read, never the
+// one the read began with. Nothing here ends, closes, or signals the lane's
+// runner.
 func (m *Manager) RefreshPullRequest(ctx context.Context, id string) (pullrequest.Status, error) {
 	lane, err := m.pullRequestLane(ctx, id)
 	if err != nil {
@@ -154,27 +156,36 @@ func (m *Manager) RefreshPullRequest(ctx context.Context, id string) (pullreques
 	if fetcher == nil {
 		fetcher = pullrequest.GH{}
 	}
+	read := lane.PullRequest.URL
 	observation, fetchErr := fetcher.Fetch(ctx, lane.PullRequest.PullRequestRef)
-	if fetchErr != nil {
-		status := m.composePullRequest(lane)
-		status.Refresh = refreshFailure(fetchErr)
-		return status, nil
+	recorded := false
+	if fetchErr == nil {
+		lane, recorded, err = m.recordPullRequestObservation(ctx, id, read, observation)
+	} else {
+		lane, err = m.pullRequestLane(ctx, id)
 	}
-	recorded, err := m.recordPullRequestObservation(ctx, id, lane.PullRequest.URL, observation)
 	if err != nil {
 		return pullrequest.Status{}, err
 	}
-	if lane, err = m.pullRequestLane(ctx, id); err != nil {
-		return pullrequest.Status{}, err
-	}
 	status := m.composePullRequest(lane)
-	status.Refresh = &pullrequest.RefreshResult{OK: true, Recorded: recorded}
+	switch {
+	case lane.PullRequest.URL != read:
+		status.Refresh = &pullrequest.RefreshResult{ErrorKind: pullrequest.ErrorLinkChanged, Error: fmt.Sprintf(
+			"the pull request link changed while %s was being read, so nothing was recorded; refresh again to read the current link", read)}
+	case fetchErr != nil:
+		status.Refresh = refreshFailure(fetchErr)
+	default:
+		status.Refresh = &pullrequest.RefreshResult{OK: true, Recorded: recorded}
+	}
 	return status, nil
 }
 
-func (m *Manager) recordPullRequestObservation(ctx context.Context, id, url string, observation ledger.PullRequestObservation) (bool, error) {
+// recordPullRequestObservation records what was read about url and returns
+// the lane as it stands afterwards, both under the write lock, so the answer
+// and the decision describe the same link.
+func (m *Manager) recordPullRequestObservation(ctx context.Context, id, url string, observation ledger.PullRequestObservation) (ledger.LaneState, bool, error) {
 	if m.options.PullRequests == nil {
-		return false, ErrPullRequestUnavailable
+		return ledger.LaneState{}, false, ErrPullRequestUnavailable
 	}
 	m.pullRequests.writeMu.Lock()
 	defer m.pullRequests.writeMu.Unlock()
@@ -182,23 +193,26 @@ func (m *Manager) recordPullRequestObservation(ctx context.Context, id, url stri
 	// and an answer about a pull request that is no longer linked is dropped.
 	lane, err := m.pullRequestLane(ctx, id)
 	if err != nil {
-		return false, err
+		return ledger.LaneState{}, false, err
 	}
 	current := lane.PullRequest
 	if current.URL != url {
-		return false, nil
+		return lane, false, nil
 	}
 	if current.Merged || (current.Observed && current.Observation == observation) {
 		m.confirmPullRequest(id, url)
-		return false, nil
+		return lane, false, nil
 	}
 	if err := m.options.PullRequests.RecordPullRequestObserved(ctx, ledger.PullRequestObserved{
 		Meta: ledger.Meta{LaneID: id}, URL: url, Observation: observation,
 	}); err != nil {
-		return false, err
+		return ledger.LaneState{}, false, err
 	}
 	m.confirmPullRequest(id, "")
-	return true, nil
+	if lane, err = m.pullRequestLane(ctx, id); err != nil {
+		return ledger.LaneState{}, false, err
+	}
+	return lane, true, nil
 }
 
 // confirmPullRequest remembers an unchanged read, or forgets one when url is

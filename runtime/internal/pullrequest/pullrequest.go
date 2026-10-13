@@ -145,13 +145,17 @@ type RefreshResult struct {
 }
 
 type Status struct {
-	SessionID   string         `json:"session_id"`
-	Linked      bool           `json:"linked"`
-	Changed     *bool          `json:"changed,omitempty"`
-	PullRequest *Link          `json:"pull_request,omitempty"`
-	Status      *Report        `json:"status,omitempty"`
-	ObservedAt  string         `json:"observed_at,omitempty"`
-	Freshness   string         `json:"freshness,omitempty"`
+	SessionID   string  `json:"session_id"`
+	Linked      bool    `json:"linked"`
+	Changed     *bool   `json:"changed,omitempty"`
+	PullRequest *Link   `json:"pull_request,omitempty"`
+	Status      *Report `json:"status,omitempty"`
+	ObservedAt  string  `json:"observed_at,omitempty"`
+	Freshness   string  `json:"freshness,omitempty"`
+	// FreshForMS is how much longer, measured from this answer, a "fresh"
+	// observation stays fresh. It is a duration rather than a time so a client
+	// on another machine can age the answer without trusting either clock.
+	FreshForMS  int64          `json:"fresh_for_ms,omitempty"`
 	BranchMatch string         `json:"branch_match,omitempty"`
 	Work        string         `json:"work,omitempty"`
 	Runner      string         `json:"runner"`

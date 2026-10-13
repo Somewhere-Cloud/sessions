@@ -50,6 +50,10 @@ func Compose(lane ledger.LaneState, live bool, confirmedAt time.Time, now time.T
 		}
 		status.ObservedAt = observedAt.UTC().Format(time.RFC3339)
 		status.Freshness = freshness(pr, observedAt, now)
+		if status.Freshness == FreshnessFresh {
+			// Round up so a fresh answer never reports zero remaining.
+			status.FreshForMS = (FreshFor - now.Sub(observedAt) + time.Millisecond - 1).Milliseconds()
+		}
 		status.BranchMatch = branchMatch(lane.Branch, report.HeadRef)
 		status.Work = workState(pr)
 	}

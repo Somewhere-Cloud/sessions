@@ -1488,15 +1488,24 @@ appends nothing and refreshes freshness for this daemon's lifetime only. A
 failed read appends nothing and answers 200 with the previous observation and
 `refresh.ok:false`. Refresh with no link is `409`.
 
+An answer is accepted only when gh names exactly the linked pull request: its
+`url` must canonicalize to the linked URL. A matching number in another
+repository, a renamed or transferred repository, or an answer with no URL is
+`mismatch` (or `malformed_response` when the URL is missing) and is not
+recorded. The answer always describes the link as it is after the read. If the
+lane was relinked or unlinked while gh was running, the refresh answers
+`refresh.ok:false` with `error_kind:"link_changed"`, records nothing, and
+reports the current link.
+
 Every success answers one status object:
 
 ```json
 {"session_id":"<id>","linked":true,"changed":true,"runner":"live|not_connected|ended",
  "pull_request":{"url":"https://github.com/acme/app/pull/42","host":"github.com","owner":"acme","repo":"app","number":42,"linked_at":"<RFC3339>"},
  "status":{"state":"open|closed|merged|unknown","draft":false,"checks":"passing|failing|pending|none|unknown","checks_total":3,"checks_failing":0,"checks_pending":1,"mergeable":"mergeable|conflicting|unknown","head_ref":"...","head_sha":"...","base_ref":"main","merged_at":"...","merge_commit":"..."},
- "observed_at":"<RFC3339>","freshness":"fresh|stale|final|unknown","branch_match":"match|mismatch|unknown",
+ "observed_at":"<RFC3339>","freshness":"fresh|stale|final|unknown","fresh_for_ms":540000,"branch_match":"match|mismatch|unknown",
  "work":"open|merged|closed_unmerged|unknown","closure":{"action":"none|keep|archive_available","reason":"..."},
- "refresh":{"ok":false,"error_kind":"gh_missing|auth|not_found|network|rate_limited|timeout|malformed_response|mismatch|failed","error":"...","recorded":false}}
+ "refresh":{"ok":false,"error_kind":"gh_missing|auth|not_found|network|rate_limited|timeout|malformed_response|mismatch|link_changed|failed","error":"...","recorded":false}}
 ```
 
 An unlinked lane answers only `session_id`, `linked:false`, and `runner`.
@@ -1504,7 +1513,9 @@ An unlinked lane answers only `session_id`, `linked:false`, and `runner`.
 Before any successful read, `status` fields are `unknown` and `freshness` is
 `unknown`. `fresh` means read within ten minutes, `stale` older, and `final`
 means merged: merged is monotonic for a URL and a later contradictory read is
-not recorded. `branch_match` compares the head branch with the lane's
+not recorded. `fresh_for_ms` appears only with `fresh` and is how long, from
+this answer, the observation stays fresh; a client that keeps showing the
+answer turns it `stale` locally after that duration instead of polling. `branch_match` compares the head branch with the lane's
 Sessions-created branch and is reported, never enforced. A merged pull request
 sets `work:"merged"` but never ends a runner: a live or paused lane answers
 `closure.action:"keep"` with the command to end it, and only a lane whose

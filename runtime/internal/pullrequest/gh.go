@@ -47,6 +47,10 @@ const (
 	ErrorMalformedResponse = "malformed_response"
 	ErrorMismatch          = "mismatch"
 	ErrorFailed            = "failed"
+	// ErrorLinkChanged means the lane was linked to a different pull request,
+	// or unlinked, while the read was in flight. The answer was about a link
+	// the lane no longer has, so nothing was recorded.
+	ErrorLinkChanged = "link_changed"
 )
 
 // FetchError is a classified, instructional read failure.

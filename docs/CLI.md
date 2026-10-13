@@ -1167,7 +1167,7 @@ Associate a Sessions lane with one GitHub pull request and report its state, che
 
 link validates and canonicalizes a https://github.com/OWNER/REPO/pull/NUMBER URL and records it in the append-only ledger; linking the URL already linked records nothing, and linking a different one replaces it. unlink removes the link. Neither contacts GitHub.
 
-refresh is the only command that reads GitHub. It runs `gh pr view --json` once with the GitHub CLI login you already have, with a 20-second timeout and no retry; Sessions never reads, stores, or forwards that credential and never writes to GitHub. A failed read records nothing, keeps the last observation with its real age, names the failure (gh_missing, auth, not_found, network, rate_limited, timeout, malformed_response, mismatch, failed), and exits 1. There is no background polling.
+refresh is the only command that reads GitHub. It runs `gh pr view --json` once with the GitHub CLI login you already have, with a 20-second timeout and no retry; Sessions never reads, stores, or forwards that credential and never writes to GitHub. A failed read records nothing, keeps the last observation with its real age, names the failure (gh_missing, auth, not_found, network, rate_limited, timeout, malformed_response, mismatch, link_changed, failed), and exits 1. An answer is accepted only when gh names exactly the linked URL; a relink during the read is reported as link_changed and nothing is recorded. There is no background polling.
 
 A merged pull request marks the lane's work as merged. Sessions never ends a runner because its pull request merged: a live or paused lane is kept and the closure line says how to end it yourself; a lane whose runner already ended is offered `sessions archive`.
 

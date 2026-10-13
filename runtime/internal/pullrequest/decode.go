@@ -47,6 +47,9 @@ func decodeGH(ref ledger.PullRequestRef, encoded []byte) (ledger.PullRequestObse
 		return ledger.PullRequestObservation{}, &FetchError{Kind: ErrorMismatch, Message: fmt.Sprintf(
 			"gh answered for pull request #%d, not #%d at %s; nothing was recorded", *value.Number, ref.Number, ref.URL)}
 	}
+	if err := requireSameURL(ref, value.URL); err != nil {
+		return ledger.PullRequestObservation{}, err
+	}
 	state, ok := map[string]string{"OPEN": StateOpen, "CLOSED": StateClosed, "MERGED": StateMerged}[strings.ToUpper(value.State)]
 	if !ok {
 		return ledger.PullRequestObservation{}, &FetchError{Kind: ErrorMalformedResponse, Message: fmt.Sprintf(
@@ -63,6 +66,24 @@ func decodeGH(ref ledger.PullRequestRef, encoded []byte) (ledger.PullRequestObse
 	observation.Checks, observation.ChecksTotal, observation.ChecksFailing, observation.ChecksPending =
 		summarizeChecks(value.StatusCheckRollup)
 	return observation, nil
+}
+
+// requireSameURL accepts an answer only when gh names exactly the linked pull
+// request. A matching number alone is not identity: #42 in another repository
+// is a different pull request, and gh follows renames and transfers to a URL
+// the lane was never linked to.
+func requireSameURL(ref ledger.PullRequestRef, answered string) error {
+	if strings.TrimSpace(answered) == "" {
+		return &FetchError{Kind: ErrorMalformedResponse, Message: fmt.Sprintf(
+			"gh returned no pull request URL for %s; update gh and refresh again", ref.URL)}
+	}
+	parsed, err := Parse(answered)
+	if err != nil || parsed.URL != ref.URL {
+		return &FetchError{Kind: ErrorMismatch, Message: fmt.Sprintf(
+			"gh answered for %q, not the linked %s; nothing was recorded. If the repository moved, link the new URL with `sessions pr link`",
+			answered, ref.URL)}
+	}
+	return nil
 }
 
 func mergeable(value string) string {

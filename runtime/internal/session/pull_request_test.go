@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"path/filepath"
 	"sync"
@@ -19,12 +20,20 @@ type fakePullRequestFetcher struct {
 	calls       int
 	observation ledger.PullRequestObservation
 	err         error
+	// during runs while the read is in flight, outside the fetcher's lock.
+	during func(ledger.PullRequestRef)
 }
 
-func (f *fakePullRequestFetcher) Fetch(context.Context, ledger.PullRequestRef) (ledger.PullRequestObservation, error) {
+func (f *fakePullRequestFetcher) Fetch(_ context.Context, ref ledger.PullRequestRef) (ledger.PullRequestObservation, error) {
+	f.mu.Lock()
+	f.calls++
+	during := f.during
+	f.mu.Unlock()
+	if during != nil {
+		during(ref)
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.calls++
 	return f.observation, f.err
 }
 
@@ -246,5 +255,146 @@ func TestPullRequestLinkPersistsAcrossDaemonRestart(t *testing.T) {
 	}
 	if status.Runner == pullrequest.RunnerLive {
 		t.Fatal("a restarted daemon without the runner must not report it live")
+	}
+}
+
+const otherPRURL = "https://github.com/acme/app/pull/43"
+
+// A link that changes while gh is running must not be answered with the old
+// link, and the old link's answer must not be reported as a successful read of
+// the new one.
+func TestPullRequestRefreshReportsTheLinkAsItIsAfterTheRead(t *testing.T) {
+	ctx := context.Background()
+	for _, tc := range []struct {
+		name string
+		err  error
+	}{
+		{name: "failed read", err: &pullrequest.FetchError{Kind: pullrequest.ErrorNetwork, Message: "no route"}},
+		{name: "successful read"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fetcher := &fakePullRequestFetcher{}
+			manager, _, store := newPullRequestTestManager(t, filepath.Join(t.TempDir(), "lanes.sqlite3"), fetcher)
+			created, err := manager.Create(ctx, state.CreateSessionRequest{Cmd: "/bin/sh", Cwd: t.TempDir(), Name: "pr lane"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := manager.LinkPullRequest(ctx, created.ID, testPRURL); err != nil {
+				t.Fatal(err)
+			}
+			fetcher.set(ledger.PullRequestObservation{State: "merged", Checks: "passing", Mergeable: "unknown"}, tc.err)
+			fetcher.during = func(ref ledger.PullRequestRef) {
+				if ref.URL != testPRURL {
+					t.Errorf("read %s, want %s", ref.URL, testPRURL)
+				}
+				if _, err := manager.LinkPullRequest(ctx, created.ID, otherPRURL); err != nil {
+					t.Error(err)
+				}
+			}
+			status, err := manager.RefreshPullRequest(ctx, created.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !status.Linked || status.PullRequest.URL != otherPRURL {
+				t.Fatalf("refresh answered with link %#v, want the current %s", status.PullRequest, otherPRURL)
+			}
+			if status.Refresh == nil || status.Refresh.OK || status.Refresh.Recorded ||
+				status.Refresh.ErrorKind != pullrequest.ErrorLinkChanged {
+				t.Fatalf("refresh result = %#v, want link_changed with nothing recorded", status.Refresh)
+			}
+			if status.Work != pullrequest.WorkUnknown || status.Freshness != pullrequest.FreshnessUnknown {
+				t.Fatalf("the new link was never read but reports work=%s freshness=%s", status.Work, status.Freshness)
+			}
+			if got := countEvents(t, store, created.ID, ledger.EventPullRequestObserved); got != 0 {
+				t.Fatalf("observed events = %d; an answer about the old link was recorded", got)
+			}
+		})
+	}
+}
+
+// Concurrent refreshes, relinks, and unlinks never record an observation under
+// a URL other than the one that was read, and every answer is self-consistent.
+// Run with -race.
+func TestPullRequestConcurrentRefreshAndRelinkStayConsistent(t *testing.T) {
+	ctx := context.Background()
+	fetcher := &fakePullRequestFetcher{observation: ledger.PullRequestObservation{State: "open", Checks: "none", Mergeable: "mergeable"}}
+	manager, launcher, store := newPullRequestTestManager(t, filepath.Join(t.TempDir(), "lanes.sqlite3"), fetcher)
+	created, err := manager.Create(ctx, state.CreateSessionRequest{Cmd: "/bin/sh", Cwd: t.TempDir(), Name: "pr lane"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.LinkPullRequest(ctx, created.ID, testPRURL); err != nil {
+		t.Fatal(err)
+	}
+	var wg sync.WaitGroup
+	for worker := 0; worker < 4; worker++ {
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 10; i++ {
+				status, err := manager.RefreshPullRequest(ctx, created.ID)
+				if errors.Is(err, ErrPullRequestNotLinked) {
+					continue
+				}
+				if err != nil {
+					t.Error(err)
+					return
+				}
+				if status.Refresh.OK && (!status.Linked || status.Freshness != pullrequest.FreshnessFresh) {
+					t.Errorf("a successful refresh answered an unread link: %#v", status)
+				}
+			}
+		}()
+		go func(worker int) {
+			defer wg.Done()
+			for i := 0; i < 10; i++ {
+				var err error
+				switch (worker + i) % 3 {
+				case 0:
+					_, err = manager.LinkPullRequest(ctx, created.ID, testPRURL)
+				case 1:
+					_, err = manager.LinkPullRequest(ctx, created.ID, otherPRURL)
+				default:
+					_, err = manager.UnlinkPullRequest(ctx, created.ID)
+				}
+				if err != nil {
+					t.Error(err)
+					return
+				}
+			}
+		}(worker)
+	}
+	wg.Wait()
+	events, err := store.Events(ctx, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	current := ""
+	for _, event := range events {
+		switch event.Type {
+		case ledger.EventPullRequestLinked:
+			var ref ledger.PullRequestRef
+			if err := json.Unmarshal(event.Payload, &ref); err != nil {
+				t.Fatal(err)
+			}
+			current = ref.URL
+		case ledger.EventPullRequestUnlinked:
+			current = ""
+		case ledger.EventPullRequestObserved:
+			var observed struct {
+				URL string `json:"url"`
+			}
+			if err := json.Unmarshal(event.Payload, &observed); err != nil {
+				t.Fatal(err)
+			}
+			if observed.URL != current {
+				t.Fatalf("observation for %q recorded while %q was linked", observed.URL, current)
+			}
+		case ledger.EventUserKillRequested, ledger.EventRunnerExited:
+			t.Fatalf("pull request activity wrote lifecycle event %s", event.Type)
+		}
+	}
+	if launcher.Runner(created.ID).HasExited() {
+		t.Fatal("pull request activity ended the lane's runner")
 	}
 }

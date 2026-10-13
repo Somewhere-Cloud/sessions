@@ -102,7 +102,7 @@ func TestDecodeSummarizesChecksWithoutKeepingContent(t *testing.T) {
 		ChecksPending: `[{"__typename":"CheckRun","status":"QUEUED"},{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}]`,
 		ChecksUnknown: `[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SOMETHING_NEW"}]`,
 	} {
-		observation, err := decodeGH(ref, []byte(`{"number":42,"state":"MERGED","mergeable":"UNKNOWN","mergeCommit":{"oid":"def"},"statusCheckRollup":`+rollup+`}`))
+		observation, err := decodeGH(ref, []byte(`{"number":42,"url":"https://github.com/Acme/App/pull/42","state":"MERGED","mergeable":"UNKNOWN","mergeCommit":{"oid":"def"},"statusCheckRollup":`+rollup+`}`))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -114,12 +114,23 @@ func TestDecodeSummarizesChecksWithoutKeepingContent(t *testing.T) {
 
 func TestDecodeRefusesMalformedAndMismatchedAnswers(t *testing.T) {
 	ref := ledger.PullRequestRef{URL: "https://github.com/acme/app/pull/42", Number: 42}
+	url := `"https://github.com/acme/app/pull/42"`
 	for body, kind := range map[string]string{
-		`not json`:                             ErrorMalformedResponse,
-		`{"state":"OPEN"}`:                     ErrorMalformedResponse,
-		`{"number":42,"state":"HALF_MERGED"}`:  ErrorMalformedResponse,
-		`{"number":7,"state":"OPEN"}`:          ErrorMismatch,
-		`{"number":42,"state":"OPEN"} garbage`: ErrorMalformedResponse,
+		`not json`:         ErrorMalformedResponse,
+		`{"state":"OPEN"}`: ErrorMalformedResponse,
+		`{"number":42,"url":` + url + `,"state":"HALF_MERGED"}`:  ErrorMalformedResponse,
+		`{"number":7,"url":` + url + `,"state":"OPEN"}`:          ErrorMismatch,
+		`{"number":42,"url":` + url + `,"state":"OPEN"} garbage`: ErrorMalformedResponse,
+		// The number alone is not identity: the same number in another
+		// repository, a renamed or transferred repository, a different host,
+		// or no URL at all is never accepted as the linked pull request.
+		`{"number":42,"state":"OPEN"}`:                                                     ErrorMalformedResponse,
+		`{"number":42,"url":"","state":"OPEN"}`:                                            ErrorMalformedResponse,
+		`{"number":42,"url":"https://github.com/evil/app/pull/42","state":"OPEN"}`:         ErrorMismatch,
+		`{"number":42,"url":"https://github.com/acme/app-renamed/pull/42","state":"OPEN"}`: ErrorMismatch,
+		`{"number":42,"url":"https://github.example.com/acme/app/pull/42","state":"OPEN"}`: ErrorMismatch,
+		`{"number":42,"url":"https://github.com/acme/app/pull/43","state":"OPEN"}`:         ErrorMismatch,
+		`{"number":42,"url":"not a url","state":"OPEN"}`:                                   ErrorMismatch,
 	} {
 		_, err := decodeGH(ref, []byte(body))
 		var fetchErr *FetchError
@@ -182,7 +193,7 @@ func TestGHFetchClassifiesFailures(t *testing.T) {
 
 func TestGHFetchRunsOnlyAReadAndDecodes(t *testing.T) {
 	ref := ledger.PullRequestRef{URL: "https://github.com/acme/app/pull/42", Number: 42}
-	path, argvPath := fakeGH(t, `echo '{"number":42,"state":"OPEN","mergeable":"MERGEABLE","statusCheckRollup":[]}'`)
+	path, argvPath := fakeGH(t, `echo '{"number":42,"url":"https://github.com/acme/app/pull/42","state":"OPEN","mergeable":"MERGEABLE","statusCheckRollup":[]}'`)
 	observation, err := GH{Path: path}.Fetch(context.Background(), ref)
 	if err != nil {
 		t.Fatal(err)
@@ -211,8 +222,17 @@ func TestComposeClosurePolicyNeverOffersToEndLiveWork(t *testing.T) {
 	if open.Freshness != FreshnessStale || open.Work != WorkOpen || open.Closure.Action != ClosureNone || open.BranchMatch != "match" {
 		t.Fatalf("stale open = %#v", open)
 	}
-	if confirmed := Compose(lane, true, now.Add(-time.Minute), now); confirmed.Freshness != FreshnessFresh {
+	if open.FreshForMS != 0 {
+		t.Fatalf("a stale answer claims %dms of freshness", open.FreshForMS)
+	}
+	confirmed := Compose(lane, true, now.Add(-time.Minute), now)
+	if confirmed.Freshness != FreshnessFresh {
 		t.Fatalf("a recent identical read must count as fresh, got %s", confirmed.Freshness)
+	}
+	// A client ages the answer by this duration, so it must be exactly what
+	// is left of the window, never the whole window.
+	if want := (FreshFor - time.Minute).Milliseconds(); confirmed.FreshForMS != want {
+		t.Fatalf("fresh_for_ms = %d, want %d", confirmed.FreshForMS, want)
 	}
 
 	lane.PullRequest.Merged = true
