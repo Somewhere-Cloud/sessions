@@ -26,6 +26,19 @@ function machine(): FakeMachine {
 }
 
 describe('read before continuing a conversation', () => {
+  it('reads from the selected remote machine, never the local same-id history', async () => {
+    const local = machine();
+    const remote: FakeMachine = { ...machine(), id: 'mini', name: 'Mac mini', host: 'mini.test', isDefault: false,
+      transcripts: { 'saved-history': [{ id: 'remote-answer', index: 0, role: 'assistant', text: 'Only on the Mini', timestamp: null }] } };
+    const daemon = installFakeDaemon([local, remote]);
+    useFakeMachines([local, remote], 'mini');
+    render(<ResumePreview selected={selected} />);
+    expect(await screen.findByText('Only on the Mini')).toBeInTheDocument();
+    expect(screen.queryByText('The tests passed; awaiting review.')).not.toBeInTheDocument();
+    expect(daemon.created).toEqual([]);
+    expect(daemon.adopted).toEqual([]);
+  });
+
   it('ends a hung read with an explicit read-only retry, not an endless spinner or a resumed agent', async () => {
     const host = machine();
     const daemon = installFakeDaemon([host]);
