@@ -243,7 +243,7 @@ func (s *Server) handleRecovery(response http.ResponseWriter, request *http.Requ
 			if restoreFromTranscript {
 				if strings.TrimSpace(body.ClaudePermissionMode) != "" || body.Permissions == state.PermissionsFull {
 					s.sendJSON(response, http.StatusConflict, map[string]any{
-						"error": "A permission override requires Claude's native resume handle; this conversation can only be restored from its Sessions transcript.",
+						"error": "A permission override requires the provider's native resume handle; this conversation can only be restored from its Sessions transcript, which runs with Ask me. Resume again without --permissions.",
 					}, corsOrigin)
 					return
 				}
@@ -328,7 +328,7 @@ func (s *Server) handleRecovery(response http.ResponseWriter, request *http.Requ
 			if destination != "" && destination != sourceProvider {
 				if strings.TrimSpace(body.ClaudePermissionMode) != "" || body.Permissions == state.PermissionsFull {
 					s.sendJSON(response, http.StatusBadRequest, map[string]any{
-						"error": "--permissions applies only to a same-provider Claude resume, not a cross-provider copy",
+						"error": "a permission override applies only to a same-provider resume; a cross-provider copy runs with Ask me (constrained)",
 					}, corsOrigin)
 					return
 				}
@@ -449,6 +449,12 @@ func (s *Server) handleRecovery(response http.ResponseWriter, request *http.Requ
 			}
 			source = adoptSourceFromSession(candidate)
 		}
+		// A saved record keeps the access it ran with unless the caller chose
+		// one. Without a record, or when it does not say, the default applies.
+		var recordedPermissionArgs []string
+		if source != nil && body.Permissions == "" && strings.TrimSpace(body.ClaudePermissionMode) == "" {
+			body.Permissions, recordedPermissionArgs = source.Permissions, source.PermissionArgs
+		}
 		var claudeOptions *state.ClaudeSessionOptions
 		resumeModel, resumeEffort := "", ""
 		if body.RemoteControl != nil || strings.TrimSpace(body.ClaudePermissionMode) != "" ||
@@ -555,7 +561,8 @@ func (s *Server) handleRecovery(response http.ResponseWriter, request *http.Requ
 			recovery.AdoptOptions{
 				Force: body.Force, Source: source, Events: store,
 				RuntimeMode: body.RuntimeMode, Claude: claudeOptions,
-				Permissions: body.Permissions, Model: resumeModel, Effort: resumeEffort,
+				Permissions: body.Permissions, PermissionArgs: recordedPermissionArgs,
+				Model: resumeModel, Effort: resumeEffort,
 				ClaudeLive: claudeLiveQuery(sourceCandidates, resolveOptions.ClaudeProjectsDir),
 			},
 		)
@@ -895,6 +902,8 @@ func adoptSourceFromSession(candidate state.SessionInfo) *recovery.AdoptSource {
 		Tags: candidate.Tags, Profile: candidate.Profile, ConfigDir: candidate.ConfigDir, Kind: candidate.Kind,
 		WorktreePath: candidate.WorktreePath, Branch: candidate.Branch, SourceRepo: candidate.SourceRepo,
 		DisplayParentSessionID: displayParent,
+		Permissions:            sessionruntime.RecordedPermissions(candidate),
+		PermissionArgs:         sessionruntime.RecordedConstrainedArgs(candidate),
 	}
 }
 

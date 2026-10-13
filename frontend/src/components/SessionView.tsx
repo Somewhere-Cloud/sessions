@@ -28,6 +28,7 @@ const RemoteView = lazy(() => import('./RemoteView').then((module) => ({ default
 // Both render only while something is wrong, so neither belongs on the entry path.
 const ProviderFaultCard = lazy(() => import('./ProviderFaultCard').then((module) => ({ default: module.ProviderFaultCard })));
 const StartReceiptNote = lazy(() => import('./StartReceiptNote').then((module) => ({ default: module.StartReceiptNote })));
+const PullRequestChip = lazy(() => import('./PullRequestChip').then((module) => ({ default: module.PullRequestChip })));
 import { classifySession, lostSessionNote } from '../lib/sessionStatus';
 import { sessionMode, sessionModeName, sessionModeShort } from '../lib/sessionMode';
 import { SessionPopOutButton } from './SessionPopOutButton';
@@ -140,6 +141,12 @@ function SessionHeaderNotes({ session, onOpenAccounts }: { session: SessionInfo;
       ) : null}
     </>
   );
+}
+
+// The lane's linked pull request, if any. Most lanes have none, so the chip
+// and its styles load only when a session is opened.
+function SessionPullRequest({ sessionId, serverId }: { sessionId: string; serverId?: string }): JSX.Element {
+  return <Suspense fallback={null}><PullRequestChip sessionId={sessionId} serverId={serverId} /></Suspense>;
 }
 
 // The conversation pane, with the boundary its lazily loaded contents need.
@@ -564,7 +571,7 @@ function SessionViewInner({ sessionId, onStatusChange, isActive = false, onResum
           <div className="session-active-meta">
             {provider ? <ProviderBadge provider={provider} compact size={20} /> : <span className="provider-badge is-shell is-compact">⌘ Shell</span>}
             <MachineMark machine={serverDisplayName(getActiveServer(), true)} size={18} />
-            <span className="session-header-workspace" title={session?.cwd}>{workspaceName}</span>
+            <span className="session-header-workspace" title={session?.cwd}>{workspaceName}</span>{session ? <SessionPullRequest sessionId={session.id} serverId={sourceServerId} /> : null}
             <span className={`session-live-pill${statusTone}`}>{statusLabel}</span>
             {session && terminalCompatibilityAgent ? (
               <span className="session-runtime-anchor">
@@ -641,7 +648,7 @@ function SessionViewInner({ sessionId, onStatusChange, isActive = false, onResum
           <Suspense fallback={<button type="button" disabled aria-label="Loading conversation actions">•••</button>}><SessionActionsMenu>
           {session ? <div className="session-actions-context"><AccountBadge session={session} /><span>{sessionModeName(session)}</span></div> : null}
           {session ? <SessionPopOutButton sessionId={session.id} label={resolvedSessionLabel(session)} /> : null}
-          {session && onOpenSession && !lostConversation ? <RestartConversation session={session} onOpen={onOpenSession} serverId={sourceServerId} /> : null}
+          {session && onOpenSession && !lostConversation ? <RestartConversation session={session} onOpen={onOpenSession} onResume={onResume ? (row) => void onResume(row) : undefined} serverId={sourceServerId} /> : null}
           {session?.tool === 'claude-code' && sourceServerId ? <ClaudeRemoteControlLink key={`${sourceServerId}:${session.id}`} sessionId={session.id} serverId={sourceServerId} /> : null}
           {richSession && session?.tool === 'claude-code' && onResume && !lostConversation ?
             <ClaudeRuntimeControl working={session.working} onContinue={continueInTerminal} /> : null}

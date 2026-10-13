@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { useSessions } from '../store/sessions';
 import {
   fetchResumableSessions,
@@ -9,6 +9,7 @@ import { ProviderBadge } from './ProviderBadge';
 const ResumeActions = lazy(() => import('./ResumeActions').then((module) => ({ default: module.ResumeActions })));
 import { ResumeMachinesNote, resumeMachinesLine } from './ResumeMachinesNote';
 import { useOtherMachines } from '../hooks/useOtherMachines';
+import { ResumePreview } from './ResumePreview';
 
 // Dedicated resume picker — opened from an ended session or New Session
 // (separate from "+ New session"). The old design tucked resume inside
@@ -46,7 +47,7 @@ function readViewMode(): ViewMode {
     const v = window.localStorage.getItem(VIEW_MODE_KEY);
     if (v === 'grouped' || v === 'flat') return v;
   } catch { /* ignore */ }
-  return 'flat';
+  return 'grouped';
 }
 
 function writeViewMode(mode: ViewMode): void {
@@ -119,6 +120,10 @@ export function ResumeDialog({
   const [providerFilter, setProviderFilter] = useState<ProviderFilter>('all');
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<ResumableSession | null>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { bodyRef.current?.scrollTo({ top: 0 }); }, [selected]);
+  const [limit, setLimit] = useState(20);
+  useEffect(() => { setLimit(20); }, [query, providerFilter, view]);
   const otherMachines = useOtherMachines(true);
 
   useEffect(() => {
@@ -237,7 +242,7 @@ export function ResumeDialog({
   const grouped = useMemo(() => {
     if (!available) return [];
     const map = new Map<string, ResumableSession[]>();
-    for (const s of available) {
+    for (const s of available.slice(0, limit)) {
       const arr = map.get(s.cwd) ?? [];
       arr.push(s);
       map.set(s.cwd, arr);
@@ -245,7 +250,7 @@ export function ResumeDialog({
     return [...map.entries()]
       .map(([cwd, items]) => ({ cwd, items }))
       .sort((a, b) => (b.items[0]?.modifiedAt ?? 0) - (a.items[0]?.modifiedAt ?? 0));
-  }, [available]);
+  }, [available, limit]);
 
   const switchView = (next: ViewMode): void => {
     setView(next);
@@ -286,7 +291,7 @@ export function ResumeDialog({
                 className={`resume-view-btn${view === 'grouped' ? ' is-active' : ''}`}
                 onClick={() => switchView('grouped')}
                 title="One section per folder"
-              >By folder</button>
+              >By project folder</button>
             </div>
           </div>
           <input
@@ -316,11 +321,12 @@ export function ResumeDialog({
           </div>
         </header>
 
-        <div className="resume-dialog-body">
+        <div className="resume-dialog-body" ref={bodyRef}>
           <div className="resume-safety-note">
-            <strong>Choose the conversation you want to continue.</strong>
-            <span>Before another agent starts, Sessions shows the message count, estimated size, agent, and model.</span>
+            <span>Select a conversation to read recent messages. Nothing starts until you press Start.</span>
           </div>
+          <div className={`resume-discovery${selected ? ' has-preview' : ''}`}>
+          <div className="resume-discovery-list">
           {loading ? (
             <div className="resume-loading" role="status" aria-live="polite">
               <strong>Finding your saved conversations…</strong>
@@ -354,7 +360,7 @@ export function ResumeDialog({
             </div>
           ) : view === 'flat' ? (
             <div className="resume-cards">
-              {flatList.map((s) => (
+              {flatList.slice(0, limit).map((s) => (
                 <ResumeCard key={`${s.tool}:${s.sessionId}`} session={s} selected={selected?.sessionId === s.sessionId && selected.tool === s.tool} onPick={() => setSelected(s)} disabled={busy} />
               ))}
               {delegatedList.length > 0 ? (
@@ -367,7 +373,7 @@ export function ResumeDialog({
                   >
                     {showDelegated ? '▾' : '▸'} Work started for you elsewhere · {delegatedList.length} conversation{delegatedList.length === 1 ? '' : 's'}
                   </button>
-                  {showDelegated ? delegatedList.map((s) => (
+                  {showDelegated ? delegatedList.slice(0, limit).map((s) => (
                     <ResumeCard key={`${s.tool}:${s.sessionId}`} session={s} selected={selected?.sessionId === s.sessionId && selected.tool === s.tool} onPick={() => setSelected(s)} disabled={busy} />
                   )) : null}
                 </section>
@@ -400,6 +406,12 @@ export function ResumeDialog({
               ))}
             </div>
           )}
+          {available && (view === 'grouped' ? available.length > limit : flatList.length > limit || (showDelegated && delegatedList.length > limit)) ? (
+            <button type="button" className="btn btn-ghost" onClick={() => setLimit((current) => current + 20)}>Show more conversations</button>
+          ) : null}
+          </div>
+          <ResumePreview selected={selected} />
+          </div>
         </div>
 
         {flatList.length > 0 || delegatedList.length > 0 ? <ResumeMachinesNote machines={otherMachines} /> : null}

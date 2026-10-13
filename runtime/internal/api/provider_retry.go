@@ -13,7 +13,8 @@ func (s *Server) handleRichControlRoute(
 	id, suffix, corsOrigin string,
 ) bool {
 	return s.handleProviderRetryRoute(response, request, id, suffix, corsOrigin) ||
-		s.handleVerdictRoute(response, request, id, suffix, corsOrigin)
+		s.handleVerdictRoute(response, request, id, suffix, corsOrigin) ||
+		s.handlePullRequestRoute(response, request, id, suffix, corsOrigin)
 }
 
 func (s *Server) handleProviderRetryRoute(

@@ -6,6 +6,8 @@ import { getActiveServer } from '../lib/servers';
 export interface RestartConversationProps {
   session: SessionInfo;
   onOpen: (id: string) => void;
+  // Offered when the daemon answers that this record is resumed, not restarted.
+  onResume?: (session: SessionInfo) => void;
   appearance?: 'menuitem' | 'toolbar';
   serverId?: string;
   initialRemoteControl?: boolean;
@@ -22,7 +24,8 @@ export function reviewConversationRestart(props: RestartConversationProps): void
 
 export function RestartConversation(props: RestartConversationProps): JSX.Element | null {
   const { session, appearance = 'toolbar' } = props;
-  if (session.exited || session.runnerGone || !['claude-code', 'codex'].includes(session.tool)) return null;
+  // A record paused after a reboot has no runtime to end; its row offers Resume.
+  if (session.exited || session.runnerGone || session.unreachableReason === 'restart-restore-pending' || !['claude-code', 'codex'].includes(session.tool)) return null;
   return <button type="button" role={appearance === 'menuitem' ? 'menuitem' : undefined}
     className={appearance === 'toolbar' ? 'view-toggle-btn' : undefined}
     onClick={() => reviewConversationRestart(props)}>Restart / change permissions…</button>;

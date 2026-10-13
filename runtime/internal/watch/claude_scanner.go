@@ -440,36 +440,51 @@ func claudeConversationTitle(path string) string {
 	if _, err := file.Seek(offset, io.SeekStart); err != nil {
 		return ""
 	}
-	reader := bufio.NewReader(io.LimitReader(file, claudeTitleBytes))
+	// Reuse one bounded line buffer across the tail instead of allocating a
+	// new copy of every message body just to inspect its metadata.
+	scanner := bufio.NewScanner(io.LimitReader(file, claudeTitleBytes))
+	scanner.Buffer(make([]byte, 64*1024), claudeTitleBytes+1)
 	if offset > 0 {
-		_, _ = reader.ReadBytes('\n')
+		_ = scanner.Scan()
 	}
 	var customTitle, aiTitle string
-	for {
-		line, readErr := reader.ReadBytes('\n')
+	for scanner.Scan() {
+		line := scanner.Bytes()
 		if len(line) > 0 {
-			var event map[string]any
+			// Catalog discovery only needs title metadata. Decoding arbitrary
+			// tool output and message bodies into maps allocates their entire
+			// object graph merely to discard it on every changed transcript.
+			var event struct {
+				Type        string          `json:"type"`
+				CustomTitle json.RawMessage `json:"customTitle"`
+				AITitle     json.RawMessage `json:"aiTitle"`
+			}
 			if json.Unmarshal(line, &event) == nil {
-				switch event["type"] {
+				switch event.Type {
 				case "custom-title":
-					if value, ok := event["customTitle"].(string); ok && strings.TrimSpace(value) != "" {
-						customTitle = strings.TrimSpace(value)
+					if value := claudeTitleValue(event.CustomTitle); value != "" {
+						customTitle = value
 					}
 				case "ai-title":
-					if value, ok := event["aiTitle"].(string); ok && strings.TrimSpace(value) != "" {
-						aiTitle = strings.TrimSpace(value)
+					if value := claudeTitleValue(event.AITitle); value != "" {
+						aiTitle = value
 					}
 				}
 			}
-		}
-		if readErr != nil {
-			break
 		}
 	}
 	if customTitle != "" {
 		return customTitle
 	}
 	return aiTitle
+}
+
+func claudeTitleValue(raw json.RawMessage) string {
+	var title string
+	if json.Unmarshal(raw, &title) != nil {
+		return ""
+	}
+	return strings.TrimSpace(title)
 }
 
 func normalizedMessageText(message map[string]any) string {

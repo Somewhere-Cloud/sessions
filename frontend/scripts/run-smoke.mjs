@@ -58,6 +58,7 @@ const GATE = [
   'search-rollup',
   'conversation-browser',
   'resume-partial',
+  'resume-layout',
   'restart-conversation',
   'shared-contracts',
   'working-set',
@@ -70,6 +71,7 @@ const GATE = [
   'fork-conversation',
   'onboarding-consent',
   'provider-fault',
+  'pull-request-chip',
   'notification-delivery',
   'subagents-panel',
   // Capability tests mount real product components against an in-process

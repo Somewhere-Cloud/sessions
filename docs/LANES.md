@@ -95,6 +95,20 @@ fully merged. A successful clean is recorded in the append-only ledger and
 then omitted from the default listing; `sessions worktrees --all` includes the
 cleaned record. Sessions never cleans a worktree on its own.
 
+## Pull requests
+
+`sessions pr link <id> <url>` records which GitHub pull request carries a
+lane's work. `sessions pr refresh <id>` reads its state, checks, and
+mergeability once through your own `gh` login; `sessions pr <id>` shows the
+last reading with whether it is fresh, stale, final, or unknown. Nothing polls
+in the background and nothing is written to GitHub.
+
+When the pull request has merged, the lane's work reads as merged, and that is
+all that changes. Sessions never ends a runner because its pull request
+merged: a lane that is still running or paused is kept, and the status says
+how to end it yourself. A lane whose runner has already ended is offered
+`sessions archive`.
+
 ## Not losing a session
 
 Every session is a conversation first and a process second. After a reboot
@@ -120,4 +134,5 @@ Neither case is mislabeled as an observed process exit.
 | Allow or decline a lane's permission request | `sessions approve <id> [--deny \| --for-session]` |
 | Read a lane's conversation on purpose | `sessions cat <id>` |
 | Name a folder as a project | `sessions projects name <folder> <name>` |
+| Link a lane to its pull request, and read its status | `sessions pr link <id> <url>`, `sessions pr refresh <id>` |
 | Kept worktrees, and cleaning the merged ones | `sessions worktrees [--all]`, `sessions worktrees clean` |

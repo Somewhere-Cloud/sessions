@@ -26,7 +26,7 @@ import (
 	"github.com/somewhere-tech/sessions/runtime/internal/usage"
 )
 
-var version = "0.2.29"
+var version = "0.2.30"
 
 // isWildcardHost reports whether a bind host would expose the daemon on every
 // interface. A literal denylist is not enough, and neither is netip.ParseAddr
@@ -100,10 +100,8 @@ func main() {
 	}()
 	manager := session.NewManager(config, daemonLauncher(config), session.ManagerOptions{
 		Boundaries: ledgerStore.Boundaries(), Observations: ledgerStore.Observations(), LedgerReader: ledgerStore,
-		Retention:     ledgerStore.Retention(),
-		Worktrees:     ledgerStore.Worktrees(),
-		Attributions:  ledgerStore.Attributions(),
-		UsageRecorder: usageService,
+		Retention: ledgerStore.Retention(), Worktrees: ledgerStore.Worktrees(), Attributions: ledgerStore.Attributions(),
+		PullRequests: ledgerStore.PullRequests(), UsageRecorder: usageService,
 	})
 	defer manager.Close()
 	api.Version = version

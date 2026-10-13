@@ -1,7 +1,7 @@
 {
   "name": "sessions-frontend",
   "private": true,
-  "version": "0.2.29",
+  "version": "0.2.30",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -33,6 +33,7 @@
     "test:conversation-browser": "node scripts/conversation-browser-smoke.mjs",
     "test:restart-conversation": "node scripts/restart-conversation-smoke.mjs",
     "test:resume-partial": "node scripts/resume-partial-smoke.mjs",
+    "test:resume-layout": "node scripts/resume-layout-smoke.mjs",
     "test:shared-contracts": "node scripts/shared-contracts-smoke.mjs",
     "test:working-set": "node scripts/working-set-smoke.mjs",
     "test:pin": "node scripts/pin-smoke.mjs",
@@ -44,6 +45,7 @@
     "test:fork-conversation": "node scripts/fork-conversation-smoke.mjs",
     "test:onboarding-consent": "node scripts/onboarding-consent-smoke.mjs",
     "test:provider-fault": "node scripts/provider-fault-smoke.mjs",
+    "test:pull-request-chip": "node scripts/pull-request-chip-smoke.mjs",
     "test:notification-delivery": "node scripts/notification-delivery-smoke.mjs",
     "test:subagents-panel": "node scripts/subagents-panel-smoke.mjs",
     "test:webapp": "node scripts/webapp-smoke.mjs",

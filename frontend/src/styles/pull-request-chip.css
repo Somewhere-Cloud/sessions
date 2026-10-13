@@ -1,0 +1,9 @@
+/* Loaded with the chip, which only draws for a lane with a linked pull
+   request, so none of this is on the first screen's path. The span selector
+   outranks the header's generic span truncation. */
+.session-active-meta > span.session-pr-chip { display: inline-flex; align-items: center; gap: 6px; max-width: none; overflow: visible; }
+.session-pr-chip a { color: var(--fg-dim); text-decoration: none; }
+.session-pr-chip a:hover { text-decoration: underline; }
+.session-pr-chip.is-merged a { color: var(--fg); }
+.session-pr-refresh { padding: 0 6px; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: var(--fg-faint); font: inherit; font-size: 12px; cursor: pointer; }
+.session-pr-refresh:disabled { cursor: default; opacity: 0.6; }

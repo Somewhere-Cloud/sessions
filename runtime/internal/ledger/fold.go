@@ -25,6 +25,7 @@ type LaneState struct {
 	DelegationKind           string
 	StartOperationID         string
 	PromptOperationID        string
+	RequestFingerprint       string
 	CreatedAtMS              int64
 	LastEventAtMS            int64
 	LastActivityAtMS         int64
@@ -67,6 +68,7 @@ type LaneState struct {
 	WorktreeCleaned         bool
 	WorktreeCleanedAtMS     int64
 	WorktreeBranchRemoved   bool
+	PullRequest             LanePullRequest
 }
 
 // Fold reduces an event stream in seq order. Input order is irrelevant as

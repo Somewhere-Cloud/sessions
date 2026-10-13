@@ -66,6 +66,9 @@ type AdoptResult struct {
 	// same provider transcript, and Sessions' own copy keeps the union.
 	AlsoOpenIn         string `json:"alsoOpenIn,omitempty"`
 	TranscriptRecovery bool   `json:"transcriptRecovery,omitempty"`
+	// Permissions is the access class the daemon resolved for the successor
+	// it started, when Adopt started one.
+	Permissions string `json:"permissions,omitempty"`
 }
 
 type AdoptAnnotation string
@@ -541,8 +544,12 @@ type AdoptOptions struct {
 	RuntimeMode string
 	Claude      *state.ClaudeSessionOptions
 	Permissions string
-	Model       string
-	Effort      string
+	// PermissionArgs are exact provider permission flags to launch with, such
+	// as a constrained source's recorded Claude permission mode or Codex
+	// sandbox. The session boundary still resolves Permissions over them.
+	PermissionArgs []string
+	Model          string
+	Effort         string
 	// ClaudeLive, when set, looks up which live Claude process already has
 	// this conversation open so the caller can say so. It never changes what
 	// adoption does.
@@ -589,6 +596,11 @@ type AdoptSource struct {
 	Branch                 string
 	SourceRepo             string
 	DisplayParentSessionID *string
+	// Permissions is the access class the source record ran with, or "" when
+	// the record does not say. PermissionArgs are its exact constrained
+	// provider flags, when it recorded any.
+	Permissions    string
+	PermissionArgs []string
 }
 
 func adoptionLaunch(adoption Adoption, selected AdoptOptions, kind string) ([]string, string) {
@@ -596,7 +608,7 @@ func adoptionLaunch(adoption Adoption, selected AdoptOptions, kind string) ([]st
 	if kind == state.KindCodexAppServer || kind == state.KindClaudeStructured {
 		conversationID = adoption.ProviderUUID
 	}
-	args := append([]string(nil), adoption.Args...)
+	args := append(append([]string(nil), selected.PermissionArgs...), adoption.Args...)
 	if adoption.Tool == string(state.ToolCodex) && selected.Model != "" {
 		args = append(args, "--model", selected.Model)
 		if selected.Effort != "" {
@@ -706,6 +718,7 @@ func Adopt(
 		selected.Events, boundaries, observations,
 	)
 	result.AlsoOpenIn = describeClaudeHolder(liveHolder)
+	result.Permissions = created.Permissions
 	return result, nil
 }
 

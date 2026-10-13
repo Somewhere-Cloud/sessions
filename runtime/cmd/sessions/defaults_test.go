@@ -104,29 +104,58 @@ func TestKeysSendsProviderNativeShiftTab(t *testing.T) {
 	}
 }
 
-func TestResumeFullPermissionsRequestsClaudeBypass(t *testing.T) {
+// constrained and full are the provider-neutral policy for both providers.
+// They used to become Claude's claudePermissionMode, which the daemon refuses
+// for Codex, so a Codex conversation could not be resumed constrained.
+func TestResumePermissionsPostTheGenericPolicyForBothProviders(t *testing.T) {
 	const provider = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
-	const historyID = "provider-history:claude:" + provider
-	var posted map[string]any
-	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		if request.Method != http.MethodPost || request.URL.Path != "/api/recovery/adopt" {
-			http.NotFound(response, request)
-			return
-		}
-		if err := json.NewDecoder(request.Body).Decode(&posted); err != nil {
-			t.Fatal(err)
-		}
-		response.Header().Set("Content-Type", "application/json")
-		response.WriteHeader(http.StatusCreated)
-		_, _ = response.Write([]byte(`{"ok":true,"laneId":"continued-lane","adoption":{}}`))
-	}))
-	defer server.Close()
-
-	var stdout, stderr bytes.Buffer
-	if code := run([]string{"--host", server.URL, "resume", historyID, "--permissions", "full", "--force"}, strings.NewReader(""), &stdout, &stderr); code != 0 {
-		t.Fatalf("exit=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	tests := []struct {
+		history string
+		flags   []string
+		want    map[string]any
+	}{
+		{"provider-history:claude:" + provider, []string{"--permissions", "full"}, map[string]any{"permissions": "full"}},
+		{"provider-history:claude:" + provider, []string{"--permissions", "constrained"}, map[string]any{"permissions": "constrained"}},
+		{"provider-history:codex:" + provider, []string{"--permissions", "constrained"}, map[string]any{"permissions": "constrained"}},
+		{"provider-history:codex:" + provider, []string{"--permissions", "full"}, map[string]any{"permissions": "full"}},
+		{"provider-history:codex:" + provider, []string{"--permissions", "constrained", "--with", "claude"}, map[string]any{"permissions": "constrained"}},
+		{"provider-history:claude:" + provider, []string{"--permissions", "inherit"}, map[string]any{"claudePermissionMode": state.ClaudeChoiceInherit}},
+		// No flag sends no policy, so the daemon keeps a saved record's own.
+		{"provider-history:codex:" + provider, nil, map[string]any{}},
 	}
-	if posted["claudePermissionMode"] != state.ClaudePermissionBypass {
-		t.Fatalf("posted = %#v", posted)
+	for _, test := range tests {
+		var posted map[string]any
+		server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+			if request.Method != http.MethodPost || request.URL.Path != "/api/recovery/adopt" {
+				http.NotFound(response, request)
+				return
+			}
+			if err := json.NewDecoder(request.Body).Decode(&posted); err != nil {
+				t.Fatal(err)
+			}
+			response.Header().Set("Content-Type", "application/json")
+			response.WriteHeader(http.StatusCreated)
+			_, _ = response.Write([]byte(`{"ok":true,"laneId":"continued-lane","adoption":{},"permissions":"constrained"}`))
+		}))
+		var stdout, stderr bytes.Buffer
+		args := append([]string{"--host", server.URL, "resume", test.history, "--force"}, test.flags...)
+		code := run(args, strings.NewReader(""), &stdout, &stderr)
+		server.Close()
+		if code != 0 {
+			t.Fatalf("%v: exit=%d stdout=%q stderr=%q", test.flags, code, stdout.String(), stderr.String())
+		}
+		for _, key := range []string{"permissions", "claudePermissionMode"} {
+			if posted[key] != test.want[key] {
+				t.Fatalf("%v: posted %s = %#v, want %#v (body %#v)", test.flags, key, posted[key], test.want[key], posted)
+			}
+		}
+	}
+}
+
+func TestResumeInheritPermissionsStaysClaudeOnly(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"--host", "http://127.0.0.1:1", "resume", "provider-history:claude:aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee", "--with", "codex", "--permissions", "inherit"}, strings.NewReader(""), &stdout, &stderr)
+	if code == 0 || !strings.Contains(stderr.String(), "inherit is available only when resuming with Claude") {
+		t.Fatalf("exit=%d stderr=%q", code, stderr.String())
 	}
 }

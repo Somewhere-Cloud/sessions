@@ -14,6 +14,15 @@ export interface RestartResult {
 
 export interface RestartPreview {
   sourceSessionId: string;
+  // Older daemons omit these and answered 404 for any record that was not live.
+  state?: 'running' | 'unreachable' | 'needs-recovery' | 'lost' | 'exited' | 'moved';
+  restartable?: boolean;
+  action?: 'restart' | 'retry-restart' | 'resume' | 'open' | 'none';
+  command?: string;
+  // The record action acts on: the source for resume, the running successor for open.
+  targetSessionId?: string;
+  reason?: string;
+  recordedRestart?: { permissions: 'constrained' | 'full'; remoteControl: boolean; runtimeMode?: 'rich' | 'terminal' };
   profile?: string;
   remoteUrl?: string;
   savedLoginEmail?: string;

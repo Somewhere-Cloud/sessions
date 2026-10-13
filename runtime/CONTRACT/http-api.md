@@ -40,8 +40,8 @@ This document records the behavior of the normative Go daemon in
   the per-session suffixes served by `handleSessionRoute` (`/snapshot`,
   `/events`, `/model-options`, `/model`, `/input`, `/submit`, `/approve`, `/retry`, `/retry/stop`, `/name`,
   `/tags`, `/upload`, `/display-parent`, `/set-aside`, the bare `DELETE`)
-  still fall through to the 404 body. `/pin`, `/wait`, `/wait-state`, and
-  `/verdict` return 405. Either way the request is authenticated before the
+  still fall through to the 404 body. `/pin`, `/wait`, `/wait-state`,
+  `/verdict`, `/pr`, and `/pr/refresh` return 405. Either way the request is authenticated before the
   method is judged, so a wrong method on an API path normally requires auth
   before returning 404 or 405. Each route entry below states its own
   behavior where it differs.
@@ -616,7 +616,7 @@ Auth required. Every request field is optional:
 | `providerTerminal` | boolean | explicit escape hatch for an agent-created Claude child that needs the interactive provider terminal; otherwise newly attributed agent children use the structured Claude runtime |
 | `permissions` | `"inherit" \| "constrained" \| "full"` | optional requested access; `inherit` requires a parent, and a child cannot exceed its parent unless the user explicitly enabled autonomous delegated work |
 | `lifecycle` | `"task" \| "session"` | optional runtime intent; all sessions, including agent-created children, default to `session`; callers must explicitly request a bounded `task` |
-| `operation_id` | string | optional lowercase UUID v4 create idempotency key, recorded in the ledger before launch; a repeat returns the session it created |
+| `operation_id` | string | optional lowercase UUID v4 create idempotency key, recorded in the ledger before launch; a repeat of the same request returns the session it created, and a repeat asking for different work is refused |
 | `prompt_operation_id` | string | optional lowercase UUID v4, different from `operation_id`: the `/submit` operation id the caller will use for the first request, recorded so the start receipt can follow it |
 
 `RUNNER_*`, `NODE_OPTIONS`, `DYLD_INSERT_LIBRARIES`, `DYLD_LIBRARY_PATH`, and
@@ -650,9 +650,29 @@ session is live (including unreachable) returns **200** with that session's
 nothing is launched. A repeat whose session has ended, whose launch failed, or
 that this daemon has not re-attached yet after a restart returns
 `409 {"error":"<message>","operation_id":"<id>","session_id":"<session>"}`
-rather than starting the same work again. A repeat for a different Claude or
-Codex tool is also 409 with that body, naming the session the id already
-created; nothing is launched. A malformed id is 400, and a daemon without ledger access
+rather than starting the same work again. A repeat that asks for different work
+is also 409 with that body, naming the session the id already created; nothing
+is launched. Different work is a different tool (Claude, Codex, terminal, or a
+headless lane), a different parent session, or a different request
+fingerprint. The parent, from the trusted `X-Sessions-Creator-Session` header,
+decides what omitted permissions and an omitted account mean, so a root
+request and a child request, or two parents' children, never share an id; a
+retry from the same parent, or from no parent, replays. The daemon computes the
+fingerprint, a SHA-256 digest, from the request as received, before any
+default is resolved, and records it as `request_fingerprint` in the `created`
+ledger event beside `start_operation_id`. It covers `cmd`, `args`, `cwd`,
+`kind`, `specPath`, `profile`, `defaultProfile`, `worktree`, `noWorktree`,
+`base`, `providerTerminal`, `permissions`, `lifecycle`, `onIdle`, and `claude`.
+It leaves out the operation ids, a Claude `--session-id` (clients mint a
+fresh one on every attempt), and `name`, `description`, `tags`, `env`, `cols`,
+`rows`, `waitReady`, `force`, `delegationKind`, and `initialInput`. A first
+request a terminal Codex process takes from `args` is therefore compared with
+them. A first request sent through `/submit` is not: only its delivery receipt
+guards it. A replay of that id with different text is refused there once a
+first request was sent; when none was sent, the next submit under the
+recorded `prompt_operation_id` delivers whatever text it carries. An operation
+recorded before the fingerprint existed has none and is compared by tool and
+parent only. A malformed id is 400, and a daemon without ledger access
 refuses `operation_id` with 400 because it cannot keep the promise. A repeat
 is answered from the recorded operation before account inheritance, Claude
 settings, or the live Codex model catalog are consulted: it contacts no
@@ -1460,6 +1480,78 @@ document is `400 {"error":"<message>"}`. Success appends the record and returns
 201 with the stored record, `seq` and `emitted_at` assigned by the daemon.
 Append failures are 500; other methods return 405.
 
+### `GET|PUT|DELETE /api/sessions/:id/pr` and `POST /api/sessions/:id/pr/refresh`
+
+Auth required. A lane-to-pull-request link. `:id` must name a lane with a
+creation record in the Sessions ledger; it need not be live, and none of these
+routes wakes a paused session or signals a runner. An id without a ledger
+creation record is `404 {"error":"no Sessions ledger record for this session ...","id":"<id>"}`.
+A daemon started without a ledger is 503. Other methods return 405.
+
+`PUT` body is `{"url":"https://github.com/OWNER/REPO/pull/NUMBER"}`. The URL
+must be `https` on `github.com` (or `www.github.com`) with no credentials,
+port, or percent-encoding; a trailing slash, a `/files`, `/commits`, or
+`/checks` tab, a query, and a fragment are dropped, and owner and repository
+are lowercased. Anything else is `400 {"error":"invalid pull request URL ...; use https://github.com/OWNER/REPO/pull/NUMBER"}`.
+The canonical link is appended to the ledger as `pull_request_linked`. Linking
+the URL already linked appends nothing and answers `"changed":false`; linking
+a different URL replaces the link and discards the previous observation.
+`DELETE` appends `pull_request_unlinked` when a link exists and answers
+`"changed":false` otherwise. Neither contacts GitHub.
+
+`GET` never contacts GitHub. `POST .../pr/refresh` runs
+`gh pr view <url> --json ...` once with the user's existing GitHub CLI login,
+a 20-second timeout, and no retry. Sessions never reads, stores, or forwards
+that credential and never writes to GitHub. A read that differs from the last
+recorded observation is appended as `pull_request_observed`; an identical read
+appends nothing and refreshes freshness for this daemon's lifetime only. A
+failed read appends nothing and answers 200 with the previous observation and
+`refresh.ok:false`. Refresh with no link is `409`.
+
+An answer is accepted only when gh names exactly the linked pull request: its
+`url` must canonicalize to the linked URL. A matching number in another
+repository, a renamed or transferred repository, or an answer with no URL is
+`mismatch` (or `malformed_response` when the URL is missing) and is not
+recorded. The answer always describes the link as it is after the read. If the
+lane was relinked or unlinked while gh was running, the refresh answers
+`refresh.ok:false` with `error_kind:"link_changed"`, records nothing, and
+reports the current link. That includes relinks that end on the same URL
+(A, then B, then A again): the read belongs to the earlier link, and the new
+link starts with no observation. `cancelled` means the caller stopped waiting (for
+example, it disconnected) before gh answered; it says nothing about GitHub.
+`timeout` means the read ran out of time.
+
+Overlapping refreshes are ordered by when each read began, not by clock. A
+read that began before another refresh of the same lane whose answer was
+already recorded or confirmed is dropped, so an older answer never overwrites
+a newer one. It answers `refresh.ok:true`, `recorded:false`,
+`superseded:true`, and the newer observation. The order is kept by this
+daemon process, which is what runs every read. A link change resets it.
+
+Every success answers one status object:
+
+```json
+{"session_id":"<id>","linked":true,"changed":true,"runner":"live|not_connected|ended",
+ "pull_request":{"url":"https://github.com/acme/app/pull/42","host":"github.com","owner":"acme","repo":"app","number":42,"linked_at":"<RFC3339>"},
+ "status":{"state":"open|closed|merged|unknown","draft":false,"checks":"passing|failing|pending|none|unknown","checks_total":3,"checks_failing":0,"checks_pending":1,"mergeable":"mergeable|conflicting|unknown","head_ref":"...","head_sha":"...","base_ref":"main","merged_at":"...","merge_commit":"..."},
+ "observed_at":"<RFC3339>","freshness":"fresh|stale|final|unknown","fresh_for_ms":540000,"branch_match":"match|mismatch|unknown",
+ "work":"open|merged|closed_unmerged|unknown","closure":{"action":"none|keep|archive_available","reason":"..."},
+ "refresh":{"ok":false,"error_kind":"gh_missing|auth|not_found|network|rate_limited|timeout|cancelled|malformed_response|mismatch|link_changed|failed","error":"...","recorded":false,"superseded":false}}
+```
+
+An unlinked lane answers only `session_id`, `linked:false`, and `runner`.
+`changed` appears on `PUT` and `DELETE`; `refresh` appears only on refresh.
+Before any successful read, `status` fields are `unknown` and `freshness` is
+`unknown`. `fresh` means read within ten minutes, `stale` older, and `final`
+means merged: merged is monotonic for a URL and a later contradictory read is
+not recorded. `fresh_for_ms` appears only with `fresh` and is how long, from
+this answer, the observation stays fresh; a client that keeps showing the
+answer turns it `stale` locally after that duration instead of polling. `branch_match` compares the head branch with the lane's
+Sessions-created branch and is reported, never enforced. A merged pull request
+sets `work:"merged"` but never ends a runner: a live or paused lane answers
+`closure.action:"keep"` with the command to end it, and only a lane whose
+runner already ended answers `archive_available`.
+
 ### `POST /api/sessions/:id/input`
 
 Auth required. Body is `{"data":"<raw UTF-8 terminal bytes>"}`. A missing or
@@ -1820,8 +1912,38 @@ saved login differs from the transcript's Remote Control owner or cannot be
 compared. These are provider-owned saved observations, not proof of a live
 connection or verified current authentication. The transcript scan reads at
 most its last 1 MiB; absent metadata is unknown. No credential is exposed and
-no receipt, history, account, or runtime is changed. Unknown sources return
-404; malformed requests return 400. CLI: `sessions restart SESSION --preview`.
+no receipt, history, account, ledger record, or runtime is changed, and a
+paused runner is not woken.
+
+The source may be any record `GET /api/sessions?include_exited=1` lists, not only a live
+runtime. The additive fields say what the destructive restart would do with it:
+
+| Field | Meaning |
+|---|---|
+| `state` | `running`, `unreachable` (live runtime the daemon cannot currently reach), `needs-recovery` (paused after reboot), `lost`, `exited`, or `moved` |
+| `restartable` | `true` only when `POST /api/recovery/restart` would act on this source now |
+| `action` | `restart`, `retry-restart`, `resume`, `open`, or `none` |
+| `command` | optional exact CLI command for `action`, relative to the daemon that answered; absent for `restart` and `none` |
+| `targetSessionId` | optional record `action` acts on: the source for `resume`, the running successor for `open`; absent otherwise. Clients use it instead of parsing `command` |
+| `reason` | optional instructional sentence |
+| `recordedRestart` | optional choices of a restart already recorded for this source |
+
+A Claude or Codex record that is not live is not restartable; its action is
+`resume` with `sessions resume <id>`, the same decision resume makes, or `open`
+with `sessions attach <successor>` when a successor of the record is running.
+A record moved to another machine names that machine and offers no command,
+because reopening it here forks it. When a restart receipt exists, the action is
+`retry-restart` and `command` repeats its exact choices, which finishes or
+replays that operation without another runtime. Only an id with no record on
+this daemon returns 404; malformed requests return 400. CLI:
+`sessions restart SESSION --preview`.
+
+`command` and any command quoted in `reason` name only the daemon that wrote
+them; that daemon cannot know the alias or address a client used to reach it.
+A client that reached another machine adds its own target. The CLI repeats
+the global `--machine`, `--host`, `--port`, and `--direct` flags it was given,
+shell-quoted, in both fields, and adds `machine` with the `--machine` alias.
+On the default target it passes both fields on unchanged.
 
 Auth required. Ends exactly one live Claude or Codex runtime and creates a
 replacement for its native provider conversation. It never follows the source's
@@ -1894,19 +2016,38 @@ runtime.
 `model` and optional `effort` select the reviewed provider settings for the new
 runtime. `permissions:"constrained"` records and enforces the app's **Ask me**
 access plan. An explicit `permissions:"full"` selects full access for a native
-same-provider resume; transcript-only restoration and cross-provider copies
-reject that override. Other values are rejected. The resume dialog defaults
-to Full access (YOLO) for native resumes, with Ask me available explicitly.
-Transcript-only restoration retains its supported permission policy. Omitting these additive
-fields keeps the earlier provider-default behavior for existing clients.
+same-provider Claude or Codex resume; transcript-only restoration and
+cross-provider copies reject that override. Other values are rejected. The
+resume dialog defaults to Full access (YOLO) for native resumes, with Ask me
+available explicitly. Transcript-only restoration and cross-provider copies
+run with Ask me.
+
+When a native same-provider resume omits both `permissions` and
+`claudePermissionMode` and the request resolves to a saved Sessions record
+(`sourceSessionId`, or a `historyId` that names one), the successor keeps the
+access class that record ran with. A record's resolved `permissions` field is
+authoritative. An older record without that field is read from its launch
+arguments only when they carry a permission flag; a record whose arguments
+carry none, including a ledger-only record whose arguments are a reconstructed
+resume recipe, is treated as unknown. A constrained record also keeps its
+exact Claude `--permission-mode` or Codex `--sandbox` and `--ask-for-approval`
+flags, so a child that inherited its manager's policy resumes with that
+policy; flags that would grant full access are never carried forward, and the
+generic Ask me plan applies instead. With no record, or an unknown policy, a
+native resume keeps the new-session default of full access (YOLO). Repair
+does not launch and is unaffected. The response's additive `permissions` field
+reports the access class the daemon resolved for the started successor.
 
 `claudePermissionMode` is an optional per-launch Claude override using the same
 typed values as `POST /api/sessions` (`inherit`, Claude's constrained modes, or
 `bypassPermissions`). It is accepted only for a same-provider native Claude
-resume. Transcript-only restoration, cross-provider continuation, Codex, and
-repair reject it rather than pretending to alter a runtime they cannot control.
-The CLI maps `sessions resume ID --permissions full` to
-`bypassPermissions`; an existing constrained process is not silently mutated.
+resume and counts as an explicit choice over a saved record's policy.
+Transcript-only restoration, cross-provider continuation, Codex, and repair
+reject it rather than pretending to alter a runtime they cannot control. The
+CLI sends `sessions resume ID --permissions constrained|full` as the generic
+`permissions` field for both providers and `--permissions inherit` as
+`claudePermissionMode:"inherit"`; an existing constrained process is not
+silently mutated.
 
 ```json
 {
@@ -2708,10 +2849,11 @@ Rich, Codex, cross-provider, and repair requests reject the combination rather
 than silently ignoring it. The CLI equivalent is
 `sessions continue <history-id> --terminal --remote-control`.
 The same route accepts `claudePermissionMode` for a same-provider Claude
-continuation. The CLI equivalent `sessions resume <history-id> --permissions
-full` starts the successor with Claude's exact skip-permissions flag. This is a
-new process bound to the same provider conversation, because Claude's live
-permission-mode cycle cannot elevate a process that was launched constrained.
+continuation. `sessions resume <history-id> --permissions full` sends
+`permissions:"full"`, which starts a Claude successor with Claude's exact
+skip-permissions flag. This is a new process bound to the same provider
+conversation, because Claude's live permission-mode cycle cannot elevate a
+process that was launched constrained.
 
 ### `POST /api/search/plan`
 

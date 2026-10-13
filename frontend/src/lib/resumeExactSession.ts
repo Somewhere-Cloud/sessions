@@ -10,6 +10,8 @@ import { sessionMode } from './sessionMode';
  * caller already has a SessionInfo, opening that browser again is both slower
  * and ambiguous. This helper preserves the source runtime link and falls back
  * to Sessions-authored history only when the older runner has no provider id.
+ * It names no permissions, so the daemon keeps the record's recorded access
+ * and gives a record with none its full-access default.
  */
 export function resumeExactSession(
   session: SessionInfo,
@@ -27,7 +29,7 @@ export function resumeExactSession(
     undefined,
     session.model,
     session.effort,
-    providerId && !destinationProvider ? 'full' : undefined,
+    undefined,
     serverId
   );
 }

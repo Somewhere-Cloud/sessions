@@ -329,3 +329,21 @@ func TestRecoveryPlanPrefersHumanInputAtEqualRecency(t *testing.T) {
 		t.Fatalf("equal-recency plan=%+v, want human input first", plan.Recipes)
 	}
 }
+
+// The create fingerprint folds from the created event; an event written before
+// the field existed folds with none, which keeps its operation replayable.
+func TestCreatedRequestFingerprintFoldsAndLegacyEventsHaveNone(t *testing.T) {
+	recorded := Fold([]Event{ledgerEvent(1, "lane", EventCreated, 100, createdPayload{
+		Tool: "terminal", Cwd: "/tmp", LaneUUID: "lane",
+		StartOperationID: "5a000000-0000-4000-8000-000000000001", RequestFingerprint: "v1:abc",
+	})})
+	if len(recorded) != 1 || recorded[0].RequestFingerprint != "v1:abc" {
+		t.Fatalf("folded fingerprint = %#v", recorded)
+	}
+	legacy := Fold([]Event{{Seq: 1, EventID: "legacy-event", LaneID: "legacy", Type: EventCreated, AtMS: 100,
+		Actor: ActorDaemon, SchemaVersion: SchemaVersion,
+		Payload: []byte(`{"tool":"terminal","cwd":"/tmp","argv":null,"lane_uuid":"legacy","creator_kind":"","creator_id":"","start_operation_id":"5a000000-0000-4000-8000-000000000001"}`)}})
+	if len(legacy) != 1 || legacy[0].StartOperationID == "" || legacy[0].RequestFingerprint != "" {
+		t.Fatalf("legacy created event = %#v", legacy)
+	}
+}

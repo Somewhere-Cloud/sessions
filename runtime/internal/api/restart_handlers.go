@@ -113,6 +113,22 @@ func (s *Server) prepareRestart(body restartRequest) (restartReceipt, error) {
 	if info.Tool != "claude-code" && info.Tool != "codex" {
 		return receipt, errors.New("restart requires a Claude or Codex conversation")
 	}
+	adoption, err := resolveRestartConversation(info)
+	if err != nil {
+		return receipt, fmt.Errorf("conversation cannot be resumed; source is still running: %w", err)
+	}
+	adoption.Cwd = info.Cwd
+	mode, err := s.restartRuntimeMode(info, body.RemoteControl, body.RuntimeMode)
+	if err != nil {
+		return receipt, err
+	}
+	receipt = restartReceipt{Request: body, Source: info, Adoption: adoption, RuntimeMode: mode, OperationID: operation}
+	return receipt, writeRestartReceipt(path, receipt)
+}
+
+// resolveRestartConversation is the provider conversation a restart of info
+// would reopen. The preview asks the same question without acting on it.
+func resolveRestartConversation(info state.SessionInfo) (recovery.Adoption, error) {
 	uuid, _ := ledger.ExistingProviderResume(info.Cmd, info.Args)
 	if uuid == "" {
 		uuid = info.ConversationID
@@ -128,17 +144,7 @@ func (s *Server) prepareRestart(body restartRequest) (restartReceipt, error) {
 			options.CodexSessionsDir = filepath.Join(info.ConfigDir, "sessions")
 		}
 	}
-	adoption, err := recovery.ResolveAdoption(uuid, options)
-	if err != nil {
-		return receipt, fmt.Errorf("conversation cannot be resumed; source is still running: %w", err)
-	}
-	adoption.Cwd = info.Cwd
-	mode, err := s.restartRuntimeMode(info, body.RemoteControl, body.RuntimeMode)
-	if err != nil {
-		return receipt, err
-	}
-	receipt = restartReceipt{Request: body, Source: info, Adoption: adoption, RuntimeMode: mode, OperationID: operation}
-	return receipt, writeRestartReceipt(path, receipt)
+	return recovery.ResolveAdoption(uuid, options)
 }
 
 func (s *Server) restartRuntimeMode(info state.SessionInfo, remoteControl bool, requested string) (string, error) {
