@@ -1,0 +1,228 @@
+package session
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"sync"
+	"time"
+
+	"github.com/somewhere-tech/sessions/runtime/internal/ledger"
+	"github.com/somewhere-tech/sessions/runtime/internal/pullrequest"
+)
+
+var (
+	// ErrPullRequestLaneUnknown means the ledger has no creation record for the
+	// id, so there is no durable lane to attach a pull request to.
+	ErrPullRequestLaneUnknown = errors.New("no Sessions ledger record for this session")
+	// ErrPullRequestNotLinked means a refresh was asked of a lane with no link.
+	ErrPullRequestNotLinked = errors.New("no pull request is linked to this session")
+	// ErrPullRequestUnavailable means this daemon was started without a ledger.
+	ErrPullRequestUnavailable = errors.New("pull request links need the Sessions ledger, which this daemon was started without")
+)
+
+// pullRequestLinks serializes association writes and remembers, for this
+// daemon's lifetime only, when an unchanged observation was last confirmed.
+// It is usable at its zero value.
+type pullRequestLinks struct {
+	writeMu   sync.Mutex
+	confirmMu sync.Mutex
+	confirmed map[string]pullRequestConfirmation
+}
+
+type pullRequestConfirmation struct {
+	url string
+	at  time.Time
+}
+
+func (m *Manager) pullRequestLane(ctx context.Context, id string) (ledger.LaneState, error) {
+	if m.ledgerReader == nil {
+		return ledger.LaneState{}, ErrPullRequestUnavailable
+	}
+	events, err := m.ledgerReader.Events(ctx, id)
+	if err != nil {
+		return ledger.LaneState{}, fmt.Errorf("read ledger for %s: %w", id, err)
+	}
+	for _, lane := range ledger.Fold(events) {
+		if lane.LaneID == id && lane.Created {
+			return lane, nil
+		}
+	}
+	return ledger.LaneState{}, fmt.Errorf("%w %s; only sessions Sessions created can be linked to a pull request", ErrPullRequestLaneUnknown, id)
+}
+
+func (m *Manager) composePullRequest(lane ledger.LaneState) pullrequest.Status {
+	live := false
+	if session, ok := m.registry.Get(lane.LaneID); ok && !session.Info().Exited {
+		live = true
+	}
+	m.pullRequests.confirmMu.Lock()
+	confirmation := m.pullRequests.confirmed[lane.LaneID]
+	m.pullRequests.confirmMu.Unlock()
+	confirmedAt := time.Time{}
+	if confirmation.url != "" && confirmation.url == lane.PullRequest.URL {
+		confirmedAt = confirmation.at
+	}
+	return pullrequest.Compose(lane, live, confirmedAt, time.Now())
+}
+
+// PullRequest reports the lane's link and its last known state. It never
+// contacts GitHub.
+func (m *Manager) PullRequest(ctx context.Context, id string) (pullrequest.Status, error) {
+	lane, err := m.pullRequestLane(ctx, id)
+	if err != nil {
+		return pullrequest.Status{}, err
+	}
+	return m.composePullRequest(lane), nil
+}
+
+// LinkPullRequest validates rawURL and associates it with the lane. Linking the
+// URL that is already linked records nothing and reports changed=false.
+func (m *Manager) LinkPullRequest(ctx context.Context, id, rawURL string) (pullrequest.Status, error) {
+	ref, err := pullrequest.Parse(rawURL)
+	if err != nil {
+		return pullrequest.Status{}, err
+	}
+	if m.options.PullRequests == nil {
+		return pullrequest.Status{}, ErrPullRequestUnavailable
+	}
+	m.pullRequests.writeMu.Lock()
+	defer m.pullRequests.writeMu.Unlock()
+	lane, err := m.pullRequestLane(ctx, id)
+	if err != nil {
+		return pullrequest.Status{}, err
+	}
+	changed := lane.PullRequest.URL != ref.URL
+	if changed {
+		if err := m.options.PullRequests.RecordPullRequestLinked(ctx, ledger.PullRequestLinked{
+			Meta: ledger.Meta{LaneID: id}, PullRequestRef: ref,
+		}); err != nil {
+			return pullrequest.Status{}, err
+		}
+		if lane, err = m.pullRequestLane(ctx, id); err != nil {
+			return pullrequest.Status{}, err
+		}
+	}
+	return m.withChanged(lane, changed), nil
+}
+
+// UnlinkPullRequest removes the lane's link. Unlinking a lane with no link
+// records nothing and reports changed=false.
+func (m *Manager) UnlinkPullRequest(ctx context.Context, id string) (pullrequest.Status, error) {
+	if m.options.PullRequests == nil {
+		return pullrequest.Status{}, ErrPullRequestUnavailable
+	}
+	m.pullRequests.writeMu.Lock()
+	defer m.pullRequests.writeMu.Unlock()
+	lane, err := m.pullRequestLane(ctx, id)
+	if err != nil {
+		return pullrequest.Status{}, err
+	}
+	changed := lane.PullRequest.URL != ""
+	if changed {
+		if err := m.options.PullRequests.RecordPullRequestUnlinked(ctx, ledger.PullRequestUnlinked{
+			Meta: ledger.Meta{LaneID: id}, URL: lane.PullRequest.URL,
+		}); err != nil {
+			return pullrequest.Status{}, err
+		}
+		if lane, err = m.pullRequestLane(ctx, id); err != nil {
+			return pullrequest.Status{}, err
+		}
+	}
+	return m.withChanged(lane, changed), nil
+}
+
+func (m *Manager) withChanged(lane ledger.LaneState, changed bool) pullrequest.Status {
+	status := m.composePullRequest(lane)
+	status.Changed = &changed
+	return status
+}
+
+// RefreshPullRequest reads the linked pull request once, read-only, and records
+// the observation when it differs from the last one recorded. A failed read
+// records nothing and leaves the previous observation, reported with its real
+// age. Nothing here ends, closes, or signals the lane's runner.
+func (m *Manager) RefreshPullRequest(ctx context.Context, id string) (pullrequest.Status, error) {
+	lane, err := m.pullRequestLane(ctx, id)
+	if err != nil {
+		return pullrequest.Status{}, err
+	}
+	if lane.PullRequest.URL == "" {
+		return pullrequest.Status{}, fmt.Errorf("%w %s; link one with `sessions pr link %s <url>`", ErrPullRequestNotLinked, id, id)
+	}
+	fetcher := m.options.PullRequestFetcher
+	if fetcher == nil {
+		fetcher = pullrequest.GH{}
+	}
+	observation, fetchErr := fetcher.Fetch(ctx, lane.PullRequest.PullRequestRef)
+	if fetchErr != nil {
+		status := m.composePullRequest(lane)
+		status.Refresh = refreshFailure(fetchErr)
+		return status, nil
+	}
+	recorded, err := m.recordPullRequestObservation(ctx, id, lane.PullRequest.URL, observation)
+	if err != nil {
+		return pullrequest.Status{}, err
+	}
+	if lane, err = m.pullRequestLane(ctx, id); err != nil {
+		return pullrequest.Status{}, err
+	}
+	status := m.composePullRequest(lane)
+	status.Refresh = &pullrequest.RefreshResult{OK: true, Recorded: recorded}
+	return status, nil
+}
+
+func (m *Manager) recordPullRequestObservation(ctx context.Context, id, url string, observation ledger.PullRequestObservation) (bool, error) {
+	if m.options.PullRequests == nil {
+		return false, ErrPullRequestUnavailable
+	}
+	m.pullRequests.writeMu.Lock()
+	defer m.pullRequests.writeMu.Unlock()
+	// Re-read under the lock: the link may have changed while gh was running,
+	// and an answer about a pull request that is no longer linked is dropped.
+	lane, err := m.pullRequestLane(ctx, id)
+	if err != nil {
+		return false, err
+	}
+	current := lane.PullRequest
+	if current.URL != url {
+		return false, nil
+	}
+	if current.Merged || (current.Observed && current.Observation == observation) {
+		m.confirmPullRequest(id, url)
+		return false, nil
+	}
+	if err := m.options.PullRequests.RecordPullRequestObserved(ctx, ledger.PullRequestObserved{
+		Meta: ledger.Meta{LaneID: id}, URL: url, Observation: observation,
+	}); err != nil {
+		return false, err
+	}
+	m.confirmPullRequest(id, "")
+	return true, nil
+}
+
+// confirmPullRequest remembers an unchanged read, or forgets one when url is
+// empty because a newer observation was just recorded.
+func (m *Manager) confirmPullRequest(id, url string) {
+	m.pullRequests.confirmMu.Lock()
+	defer m.pullRequests.confirmMu.Unlock()
+	if url == "" {
+		delete(m.pullRequests.confirmed, id)
+		return
+	}
+	if m.pullRequests.confirmed == nil {
+		m.pullRequests.confirmed = make(map[string]pullRequestConfirmation)
+	}
+	m.pullRequests.confirmed[id] = pullRequestConfirmation{url: url, at: time.Now()}
+}
+
+func refreshFailure(err error) *pullrequest.RefreshResult {
+	var fetchErr *pullrequest.FetchError
+	if errors.As(err, &fetchErr) {
+		return &pullrequest.RefreshResult{ErrorKind: fetchErr.Kind, Error: fetchErr.Message}
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return &pullrequest.RefreshResult{ErrorKind: pullrequest.ErrorTimeout, Error: "the refresh was cancelled before GitHub answered; run it again"}
+	}
+	return &pullrequest.RefreshResult{ErrorKind: pullrequest.ErrorFailed, Error: err.Error()}
+}

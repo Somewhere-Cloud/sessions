@@ -39,6 +39,7 @@ import { agentLedDescendants, isAgentLedChild } from '../lib/workingSet';
 import { handBackMessage } from '../lib/handBack';
 import { SubagentsPanel } from './SubagentsPanel';
 import { SessionTitleRename } from './SessionTitleRename';
+import { PullRequestChip } from './PullRequestChip';
 
 import type { ActiveStatus } from '../lib/activeStatus';
 
@@ -564,7 +565,7 @@ function SessionViewInner({ sessionId, onStatusChange, isActive = false, onResum
           <div className="session-active-meta">
             {provider ? <ProviderBadge provider={provider} compact size={20} /> : <span className="provider-badge is-shell is-compact">⌘ Shell</span>}
             <MachineMark machine={serverDisplayName(getActiveServer(), true)} size={18} />
-            <span className="session-header-workspace" title={session?.cwd}>{workspaceName}</span>
+            <span className="session-header-workspace" title={session?.cwd}>{workspaceName}</span>{session ? <PullRequestChip sessionId={session.id} /> : null}
             <span className={`session-live-pill${statusTone}`}>{statusLabel}</span>
             {session && terminalCompatibilityAgent ? (
               <span className="session-runtime-anchor">

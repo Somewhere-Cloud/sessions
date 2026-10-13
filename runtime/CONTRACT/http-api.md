@@ -40,8 +40,8 @@ This document records the behavior of the normative Go daemon in
   the per-session suffixes served by `handleSessionRoute` (`/snapshot`,
   `/events`, `/model-options`, `/model`, `/input`, `/submit`, `/approve`, `/retry`, `/retry/stop`, `/name`,
   `/tags`, `/upload`, `/display-parent`, `/set-aside`, the bare `DELETE`)
-  still fall through to the 404 body. `/pin`, `/wait`, `/wait-state`, and
-  `/verdict` return 405. Either way the request is authenticated before the
+  still fall through to the 404 body. `/pin`, `/wait`, `/wait-state`,
+  `/verdict`, `/pr`, and `/pr/refresh` return 405. Either way the request is authenticated before the
   method is judged, so a wrong method on an API path normally requires auth
   before returning 404 or 405. Each route entry below states its own
   behavior where it differs.
@@ -1459,6 +1459,56 @@ duplicate keys, and trailing content are rejected. `schemaVersion` must be
 document is `400 {"error":"<message>"}`. Success appends the record and returns
 201 with the stored record, `seq` and `emitted_at` assigned by the daemon.
 Append failures are 500; other methods return 405.
+
+### `GET|PUT|DELETE /api/sessions/:id/pr` and `POST /api/sessions/:id/pr/refresh`
+
+Auth required. A lane-to-pull-request link. `:id` must name a lane with a
+creation record in the Sessions ledger; it need not be live, and none of these
+routes wakes a paused session or signals a runner. An id without a ledger
+creation record is `404 {"error":"no Sessions ledger record for this session ...","id":"<id>"}`.
+A daemon started without a ledger is 503. Other methods return 405.
+
+`PUT` body is `{"url":"https://github.com/OWNER/REPO/pull/NUMBER"}`. The URL
+must be `https` on `github.com` (or `www.github.com`) with no credentials,
+port, or percent-encoding; a trailing slash, a `/files`, `/commits`, or
+`/checks` tab, a query, and a fragment are dropped, and owner and repository
+are lowercased. Anything else is `400 {"error":"invalid pull request URL ...; use https://github.com/OWNER/REPO/pull/NUMBER"}`.
+The canonical link is appended to the ledger as `pull_request_linked`. Linking
+the URL already linked appends nothing and answers `"changed":false`; linking
+a different URL replaces the link and discards the previous observation.
+`DELETE` appends `pull_request_unlinked` when a link exists and answers
+`"changed":false` otherwise. Neither contacts GitHub.
+
+`GET` never contacts GitHub. `POST .../pr/refresh` runs
+`gh pr view <url> --json ...` once with the user's existing GitHub CLI login,
+a 20-second timeout, and no retry. Sessions never reads, stores, or forwards
+that credential and never writes to GitHub. A read that differs from the last
+recorded observation is appended as `pull_request_observed`; an identical read
+appends nothing and refreshes freshness for this daemon's lifetime only. A
+failed read appends nothing and answers 200 with the previous observation and
+`refresh.ok:false`. Refresh with no link is `409`.
+
+Every success answers one status object:
+
+```json
+{"session_id":"<id>","linked":true,"changed":true,"runner":"live|not_connected|ended",
+ "pull_request":{"url":"https://github.com/acme/app/pull/42","host":"github.com","owner":"acme","repo":"app","number":42,"linked_at":"<RFC3339>"},
+ "status":{"state":"open|closed|merged|unknown","draft":false,"checks":"passing|failing|pending|none|unknown","checks_total":3,"checks_failing":0,"checks_pending":1,"mergeable":"mergeable|conflicting|unknown","head_ref":"...","head_sha":"...","base_ref":"main","merged_at":"...","merge_commit":"..."},
+ "observed_at":"<RFC3339>","freshness":"fresh|stale|final|unknown","branch_match":"match|mismatch|unknown",
+ "work":"open|merged|closed_unmerged|unknown","closure":{"action":"none|keep|archive_available","reason":"..."},
+ "refresh":{"ok":false,"error_kind":"gh_missing|auth|not_found|network|rate_limited|timeout|malformed_response|mismatch|failed","error":"...","recorded":false}}
+```
+
+An unlinked lane answers only `session_id`, `linked:false`, and `runner`.
+`changed` appears on `PUT` and `DELETE`; `refresh` appears only on refresh.
+Before any successful read, `status` fields are `unknown` and `freshness` is
+`unknown`. `fresh` means read within ten minutes, `stale` older, and `final`
+means merged: merged is monotonic for a URL and a later contradictory read is
+not recorded. `branch_match` compares the head branch with the lane's
+Sessions-created branch and is reported, never enforced. A merged pull request
+sets `work:"merged"` but never ends a runner: a live or paused lane answers
+`closure.action:"keep"` with the command to end it, and only a lane whose
+runner already ended answers `archive_available`.
 
 ### `POST /api/sessions/:id/input`
 

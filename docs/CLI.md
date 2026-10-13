@@ -85,6 +85,7 @@ Daily workflows:
   keys                     send a named key to a session
   resize                   resize a session PTY
   verdict                  read or emit an explicit producer verdict
+  pr                       link a lane to its GitHub pull request and read its status
   move                     continue an ended conversation on another machine
   adopt                    bind an existing conversation into Sessions
   resume (continue, resurrect) resume one saved conversation
@@ -1150,6 +1151,31 @@ To leave a handoff receipt, include meta.handoff with summary (string), commits/
 Examples:
   sessions verdict 0123abcd
   sessions --json verdict emit 0123abcd '{"schemaVersion":1,"verdict":"pass","findings":[]}'
+
+--json may appear before the command or among its options. --machine, --direct, --host, and --port must appear before the command. Arguments after `sessions run --` always belong to the child command.
+```
+
+## `sessions pr`
+
+```text
+Usage:
+  sessions pr <session> | pr link <session> <url> | pr unlink <session> | pr refresh <session>
+
+link a lane to its GitHub pull request and read its status
+
+Associate a Sessions lane with one GitHub pull request and report its state, checks, and mergeability with an explicit freshness: fresh, stale, final (merged), or unknown (never read).
+
+link validates and canonicalizes a https://github.com/OWNER/REPO/pull/NUMBER URL and records it in the append-only ledger; linking the URL already linked records nothing, and linking a different one replaces it. unlink removes the link. Neither contacts GitHub.
+
+refresh is the only command that reads GitHub. It runs `gh pr view --json` once with the GitHub CLI login you already have, with a 20-second timeout and no retry; Sessions never reads, stores, or forwards that credential and never writes to GitHub. A failed read records nothing, keeps the last observation with its real age, names the failure (gh_missing, auth, not_found, network, rate_limited, timeout, malformed_response, mismatch, failed), and exits 1. There is no background polling.
+
+A merged pull request marks the lane's work as merged. Sessions never ends a runner because its pull request merged: a live or paused lane is kept and the closure line says how to end it yourself; a lane whose runner already ended is offered `sessions archive`.
+
+Examples:
+  sessions pr link 0123abcd https://github.com/acme/app/pull/42
+  sessions pr refresh 0123abcd
+  sessions --json pr 0123abcd
+  sessions pr unlink 0123abcd
 
 --json may appear before the command or among its options. --machine, --direct, --host, and --port must appear before the command. Arguments after `sessions run --` always belong to the child command.
 ```

@@ -14,6 +14,7 @@ import (
 	"github.com/somewhere-tech/sessions/runtime/internal/ledger"
 	"github.com/somewhere-tech/sessions/runtime/internal/liveness"
 	"github.com/somewhere-tech/sessions/runtime/internal/proto"
+	"github.com/somewhere-tech/sessions/runtime/internal/pullrequest"
 	"github.com/somewhere-tech/sessions/runtime/internal/resource"
 	"github.com/somewhere-tech/sessions/runtime/internal/state"
 	"github.com/somewhere-tech/sessions/runtime/internal/watch"
@@ -98,6 +99,8 @@ type ManagerOptions struct {
 	Retention          ledger.RetentionWriter
 	Worktrees          ledger.WorktreeWriter
 	Attributions       ledger.AttributionWriter
+	PullRequests       ledger.PullRequestWriter
+	PullRequestFetcher pullrequest.Fetcher
 	LedgerReader       LedgerReader
 	UsageRecorder      UsageRecorder
 	Notify             func(PushPayload)
@@ -181,10 +184,11 @@ type Manager struct {
 	ledgerCache ledgerCache
 	// startup is how far through its first discovery pass this daemon is. See
 	// startup.go: a daemon that is still loading is not one that lost your work.
-	startup    *startupProgress
-	usage      UsageRecorder
-	notify     func(PushPayload)
-	listModels func(context.Context, string) ([]codexapp.Model, error)
+	startup      *startupProgress
+	pullRequests pullRequestLinks
+	usage        UsageRecorder
+	notify       func(PushPayload)
+	listModels   func(context.Context, string) ([]codexapp.Model, error)
 
 	deathMu             sync.Mutex
 	laneDeaths          map[string]laneDeathBurst

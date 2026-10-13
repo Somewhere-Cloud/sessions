@@ -103,6 +103,7 @@ func main() {
 		Retention:     ledgerStore.Retention(),
 		Worktrees:     ledgerStore.Worktrees(),
 		Attributions:  ledgerStore.Attributions(),
+		PullRequests:  ledgerStore.PullRequests(),
 		UsageRecorder: usageService,
 	})
 	defer manager.Close()

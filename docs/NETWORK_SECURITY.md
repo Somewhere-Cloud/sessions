@@ -490,6 +490,38 @@ unchanged; sessions created later resolve the updated executable
 (`runtime/internal/api/providers_handlers.go`,
 `runtime/cmd/sessions/providers.go`).
 
+## GitHub pull request status
+
+Linking a lane to a pull request (`sessions pr link`, `PUT
+/api/sessions/:id/pr`) is local: Sessions validates the URL, accepts only
+`https://github.com/OWNER/REPO/pull/NUMBER`, and records the canonical link in
+the ledger. It sends nothing.
+
+Reading the pull request is a separate explicit action, `sessions pr refresh`
+or `POST /api/sessions/:id/pr/refresh`. There is no background polling.
+
+- **Destination:** GitHub, reached by the user's installed GitHub CLI (`gh pr
+  view <url> --json ...`). The host is always `github.com`, taken from the
+  validated link and never from an arbitrary caller string.
+- **Payload:** the owner, repository, and pull request number in that URL. No
+  transcript, prompt, terminal output, session name, or path is sent.
+- **Credential source:** whatever login `gh` already holds. Sessions never
+  reads, stores, copies, or forwards that credential, never runs `gh auth`,
+  and runs no `gh` subcommand other than `pr view`. Nothing is written to
+  GitHub.
+- **Retention:** a content-free summary (state, draft, head and base branch
+  names, head and merge commit IDs, check counts, mergeability) is appended to
+  the local ledger when it differs from the last one. Titles, bodies, comments,
+  and check names are not kept.
+- **Timeout and retry:** one call bounded at 20 seconds, with no retry. A
+  failure is reported by kind (`gh_missing`, `auth`, `not_found`, `network`,
+  `rate_limited`, `timeout`, ...) and records nothing.
+- **Disable:** do not refresh, or `sessions pr unlink` the lane. Signing out of
+  `gh` revokes the capability without touching Sessions.
+
+A merged pull request marks the lane's work as merged. It never ends a runner
+(`runtime/internal/pullrequest`, `runtime/internal/session/pull_request.go`).
+
 ## Feedback and support tickets
 
 The source implementation provides two user-controlled entry points:

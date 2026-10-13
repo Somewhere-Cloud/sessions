@@ -14,6 +14,7 @@ cmd/sessions internal/ledger
 cmd/sessions internal/localnetwork
 cmd/sessions internal/migrate
 cmd/sessions internal/providerargs
+cmd/sessions internal/pullrequest
 cmd/sessions internal/recovery
 cmd/sessions internal/search
 cmd/sessions internal/state
@@ -57,6 +58,7 @@ internal/api internal/localnetwork
 internal/api internal/migrate
 internal/api internal/project
 internal/api internal/proto
+internal/api internal/pullrequest
 internal/api internal/recovery
 internal/api internal/relay
 internal/api internal/search
@@ -90,6 +92,7 @@ internal/mirror/cmd/harness internal/mirror
 internal/mirror/cmd/record internal/mirror
 internal/proto internal/ipc
 internal/proto/prototest internal/proto
+internal/pullrequest internal/ledger
 internal/recovery internal/ipc
 internal/recovery internal/ledger
 internal/recovery internal/liveness
@@ -111,6 +114,7 @@ internal/session internal/liveness
 internal/session internal/proto
 internal/session internal/providerargs
 internal/session internal/providerfault
+internal/session internal/pullrequest
 internal/session internal/resource
 internal/session internal/state
 internal/session internal/watch

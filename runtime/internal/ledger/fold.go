@@ -67,6 +67,7 @@ type LaneState struct {
 	WorktreeCleaned         bool
 	WorktreeCleanedAtMS     int64
 	WorktreeBranchRemoved   bool
+	PullRequest             LanePullRequest
 }
 
 // Fold reduces an event stream in seq order. Input order is irrelevant as
