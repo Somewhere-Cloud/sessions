@@ -53,20 +53,18 @@ func (a *app) cmdContinue(args []string) error {
 	if remoteControl && destinationSet && destinationProvider != "claude" {
 		return fail(1, "--remote-control is available only with Claude")
 	}
-	permissionMode := ""
+	permissionMode, permissionPolicy := "", "" // inherit remains a Claude launch setting
 	if permissionsSet {
-		switch strings.ToLower(strings.TrimSpace(permissions)) {
+		switch policy := strings.ToLower(strings.TrimSpace(permissions)); policy {
 		case state.PermissionsInherit:
 			permissionMode = state.ClaudeChoiceInherit
-		case state.PermissionsConstrained:
-			permissionMode = state.ClaudePermissionManual
-		case state.PermissionsFull:
-			permissionMode = state.ClaudePermissionBypass
+		case state.PermissionsConstrained, state.PermissionsFull:
+			permissionPolicy = policy
 		default:
 			return fail(1, "--permissions must be inherit, constrained, or full")
 		}
-		if destinationSet && destinationProvider != "claude" {
-			return fail(1, "--permissions on resume is currently available only with Claude")
+		if permissionMode != "" && destinationSet && destinationProvider != "claude" {
+			return fail(1, "--permissions inherit is available only when resuming with Claude")
 		}
 		if repairSet {
 			return fail(1, "--permissions cannot be combined with --repair")
@@ -93,6 +91,9 @@ func (a *app) cmdContinue(args []string) error {
 	}
 	if permissionMode != "" {
 		body["claudePermissionMode"] = permissionMode
+	}
+	if permissionPolicy != "" {
+		body["permissions"] = permissionPolicy
 	}
 	var result recovery.AdoptResult
 	if err := a.postJSON("/api/recovery/adopt", body, &result, 2); err != nil {

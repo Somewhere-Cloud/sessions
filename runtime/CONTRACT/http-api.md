@@ -1977,19 +1977,38 @@ runtime.
 `model` and optional `effort` select the reviewed provider settings for the new
 runtime. `permissions:"constrained"` records and enforces the app's **Ask me**
 access plan. An explicit `permissions:"full"` selects full access for a native
-same-provider resume; transcript-only restoration and cross-provider copies
-reject that override. Other values are rejected. The resume dialog defaults
-to Full access (YOLO) for native resumes, with Ask me available explicitly.
-Transcript-only restoration retains its supported permission policy. Omitting these additive
-fields keeps the earlier provider-default behavior for existing clients.
+same-provider Claude or Codex resume; transcript-only restoration and
+cross-provider copies reject that override. Other values are rejected. The
+resume dialog defaults to Full access (YOLO) for native resumes, with Ask me
+available explicitly. Transcript-only restoration and cross-provider copies
+run with Ask me.
+
+When a native same-provider resume omits both `permissions` and
+`claudePermissionMode` and the request resolves to a saved Sessions record
+(`sourceSessionId`, or a `historyId` that names one), the successor keeps the
+access class that record ran with. A record's resolved `permissions` field is
+authoritative. An older record without that field is read from its launch
+arguments only when they carry a permission flag; a record whose arguments
+carry none, including a ledger-only record whose arguments are a reconstructed
+resume recipe, is treated as unknown. A constrained record also keeps its
+exact Claude `--permission-mode` or Codex `--sandbox` and `--ask-for-approval`
+flags, so a child that inherited its manager's policy resumes with that
+policy; flags that would grant full access are never carried forward, and the
+generic Ask me plan applies instead. With no record, or an unknown policy, a
+native resume keeps the new-session default of full access (YOLO). Repair
+does not launch and is unaffected. The response's additive `permissions` field
+reports the access class the daemon resolved for the started successor.
 
 `claudePermissionMode` is an optional per-launch Claude override using the same
 typed values as `POST /api/sessions` (`inherit`, Claude's constrained modes, or
 `bypassPermissions`). It is accepted only for a same-provider native Claude
-resume. Transcript-only restoration, cross-provider continuation, Codex, and
-repair reject it rather than pretending to alter a runtime they cannot control.
-The CLI maps `sessions resume ID --permissions full` to
-`bypassPermissions`; an existing constrained process is not silently mutated.
+resume and counts as an explicit choice over a saved record's policy.
+Transcript-only restoration, cross-provider continuation, Codex, and repair
+reject it rather than pretending to alter a runtime they cannot control. The
+CLI sends `sessions resume ID --permissions constrained|full` as the generic
+`permissions` field for both providers and `--permissions inherit` as
+`claudePermissionMode:"inherit"`; an existing constrained process is not
+silently mutated.
 
 ```json
 {
@@ -2791,10 +2810,11 @@ Rich, Codex, cross-provider, and repair requests reject the combination rather
 than silently ignoring it. The CLI equivalent is
 `sessions continue <history-id> --terminal --remote-control`.
 The same route accepts `claudePermissionMode` for a same-provider Claude
-continuation. The CLI equivalent `sessions resume <history-id> --permissions
-full` starts the successor with Claude's exact skip-permissions flag. This is a
-new process bound to the same provider conversation, because Claude's live
-permission-mode cycle cannot elevate a process that was launched constrained.
+continuation. `sessions resume <history-id> --permissions full` sends
+`permissions:"full"`, which starts a Claude successor with Claude's exact
+skip-permissions flag. This is a new process bound to the same provider
+conversation, because Claude's live permission-mode cycle cannot elevate a
+process that was launched constrained.
 
 ### `POST /api/search/plan`
 
