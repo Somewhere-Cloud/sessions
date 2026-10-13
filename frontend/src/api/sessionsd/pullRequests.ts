@@ -17,6 +17,8 @@ export interface PullRequestStatus {
   };
   observed_at?: string;
   freshness?: 'fresh' | 'stale' | 'final' | 'unknown';
+  // How long, from this answer, a fresh observation stays fresh.
+  fresh_for_ms?: number;
   work?: 'open' | 'merged' | 'closed_unmerged' | 'unknown';
   closure?: { action: 'none' | 'keep' | 'archive_available'; reason: string };
   refresh?: { ok: boolean; error_kind?: string; error?: string; recorded: boolean };

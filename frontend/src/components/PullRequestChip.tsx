@@ -1,51 +1,89 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { fetchPullRequest, refreshPullRequest, type PullRequestStatus } from '../api/sessionsd';
+import '../styles/pull-request-chip.css';
 
-function summary(status: PullRequestStatus): string {
+function summary(status: PullRequestStatus, freshness: PullRequestStatus['freshness']): string {
   const report = status.status;
-  if (!report || status.freshness === 'unknown') return 'not read yet';
+  if (!report || freshness === 'unknown') return 'not read yet';
   const parts: string[] = [report.draft ? `${report.state} (draft)` : report.state];
   if (report.state !== 'merged') {
     parts.push(report.checks === 'none' ? 'no checks' : `checks ${report.checks}`);
     if (report.mergeable === 'conflicting') parts.push('conflicts');
   }
-  if (status.freshness === 'stale') parts.push('stale');
+  if (freshness === 'stale') parts.push('stale');
   return parts.join(' · ');
+}
+
+// One mount of the chip for one session. Every answer is tagged with the epoch
+// that asked for it, so an answer that arrives after the view moved to another
+// session, or back again, is dropped instead of shown under the wrong lane.
+interface ChipView {
+  sessionId: string;
+  epoch: number;
+  status: PullRequestStatus | null;
+  // Local clock time after which a "fresh" answer is shown as stale, and
+  // whether that time has passed while the chip stayed open.
+  staleAt: number | null;
+  expired: boolean;
+  refreshing: boolean;
+  error: string;
+}
+
+function received(status: PullRequestStatus): Pick<ChipView, 'status' | 'staleAt' | 'expired'> {
+  const staleAt = status.freshness === 'fresh' ? Date.now() + (status.fresh_for_ms ?? 0) : null;
+  return { status, staleAt, expired: false };
+}
+
+// Applies change only while the view still belongs to the epoch that asked.
+function forEpoch(epoch: number, change: Partial<ChipView>) {
+  return (current: ChipView): ChipView => (current.epoch === epoch ? { ...current, ...change } : current);
 }
 
 // A lane's linked pull request, shown only when one is linked. Opening the
 // view reads Sessions' own record; only the Refresh button reaches GitHub, and
 // it never ends or changes the lane.
 export function PullRequestChip({ sessionId }: { sessionId: string }) {
-  const [status, setStatus] = useState<PullRequestStatus | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
+  const epochs = useRef(0);
+  const [view, setView] = useState<ChipView>({ sessionId, epoch: 0, status: null, staleAt: null, expired: false, refreshing: false, error: '' });
 
   useEffect(() => {
+    const epoch = ++epochs.current;
     const controller = new AbortController();
-    setStatus(null);
-    setError('');
+    setView({ sessionId, epoch, status: null, staleAt: null, expired: false, refreshing: false, error: '' });
     fetchPullRequest(sessionId, controller.signal)
-      .then(setStatus)
+      .then((status) => setView(forEpoch(epoch, received(status))))
       // A session Sessions did not create, or an older daemon, has no link to
       // show; that is not something to report.
       .catch(() => undefined);
     return () => controller.abort();
   }, [sessionId]);
 
-  if (!status?.linked || !status.pull_request) return null;
+  // Freshness is the daemon's answer at the moment it was given. While the
+  // chip stays open, age it locally once instead of asking again.
+  const { staleAt } = view;
+  useEffect(() => {
+    if (staleAt === null) return undefined;
+    const expire = (current: ChipView): ChipView => (current.staleAt === staleAt ? { ...current, expired: true } : current);
+    const timer = window.setTimeout(() => setView(expire), Math.max(0, staleAt - Date.now()));
+    return () => window.clearTimeout(timer);
+  }, [staleAt]);
+
+  const { status, epoch, refreshing, error } = view;
+  if (view.sessionId !== sessionId || !status?.linked || !status.pull_request) return null;
+  const freshness = status.freshness === 'fresh' && view.expired ? 'stale' : status.freshness;
   const link = status.pull_request;
   const refresh = async (): Promise<void> => {
-    setRefreshing(true);
-    setError('');
+    setView(forEpoch(epoch, { refreshing: true, error: '' }));
     try {
       const next = await refreshPullRequest(sessionId);
-      setStatus(next);
-      if (next.refresh && !next.refresh.ok) setError(next.refresh.error ?? 'GitHub could not be read');
+      setView(forEpoch(epoch, {
+        ...received(next),
+        error: next.refresh && !next.refresh.ok ? next.refresh.error ?? 'GitHub could not be read' : ''
+      }));
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setView(forEpoch(epoch, { error: cause instanceof Error ? cause.message : String(cause) }));
     } finally {
-      setRefreshing(false);
+      setView(forEpoch(epoch, { refreshing: false }));
     }
   };
   const title = [link.url, status.observed_at ? `Read ${status.observed_at}` : 'Not read from GitHub yet', status.closure?.reason]
@@ -53,9 +91,9 @@ export function PullRequestChip({ sessionId }: { sessionId: string }) {
     .join('\n');
 
   return (
-    <span className={`session-pr-chip is-${status.work ?? 'unknown'}`} title={title}>
+    <span className={`session-pr-chip is-${status.work ?? 'unknown'}`} title={title} data-freshness={freshness}>
       <a href={link.url} target="_blank" rel="noreferrer">PR #{link.number}</a>
-      <span>{summary(status)}</span>
+      <span>{summary(status, freshness)}</span>
       <button
         type="button"
         className="session-pr-refresh"

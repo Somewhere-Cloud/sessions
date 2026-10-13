@@ -28,6 +28,7 @@ const RemoteView = lazy(() => import('./RemoteView').then((module) => ({ default
 // Both render only while something is wrong, so neither belongs on the entry path.
 const ProviderFaultCard = lazy(() => import('./ProviderFaultCard').then((module) => ({ default: module.ProviderFaultCard })));
 const StartReceiptNote = lazy(() => import('./StartReceiptNote').then((module) => ({ default: module.StartReceiptNote })));
+const PullRequestChip = lazy(() => import('./PullRequestChip').then((module) => ({ default: module.PullRequestChip })));
 import { classifySession, lostSessionNote } from '../lib/sessionStatus';
 import { sessionMode, sessionModeName, sessionModeShort } from '../lib/sessionMode';
 import { SessionPopOutButton } from './SessionPopOutButton';
@@ -39,7 +40,6 @@ import { agentLedDescendants, isAgentLedChild } from '../lib/workingSet';
 import { handBackMessage } from '../lib/handBack';
 import { SubagentsPanel } from './SubagentsPanel';
 import { SessionTitleRename } from './SessionTitleRename';
-import { PullRequestChip } from './PullRequestChip';
 
 import type { ActiveStatus } from '../lib/activeStatus';
 
@@ -141,6 +141,12 @@ function SessionHeaderNotes({ session, onOpenAccounts }: { session: SessionInfo;
       ) : null}
     </>
   );
+}
+
+// The lane's linked pull request, if any. Most lanes have none, so the chip
+// and its styles load only when a session is opened.
+function SessionPullRequest({ sessionId }: { sessionId: string }): JSX.Element {
+  return <Suspense fallback={null}><PullRequestChip sessionId={sessionId} /></Suspense>;
 }
 
 // The conversation pane, with the boundary its lazily loaded contents need.
@@ -565,7 +571,7 @@ function SessionViewInner({ sessionId, onStatusChange, isActive = false, onResum
           <div className="session-active-meta">
             {provider ? <ProviderBadge provider={provider} compact size={20} /> : <span className="provider-badge is-shell is-compact">⌘ Shell</span>}
             <MachineMark machine={serverDisplayName(getActiveServer(), true)} size={18} />
-            <span className="session-header-workspace" title={session?.cwd}>{workspaceName}</span>{session ? <PullRequestChip sessionId={session.id} /> : null}
+            <span className="session-header-workspace" title={session?.cwd}>{workspaceName}</span>{session ? <SessionPullRequest sessionId={session.id} /> : null}
             <span className={`session-live-pill${statusTone}`}>{statusLabel}</span>
             {session && terminalCompatibilityAgent ? (
               <span className="session-runtime-anchor">
