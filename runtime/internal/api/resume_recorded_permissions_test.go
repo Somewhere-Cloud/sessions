@@ -25,6 +25,12 @@ func recordedPolicyDaemon(t *testing.T) (testDaemon, *sessionruntime.Manager, st
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	// A release job supplies its own ledger path. Override it for every
+	// fixture too: changing HOME alone leaves iterations sharing live records.
+	t.Setenv("SESSIONS_LEDGER_PATH", filepath.Join(home, "lanes.sqlite3"))
+	t.Setenv("SESSIONS_STATE_DIR", filepath.Join(home, "runners"))
+	t.Setenv("SESSIONS_PORT", "8899")
 	daemon := newTestDaemon(t)
 	daemon.config.SettingsPath = filepath.Join(home, "settings.json")
 	if err := state.SaveSettings(daemon.config.SettingsPath, state.Settings{Onboarding: &state.OnboardingSettings{
@@ -45,6 +51,23 @@ func recordedPolicyDaemon(t *testing.T) (testDaemon, *sessionruntime.Manager, st
 	t.Cleanup(manager.Close)
 	daemon.handler = New(daemon.config, manager)
 	return daemon, manager, home
+}
+
+func TestRecordedPolicyFixtureOverridesInheritedLedger(t *testing.T) {
+	outer := filepath.Join(t.TempDir(), "outer.sqlite3")
+	t.Setenv("SESSIONS_LEDGER_PATH", outer)
+	seen := map[string]bool{outer: true}
+	for range 2 {
+		_, _, home := recordedPolicyDaemon(t)
+		path, err := ledger.ResolvePath("")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if path != filepath.Join(home, "lanes.sqlite3") || seen[path] {
+			t.Fatalf("fixture reused an inherited ledger: %s", path)
+		}
+		seen[path] = true
+	}
 }
 
 func writeAdoptableCodexConversation(t *testing.T, home, cwd, conversation string) string {
