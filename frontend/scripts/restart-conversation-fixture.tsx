@@ -22,10 +22,12 @@ function Draft({ id }: { id: string }): JSX.Element {
 function Fixture(): JSX.Element {
   const [showSource, setShowSource] = useState(true);
   const [opened, setOpened] = useState('');
+  const [resumed, setResumed] = useState('');
   return <main style={{ padding: 24 }}>
-    {showSource ? <><Draft id={source.id} /><RestartConversation session={source} onOpen={(id) => { setOpened(id); setShowSource(false); }} /></> : null}
+    {showSource ? <><Draft id={source.id} /><RestartConversation session={source} onOpen={(id) => { setOpened(id); setShowSource(false); }} onResume={(row) => setResumed(row.id)} /></> : null}
     <button data-hide-source onClick={() => setShowSource(false)}>Simulate source row retirement</button>
     {opened ? <><output data-opened>{opened}</output><Draft id={opened} /></> : null}
+    {resumed ? <output data-resumed>{resumed}</output> : null}
     <RestartConversationHost />
   </main>;
 }

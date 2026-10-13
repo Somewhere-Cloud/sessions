@@ -1,6 +1,6 @@
 // The pull request chip shows only the answer for the session it is showing,
-// and a "fresh" answer turns stale while the chip stays open, without asking
-// the daemon or GitHub again.
+// on the server that runs that session, and a "fresh" answer turns stale while
+// the chip stays open, without asking the daemon or GitHub again.
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -22,6 +22,10 @@ const answers = {
     observed_at: '2026-10-12T00:00:00Z', freshness: 'stale', work: 'open', closure: { action: 'none', reason: '' } })
 };
 const mergedA = { ...answers['lane-a'](), status: report('merged'), freshness: 'final', fresh_for_ms: undefined, work: 'merged', refresh: { ok: true, recorded: true } };
+// The same lane id on another computer is a different lane with its own link.
+const miniA = () => ({ session_id: 'lane-a', linked: true, runner: 'live', pull_request: link(91), status: report('open'),
+  observed_at: '2026-10-12T00:00:00Z', freshness: 'stale', work: 'open', closure: { action: 'none', reason: '' } });
+const closedMiniA = { ...miniA(), status: report('closed'), freshness: 'final', work: 'closed_unmerged', refresh: { ok: true, recorded: true } };
 let browser; let server;
 const requests = []; const failed = []; const errors = []; const heldRefreshes = [];
 try {
@@ -30,11 +34,12 @@ try {
     define: { 'import.meta.env.BASE_URL': '"/"' }, external: ['/claude-icon.svg'], logLevel: 'silent' });
   await writeFile(join(work, 'index.html'), '<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="/app.css"></head><body><div id="root"></div><script type="module" src="/app.js"></script></body></html>');
   server = createServer(async (request, response) => {
-    const match = /^\/api\/sessions\/(lane-[ab])\/pr(\/refresh)?$/.exec(request.url ?? '');
+    const match = /^(\/api\/fleet\/mini)?\/api\/sessions\/(lane-[ab])\/pr(\/refresh)?$/.exec(request.url ?? '');
     if (match) {
       requests.push(`${request.method} ${request.url}`);
       const send = (body) => { response.writeHead(200, { 'content-type': 'application/json' }); response.end(JSON.stringify(body)); };
-      if (match[2]) heldRefreshes.push(() => send(mergedA)); else send(answers[match[1]]());
+      const mini = Boolean(match[1]);
+      if (match[3]) heldRefreshes.push(() => send(mini ? closedMiniA : mergedA)); else send(mini ? miniA() : answers[match[2]]());
       return;
     }
     const name = request.url === '/' ? 'index.html' : request.url.slice(1);
@@ -52,7 +57,13 @@ try {
   const chipText = () => page.$eval('[data-chip]', (element) => element.textContent ?? '');
   const freshness = () => page.$eval('.session-pr-chip', (element) => element.getAttribute('data-freshness'));
   const waitForChip = (text) => page.waitForFunction((value) => document.querySelector('[data-chip]')?.textContent?.includes(value), {}, text);
-  const show = async (id) => { await page.click(`[data-show="${id}"]`); await page.waitForFunction((value) => document.querySelector('[data-session]')?.textContent === value, {}, id); };
+  const shown = (value) => page.waitForFunction((expected) => document.querySelector('[data-session]')?.textContent === expected, {}, value);
+  const show = async (id) => { await page.click(`[data-show="${id}"]`); await page.waitForFunction((value) => document.querySelector('[data-session]')?.textContent?.endsWith(`:${value}`), {}, id); };
+  const source = async (id) => { await page.click(`[data-source="${id}"]`); await page.waitForFunction((value) => document.querySelector('[data-session]')?.textContent?.startsWith(`${value}:`), {}, id); };
+  const startRefresh = async () => {
+    await page.click('.session-pr-refresh');
+    await page.waitForFunction(() => document.querySelector('.session-pr-refresh')?.textContent === 'Reading…');
+  };
   const settle = () => new Promise((resolve) => setTimeout(resolve, 300));
 
   await page.goto(`http://127.0.0.1:${server.address().port}`);
@@ -93,8 +104,36 @@ try {
   await waitForChip('merged');
   assert.equal(await freshness(), 'final');
 
+  // Selecting another computer does not move this session: its refresh still
+  // goes to the daemon that runs it.
+  await page.click('[data-activate="mini"]'); await shown('fixture:lane-a');
+  let sent = requests.length;
+  await startRefresh();
+  assert.deepEqual(requests.slice(sent), ['POST /api/sessions/lane-a/pr/refresh'], 'refresh must target the session\'s own server, not the active one');
+  heldRefreshes.shift()(); await waitForChip('merged');
+
+  // The row now names a session with the same id on Mini while a refresh to
+  // this computer is still in flight. That answer is not Mini's status.
+  await page.click('[data-activate="fixture"]');
+  await startRefresh();
+  sent = requests.length;
+  await source('mini'); await waitForChip('PR #91');
+  assert.deepEqual(requests.slice(sent), ['GET /api/fleet/mini/api/sessions/lane-a/pr'], 'the chip reads the new source server');
+  heldRefreshes.shift()(); await settle();
+  assert.match(await chipText(), /PR #91/);
+  assert.doesNotMatch(await chipText(), /PR #42|merged/, 'an answer from the previous server must not land on this one');
+  assert.equal(await page.$eval('.session-pr-refresh', (element) => element.disabled), false, 'Mini must not inherit the other server\'s in-flight refresh');
+
+  // Mini's own refresh goes to Mini and applies there.
+  sent = requests.length;
+  await startRefresh();
+  assert.deepEqual(requests.slice(sent), ['POST /api/fleet/mini/api/sessions/lane-a/pr/refresh']);
+  heldRefreshes.shift()(); await waitForChip('closed');
+  assert.match(await chipText(), /PR #91/);
+  if (process.env.PR_CHIP_SCREENSHOT) await page.screenshot({ path: process.env.PR_CHIP_SCREENSHOT });
+
   assert.deepEqual(errors, []); assert.deepEqual(failed, []);
-  console.log('pull request chip passed: local freshness aging without requests, no cross-session refresh, no stale-epoch refresh, current refresh applies');
+  console.log('pull request chip passed: local freshness aging without requests, no cross-session refresh, no stale-epoch refresh, current refresh applies, source-server routing, no cross-server refresh');
 } finally {
   for (const release of heldRefreshes) release();
   await closeBrowser(browser); await closeServer(server); await rm(work, { recursive: true, force: true });

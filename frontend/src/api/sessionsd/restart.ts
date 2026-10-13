@@ -19,6 +19,8 @@ export interface RestartPreview {
   restartable?: boolean;
   action?: 'restart' | 'retry-restart' | 'resume' | 'open' | 'none';
   command?: string;
+  // The record action acts on: the source for resume, the running successor for open.
+  targetSessionId?: string;
   reason?: string;
   recordedRestart?: { permissions: 'constrained' | 'full'; remoteControl: boolean; runtimeMode?: 'rich' | 'terminal' };
   profile?: string;

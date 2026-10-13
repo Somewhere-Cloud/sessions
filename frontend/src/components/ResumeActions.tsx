@@ -49,6 +49,13 @@ function sourceSessionID(selected: ResumableSession, preferred: string | undefin
   return matches.length === 1 ? matches[0]?.id : undefined;
 }
 
+// The access the source record ran with, when this client can see it. The
+// daemon keeps a saved record's policy when the request names none.
+function recordedPermissions(sourceSessionId: string | undefined): 'constrained' | 'full' | undefined {
+  const recorded = sourceSessionId ? useSessions.getState().sessions.find((session) => session.id === sourceSessionId)?.permissions : undefined;
+  return recorded === 'constrained' || recorded === 'full' ? recorded : undefined;
+}
+
 function useContinuationPreview(
   selected: ResumableSession | null,
   destination: 'claude' | 'codex',
@@ -267,7 +274,7 @@ export function ResumeActions({
               onLastMessages={setLastMessages}
               onConfirmed={setConfirmed}
             />
-          ) : !selected.transcriptRecovery ? <ResumePermissions value={same.permissions} onChange={same.setPermissions} disabled={Boolean(working)} /> : null}
+          ) : !selected.transcriptRecovery ? <ResumePermissions value={same.permissions} kept={same.kept} onChange={same.setPermissions} disabled={Boolean(working)} /> : null}
         </PaidStartPlan>
         </details>
       ) : null}
@@ -298,13 +305,14 @@ export function ResumeActions({
   );
 }
 
-function ResumePermissions({ value, onChange, disabled }: { value: 'constrained' | 'full'; onChange: (value: 'constrained' | 'full') => void; disabled: boolean }): JSX.Element {
+function ResumePermissions({ value, kept, onChange, disabled }: { value: 'constrained' | 'full'; kept: boolean; onChange: (value: 'constrained' | 'full') => void; disabled: boolean }): JSX.Element {
   return <label className="field-label">Permissions
     <select aria-label="Resume permissions" value={value} disabled={disabled} onChange={(event) => onChange(event.target.value === 'full' ? 'full' : 'constrained')}>
       <option value="constrained">Restricted — ask before sensitive actions</option>
       <option value="full">Full access (YOLO) — skip permission prompts</option>
     </select>
     {value === 'full' ? <small>The agent can run commands and change files without asking.</small> : null}
+    {kept ? <small>Same access as this conversation’s last run.</small> : null}
   </label>;
 }
 
@@ -318,9 +326,13 @@ function useSameProviderResume(
   refresh: () => Promise<void>,
   onResumed: (laneId: string) => void,
   onClose: () => void
-): { busy: boolean; error: string | null; partialResult: AdoptOutcome | null; resume: () => Promise<void>; repair: () => Promise<void>; permissions: 'constrained' | 'full'; setPermissions: (value: 'constrained' | 'full') => void } {
-  const [permissions, setPermissions] = useState<'constrained' | 'full'>('full');
-  useEffect(() => setPermissions('full'), [selected?.sessionId]);
+): { busy: boolean; error: string | null; partialResult: AdoptOutcome | null; resume: () => Promise<void>; repair: () => Promise<void>; permissions: 'constrained' | 'full'; kept: boolean; setPermissions: (value: 'constrained' | 'full') => void } {
+  // Until the person picks one, no override is sent: the daemon keeps a saved
+  // record's policy and gives a record with none the full-access default.
+  const [chosen, setChosen] = useState<'constrained' | 'full' | null>(null);
+  useEffect(() => setChosen(null), [selected?.sessionId]);
+  const recorded = selected ? recordedPermissions(sourceSessionID(selected, sourceSessionId)) : undefined;
+  const permissions = chosen ?? recorded ?? 'full';
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [partialResult, setPartialResult] = useState<AdoptOutcome | null>(null);
@@ -338,7 +350,7 @@ function useSameProviderResume(
         undefined,
         model,
         effort,
-        selected.transcriptRecovery ? undefined : permissions
+        selected.transcriptRecovery ? undefined : chosen ?? undefined
       );
       await refresh();
       preferNextSessionView(outcome.result.laneId, runtimeMode === 'terminal' && !outcome.result.transcriptRecovery ? 'terminal' : 'remote');
@@ -366,7 +378,7 @@ function useSameProviderResume(
       setBusy(false);
     }
   };
-  return { busy, error, partialResult, resume, repair, permissions, setPermissions };
+  return { busy, error, partialResult, resume, repair, permissions, kept: !chosen && Boolean(recorded), setPermissions: setChosen };
 }
 
 function useContinuationRun(

@@ -164,8 +164,10 @@ assert.match(view, /terminalAvailable=\{!richSession\}/);
 // confirmed restart boundary as the toolbar and menu. The browser restart suite
 // drives confirmation, cancellation, draft retention and partial retry.
 assert.match(view, /reviewConversationRestart\(\{ session, onOpen: onOpenSession, serverId: sourceServerId, initialRemoteControl: enableRemoteControl, initialRuntimeMode: 'terminal' \}\)/);
-assert.match(view, /<RestartConversation session=\{session\} onOpen=\{onOpenSession\}/);
-assert.match(navigator, /<RestartConversation session=\{session\} onOpen=\{onOpen\} serverId=\{sourceServerId\} appearance="menuitem"/);
+// When the daemon's preview says the record is resumed rather than restarted,
+// the toolbar and menu dialogs hand it to the same saved-resume path the row uses.
+assert.match(view, /<RestartConversation session=\{session\} onOpen=\{onOpenSession\} onResume=\{onResume \? \(row\) => void onResume\(row\) : undefined\} serverId=\{sourceServerId\}/);
+assert.match(navigator, /<RestartConversation session=\{session\} onOpen=\{onOpen\} onResume=\{\(row\) => onResumeSession\(row, undefined, undefined, sourceServerId\)\} serverId=\{sourceServerId\} appearance="menuitem"/);
 assert.match(app, /<RestartConversationHost \/>/);
 assert.match(restartControl, /lazy\(\(\) => import\('\.\/RestartConversationDialog'\)/);
 assert.match(restartDialog, /This ends only runtime <code>\{session\.id\}<\/code>/);

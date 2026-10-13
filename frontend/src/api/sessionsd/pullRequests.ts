@@ -1,4 +1,4 @@
-import { apiFetch, httpBase, json } from './core';
+import { httpBaseForServer, json, requestedServer, serverFetch } from './core';
 
 export interface PullRequestStatus {
   session_id: string;
@@ -24,22 +24,25 @@ export interface PullRequestStatus {
   refresh?: { ok: boolean; error_kind?: string; error?: string; recorded: boolean };
 }
 
-function pullRequestPath(sessionId: string): string {
-  return `${httpBase()}/api/sessions/${encodeURIComponent(sessionId)}/pr`;
+// A lane's link lives on the daemon that runs it. serverId names that daemon;
+// without one, the active server is asked.
+async function pullRequestFetch(sessionId: string, serverId: string | undefined, suffix: string, init?: RequestInit): Promise<PullRequestStatus> {
+  const server = requestedServer(serverId);
+  return json<PullRequestStatus>(await serverFetch(server, `${httpBaseForServer(server)}/api/sessions/${encodeURIComponent(sessionId)}/pr${suffix}`, init));
 }
 
 // Reads the recorded link and last observation. The daemon does not contact
 // GitHub for this request.
-export async function fetchPullRequest(sessionId: string, signal?: AbortSignal): Promise<PullRequestStatus> {
-  return json<PullRequestStatus>(await apiFetch(pullRequestPath(sessionId), { signal }));
+export async function fetchPullRequest(sessionId: string, serverId?: string, signal?: AbortSignal): Promise<PullRequestStatus> {
+  return pullRequestFetch(sessionId, serverId, '', { signal });
 }
 
 // Asks the daemon to read the pull request once through the user's own gh
 // login. A failed read still answers with the previous observation.
-export async function refreshPullRequest(sessionId: string): Promise<PullRequestStatus> {
-  return json<PullRequestStatus>(await apiFetch(`${pullRequestPath(sessionId)}/refresh`, {
+export async function refreshPullRequest(sessionId: string, serverId?: string): Promise<PullRequestStatus> {
+  return pullRequestFetch(sessionId, serverId, '/refresh', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: '{}',
-  }));
+  });
 }

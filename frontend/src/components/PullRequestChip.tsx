@@ -14,10 +14,12 @@ function summary(status: PullRequestStatus, freshness: PullRequestStatus['freshn
   return parts.join(' · ');
 }
 
-// One mount of the chip for one session. Every answer is tagged with the epoch
-// that asked for it, so an answer that arrives after the view moved to another
-// session, or back again, is dropped instead of shown under the wrong lane.
+// One mount of the chip for one session on one server. Every answer is tagged
+// with the epoch that asked for it, so an answer that arrives after the view
+// moved to another session or server, or back again, is dropped instead of
+// shown under the wrong lane.
 interface ChipView {
+  serverId: string | undefined;
   sessionId: string;
   epoch: number;
   status: PullRequestStatus | null;
@@ -41,22 +43,23 @@ function forEpoch(epoch: number, change: Partial<ChipView>) {
 
 // A lane's linked pull request, shown only when one is linked. Opening the
 // view reads Sessions' own record; only the Refresh button reaches GitHub, and
-// it never ends or changes the lane.
-export function PullRequestChip({ sessionId }: { sessionId: string }) {
+// it never ends or changes the lane. serverId is the daemon that runs the lane,
+// which need not be the active one.
+export function PullRequestChip({ sessionId, serverId }: { sessionId: string; serverId?: string }) {
   const epochs = useRef(0);
-  const [view, setView] = useState<ChipView>({ sessionId, epoch: 0, status: null, staleAt: null, expired: false, refreshing: false, error: '' });
+  const [view, setView] = useState<ChipView>({ serverId, sessionId, epoch: 0, status: null, staleAt: null, expired: false, refreshing: false, error: '' });
 
   useEffect(() => {
     const epoch = ++epochs.current;
     const controller = new AbortController();
-    setView({ sessionId, epoch, status: null, staleAt: null, expired: false, refreshing: false, error: '' });
-    fetchPullRequest(sessionId, controller.signal)
+    setView({ serverId, sessionId, epoch, status: null, staleAt: null, expired: false, refreshing: false, error: '' });
+    fetchPullRequest(sessionId, serverId, controller.signal)
       .then((status) => setView(forEpoch(epoch, received(status))))
       // A session Sessions did not create, or an older daemon, has no link to
       // show; that is not something to report.
       .catch(() => undefined);
     return () => controller.abort();
-  }, [sessionId]);
+  }, [serverId, sessionId]);
 
   // Freshness is the daemon's answer at the moment it was given. While the
   // chip stays open, age it locally once instead of asking again.
@@ -69,13 +72,13 @@ export function PullRequestChip({ sessionId }: { sessionId: string }) {
   }, [staleAt]);
 
   const { status, epoch, refreshing, error } = view;
-  if (view.sessionId !== sessionId || !status?.linked || !status.pull_request) return null;
+  if (view.sessionId !== sessionId || view.serverId !== serverId || !status?.linked || !status.pull_request) return null;
   const freshness = status.freshness === 'fresh' && view.expired ? 'stale' : status.freshness;
   const link = status.pull_request;
   const refresh = async (): Promise<void> => {
     setView(forEpoch(epoch, { refreshing: true, error: '' }));
     try {
-      const next = await refreshPullRequest(sessionId);
+      const next = await refreshPullRequest(sessionId, serverId);
       setView(forEpoch(epoch, {
         ...received(next),
         error: next.refresh && !next.refresh.ok ? next.refresh.error ?? 'GitHub could not be read' : ''

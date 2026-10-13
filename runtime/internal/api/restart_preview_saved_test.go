@@ -83,7 +83,8 @@ func followAdvertisedResume(t *testing.T, daemon startDaemon, source state.Sessi
 	}
 	replacement := launch.Info.ID
 	status, preview, body := postRestartPreview(t, daemon, source.ID)
-	if status != http.StatusOK || preview.Restartable || preview.Action != "open" || preview.Command != "sessions attach "+replacement {
+	if status != http.StatusOK || preview.Restartable || preview.Action != "open" || preview.Command != "sessions attach "+replacement ||
+		preview.TargetSessionID != replacement {
 		t.Fatalf("preview after resume=%d %+v %s", status, preview, body)
 	}
 	if status, body := adopt(); status != http.StatusConflict || len(daemon.launcher.Launches) != 1 {
@@ -139,7 +140,8 @@ func TestRestartPreviewOffersResumeForPausedRecord(t *testing.T) {
 		t.Fatalf("paused preview=%d %s", status, body)
 	}
 	if preview.SourceSessionID != source.ID || preview.State != "needs-recovery" || preview.Restartable ||
-		preview.Action != "resume" || preview.Command != "sessions resume "+source.ID || preview.Profile != source.Profile {
+		preview.Action != "resume" || preview.Command != "sessions resume "+source.ID || preview.TargetSessionID != source.ID ||
+		preview.Profile != source.Profile {
 		t.Fatalf("paused preview=%+v", preview)
 	}
 	if after := snapshotPreviewEffects(t, daemon, source.ID); after != before {
@@ -166,7 +168,7 @@ func TestRestartPreviewOffersResumeForLostRecord(t *testing.T) {
 
 	status, preview, body := postRestartPreview(t, daemon, source.ID)
 	if status != http.StatusOK || preview.State != "lost" || preview.Restartable || preview.Action != "resume" ||
-		preview.Command != "sessions resume "+source.ID || preview.Profile != source.Profile {
+		preview.Command != "sessions resume "+source.ID || preview.TargetSessionID != source.ID || preview.Profile != source.Profile {
 		t.Fatalf("lost preview=%d %+v %s", status, preview, body)
 	}
 	if after := snapshotPreviewEffects(t, daemon, source.ID); after != before {
@@ -181,7 +183,7 @@ func TestRestartPreviewLiveRecordIsRestartable(t *testing.T) {
 	before := snapshotPreviewEffects(t, daemon, source.ID)
 	status, preview, body := postRestartPreview(t, daemon, source.ID)
 	if status != http.StatusOK || preview.State != "running" || !preview.Restartable || preview.Action != "restart" ||
-		preview.Command != "" || preview.RecordedRestart != nil {
+		preview.Command != "" || preview.TargetSessionID != "" || preview.RecordedRestart != nil {
 		t.Fatalf("live preview=%d %+v %s", status, preview, body)
 	}
 	if after := snapshotPreviewEffects(t, daemon, source.ID); after != before {
@@ -227,7 +229,7 @@ func TestRestartPreviewMovedRecordPointsAtOtherMachine(t *testing.T) {
 	before := snapshotPreviewEffects(t, daemon, source.ID)
 	status, preview, body := postRestartPreview(t, daemon, source.ID)
 	if status != http.StatusOK || preview.State != "moved" || preview.Restartable || preview.Action != "none" ||
-		preview.Command != "" || !strings.Contains(preview.Reason, "mini.example.test") || !strings.Contains(preview.Reason, "fork") {
+		preview.Command != "" || preview.TargetSessionID != "" || !strings.Contains(preview.Reason, "mini.example.test") || !strings.Contains(preview.Reason, "fork") {
 		t.Fatalf("moved preview=%d %+v %s", status, preview, body)
 	}
 	if after := snapshotPreviewEffects(t, daemon, source.ID); after != before {

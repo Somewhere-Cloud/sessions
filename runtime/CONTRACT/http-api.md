@@ -1893,6 +1893,7 @@ runtime. The additive fields say what the destructive restart would do with it:
 | `restartable` | `true` only when `POST /api/recovery/restart` would act on this source now |
 | `action` | `restart`, `retry-restart`, `resume`, `open`, or `none` |
 | `command` | optional exact CLI command for `action`; absent for `restart` and `none` |
+| `targetSessionId` | optional record `action` acts on: the source for `resume`, the running successor for `open`; absent otherwise. Clients use it instead of parsing `command` |
 | `reason` | optional instructional sentence |
 | `recordedRestart` | optional choices of a restart already recorded for this source |
 

@@ -10,7 +10,7 @@ import { closeBrowser, closeServer } from './lib/smoke.mjs';
 
 const work = await mkdtemp(join(tmpdir(), 'sessions-restart-ui-'));
 const laneId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
-let browser; let server; let partial = false;
+let browser; let server; let partial = false; let previewAnswer = {};
 const requests = []; const failed = []; const errors = [];
 try {
   await build({ entryPoints: [fileURLToPath(new URL('./restart-conversation-fixture.tsx', import.meta.url))], outdir: work,
@@ -20,7 +20,7 @@ try {
   server = createServer(async (request, response) => {
     if (request.url === '/api/recovery/restart/preview') {
       response.writeHead(200, { 'content-type': 'application/json' });
-      response.end(JSON.stringify({ sourceSessionId: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', accountChanged: true, savedLoginEmail: 'fixture@example.test', warning: 'Saved login differs from the recorded Remote Control owner.' })); return;
+      response.end(JSON.stringify({ sourceSessionId: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', accountChanged: true, savedLoginEmail: 'fixture@example.test', warning: 'Saved login differs from the recorded Remote Control owner.', ...previewAnswer })); return;
     }
     if (request.url === '/api/sessions?include_exited=1') {
       response.writeHead(200, { 'content-type': 'application/json' });
@@ -74,6 +74,53 @@ try {
   await clickText('Retry same restart'); await page.waitForSelector('[data-opened]');
   assert.deepEqual(requests[0], requests[1]); assert.equal(requests.length, 2);
   assert.equal(await page.$eval('textarea', (element) => element.value), 'My exact unsent draft');
+
+  // The daemon's preview decides what the dialog offers. A record it would
+  // resume or open gets that action, never a button that ends a runtime.
+  const source = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+  const buttons = () => page.$$eval('[role=dialog] button', (items) => items.map((item) => item.textContent));
+  const reviewWith = async (answer) => {
+    previewAnswer = answer; partial = false; requests.length = 0;
+    await page.reload(); await page.waitForSelector('textarea');
+    await clickText('Restart / change permissions…'); await page.waitForSelector('[role=dialog]');
+  };
+  await reviewWith({ state: 'lost', restartable: false, action: 'resume', command: `sessions resume ${source}`, targetSessionId: source,
+    reason: 'This runtime is no longer running, so restart has nothing to end. Resume reopens the same saved conversation with its recorded profile.' });
+  await page.waitForFunction(() => [...document.querySelectorAll('[role=dialog] button')].some((item) => item.textContent === 'Resume conversation'));
+  assert.deepEqual(await buttons(), ['Close', 'Resume conversation']);
+  if (process.env.RESTART_UI_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.RESTART_UI_SCREENSHOT_DIR}/restart-preview-resume.png` });
+  await clickText('Resume conversation'); await page.waitForSelector('[data-resumed]');
+  assert.equal(await page.$eval('[data-resumed]', (element) => element.textContent), source);
+  assert.deepEqual(requests, [], 'a resume answer never posts a restart');
+
+  await reviewWith({ state: 'exited', restartable: false, action: 'open', command: `sessions attach ${laneId}`, targetSessionId: laneId,
+    reason: 'aaaaaaaa was already continued, and bbbbbbbb is running now; open it instead of starting a second runner on the same conversation' });
+  await page.waitForFunction(() => [...document.querySelectorAll('[role=dialog] button')].some((item) => item.textContent === 'Open running copy'));
+  assert.deepEqual(await buttons(), ['Close', 'Open running copy']);
+  if (process.env.RESTART_UI_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.RESTART_UI_SCREENSHOT_DIR}/restart-preview-open.png` });
+  await clickText('Open running copy'); await page.waitForSelector('[data-opened]');
+  assert.equal(await page.$eval('[data-opened]', (element) => element.textContent), laneId);
+  assert.deepEqual(requests, [], 'opening the running copy never posts a restart');
+
+  await reviewWith({ state: 'moved', restartable: false, action: 'none',
+    reason: 'This conversation moved to https://mini.example.test:8787. Open it there; resuming or restarting it here would fork it.' });
+  await page.waitForFunction(() => document.querySelector('[role=dialog] [role=status]')?.textContent?.includes('would fork it'));
+  assert.deepEqual(await buttons(), ['Close']);
+  if (process.env.RESTART_UI_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.RESTART_UI_SCREENSHOT_DIR}/restart-preview-none.png` });
+  await clickText('Close');
+  assert.deepEqual(requests, []);
+
+  const recorded = { permissions: 'constrained', remoteControl: false, runtimeMode: 'terminal' };
+  await reviewWith({ state: 'running', restartable: true, action: 'retry-restart', recordedRestart: recorded,
+    command: `sessions restart ${source} --confirm ${source} --permissions constrained --terminal`,
+    reason: 'A restart of this runtime is already recorded. Repeating exactly these choices finishes it or returns its replacement without starting another runtime; different choices are refused.' });
+  await page.waitForFunction(() => [...document.querySelectorAll('[role=dialog] button')].some((item) => item.textContent === 'Retry recorded restart'));
+  assert.equal(await page.$eval('[aria-label="Restart permissions"]', (element) => element.value), 'constrained');
+  assert.equal(await page.$eval('[aria-label="Restart permissions"]', (element) => element.disabled), true);
+  if (process.env.RESTART_UI_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.RESTART_UI_SCREENSHOT_DIR}/restart-preview-recorded.png` });
+  await clickText('Retry recorded restart'); await page.waitForSelector('[data-opened]');
+  assert.deepEqual(requests, [{ sourceSessionId: source, confirmSessionId: source, ...recorded }]);
+
   assert.deepEqual(errors, []); assert.deepEqual(failed, []);
-  console.log('restart UI passed: exact runtime review, cancel, YOLO + Remote Control, automatic reopen, draft copy, source retirement, partial retry, no failed requests');
+  console.log('restart UI passed: exact runtime review, cancel, YOLO + Remote Control, automatic reopen, draft copy, source retirement, partial retry, preview resume/open/none without a restart, recorded retry with exact choices, no failed requests');
 } finally { await closeBrowser(browser); await closeServer(server); await rm(work, { recursive: true, force: true }); }

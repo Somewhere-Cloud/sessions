@@ -21,13 +21,15 @@ import (
 // State, Restartable, Action and Command say what the destructive restart
 // would do with this record right now. A saved record that restart cannot end
 // is still a record: the preview names the command that does bring it back
-// rather than reading as if the runtime did not exist.
+// rather than reading as if the runtime did not exist. TargetSessionID is the
+// record Action acts on, so a client need not parse Command.
 type restartPreview struct {
 	SourceSessionID string          `json:"sourceSessionId"`
 	State           string          `json:"state"`
 	Restartable     bool            `json:"restartable"`
 	Action          string          `json:"action"`
 	Command         string          `json:"command,omitempty"`
+	TargetSessionID string          `json:"targetSessionId,omitempty"`
 	Reason          string          `json:"reason,omitempty"`
 	RecordedRestart *restartRequest `json:"recordedRestart,omitempty"`
 	Profile         string          `json:"profile,omitempty"`
@@ -150,11 +152,11 @@ func describeSavedResume(result *restartPreview, info state.SessionInfo, listing
 	if target.Refusal != "" {
 		result.Reason = target.Refusal
 		if sessionStillRunning(target.Session) && target.Session.ID != info.ID {
-			result.Action, result.Command = "open", "sessions attach "+target.Session.ID
+			result.Action, result.Command, result.TargetSessionID = "open", "sessions attach "+target.Session.ID, target.Session.ID
 		}
 		return
 	}
-	result.Action, result.Command = "resume", "sessions resume "+info.ID
+	result.Action, result.Command, result.TargetSessionID = "resume", "sessions resume "+info.ID, info.ID
 	result.Reason = "This runtime is no longer running, so restart has nothing to end. Resume reopens the same saved conversation with its recorded profile."
 	if paused {
 		result.Reason = "This session stayed paused after a reboot, so there is no running runtime to end. Resume reopens the same saved conversation with its recorded profile."
