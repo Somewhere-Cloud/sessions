@@ -33,7 +33,9 @@ import { useSessions } from '../store/sessions';
 import { FleetProviderUpdates } from './FleetProviderUpdates';
 import { NotificationDeliveryStatus } from './NotificationDeliveryStatus';
 
-type Section = 'general' | 'agents' | 'fleet' | 'cloud' | 'notifications' | 'support';
+const StorageView = lazy(() => import('./StorageView').then((module) => ({ default: module.StorageView })));
+
+type Section = 'general' | 'agents' | 'fleet' | 'cloud' | 'notifications' | 'support' | 'storage';
 
 interface Props {
   clientOnly?: boolean;
@@ -301,6 +303,7 @@ export function SettingsView({ clientOnly = false, hostName, theme, onThemeChang
           ['agents', 'Agents & models'],
           ['fleet', 'Fleet'],
           ['cloud', 'Cloud & backup'],
+          ['storage', 'Storage'],
           ['notifications', 'Notifications & updates'],
           ['support', 'Help & feedback']
         ].map(([id, label]) => (
@@ -341,6 +344,8 @@ export function SettingsView({ clientOnly = false, hostName, theme, onThemeChang
           />
         ) : section === 'fleet' ? (
           <Suspense fallback={<p role="status">Loading connections…</p>}><ConnectionsView clientOnly={clientOnly} hostName={machineName} /></Suspense>
+        ) : section === 'storage' ? (
+          <Suspense fallback={<p role="status">Loading storage…</p>}><StorageView key={activeServerId} /></Suspense>
         ) : section === 'cloud' ? (
           <section className="settings-page settings-cloud-page">
             <span className="settings-kicker">Somewhere account</span>

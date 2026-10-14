@@ -1,0 +1,12 @@
+.storage-view { overflow-wrap: anywhere; }
+.storage-controls { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
+.storage-controls button { padding: 8px 14px; border-radius: 8px; }
+.storage-path { overflow-wrap: anywhere; }
+.storage-size { color: var(--fg-dim); font-size: 13px; }
+.storage-categories { font-size: 12px; }
+.storage-categories > div { display: flex; flex-wrap: wrap; gap: 8px; margin: 5px 0; }
+.storage-categories dt { min-width: 100px; }
+.storage-categories dd { margin: 0; color: var(--fg-dim); }
+.storage-candidate { border-top: 1px solid var(--border); padding-top: 14px; margin-top: 14px; font-size: 12px; }
+.storage-candidate p { color: var(--fg-dim); line-height: 1.55; }
+.storage-view summary { cursor: pointer; font-size: 13px; }

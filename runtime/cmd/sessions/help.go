@@ -90,6 +90,12 @@ var commandTable = []commandSpec{
 		examples: []string{"sessions rename 0123abcd DB", "sessions rename 0123abcd --auto", "sessions --json rename 0123abcd 'Database migration'"}, run: (*app).cmdRename,
 	},
 	{
+		name: "storage", usage: "storage [preview]",
+		summary: "inspect repository storage and preview generated-data candidates", group: dailyCommandGroup, localJSON: true,
+		longHelp: "Read-only bounded inventory of known session and project repositories, including Git-registered external worktrees. Reports recorded ownership, logical and allocated bytes, shared hardlinks, incomplete scans, Git dirty/untracked/unpushed uncertainty and Sessions runner references. Source and unknown data are retained. preview names generated dependency/build candidates and unverified restoration suggestions; it deletes nothing. Uses the selected --machine or --host through the normal fleet route. External processes, APFS clone sharing and provider storage are not inventoried. No apply option.",
+		examples: []string{"sessions storage", "sessions --json storage preview", "sessions --machine workstation --json storage"}, run: (*app).cmdStorage,
+	},
+	{
 		name: "worktrees", usage: "worktrees [--all | clean [--dry-run]]",
 		summary: "list or safely clean Sessions-created worktrees", group: dailyCommandGroup, localJSON: true,
 		longHelp: "List worktrees recorded in the Sessions ledger with dirty, merge, and session state. Worktrees successfully removed by clean are omitted by default; --all includes their durable cleaned records. clean removes only worktrees whose session has exited, whose tree is clean, and whose branch is fully merged into its recorded base; every other worktree is skipped with a reason. --dry-run shows the plan without mutation. There is no force option, and killing a session never cleans its worktree automatically.",
