@@ -14,25 +14,25 @@ import (
 
 // capBuffer drains excess output without retaining it, and rejects the result.
 type capBuffer struct {
-	bytes.Buffer
+	buffer   bytes.Buffer
 	overflow bool
 }
 
 func (b *capBuffer) Write(p []byte) (int, error) {
 	n := len(p)
-	remaining := 2*1024*1024 - b.Len()
+	remaining := 2*1024*1024 - b.buffer.Len()
 	if len(p) > remaining {
 		b.overflow = true
 		p = p[:remaining]
 	}
-	_, _ = b.Buffer.Write(p)
+	_, _ = b.buffer.Write(p)
 	return n, nil
 }
 func git(ctx context.Context, path string, args ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	command := exec.CommandContext(ctx, "git", append([]string{"--no-optional-locks", "-c", "core.fsmonitor=false", "-C", path}, args...)...)
-	command.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0")
+	command.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0", "GIT_NO_LAZY_FETCH=1")
 	command.WaitDelay = 100 * time.Millisecond
 	var output capBuffer
 	command.Stdout = &output
@@ -43,7 +43,7 @@ func git(ctx context.Context, path string, args ...string) (string, error) {
 	if output.overflow {
 		return "", errors.New("Git output limit reached")
 	}
-	return output.String(), nil
+	return output.buffer.String(), nil
 }
 func discover(ctx context.Context, seeds []Seed) ([]Seed, []string) {
 	found := map[string]Seed{}
@@ -113,18 +113,23 @@ func discover(ctx context.Context, seeds []Seed) ([]Seed, []string) {
 	sort.Slice(result, func(i, j int) bool { return result[i].Path < result[j].Path })
 	return result, issues
 }
-func inspectGit(ctx context.Context, path string) (GitState, map[string]bool) {
+func inspectGit(ctx context.Context, path string) (GitState, map[string]bool, []string) {
 	state := GitState{Dirty: "unknown", Untracked: "unknown", Unpushed: "unknown"}
 	tracked := map[string]bool{}
-	files, err := git(ctx, path, "ls-files", "-z")
+	issues := []string{}
+	files, err := git(ctx, path, "ls-files", "--stage", "-z")
+	submodules := false
 	if err == nil {
 		for _, file := range strings.Split(files, "\x00") {
-			if file != "" {
-				tracked[file] = true
+			if metadata, name, ok := strings.Cut(file, "\t"); ok {
+				tracked[name] = true
+				submodules = submodules || strings.HasPrefix(metadata, "160000 ")
 			}
 		}
+	} else {
+		issues = append(issues, "Git tracked-file inspection unavailable or limited; classification is incomplete")
 	}
-	status, err := git(ctx, path, "status", "--porcelain=v1", "-z", "--untracked-files=normal", "--ignore-submodules=none")
+	status, filtered, err := gitStatus(ctx, path)
 	if err == nil {
 		state.Dirty, state.Untracked = "no", "no"
 		for _, entry := range strings.Split(status, "\x00") {
@@ -134,6 +139,12 @@ func inspectGit(ctx context.Context, path string) (GitState, map[string]bool) {
 				state.Dirty = "yes"
 			}
 		}
+	} else {
+		issues = append(issues, "Git status inspection unavailable or limited")
+	}
+	if filtered || submodules {
+		state.Dirty = "unknown"
+		issues = append(issues, "Git filters and submodule working trees are not executed or inspected; dirty state is unknown")
 	}
 	ahead, err := git(ctx, path, "rev-list", "--count", "@{upstream}..HEAD")
 	if err == nil {
@@ -142,8 +153,10 @@ func inspectGit(ctx context.Context, path string) (GitState, map[string]bool) {
 		} else {
 			state.Unpushed = "yes"
 		}
+	} else {
+		issues = append(issues, "Git upstream inspection unavailable or limited; local upstream state is unknown")
 	}
-	return state, tracked
+	return state, tracked, issues
 }
 
 // Canonicalize parents (macOS /var and /tmp are aliases), but never follow a

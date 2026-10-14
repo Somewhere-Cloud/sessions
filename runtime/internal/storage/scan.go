@@ -81,7 +81,11 @@ func (s *scanner) root(seed Seed, references []Reference, excluded []string) Roo
 		return root
 	}
 	var tracked map[string]bool
-	root.Git, tracked = inspectGit(s.ctx, seed.Path)
+	var gitIssues []string
+	root.Git, tracked, gitIssues = inspectGit(s.ctx, seed.Path)
+	for _, issue := range gitIssues {
+		incomplete(&root, issue)
+	}
 	root.Candidates = candidates(s.ctx, seed.Path, tracked)
 	if len(root.Candidates) >= 64 {
 		incomplete(&root, "candidate limit reached; other data classified as unknown")
