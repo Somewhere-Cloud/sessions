@@ -213,6 +213,9 @@ func TestHomeAndRootSymlinkNotTraversed(t *testing.T) {
 		t.Fatal(err)
 	}
 	report = Scan(context.Background(), []Seed{{Path: alias, Owned: true}}, nil, nil)
+	if len(report.Roots) != 1 {
+		t.Fatalf("symlink target discovered: %+v", report.Roots)
+	}
 	if rootAt(t, report, alias).Bytes.Confidence != "partial" {
 		t.Fatal("root symlink followed")
 	}

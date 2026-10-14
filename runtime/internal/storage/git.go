@@ -61,6 +61,11 @@ func discover(ctx context.Context, seeds []Seed) ([]Seed, []string) {
 		if seed.Owned && len(found) < MaxRoots {
 			found[normalizePath(seed.Path)] = seed
 		}
+		info, statErr := os.Lstat(seed.Path)
+		if statErr == nil && info.Mode()&os.ModeSymlink != 0 {
+			issues = append(issues, "symlink seed retained without repository discovery at "+seed.Path)
+			continue
+		}
 		common, err := git(ctx, seed.Path, "rev-parse", "--path-format=absolute", "--git-common-dir")
 		if err != nil {
 			issues = append(issues, "repository discovery unavailable at "+seed.Path)
