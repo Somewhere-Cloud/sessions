@@ -143,6 +143,7 @@ fields. Optional fields are omitted when their value is `undefined`.
 | `working` | boolean | current activity classification |
 | `launching` | boolean, optional | recorded creation is still executing in this daemon, before runner registration. Shown as Starting, not Working; startup is unconfirmed. The row's `start` object includes the original operation ID when one was recorded. Omitted after creation settles or the daemon restarts; absence is not proof the command started or stopped |
 | `lastDataAt` | number | Unix epoch milliseconds of latest PTY output. A record restored from the ledger after its runner is gone reports its newest recorded human or provider activity; renames, pull request and task links, refreshes, and archive facts never move it. A live runner this daemon re-adopted after a restart or reconnect does not count attaching as activity: until it produces new output it reports what an earlier connection observed, else its persisted human/agent message time or the ledger's recorded activity, else its `createdAt` with `lastDataUnknown:true` |
+| `observations` | object, optional | the factual observation block, version 1, described below. Present on live records and, with only `capabilities` and `runner`, on records restored from the ledger, paused, or still launching |
 | `taskRefs` | array, optional | task references recorded in the ledger for this session and its pull request links, each `{"ref","scope","project"?,"pull_request"?,"ambiguous"?,"inherited_from"?}` with the meanings of `/tasks`; `pull_request` is set for a reference stated on that link. Present on live and restored records, so a listing needs no call per session. Linking is not activity and never moves `lastDataAt` |
 | `lastDataUnknown` | boolean, optional | `true` when a restored record has no recorded activity, so `lastDataAt` is only its `createdAt` floor. Omitted when the time was observed. `sessions status` reports the same fact as `last_activity_unknown`, which differs only when the provider transcript recorded a later turn (`lastUserMessageAt`). A producer verdict's `emitted_at` is a report time and never counts as activity |
 | `lastUserMessageAt` | number or null | latest user-role record in the provider transcript. Transcript-derived, so it includes the provider's own internal injections — a scheduled prompt or cron tick is written straight into the transcript and is indistinguishable there from a person. Do not read it as human contact; use `lastHumanMessageAt` for that |
@@ -594,6 +595,69 @@ observe the context. The 15 seconds therefore bounds waiting on the ledger, not
 the whole response. A daemon without a durable ledger lists its in-memory
 sessions as before.
 
+### Session observations (`observations`, version 1)
+
+`observations` reports what Sessions actually observed about a session, each
+fact with its source. It infers nothing: not progress, not blocked, not done,
+and not a permission cause. `null` means unknown or not observable for this
+runtime, never "no" or zero. The same projection is served by the listing,
+`sessions status`, team rows, and the wait route; clients do not reclassify.
+
+```json
+{"version":1,
+ "capabilities":{"runtime":"claude-structured|codex-app-server|claude-pty|codex-pty|terminal|lane",
+                 "turn_boundaries":"provider-stream|transcript-file|rollout-file|none",
+                 "tool_records":"provider-stream|transcript-file|rollout-file|none","terminal_output":true},
+ "runner":{"state":"launching|reachable|unreachable|lost|exited","since":null,"exit_code":null},
+ "working":{"value":true,"source":"provider-stream|rollout-file|terminal-heuristic|byte-activity|provider-retry|unknown"},
+ "turn":{"open":true,"started_at":0,"started_by":"sessions-dispatch|provider","provider_confirmed_at":null,
+         "ended_at":null,"ended_by":"provider-result|provider-turn-complete|runner-failure|transcript-end-turn|rollout-file"},
+ "last":{"provider_record_at":null,"terminal_output_at":null,"transcript_record_at":null,
+         "input_dispatched_at":null,"input_confirmed_by_provider_at":null},
+ "tools":{"open":[{"id":"toolu_1","name":"Bash","started_at":0}],"open_count":1,
+          "last_started_at":null,"last_ended_at":null,"history_complete":true},
+ "observers":[{"name":"claude-transcript|codex-rollout","state":"following|unresolved|error|stopped","detail":"...","since":0}]}
+```
+
+- `capabilities` follow the runtime kind, not the tool. A PTY Claude session
+  can report turns and tools from its transcript and a PTY Codex session from
+  its rollout file; a shell or headless lane reports output and exit only, so
+  its `turn` and `tools` are `null`. A structured runtime has no terminal, so
+  `last.terminal_output_at` is `null`.
+- `working` labels the legacy `working` flag with its evidence. It is never
+  evidence of useful progress. A PTY Claude screen that still shows Claude's
+  working indicator keeps the flag through silence rather than being read as
+  finished; only a repaint without the indicator ends it.
+- `turn` holds only observed boundaries. `started_by:"sessions-dispatch"` is
+  Sessions' own record that it dispatched a turn, not provider evidence;
+  `provider_confirmed_at` is the provider's own first record of it. A turn ends
+  only on a provider result, a Codex turn completion, a Sessions-synthesized
+  runner failure, a transcript assistant record with `stop_reason:"end_turn"`,
+  or a rollout task completion; silence never ends one, and an open turn does
+  not imply recent activity. `{"open":null}` means no boundary was observed.
+- `last.provider_record_at` is the newest provider-authored record's own
+  timestamp. Records Sessions wrote (they carry `"origin":"sessions"`; older
+  ones are recognized by type), metadata-only records, unreadable records, and
+  records dated more than five minutes ahead are excluded, and replayed
+  records keep their original times, so reconnecting never refreshes it.
+  `terminal_output_at` is live output only, never replay, and is `null` after
+  a re-adoption until new output arrives. `transcript_record_at` is the newest
+  provider record delivered by a transcript or rollout watcher.
+  `input_dispatched_at` is the newest input Sessions handed to the runner and
+  `input_confirmed_by_provider_at` the newest real user record the provider
+  wrote; a dispatch without a later confirmation is not proof of receipt.
+- `tools` pairs starts and ends by id (Claude-shaped `tool_use`/`tool_result`
+  from the stream, transcript, or normalized rollout; Codex app-server
+  `item_started`/`item_completed` for non-message items). `open` lists at most
+  32; `open_count` is exact. `history_complete` is `false` for a runner this
+  daemon re-adopted (its replay may be bounded) or when records were
+  unreadable. An open tool with no end is reported as that, nothing more.
+- `observers` are transcript or rollout watchers: `unresolved` when the
+  provider file cannot be found or bound yet, `error` with the last watcher
+  error. Structured runtimes and shells have none.
+- Nothing here reports filesystem or source writes; terminal output is not a
+  write record.
+
 ### `POST /api/sessions`
 
 Auth required. Every request field is optional:
@@ -823,7 +887,9 @@ that would not survive restart. Teams over 512 members must be queried at a smal
 manager. Durable-ledger read failure returns 503, not a partial successful list.
 
 Members also carry the projected `start` receipt when their creation recorded
-one, and `task_refs` (the listing's `taskRefs`) when any are linked; a changed
+one, `observations` (the listing's block; its `last` clocks do not by
+themselves make a row changed in a delta), and `task_refs` (the listing's
+`taskRefs`) when any are linked; a changed
 reference makes the row changed in a delta but never moves `updated_at`. Delivery progress participates in deltas. `needs_input` includes provider
 authentication failures, approvals and first requests needing inspection or
 resubmission; a stale working hint does not override a provider fault.
@@ -1577,12 +1643,17 @@ Auth required. Both paths return the same observational facts a client needs
 in order to wait on a session without scraping its terminal:
 
 ```json
-{"session":"<id>","cwd":"/absolute/workspace","working":false,"source":"structured"}
+{"session":"<id>","cwd":"/absolute/workspace","working":false,"source":"structured",
+ "working_source":"provider-stream","observations":{...}}
 ```
 
-`source` is `structured` when the Claude or Codex event classifier supplies
-`working` and `heuristic` when it comes from raw terminal activity; neither
-claims more than that evidence. An unknown session is
+`working_source` and `observations` are the session's observation block (see
+`observations` under `SessionInfo`). The legacy `source` is `structured` only
+when provider records supply `working`: a structured runtime's own stream, or
+a Codex PTY session's rollout lifecycle. It is `heuristic` when `working`
+comes from the terminal screen or recent bytes, which includes every PTY
+Claude session even though it runs Claude, and a Codex PTY session whose
+rollout has not been observed. Neither value claims more than that evidence. An unknown session is
 `404 {"error":"unknown session","id":"<id>"}`; an exited one is
 `409 {"error":"session exited","id":"<id>"}`. Other methods return 405.
 

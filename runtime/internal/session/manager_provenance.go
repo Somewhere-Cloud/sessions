@@ -131,6 +131,22 @@ func overlayRunnerMetadata(info *state.SessionInfo, path string) {
 	info.Pinned = metadata.Pinned
 }
 
+// ensureObservations gives a record with no live session behind it --
+// restored from the ledger, paused after a reboot, or still launching -- the
+// restored view: it has observed nothing in this daemon.
+func ensureObservations(info *state.SessionInfo) {
+	if info.Observations == nil {
+		info.Observations = state.RestoredObservations(*info)
+	}
+}
+
+// applyLedgerFacts adds what only the ledger knows: task references,
+// including those inherited from continued sessions, and recorded activity.
+func applyLedgerFacts(info *state.SessionInfo, lane ledger.LaneState, inheritance taskInheritance) {
+	info.TaskRefs = listingTaskRefs(lane, inheritance.inherited(lane.LaneID))
+	overlayLedgerActivity(info, lane)
+}
+
 // overlayLedgerActivity raises a record's last activity to the ledger's
 // recorded human or provider activity when that is later. A runner this
 // daemon re-adopted has seen no output yet, so the ledger is what knows when
@@ -210,6 +226,7 @@ func (m *Manager) withProvenanceStates(infos []state.SessionInfo, states []ledge
 	}
 	inheritance := newTaskInheritance(states)
 	for index := range infos {
+		ensureObservations(&infos[index])
 		current, exists := byID[infos[index].ID]
 		if !exists || !current.Created {
 			continue
@@ -227,8 +244,7 @@ func (m *Manager) withProvenanceStates(infos []state.SessionInfo, states []ledge
 			infos[index].Description = current.Description
 			infos[index].DescriptionSource = string(current.DescriptionSource)
 		}
-		infos[index].TaskRefs = listingTaskRefs(current, inheritance.inherited(current.LaneID))
-		overlayLedgerActivity(&infos[index], current)
+		applyLedgerFacts(&infos[index], current, inheritance)
 		infos[index].CreatorKind = string(current.CreatorKind)
 		infos[index].CreatorID = current.CreatorID
 		infos[index].DelegationKind = current.DelegationKind

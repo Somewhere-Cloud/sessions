@@ -82,6 +82,14 @@ func memberFingerprint(member teamMember) [32]byte {
 	// Terminal output timestamps change without useful new information. Keep
 	// the status, compact result, receipt, and warnings in the comparison.
 	member.UpdatedAt = 0
+	if member.Observations != nil {
+		// Same reasoning for the observed clocks: a newer output or record
+		// time alone is not a changed row. Turn, tool, runner and observer
+		// facts still are.
+		observations := *member.Observations
+		observations.Last = nil
+		member.Observations = &observations
+	}
 	encoded, _ := json.Marshal(member)
 	return sha256.Sum256(encoded)
 }

@@ -13,6 +13,7 @@ import { resolvedSessionLabel } from '../lib/tabLabels';
 import type { DispatchMessage } from '../hooks/useDispatch';
 import { CopyButton } from './CopyButton';
 import { classifySession } from '../lib/sessionStatus';
+import { observationNote } from '../lib/observations';
 
 // Tile every session in a column-flow grid. Each cell renders a
 // chat-style preview (the most recent user message + Claude reply
@@ -307,7 +308,7 @@ function GridCell({ session, status, icon, onPopOut, onExpand, onEnd }: CellProp
       <div className="grid-cell-head">
         <span className="grid-cell-icon" aria-hidden><ParserIcon icon={icon} size={18} /></span>
         <span className="grid-cell-name">{label}</span>
-        <span className={`grid-cell-status ${sessionStatus.className}${session.exited ? ' is-exited' : ''}`}>
+        <span className={`grid-cell-status ${sessionStatus.className}${session.exited ? ' is-exited' : ''}`} title={observationNote(session) || undefined}>
           {sessionStatus.state === 'working' ? <span className="grid-cell-dot" aria-hidden /> : null}
           {statusText}
         </span>

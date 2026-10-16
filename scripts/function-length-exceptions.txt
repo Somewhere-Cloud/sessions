@@ -34,7 +34,7 @@ go runtime/internal/session/claude_defaults.go Manager.applyClaudeDefaults 111
 go runtime/internal/search/index.go runRanked 107
 go runtime/internal/search/search.go Run 107
 go runtime/cmd/sessions/history_resolve.go app.resolveHistoryReference 106
-go runtime/internal/session/manager_provenance.go Manager.withProvenanceStates 101
+go runtime/internal/session/manager_provenance.go Manager.withProvenanceStates 100
 go runtime/internal/watch/codex_resolver.go ResolveCodexRolloutPath 105
 go runtime/cmd/sessions/session.go app.cmdLS 104
 go runtime/cmd/sessions/support_attachment.go runSupportAttachment 104

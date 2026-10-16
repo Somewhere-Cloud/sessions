@@ -16,7 +16,7 @@ func TestStructuredByteEvictionPreservesAbsoluteCursor(t *testing.T) {
 	}
 	for index := 0; index < 5; index++ {
 		event := proto.Event{ClaudeEvent: raw}
-		session.recordClaudeLocked(&event)
+		session.recordClaudeLocked(&event, fromWatcher)
 		if event.ClaudeIndex != int64(index) {
 			t.Fatalf("event index = %d, want %d", event.ClaudeIndex, index)
 		}

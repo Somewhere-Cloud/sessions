@@ -271,6 +271,10 @@ type SessionInfo struct {
 	// and its pull request links. They are stated links, not activity, and
 	// never move lastDataAt.
 	TaskRefs []TaskRef `json:"taskRefs,omitempty"`
+
+	// Observations is the factual, runtime-aware view of what Sessions has
+	// observed about this session, with sources. See observations.go.
+	Observations *Observations `json:"observations,omitempty"`
 }
 
 // ApprovalPrompt is one permission request a structured provider is holding

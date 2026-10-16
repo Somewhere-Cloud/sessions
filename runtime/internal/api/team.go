@@ -61,6 +61,9 @@ type teamMember struct {
 	// TaskRefs are the recorded task references. A change here is a changed
 	// row in a delta, but never moves updated_at.
 	TaskRefs []state.TaskRef `json:"task_refs,omitempty"`
+	// Observations is the member's factual observation block, the same
+	// projection the listing and status carry.
+	Observations *state.Observations `json:"observations,omitempty"`
 }
 
 // teamListing answers "what am I responsible for". Self is the caller; parent
@@ -139,7 +142,8 @@ func teamMemberFrom(info state.SessionInfo, relation teamRelation, depth int) te
 		Reason:  reason, Recovery: recovery,
 		UpdatedAt: updated,
 		Branch:    info.Branch, WorktreePath: info.WorktreePath,
-		TaskRefs: info.TaskRefs,
+		TaskRefs:     info.TaskRefs,
+		Observations: info.Observations,
 	}
 	return member
 }

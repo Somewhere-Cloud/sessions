@@ -7,9 +7,12 @@ import (
 )
 
 // handleWaitRoute exposes only the daemon facts needed by observational
-// waits. "structured" means the Codex/Claude event classifier supplied the
-// working flag; "heuristic" means it came from raw terminal activity. Neither
-// label claims knowledge beyond that evidence.
+// waits. "structured" means provider records supplied the working flag -- a
+// structured runtime's own stream or a Codex PTY rollout file; "heuristic"
+// means it came from terminal bytes or the screen. working_source and
+// observations say exactly which. A PTY Claude session is never labelled
+// structured: its working flag is the screen classifier's, whatever its
+// transcript says.
 func (s *Server) handleWaitRoute(response http.ResponseWriter, request *http.Request, id, suffix, corsOrigin string) bool {
 	if suffix != "/wait" && suffix != "/wait-state" {
 		return false
@@ -31,15 +34,22 @@ func (s *Server) handleWaitRoute(response http.ResponseWriter, request *http.Req
 		s.sendJSON(response, http.StatusConflict, map[string]any{"error": "session exited", "id": id}, corsOrigin)
 		return true
 	}
+	workingSource, providerStream := state.WorkingFromUnknown, false
+	if observations := info.Observations; observations != nil && observations.Working != nil {
+		workingSource = observations.Working.Source
+		providerStream = observations.Capabilities.TurnBoundaries == state.ObservedProviderStream
+	}
 	source := "heuristic"
-	if info.Tool == state.ToolClaude || info.Tool == state.ToolCodex {
+	if providerStream || workingSource == state.WorkingFromProviderStream || workingSource == state.WorkingFromRolloutFile {
 		source = "structured"
 	}
 	s.sendJSON(response, http.StatusOK, map[string]any{
-		"session": info.ID,
-		"cwd":     info.Cwd,
-		"working": info.Working || info.Retry != nil,
-		"source":  source,
+		"session":        info.ID,
+		"cwd":            info.Cwd,
+		"working":        info.Working || info.Retry != nil,
+		"source":         source,
+		"working_source": workingSource,
+		"observations":   info.Observations,
 	}, corsOrigin)
 	return true
 }

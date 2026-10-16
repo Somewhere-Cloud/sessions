@@ -364,6 +364,9 @@ func (a *app) writeStatusCard(output statusOutput, current session, lastActivity
 	if err := writeStatusStateLines(a.stdout, current); err != nil {
 		return err
 	}
+	if err := a.writeStatusObservations(current.Observations); err != nil {
+		return err
+	}
 	description := output.Description
 	if description == "" {
 		description = "-"
@@ -586,4 +589,48 @@ func formatAgeMS(milliseconds int64) string {
 		return fmt.Sprintf("%dm", milliseconds/time.Minute.Milliseconds())
 	}
 	return fmt.Sprintf("%dh", milliseconds/time.Hour.Milliseconds())
+}
+
+// writeStatusObservations prints the observation block in words: where the
+// working flag came from, the turn as observed, open tool calls, and any
+// watcher that is not following. Unknown is said as unknown.
+func (a *app) writeStatusObservations(observations *state.Observations) error {
+	if observations == nil {
+		return nil
+	}
+	lines := []string{"observed " + observations.Capabilities.Runtime}
+	if working := observations.Working; working != nil {
+		lines = append(lines, fmt.Sprintf("working  %v, from %s", working.Value, working.Source))
+	}
+	if turn := observations.Turn; turn != nil {
+		switch {
+		case turn.Open == nil:
+			lines = append(lines, "turn     no boundary observed")
+		case *turn.Open && turn.StartedAt != nil:
+			lines = append(lines, fmt.Sprintf("turn     open since %s ago (started by %s)", a.ageOf(*turn.StartedAt), turn.StartedBy))
+		case !*turn.Open && turn.EndedAt != nil:
+			lines = append(lines, fmt.Sprintf("turn     ended %s ago (%s)", a.ageOf(*turn.EndedAt), turn.EndedBy))
+		}
+	}
+	if tools := observations.Tools; tools != nil && tools.OpenCount > 0 {
+		line := fmt.Sprintf("tools    %d open", tools.OpenCount)
+		if oldest := tools.Open[0]; oldest.StartedAt != nil {
+			line += fmt.Sprintf(", oldest %s started %s ago", terminalSafe(oldest.Name), a.ageOf(*oldest.StartedAt))
+		}
+		if !tools.HistoryComplete {
+			line += " (history partial)"
+		}
+		lines = append(lines, line)
+	}
+	for _, observer := range observations.Observers {
+		if observer.State != state.ObserverFollowing {
+			lines = append(lines, fmt.Sprintf("observer %s %s: %s", observer.Name, observer.State, terminalSafe(observer.Detail)))
+		}
+	}
+	for _, line := range lines {
+		if _, err := fmt.Fprintf(a.stdout, "  %s\n", line); err != nil {
+			return err
+		}
+	}
+	return nil
 }

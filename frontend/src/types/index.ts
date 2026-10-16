@@ -129,6 +129,9 @@ export interface SessionInfo {
   launching?: boolean;
   working: boolean;
   lastDataAt: number;
+  // The daemon's factual observation block; see lib/observations.ts. Older
+  // daemons omit it.
+  observations?: SessionObservations;
   // Latest provider-transcript user-role record. Provider-internal injections
   // may move this value, so it is not proof that a person returned.
   lastUserMessageAt: number | null;
@@ -466,3 +469,14 @@ export interface StructuredSessionEvent {
 // Keep this alias until the next protocol-version bump; UI code should use
 // StructuredSessionEvent.
 export type ClaudeSessionEvent = StructuredSessionEvent;
+
+/** Factual, runtime-aware observations (daemon contract version 1). Null means unknown or not observable for this runtime. */
+export interface SessionObservations {
+  version: number;
+  capabilities: { runtime: string; turn_boundaries: string; tool_records: string; terminal_output: boolean };
+  runner: { state: string; since: number | null; exit_code: number | null };
+  working: { value: boolean; source: string } | null;
+  turn: { open: boolean | null; started_at: number | null; started_by?: string; ended_at: number | null; ended_by?: string } | null;
+  tools: { open_count: number; history_complete: boolean } | null;
+  observers: { name: string; state: string; detail?: string; since: number }[];
+}

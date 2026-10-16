@@ -39,7 +39,9 @@ type Session struct {
 	// timestamps stamped at attach use it. It is never reported as activity;
 	// info.LastDataAt is, and after a re-adoption it starts from what was
 	// recorded rather than from the moment this daemon attached.
-	observedAt   int64
+	observedAt int64
+	// observed holds the incremental facts behind Info().Observations.
+	observed     observationTracker
 	outputs      []proto.OutputEvent
 	outputSize   int
 	nextSeq      uint32
@@ -150,6 +152,7 @@ func newSession(ctx context.Context, info proto.RunnerInfo, runner proto.Runner,
 	if metadata.Adopted {
 		session.info.LastDataAt, session.info.LastDataUnknown = adoptedLastData(info.CreatedAt, metadata)
 	}
+	session.observed.fromStart = !metadata.Adopted
 	session.runnerEvents, session.cancelRunner = runner.Subscribe()
 	replay := runner.Replay(ctx, 0)
 	for _, event := range replay.Events {
@@ -157,7 +160,7 @@ func newSession(ctx context.Context, info proto.RunnerInfo, runner proto.Runner,
 	}
 	for _, event := range replay.Structured {
 		replayed := proto.Event{Kind: proto.EventCodex, CodexEvent: event}
-		session.recordCodexLocked(&replayed)
+		session.recordCodexLocked(&replayed, fromRunnerReplay)
 	}
 	if replay.Current >= session.nextSeq {
 		session.nextSeq = replay.Current + 1
@@ -191,11 +194,12 @@ func (s *Session) applyEvent(event proto.Event) bool {
 			s.info.LastDataAt = time.Now().UnixMilli()
 			s.info.LastDataUnknown = false
 			s.observedAt = s.info.LastDataAt
+			s.observed.observeTerminalOutput(s.info.LastDataAt)
 		}
 	case proto.EventClaude:
-		event.ClaudeActivityAt = s.recordClaudeLocked(&event)
+		event.ClaudeActivityAt = s.recordClaudeLocked(&event, fromWatcher)
 	case proto.EventCodex:
-		event.ClaudeActivityAt = s.recordCodexLocked(&event)
+		event.ClaudeActivityAt = s.recordCodexLocked(&event, fromRunnerStream)
 		if event.ClaudeActivityAt > s.info.LastDataAt {
 			s.info.LastDataAt = event.ClaudeActivityAt
 			s.info.LastDataUnknown = false
@@ -324,6 +328,7 @@ func (s *Session) Info() SessionInfo {
 	info.ResourceProcesses = cloneIntPointer(s.info.ResourceProcesses)
 	info.ResourceSampledAt = cloneInt64Pointer(s.info.ResourceSampledAt)
 	info.Retry = cloneRetry(s.info.Retry)
+	info.Observations = s.observationsLocked(info)
 	return info
 }
 

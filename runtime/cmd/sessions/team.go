@@ -36,6 +36,8 @@ type teamMember struct {
 	Checkout *teamCheckout       `json:"checkout_warning,omitempty"`
 	Start    *state.StartReceipt `json:"start,omitempty"`
 	TaskRefs []state.TaskRef     `json:"task_refs,omitempty"`
+
+	Observations *state.Observations `json:"observations,omitempty"`
 }
 
 type teamListing struct {

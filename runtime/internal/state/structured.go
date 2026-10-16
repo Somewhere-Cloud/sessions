@@ -10,12 +10,12 @@ import (
 	"github.com/somewhere-tech/sessions/runtime/internal/providerfault"
 )
 
-func (s *Session) recordCodexLocked(event *proto.Event) int64 {
+func (s *Session) recordCodexLocked(event *proto.Event, origin recordOrigin) int64 {
 	event.ClaudeEvent = append(json.RawMessage(nil), event.CodexEvent...)
-	return s.recordClaudeLocked(event)
+	return s.recordClaudeLocked(event, origin)
 }
 
-func (s *Session) recordClaudeLocked(event *proto.Event) int64 {
+func (s *Session) recordClaudeLocked(event *proto.Event, origin recordOrigin) int64 {
 	event.ClaudeIndex = s.claudeBase + int64(len(s.claude))
 	raw := event.ClaudeEvent
 	providerActivityAt := time.Now().UnixMilli()
@@ -25,8 +25,11 @@ func (s *Session) recordClaudeLocked(event *proto.Event) int64 {
 
 	var value map[string]any
 	if json.Unmarshal(raw, &value) != nil {
+		// A record that cannot be read is a gap in what was observed.
+		s.observed.historyIncomplete = s.observed.historyIncomplete || origin != fromWatcher
 		return providerActivityAt
 	}
+	s.observed.observeRecord(value, origin, time.Now().UnixMilli())
 	switch timestamp := value["timestamp"].(type) {
 	case float64:
 		if timestamp > 0 {

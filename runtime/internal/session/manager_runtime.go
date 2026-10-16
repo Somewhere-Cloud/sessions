@@ -433,25 +433,41 @@ func (r *runtimeSession) tick() {
 	structured := r.structuredLifecycleWorking
 	r.mu.Unlock()
 	byteWorking := recent >= workingBytesThreshold
-	next := byteWorking
+	next, source := byteWorking, state.WorkingFromByteActivity
 	switch info.Tool {
 	case state.ToolClaude:
 		if info.Kind == state.KindClaudeStructured && structured != nil {
-			next = *structured
+			next, source = *structured, state.WorkingFromProviderStream
 		} else if recent <= 0 {
-			next = false
+			// Silence alone does not end a turn. A frozen screen still showing
+			// Claude's working indicator keeps the working flag it had rather
+			// than producing an idle edge that would classify the frozen
+			// screen as completed; a real finish repaints the footer away.
+			next = info.Working && r.screenStillWorking()
+			if next {
+				source = state.WorkingFromTerminalHeuristic
+			}
 		} else if snapshot, _, err := r.session.Snapshot(context.Background(), 0); err == nil {
-			next = ClaudeWorkingFromSnapshot(snapshot)
+			next, source = ClaudeWorkingFromSnapshot(snapshot), state.WorkingFromTerminalHeuristic
 		}
 	case state.ToolCodex:
 		if structured != nil {
-			next = *structured
+			next, source = *structured, state.WorkingFromRolloutFile
 		}
 	}
+	r.session.SetWorkingSource(source)
 	r.setWorking(next)
 	if !next {
 		r.inspectPreTurn(recent)
 	}
+}
+
+// screenStillWorking reports whether the PTY screen still shows Claude's
+// working indicator. It is read only while the session is working, so idle
+// sessions take no snapshot.
+func (r *runtimeSession) screenStillWorking() bool {
+	snapshot, _, err := r.session.Snapshot(context.Background(), 0)
+	return err == nil && ClaudeWorkingFromSnapshot(snapshot)
 }
 
 func (r *runtimeSession) setWorking(next bool) {
@@ -532,13 +548,7 @@ func (r *runtimeSession) startWatcher(info state.SessionInfo) {
 	// re-attached session is a plausible shape for a machine that is busy long
 	// after it says it is ready, so it is counted under its own name.
 	defer background.Start("provider-watch").Done()
-	var watcher *watch.FileWatcher
-	switch info.Tool {
-	case state.ToolClaude:
-		watcher = r.claudeWatcher(info)
-	case state.ToolCodex:
-		watcher = codexWatcher(info)
-	}
+	watcher, observer := r.openWatcher(info)
 	if watcher == nil {
 		return
 	}
@@ -555,6 +565,9 @@ func (r *runtimeSession) startWatcher(info state.SessionInfo) {
 				if info.Tool == state.ToolCodex {
 					r.bindCodexWatcher(watcher.Path())
 				}
+				if watcher.Path() != "" {
+					r.session.SetObserverHealth(observer, state.ObserverFollowing, "")
+				}
 				raw, err := json.Marshal(event)
 				if err == nil {
 					r.session.RecordClaudeEvent(raw)
@@ -570,10 +583,15 @@ func (r *runtimeSession) startWatcher(info state.SessionInfo) {
 				value := working
 				r.structuredLifecycleWorking = &value
 				r.mu.Unlock()
+				r.session.ObserveRolloutTurn(working)
+				r.session.SetWorkingSource(state.WorkingFromRolloutFile)
 				r.setWorking(working)
-			case _, ok := <-watcher.Errors:
+			case watchErr, ok := <-watcher.Errors:
 				if !ok {
 					return
+				}
+				if watchErr != nil {
+					r.session.SetObserverHealth(observer, state.ObserverError, watchErr.Error())
 				}
 			case <-r.manager.ctx.Done():
 				return
@@ -588,7 +606,46 @@ func (r *runtimeSession) startWatcher(info state.SessionInfo) {
 // its own schedule, so the watcher keeps Sessions' own copy as it reads:
 // without it a pruned conversation is simply gone, and cat, source, search and
 // usage all resolve through the same provider path.
-func (r *runtimeSession) claudeWatcher(info state.SessionInfo) *watch.FileWatcher {
+// openWatcher starts the provider transcript or rollout watcher and records
+// its health. A watcher can exist before it has found the provider's file; it
+// is following only once a file is bound, and one that cannot start is
+// unresolved with the reason.
+func (r *runtimeSession) openWatcher(info state.SessionInfo) (*watch.FileWatcher, string) {
+	var watcher *watch.FileWatcher
+	var err error
+	observer := ""
+	switch info.Tool {
+	case state.ToolClaude:
+		observer = observerClaudeTranscript
+		watcher, err = r.claudeWatcher(info)
+	case state.ToolCodex:
+		observer = observerCodexRollout
+		watcher, err = codexWatcher(info)
+	default:
+		return nil, ""
+	}
+	switch {
+	case watcher == nil:
+		detail := "the provider transcript could not be followed"
+		if err != nil {
+			detail += ": " + err.Error()
+		}
+		r.session.SetObserverHealth(observer, state.ObserverUnresolved, detail)
+	case watcher.Path() == "":
+		r.session.SetObserverHealth(observer, state.ObserverUnresolved, "no provider transcript file is bound yet")
+	default:
+		r.session.SetObserverHealth(observer, state.ObserverFollowing, "")
+	}
+	return watcher, observer
+}
+
+// Observer names reported in observations.observers.
+const (
+	observerClaudeTranscript = "claude-transcript"
+	observerCodexRollout     = "codex-rollout"
+)
+
+func (r *runtimeSession) claudeWatcher(info state.SessionInfo) (*watch.FileWatcher, error) {
 	projectsDir := ""
 	if info.ConfigDir != "" {
 		projectsDir = filepath.Join(info.ConfigDir, "projects")
@@ -599,13 +656,13 @@ func (r *runtimeSession) claudeWatcher(info state.SessionInfo) *watch.FileWatche
 		MirrorPath: watch.TranscriptMirrorPath(r.manager.config.RunnerStateDir, info.ID),
 	})
 	if err != nil {
-		return nil
+		return nil, err
 	}
-	return created
+	return created, nil
 }
 
 // codexWatcher follows the rollout Codex writes.
-func codexWatcher(info state.SessionInfo) *watch.FileWatcher {
+func codexWatcher(info state.SessionInfo) (*watch.FileWatcher, error) {
 	sessionsDir := ""
 	if info.ConfigDir != "" {
 		sessionsDir = filepath.Join(info.ConfigDir, "sessions")
@@ -632,7 +689,7 @@ func codexWatcher(info state.SessionInfo) *watch.FileWatcher {
 		// merely prose match nothing and remain safely unbound until input.
 		watcher.ExpectInput(info.Description)
 	}
-	return watcher
+	return watcher, nil
 }
 
 // bindCodexWatcher makes an exact watcher resolution durable. The resolver

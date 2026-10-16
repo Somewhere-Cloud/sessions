@@ -8,14 +8,18 @@ import (
 	"github.com/somewhere-tech/sessions/runtime/internal/state"
 )
 
+// The legacy source says "structured" only when provider records supplied the
+// working flag. A PTY Claude session classified from its screen is heuristic
+// even though it runs Claude, and a PTY Codex session is structured only once
+// its rollout lifecycle has been observed.
 func TestWaitStateReportsClassifierEvidence(t *testing.T) {
 	for _, test := range []struct {
-		name   string
-		cmd    string
-		source string
+		name, cmd, workingSource, source, wantWorkingSource string
 	}{
-		{name: "structured codex", cmd: "codex", source: "structured"},
-		{name: "terminal heuristic", cmd: "/bin/sh", source: "heuristic"},
+		{name: "codex rollout", cmd: "codex", workingSource: state.WorkingFromRolloutFile, source: "structured", wantWorkingSource: "rollout-file"},
+		{name: "codex before rollout", cmd: "codex", workingSource: state.WorkingFromByteActivity, source: "heuristic", wantWorkingSource: "byte-activity"},
+		{name: "pty claude screen", cmd: "claude", workingSource: state.WorkingFromTerminalHeuristic, source: "heuristic", wantWorkingSource: "terminal-heuristic"},
+		{name: "terminal heuristic", cmd: "/bin/sh", workingSource: state.WorkingFromByteActivity, source: "heuristic", wantWorkingSource: "byte-activity"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			daemon := newTestDaemon(t)
@@ -27,6 +31,7 @@ func TestWaitStateReportsClassifierEvidence(t *testing.T) {
 			if !ok {
 				t.Fatal("created session missing")
 			}
+			session.SetWorkingSource(test.workingSource)
 			session.SetWorking(true)
 			response := serve(t, daemon.handler, http.MethodGet, "/api/sessions/"+info.ID+"/wait", nil, "127.0.0.1:1", nil)
 			if response.Code != http.StatusOK {
@@ -34,8 +39,9 @@ func TestWaitStateReportsClassifierEvidence(t *testing.T) {
 			}
 			var body map[string]any
 			decodeBody(t, response, &body)
-			assertExactKeys(t, body, "cwd", "session", "source", "working")
-			if body["session"] != info.ID || body["cwd"] != daemon.root || body["working"] != true || body["source"] != test.source {
+			assertExactKeys(t, body, "cwd", "observations", "session", "source", "working", "working_source")
+			if body["session"] != info.ID || body["cwd"] != daemon.root || body["working"] != true ||
+				body["source"] != test.source || body["working_source"] != test.wantWorkingSource {
 				t.Fatalf("unexpected wait state: %#v", body)
 			}
 		})
