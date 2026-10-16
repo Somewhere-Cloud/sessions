@@ -18,6 +18,7 @@ cmd/sessions internal/pullrequest
 cmd/sessions internal/recovery
 cmd/sessions internal/search
 cmd/sessions internal/state
+cmd/sessions internal/storage
 cmd/sessions internal/tailscale
 cmd/sessions internal/tokenstore
 cmd/sessions internal/usage
@@ -65,6 +66,7 @@ internal/api internal/search
 internal/api internal/session
 internal/api internal/smartsearch
 internal/api internal/state
+internal/api internal/storage
 internal/api internal/tailscale
 internal/api internal/tokenstore
 internal/api internal/usage
@@ -117,6 +119,7 @@ internal/session internal/providerfault
 internal/session internal/pullrequest
 internal/session internal/resource
 internal/session internal/state
+internal/session internal/storage
 internal/session internal/watch
 internal/smartsearch internal/agentcall
 internal/smartsearch internal/search

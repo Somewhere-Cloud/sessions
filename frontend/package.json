@@ -54,7 +54,8 @@
     "test:account-choice": "node scripts/account-choice-smoke.mjs",
     "test:account-freshness": "node scripts/account-freshness-smoke.mjs",
     "test:capability": "node scripts/run-capability.mjs",
-    "test:smoke": "node scripts/run-smoke.mjs"
+    "test:smoke": "node scripts/run-smoke.mjs",
+    "test:storage": "node scripts/storage-smoke.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.0",

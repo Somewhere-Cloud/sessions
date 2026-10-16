@@ -77,6 +77,7 @@ type Server struct {
 	continuationJobs   *continuationJobStore
 	lanFallbackLog     sync.Once
 	teamChanges        teamChanges
+	storageScan        sync.Mutex
 }
 
 func (s *Server) logLANFallbackOnce(fallbacks []fleetendpoint.Candidate) {

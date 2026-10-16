@@ -129,12 +129,12 @@ func (s *Server) handleMuxAttach(ctx context.Context, peer *wsPeer, attached *mu
 		return
 	}
 	if exited, terminal := session.TerminalState(); exited {
-		_ = peer.send(ctx, exitMessage(terminal, id))
 		attached.release(id, slot)
+		_ = peer.send(ctx, exitMessage(terminal, id))
 		return
 	}
 	go streamAttachment(ctx, peer, attachment, streamOptions{
 		sessionID: id, includeOutput: includeOutput, includeClaudeLive: includeClaudeLive,
-		onExit: func() { attached.release(id, slot) }, onUnavailable: func() { attached.release(id, slot) },
+		releaseTerminal: func() { attached.release(id, slot) },
 	})
 }

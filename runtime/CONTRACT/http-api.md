@@ -1106,6 +1106,59 @@ so the row remains auditable through `GET /api/worktrees?all=true` but no longer
 clutters the default listing. An interrupted cleanup intent is reconciled by a
 later clean without weakening the original safety decision.
 
+### `GET /api/storage` and `GET /api/storage/preview`
+
+Auth required. Both return the same read-only repository inventory and candidate
+preview on the selected daemon; ordinary fleet routing applies. Other methods
+return 405. There is no apply or delete operation on these routes.
+
+The report includes `machine_id`, `machine_name`, `preview:true`, `complete`,
+`scanned_at` (Unix milliseconds), `roots`, `totals`, `issues`, and `limitations`.
+Seeds come from session ledger working/source/worktree paths, in-memory sessions,
+and saved project roots. Git's registered worktrees are discovered for those
+repositories. Ownership is `known` only for an exact, uncleaned ledger worktree
+path; it describes recorded provenance, not exclusive or current ownership.
+External worktrees remain `unknown` and are retained. Source and unknown data
+are always retained; this is not a worktree teardown preview.
+
+Each root contains `path`, `ownership`, recorded `sessions`, `git` (`dirty`,
+`untracked`, `unpushed`: `yes`, `no`, or `unknown`), known runner `references`
+(path, session, PID when known), `bytes`, `categories`, `candidates`, and `issues`.
+Git upstream checks use local refs without fetching; missing upstream is unknown.
+References include live and unresolved Sessions records, not external processes
+or a complete open-file survey. Known ignored `node_modules` beside tracked npm
+manifests/lockfiles, and `dist` beside a tracked Vite configuration with a
+`vite build` script, are generated-data candidates. Tracked contents prevent
+that classification. Arbitrary ignored files stay unknown.
+
+Candidates contain explicit `path`, `category`, `action` (`kept` or
+`potentially-reclaimable`), reasons, bytes and a restore suggestion. Unknown
+ownership, dirty/untracked/unpushed uncertainty, runner references, partial scans
+and shared hardlinks keep candidates. Potentially reclaimable means manual
+review is required; it promises neither safe deletion nor tested restoration.
+
+Byte objects contain `logical`, nullable `allocated` (stat blocks),
+`shared_logical`, `files`, `symlinks` skipped, and `confidence` (`observed` or
+`partial`). Regular file inodes are counted once within each root and once in
+report totals on Unix, including links across roots. Root/category/candidate
+figures can overlap and must not be summed into report totals. Directory and
+symlink byte sizes are excluded. Allocation and inode identity are unavailable
+on Windows, so allocated is null for measured files there. APFS clones,
+compression and links outside the scan are not resolved. These are observations,
+not exclusive reclaimable-space estimates or a filesystem snapshot.
+
+Traversal never follows directory symlinks or recursively scans the user's home
+or its ancestors. No file contents, credentials or transcript contents are
+returned; provider storage is outside this inventory. Limits: 128 seeds, 128
+roots, 300,000 traversal entries, depth 64, 64 candidate directories per root,
+2 MiB per Git output, two seconds per Git command, and 15 seconds per request.
+Permission/read failures and limits produce partial results and lower-bound
+bytes. A canceled/expired request can return 504 with an instructional error.
+Filesystem calls themselves cannot be interrupted: one scan worker per daemon
+holds its slot until it finishes, even if its requester has gone. A concurrent
+scan returns 429; unavailable implementations return 501, unavailable identity
+503, and provenance/project reads that fail return 500 rather than empty success.
+
 ### `GET /api/projects`
 
 Auth required. Groups every known session, exited included, by resolved

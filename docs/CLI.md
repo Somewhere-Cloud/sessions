@@ -46,6 +46,7 @@ Daily workflows:
   run                      run a command in a headless lane
   tags                     view or edit session tags
   rename                   rename a session everywhere in Sessions
+  storage                  inspect repository storage and preview generated-data candidates
   worktrees                list or safely clean Sessions-created worktrees
   transcripts              keep a durable copy of provider conversations
   gc                       archive old closed records safely
@@ -347,6 +348,24 @@ Examples:
   sessions rename 0123abcd DB
   sessions rename 0123abcd --auto
   sessions --json rename 0123abcd 'Database migration'
+
+--json may appear before the command or among its options. --machine, --direct, --host, and --port must appear before the command. Arguments after `sessions run --` always belong to the child command.
+```
+
+## `sessions storage`
+
+```text
+Usage:
+  sessions storage [preview]
+
+inspect repository storage and preview generated-data candidates
+
+Read-only bounded inventory of known session and project repositories, including Git-registered external worktrees. Reports recorded ownership, logical and allocated bytes, shared hardlinks, incomplete scans, Git dirty/untracked/unpushed uncertainty and Sessions runner references. Source and unknown data are retained. preview names generated dependency/build candidates and unverified restoration suggestions; it deletes nothing. Uses the selected --machine or --host through the normal fleet route. External processes, APFS clone sharing and provider storage are not inventoried. No apply option.
+
+Examples:
+  sessions storage
+  sessions --json storage preview
+  sessions --machine workstation --json storage
 
 --json may appear before the command or among its options. --machine, --direct, --host, and --port must appear before the command. Arguments after `sessions run --` always belong to the child command.
 ```
