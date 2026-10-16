@@ -256,9 +256,18 @@ observation time in `at_ms`, and `rows` mapping each member session ID to the
 hex SHA-256 of its compact team row. No summary, transcript, prompt, terminal
 output, args, or env is stored. Files are written to a `.tmp-*` name and
 renamed into place, so a reader sees a whole baseline or none. At most 128 are
-kept; a file is removed once older than 24 hours or when evicted as the oldest.
-A file that cannot be decoded, or whose schema this daemon does not know, is
-left in place and reported as `reason: "unreadable"` until it ages out. The
+kept: at startup only the newest 128 cursor files (by modification time) are
+read and older ones are removed, a file is removed once older than 24 hours or
+when evicted as the oldest, and a sweep at most once a minute trims the
+directory back to the newest files, so two daemons sharing a state root
+converge on at most 128 within one sweep. An evicted cursor answers
+`reason: "unknown"`. A file that cannot be decoded, whose schema this daemon
+does not know, or whose `rows` is missing or null (only an explicit `{}` is the
+baseline of an empty team) is reported as `reason: "unreadable"` and left in
+place until it ages out or is trimmed; at most 128 such keys are remembered.
+Temporary files older than ten minutes are abandoned writes and removed. Only
+`<32 hex>.json` regular files and `.tmp-*` files in this directory are ever
+removed. The
 directory follows `SESSIONS_STATE_DIR` like `delivery-operations/`.
 
 ### `idle/<id>`

@@ -146,7 +146,12 @@ func (c *teamChanges) lookup(caller, since string, now time.Time) (teamSnapshot,
 			snapshot, found = loaded, true
 			c.snapshots[since] = loaded
 		case !errors.Is(err, errTeamCursorMissing):
-			c.unreadable[since] = struct{}{}
+			// Remembering is bounded like the store; this answer says
+			// unreadable either way.
+			if len(c.unreadable) < teamCursorMax {
+				c.unreadable[since] = struct{}{}
+			}
+			return teamSnapshot{}, &teamCursorError{reason: teamCursorUnreadable}
 		}
 	}
 	if !found {
@@ -188,7 +193,8 @@ func (c *teamChanges) ensureLoaded() {
 
 // prune drops expired baselines from memory and from the store. Unreadable
 // cursor files are removed once they are older than the TTL, which is the
-// longest any valid cursor could have lived.
+// longest any valid cursor could have lived, or once they fall outside the
+// newest teamCursorMax files.
 func (c *teamChanges) prune(now time.Time) {
 	for key, value := range c.snapshots {
 		if now.Sub(value.at) >= teamCursorTTL {
@@ -196,10 +202,15 @@ func (c *teamChanges) prune(now time.Time) {
 			c.forget(key)
 		}
 	}
+	// The sweep also trims the persisted inventory, leaving room for the
+	// baseline this request saves, so two daemons sharing a state root, each
+	// bounded in memory, still converge on at most teamCursorMax files within
+	// one sweep.
 	if c.root != "" && now.Sub(c.lastSweep) >= time.Minute {
 		c.lastSweep = now
-		for _, key := range removeStaleTeamCursorFiles(c.root, now.Add(-teamCursorTTL)) {
+		for _, key := range sweepTeamCursorFiles(c.root, teamCursorMax-1, now.Add(-teamCursorTTL), now) {
 			delete(c.unreadable, key)
+			delete(c.snapshots, key)
 		}
 	}
 }
@@ -230,7 +241,7 @@ func (c *teamChanges) save(snapshot teamSnapshot) (string, error) {
 	if _, err := rand.Read(entropy[:]); err != nil {
 		return "", err
 	}
-	if len(c.snapshots) >= teamCursorMax {
+	for len(c.snapshots) >= teamCursorMax {
 		oldest := ""
 		for key, value := range c.snapshots {
 			if oldest == "" || value.at.Before(c.snapshots[oldest].at) {
