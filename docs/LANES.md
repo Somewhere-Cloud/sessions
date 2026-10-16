@@ -97,17 +97,20 @@ cleaned record. Sessions never cleans a worktree on its own.
 
 ## Pull requests
 
-`sessions pr link <id> <url>` records which GitHub pull request carries a
-lane's work. `sessions pr refresh <id>` reads its state, checks, and
-mergeability once through your own `gh` login; `sessions pr <id>` shows the
-last reading with whether it is fresh, stale, final, or unknown. Nothing polls
-in the background and nothing is written to GitHub.
+`sessions pr link <id> <url>` records a GitHub pull request for a lane, and
+`sessions pr add <id> <url>` records more than one. `sessions pr refresh <id>`
+reads state, checks, and mergeability once through your own `gh` login;
+`sessions pr <id>` and `sessions pr list <id>` show the last reading with
+whether it is fresh, stale, final, or unknown. Nothing polls in the background
+and nothing is written to GitHub.
 
-When the pull request has merged, the lane's work reads as merged, and that is
-all that changes. Sessions never ends a runner because its pull request
-merged: a lane that is still running or paused is kept, and the status says
-how to end it yourself. A lane whose runner has already ended is offered
-`sessions archive`.
+A merged pull request reads as merged, and that is all that changes. It says
+that pull request landed, not that the lane's tasks are done: even when every
+linked pull request has merged, other work or acceptance criteria may remain.
+Sessions never ends a runner because a pull request merged: a lane that is
+still running or paused is kept, and the status says how to end it yourself. A
+lane whose runner has already ended is offered `sessions archive`, which only
+hides the record.
 
 ## Not losing a session
 

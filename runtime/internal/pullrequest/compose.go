@@ -130,10 +130,12 @@ func workState(pr ledger.LanePullRequest) string {
 	}
 }
 
-// closure is the bounded lifecycle policy. A merged pull request says that
-// pull request landed; it is not proof that the lane's task is done, so no
-// reason claims that, and Sessions never ends a runner because of it. Only a
-// lane whose runner already ended is offered the explicit, reversible archive.
+// closure is the bounded lifecycle policy. A merged pull request says only
+// that this linked pull request landed. Even every linked pull request merged
+// says nothing about a task's done-when criteria or work no pull request
+// carries, so no reason certifies completion, and Sessions never ends a runner
+// because of a merge. Only a lane whose runner already ended is offered the
+// explicit, reversible archive, which hides the record and nothing more.
 func closure(work, runner, id string) *Closure {
 	if work != WorkMerged {
 		reason := "this pull request is not merged"
@@ -150,7 +152,7 @@ func closure(work, runner, id string) *Closure {
 		return &Closure{Action: ClosureKeep, Reason: "this pull request merged, which does not by itself mean the lane's task is done; the session is paused or lost, not ended, " +
 			"and Sessions leaves it as it is. Resume it or end it with `sessions kill " + id + "`"}
 	default:
-		return &Closure{Action: ClosureArchiveAvailable, Reason: "this pull request merged and the runner has ended; " +
+		return &Closure{Action: ClosureArchiveAvailable, Reason: "this pull request merged and the runner has ended; that says nothing about whether its tasks are done. " +
 			"`sessions archive " + id + "` hides the record without deleting its history"}
 	}
 }
