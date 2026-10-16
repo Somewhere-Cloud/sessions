@@ -66,6 +66,9 @@ type PreparedSession struct {
 }
 
 type SessionMetadata struct {
+	// Adopted marks a runner this daemon attached to rather than launched:
+	// its activity clock starts from what was recorded, not from now.
+	Adopted                bool
 	Name                   string
 	NameSource             string
 	Description            string
@@ -423,6 +426,7 @@ func (r *Registry) registerInfo(ctx context.Context, runner proto.Runner, metada
 			return nil, fmt.Errorf("session %s is already registered", info.ID)
 		}
 		replaced = existing
+		session.carryActivity(existing.Info())
 		r.sessions[info.ID] = session
 	} else {
 		r.sessions[info.ID] = session
@@ -474,7 +478,7 @@ func (r *Registry) Register(ctx context.Context, runner proto.Runner, name, onId
 func (r *Registry) RegisterMetadata(ctx context.Context, runner proto.Runner, metadata RunnerMetadata, onIdle string) (*Session, error) {
 	actual := withProviderIdentityFallback(runner.Info(), metadata.Info)
 	return r.registerInfo(ctx, runner, SessionMetadata{
-		Name: metadata.Name, NameSource: metadata.NameSource,
+		Adopted: true, Name: metadata.Name, NameSource: metadata.NameSource,
 		Description: metadata.Description, DescriptionSource: metadata.DescriptionSource,
 		Tags: CloneTags(metadata.Tags), DisplayParentSessionID: cloneStringPointer(metadata.DisplayParentSessionID),
 		SetAsideAt: cloneInt64Pointer(metadata.SetAsideAt), Pinned: metadata.Pinned,

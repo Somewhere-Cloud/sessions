@@ -131,6 +131,17 @@ func overlayRunnerMetadata(info *state.SessionInfo, path string) {
 	info.Pinned = metadata.Pinned
 }
 
+// overlayLedgerActivity raises a record's last activity to the ledger's
+// recorded human or provider activity when that is later. A runner this
+// daemon re-adopted has seen no output yet, so the ledger is what knows when
+// its conversation last moved; nothing else in the ledger counts.
+func overlayLedgerActivity(info *state.SessionInfo, lane ledger.LaneState) {
+	if lane.LastActivityAtMS > info.LastDataAt {
+		info.LastDataAt = lane.LastActivityAtMS
+		info.LastDataUnknown = false
+	}
+}
+
 // durableLastData is the restored record's last activity. Only recorded human
 // or provider activity counts: a rename, a pull request refresh, a task link,
 // or an archive written after the lane ended is not output. A lane with no
@@ -216,6 +227,7 @@ func (m *Manager) withProvenanceStates(infos []state.SessionInfo, states []ledge
 			infos[index].DescriptionSource = string(current.DescriptionSource)
 		}
 		infos[index].TaskRefs = listingTaskRefs(current)
+		overlayLedgerActivity(&infos[index], current)
 		infos[index].CreatorKind = string(current.CreatorKind)
 		infos[index].CreatorID = current.CreatorID
 		infos[index].DelegationKind = current.DelegationKind

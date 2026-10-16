@@ -86,12 +86,14 @@ func (m *Manager) manage(session *state.Session) *runtimeSession {
 		if supportsTurnLifecycle(session.Info()) {
 			classification, summary, snapshot := inspectIdle(session)
 			clearFaultWithoutEvidence(session, classification, snapshot)
-			classification, summary = applyProviderOutcome(session, classification, summary, session.Info().LastDataAt)
+			// Stamped with this daemon's own observation clock, exactly as
+			// before activity became truthful after re-adoption.
+			classification, summary = applyProviderOutcome(session, classification, summary, session.ObservedOutputAt())
 			session.SetIdleResult(
 				idleReason(classification.Outcome),
 				classification.Line,
 				summary,
-				session.Info().LastDataAt,
+				session.ObservedOutputAt(),
 			)
 		} else {
 			session.ClearIdleResult()
@@ -734,8 +736,7 @@ func (m *Manager) waitReady(ctx context.Context, runtime *runtimeSession) {
 		return
 	}
 	awaitProviderQuiet(ctx, runtime.structuredEventArrived, func() (int64, bool) {
-		current := runtime.session.Info()
-		return current.LastDataAt, current.Exited
+		return runtime.session.ObservedOutputAt(), runtime.session.Info().Exited
 	}, info.CreatedAt, readySettle, readyQuiet)
 }
 

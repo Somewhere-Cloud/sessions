@@ -99,3 +99,24 @@ func TestDurableClosedLastDataIgnoresAdministrativeFacts(t *testing.T) {
 		t.Fatalf("silent lane lastDataAt=%d unknown=%v, want the creation floor marked unknown", got.LastDataAt, got.LastDataUnknown)
 	}
 }
+
+// A re-adopted runner has produced no output in this daemon yet; the ledger's
+// recorded activity is what says when its conversation last moved. Only that
+// counts: a newer administrative fact does not.
+func TestLedgerActivityRaisesReadoptedRecordsOnly(t *testing.T) {
+	adopted := state.SessionInfo{ID: "a", CreatedAt: 1_000, LastDataAt: 1_000, LastDataUnknown: true}
+	overlayLedgerActivity(&adopted, ledger.LaneState{LastActivityAtMS: 7_000, LastEventAtMS: 9_000, LastLifecycleAtMS: 8_000})
+	if adopted.LastDataAt != 7_000 || adopted.LastDataUnknown {
+		t.Fatalf("adopted record = %d unknown=%v, want the recorded activity", adopted.LastDataAt, adopted.LastDataUnknown)
+	}
+	observed := state.SessionInfo{ID: "b", CreatedAt: 1_000, LastDataAt: 12_000}
+	overlayLedgerActivity(&observed, ledger.LaneState{LastActivityAtMS: 7_000, LastEventAtMS: 20_000})
+	if observed.LastDataAt != 12_000 {
+		t.Fatalf("observed output was replaced: %d", observed.LastDataAt)
+	}
+	silent := state.SessionInfo{ID: "c", CreatedAt: 1_000, LastDataAt: 1_000, LastDataUnknown: true}
+	overlayLedgerActivity(&silent, ledger.LaneState{LastEventAtMS: 20_000, LastLifecycleAtMS: 15_000})
+	if silent.LastDataAt != 1_000 || !silent.LastDataUnknown {
+		t.Fatalf("administrative facts became activity: %d unknown=%v", silent.LastDataAt, silent.LastDataUnknown)
+	}
+}

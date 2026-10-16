@@ -277,10 +277,11 @@ func newPausedRestoreCacheEntry(
 }
 
 func pendingSessionInfo(id string, metadata state.RunnerMetadata, pending state.RestorePending) state.SessionInfo {
-	lastDataAt := metadata.Info.CreatedAt
+	lastDataAt, lastDataUnknown := metadata.Info.CreatedAt, true
 	for _, candidate := range []*int64{metadata.LastHumanMessageAt, metadata.LastAgentMessageAt} {
-		if candidate != nil && *candidate > lastDataAt {
-			lastDataAt = *candidate
+		if candidate != nil && *candidate > 0 {
+			lastDataUnknown = false
+			lastDataAt = max(lastDataAt, *candidate)
 		}
 	}
 	since := pending.DetectedAtMS
@@ -304,7 +305,7 @@ func pendingSessionInfo(id string, metadata state.RunnerMetadata, pending state.
 		Cmd: metadata.Info.Cmd, Args: append([]string(nil), metadata.Info.Args...),
 		Cwd: metadata.Info.Cwd, Profile: metadata.Profile, ConfigDir: metadata.ConfigDir,
 		Cols: metadata.Info.Cols, Rows: metadata.Info.Rows, CreatedAt: metadata.Info.CreatedAt,
-		PID: 0, Tool: tool, LastDataAt: lastDataAt,
+		PID: 0, Tool: tool, LastDataAt: lastDataAt, LastDataUnknown: lastDataUnknown,
 		Unreachable: true, UnreachableReason: restartRestorePendingReason, UnreachableSince: &since,
 		IdleReason: "needs-recovery", IdleDetail: pending.Reason, IdleSince: &since,
 		ConversationID: metadata.Info.ConversationID, RemoteEndpoint: metadata.Info.RemoteEndpoint,

@@ -32,8 +32,14 @@ type Session struct {
 	// those exactly as before.
 	controlMu sync.RWMutex
 
-	mu           sync.RWMutex
-	info         SessionInfo
+	mu   sync.RWMutex
+	info SessionInfo
+	// observedAt is this daemon's own output clock: when the session was
+	// registered here, then when output last arrived. Readiness and the
+	// timestamps stamped at attach use it. It is never reported as activity;
+	// info.LastDataAt is, and after a re-adoption it starts from what was
+	// recorded rather than from the moment this daemon attached.
+	observedAt   int64
 	outputs      []proto.OutputEvent
 	outputSize   int
 	nextSeq      uint32
@@ -133,12 +139,16 @@ func newSession(ctx context.Context, info proto.RunnerInfo, runner proto.Runner,
 			Permissions:            metadata.Permissions,
 			Lifecycle:              metadata.Lifecycle,
 		},
-		nextSeq: 1,
-		subs:    make(map[uint64]chan proto.Event),
+		nextSeq:    1,
+		observedAt: now,
+		subs:       make(map[uint64]chan proto.Event),
 		// What came back from disk is already on disk, so the first message
 		// after a restart is measured against it rather than rewriting it.
 		persistedHumanAt: pointerMillis(metadata.LastHumanMessageAt),
 		persistedAgentAt: pointerMillis(metadata.LastAgentMessageAt),
+	}
+	if metadata.Adopted {
+		session.info.LastDataAt, session.info.LastDataUnknown = adoptedLastData(info.CreatedAt, metadata)
 	}
 	session.runnerEvents, session.cancelRunner = runner.Subscribe()
 	replay := runner.Replay(ctx, 0)
@@ -179,6 +189,8 @@ func (s *Session) applyEvent(event proto.Event) bool {
 		if event.Output.Seq >= s.nextSeq {
 			s.appendOutputLocked(event.Output)
 			s.info.LastDataAt = time.Now().UnixMilli()
+			s.info.LastDataUnknown = false
+			s.observedAt = s.info.LastDataAt
 		}
 	case proto.EventClaude:
 		event.ClaudeActivityAt = s.recordClaudeLocked(&event)
@@ -186,6 +198,10 @@ func (s *Session) applyEvent(event proto.Event) bool {
 		event.ClaudeActivityAt = s.recordCodexLocked(&event)
 		if event.ClaudeActivityAt > s.info.LastDataAt {
 			s.info.LastDataAt = event.ClaudeActivityAt
+			s.info.LastDataUnknown = false
+		}
+		if event.ClaudeActivityAt > s.observedAt {
+			s.observedAt = event.ClaudeActivityAt
 		}
 	case proto.EventRetry:
 		s.info.Retry = cloneRetry(event.Retry)
@@ -933,4 +949,39 @@ func clamp(value, minimum, maximum int64) int64 {
 		return maximum
 	}
 	return value
+}
+
+// adoptedLastData is the activity a re-adopted runner reports before it
+// produces new output. Attaching is not activity: the persisted human and
+// agent message clocks are, and with neither the creation time is only a floor
+// and the time is unknown. The composition root may raise it from the ledger's
+// recorded activity.
+func adoptedLastData(createdAt int64, metadata SessionMetadata) (int64, bool) {
+	at, known := createdAt, false
+	for _, candidate := range []*int64{metadata.LastHumanMessageAt, metadata.LastAgentMessageAt} {
+		if candidate != nil && *candidate > 0 {
+			known = true
+			at = max(at, *candidate)
+		}
+	}
+	return at, !known
+}
+
+// ObservedOutputAt is this daemon's own output clock (see observedAt). It is
+// for readiness and attach-time stamps, never for reporting activity.
+func (s *Session) ObservedOutputAt() int64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.observedAt
+}
+
+// carryActivity keeps what an earlier connection to the same runner observed,
+// so reconnecting is not reported as new activity or as lost history.
+func (s *Session) carryActivity(previous SessionInfo) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if previous.LastDataAt > s.info.LastDataAt || (s.info.LastDataUnknown && !previous.LastDataUnknown) {
+		s.info.LastDataAt = max(previous.LastDataAt, s.info.LastDataAt)
+		s.info.LastDataUnknown = previous.LastDataUnknown
+	}
 }
