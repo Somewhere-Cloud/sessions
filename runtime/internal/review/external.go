@@ -100,9 +100,10 @@ func (e *External) run(ctx context.Context, request []byte) (*limitedBuffer, *li
 	if err != nil || info.IsDir() {
 		return nil, nil, reviewError(ErrUnavailable, "reviewer executable %s is not available", e.Path)
 	}
-	e.digest = fileDigest(ctx, e.Path, info)
+	// The timeout covers hashing too; a hash cut short is simply omitted.
 	runCtx, cancel := context.WithTimeout(ctx, e.Timeout)
 	defer cancel()
+	e.digest = fileDigest(runCtx, e.Path, info)
 	cmd := exec.CommandContext(runCtx, e.Path, e.Args...)
 	cmd.Stdin = bytes.NewReader(request)
 	stdout := &limitedBuffer{limit: MaxReplyBytes}

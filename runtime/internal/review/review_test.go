@@ -329,4 +329,10 @@ func TestFileDigestIsBoundedAndRegularOnly(t *testing.T) {
 	if got := Compare(context.Background(), s, q, []Reviewer{ext}).Results[0].Reviewer.FileSHA256BeforeRun; got != hex.EncodeToString(selfSum[:]) {
 		t.Fatalf("recorded file sha256 = %s, want the file's sha256", got)
 	}
+	// The timeout covers hashing: an exhausted budget omits the hash and times out.
+	expired, _ := fixtureReviewer(t, "ok", time.Nanosecond)
+	if r := Compare(context.Background(), s, q, []Reviewer{expired}).Results[0]; r.Error == nil || r.Error.Kind != ErrTimeout ||
+		r.Reviewer.FileSHA256BeforeRun != "" {
+		t.Fatalf("expired timeout: %+v", r)
+	}
 }

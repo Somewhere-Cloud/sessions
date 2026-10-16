@@ -13,10 +13,10 @@ import (
 const ComparisonSchema = "sessions.review-comparison/1"
 
 // Identity names a reviewer. For an external adapter, FileSHA256BeforeRun is
-// the sha256 of the executable file observed just before invocation (omitted
-// when the file is not regular, too large, or unreadable). It records what was
-// on disk; it does not prove which code answered, since the file can change
-// and the program can load other code.
+// the sha256 of the executable file observed just before invocation, hashed
+// within the reviewer timeout (omitted when the file is not regular, too
+// large, unreadable, or the timeout or cancellation cut hashing short). It
+// records what was on disk, not which code answered.
 type Identity struct {
 	ID                  string   `json:"id"`
 	Kind                string   `json:"kind"`
