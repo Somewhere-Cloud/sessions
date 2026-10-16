@@ -203,6 +203,7 @@ func NewWithUsage(config state.Config, registry sessionService, localUsage *usag
 		relayWake:     make(chan struct{}, 1),
 		identity:      identity, identityError: identityErr,
 		deliveries:       delivery.New(deliveryRoot),
+		teamChanges:      newTeamChanges(deliveryRoot),
 		continuationJobs: newContinuationJobStore(),
 		routes:           newRouteStats(),
 		integrationEndpoints: integrations.NewService(integrations.ServiceOptions{

@@ -26,6 +26,8 @@ for explicit lookups; neither changes the source provider history.
 ├── push-subscriptions.json
 ├── delivery-operations/
 │   └── <operation-id>.json
+├── team-cursors/
+│   └── <32 hex cursor>.json
 ├── uploads/
 │   └── <sanitized-stem>-<8 UUID chars><ext>
 ├── idle/
@@ -244,6 +246,20 @@ absolute `cursor`, preceding-event `anchor` SHA-256 when the cursor is nonzero,
 normalized `message_sha256`, and `runtime_created_at`. No message body is stored.
 These permit later history-only confirmation under the checks in `http-api.md`;
 older readers ignore the field and preserve their conservative unknown result.
+
+### `team-cursors/<cursor>.json`
+
+Go-runtime-only, mode 0600 files below a mode-0700 directory, one per
+`/api/lanes/mine` baseline (`next_cursor`). Each file is `schema_version: 1`
+with `fingerprint: "team-member-json-sha256"`, the calling lane ID, the
+observation time in `at_ms`, and `rows` mapping each member session ID to the
+hex SHA-256 of its compact team row. No summary, transcript, prompt, terminal
+output, args, or env is stored. Files are written to a `.tmp-*` name and
+renamed into place, so a reader sees a whole baseline or none. At most 128 are
+kept; a file is removed once older than 24 hours or when evicted as the oldest.
+A file that cannot be decoded, or whose schema this daemon does not know, is
+left in place and reported as `reason: "unreadable"` until it ages out. The
+directory follows `SESSIONS_STATE_DIR` like `delivery-operations/`.
 
 ### `idle/<id>`
 

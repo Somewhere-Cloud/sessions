@@ -807,11 +807,16 @@ members no longer in this team (not necessarily completed). `needs_input` and
 `total` still cover the entire team. The comparison includes state, summary,
 handoff and checkout warnings, not incidental terminal-output timestamps. It
 is not a lossless intervening-event feed. Reads never send agent messages.
-Cursors are manager- and daemon-scoped, retained in a 128-baseline cache for
-up to 24 hours and invalidated by restart or eviction. Unchanged observations
-reuse a baseline. An invalid cursor returns 409 with code
-`TEAM_BASELINE_REQUIRED` and a fresh-baseline instruction; it never returns a
-misleading empty delta. Teams over 512 members must be queried at a smaller
+Cursors are scoped to the calling lane and this daemon's state root, retained
+for up to 24 hours in at most 128 baselines, and saved under
+`team-cursors/` (see `state-dir.md`) so they survive a daemon restart.
+Unchanged observations reuse a baseline. An unusable cursor returns 409 with
+code `TEAM_BASELINE_REQUIRED`, a fresh-baseline instruction, and `reason`:
+`unknown` (never issued here, evicted, or not cursor-shaped), `expired`,
+`other_caller` (issued to another lane's team), or `unreadable` (its saved
+baseline is damaged or from an unknown schema); it never returns a misleading
+empty delta. A baseline that cannot be saved returns 500 rather than a cursor
+that would not survive restart. Teams over 512 members must be queried at a smaller
 manager. Durable-ledger read failure returns 503, not a partial successful list.
 
 Members also carry the projected `start` receipt when their creation recorded

@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"log"
 	"net/http"
 	"sort"
 	"strings"
@@ -275,9 +276,14 @@ func (s *Server) handleTeamRoute(response http.ResponseWriter, request *http.Req
 	attachCheckoutWarnings(request.Context(), &listing, infos)
 	if err := s.teamChanges.apply(caller, request.URL.Query().Get("since"), &listing, time.Now()); err != nil {
 		if errors.Is(err, errTeamCursor) {
-			s.sendJSON(response, http.StatusConflict, map[string]any{"error": err.Error(), "code": "TEAM_BASELINE_REQUIRED"}, corsOrigin)
+			s.sendJSON(response, http.StatusConflict, map[string]any{
+				"error": err.Error(), "code": "TEAM_BASELINE_REQUIRED", "reason": teamCursorReason(err),
+			}, corsOrigin)
 		} else {
-			s.sendJSON(response, http.StatusInternalServerError, map[string]any{"error": "Could not record team checkpoint; retry the read"}, corsOrigin)
+			log.Printf("[team] record checkpoint for %s: %v", caller, err)
+			s.sendJSON(response, http.StatusInternalServerError, map[string]any{
+				"error": "Could not save the team checkpoint in the daemon's state directory; check its free space and permissions, then retry the read",
+			}, corsOrigin)
 		}
 		return true
 	}
