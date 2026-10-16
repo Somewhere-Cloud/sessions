@@ -33,6 +33,12 @@ func testWrite(t *testing.T, root, path, content string) {
 }
 func testRepo(t *testing.T) string {
 	t.Helper()
+	// Fixture creation and the production scanner must see the same Git config.
+	// Hosted runners may install global LFS filters; tests needing filters add
+	// their own explicitly after creating the repository.
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	t.Setenv("GIT_CONFIG_COUNT", "0")
 	root := t.TempDir()
 	testGit(t, root, "init", "-b", "main")
 	testGit(t, root, "config", "user.email", "fixture@example.test")
