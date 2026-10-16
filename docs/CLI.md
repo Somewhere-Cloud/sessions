@@ -99,6 +99,7 @@ Models and interactive:
   attach                   attach a raw two-way terminal stream
 
 Admin/operational:
+  review                   experimental: compare reviewers on one frozen evidence snapshot
   install                  install the per-user daemon service
   relay                    configure or install the optional relay
   uninstall                remove daemon service integration
@@ -1220,6 +1221,29 @@ Examples:
   sessions task link 0123abcd gh:acme/app#12
   sessions --json task 0123abcd
   sessions task unlink 0123abcd gh:acme/app#12
+
+--json may appear before the command or among its options. --machine, --direct, --host, and --port must appear before the command. Arguments after `sessions run --` always belong to the child command.
+```
+
+## `sessions review`
+
+```text
+Usage:
+  sessions review validate <snapshot.json> | review compare --snapshot FILE --questions FILE [--reviewer baseline|exec:/ABS/PATH]... [--timeout D]
+
+experimental: compare reviewers on one frozen evidence snapshot
+
+Experimental. Run explicitly chosen reviewers on one frozen evidence snapshot and print what each one answered. Nothing here runs automatically: there are no lifecycle hooks or background calls, and review never contacts the daemon, loads a transcript, or makes a network call of its own. It reads only the files you name.
+
+A snapshot is a sessions.review-snapshot/1 JSON document: named facts, each with its source (runner, ledger, provider-stream, transcript-file, rollout-file, terminal, git, integration, self-report, derived or operator) and either a value or "unknown": true, plus capabilities, an optional source_contract naming the projection the facts came from (sessions.lane-observations version 1; other versions are rejected), optional task text and an optional tail that must say "opt_in": true. Other schema versions, duplicate keys, unknown fields and null values are rejected; unknown stays unknown. Questions are a sessions.review-questions/1 document with 2 to 64 options and an optional abstention. Both are hashed in canonical form, and every reviewer receives byte-identical input.
+
+--reviewer baseline is a deterministic reviewer that abstains rather than guess: it never answers working from a missing turn end and never treats a lane's own completion message as verified. --reviewer exec:/ABS/PATH runs a local executable you choose, with no shell and no PATH lookup, passing one sessions.review-adapter/1 request on stdin and reading one reply of at most 64 KiB from stdout within --timeout (default 30s, at most 120s); --reviewer-arg adds arguments and --reviewer-env passes a named environment variable, otherwise it gets only PATH, HOME, TMPDIR and LANG. A reviewer that is missing, times out, or replies with malformed or out-of-set answers is recorded as an error.
+
+The output records the snapshot and question hashes, each reviewer's identity (an executable's sha256), its answer or typed error, and authority none. Reviewer scores are uncalibrated suggestions, not proof; Sessions does not act on them, and they never change a session, a task or a runtime fact.
+
+Examples:
+  sessions review validate snapshot.json
+  sessions --json review compare --snapshot snapshot.json --questions questions.json --reviewer baseline --reviewer exec:/usr/local/bin/my-reviewer
 
 --json may appear before the command or among its options. --machine, --direct, --host, and --port must appear before the command. Arguments after `sessions run --` always belong to the child command.
 ```

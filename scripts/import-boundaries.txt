@@ -16,6 +16,7 @@ cmd/sessions internal/migrate
 cmd/sessions internal/providerargs
 cmd/sessions internal/pullrequest
 cmd/sessions internal/recovery
+cmd/sessions internal/review
 cmd/sessions internal/search
 cmd/sessions internal/state
 cmd/sessions internal/storage
