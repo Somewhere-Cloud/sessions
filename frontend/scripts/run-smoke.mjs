@@ -53,6 +53,7 @@ const GATE = [
   'account-choice',
   'account-freshness',
   'session-status',
+  'observations',
   'local-network',
   'title-clarity',
   'surface-truth',

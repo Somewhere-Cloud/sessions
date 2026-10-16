@@ -476,8 +476,9 @@ export interface SessionObservations {
   capabilities: { runtime: string; turn_boundaries: string; tool_records: string; terminal_output: boolean; approvals?: string };
   runner: { state: string; since: number | null; exit_code: number | null; adopted_at?: number | null };
   working: { value: boolean; source: string } | null;
-  turn: { open: boolean | null; started_at: number | null; started_by: string | null; ended_at: number | null; ended_by: string | null } | null;
-  tools: { open_count: number; open_count_exact?: boolean; history_complete: boolean; observed_since?: number | null } | null;
+  turn: { open: boolean | null; started_at: number | null; started_by: string | null; provider_confirmed_at?: number | null; ended_at: number | null; ended_by: string | null } | null;
+  last?: { provider_record_observed_at: number | null; provider_record_event_at: number | null; terminal_output_at: number | null; transcript_record_event_at: number | null; input_dispatched_at: number | null; provider_user_record_at: number | null } | null;
+  tools: { open_count: number; open_count_exact?: boolean; history_complete: boolean; last_started_at?: number | null; last_ended_at?: number | null; last_end_status?: string | null; observed_since?: number | null } | null;
   approval?: { pending: boolean; id: string | null; kind: string | null; requested_at: number | null } | null;
   observers: { name: string; state: string; detail?: string; since: number }[];
 }

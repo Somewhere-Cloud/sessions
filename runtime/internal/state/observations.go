@@ -28,8 +28,9 @@ const (
 	WorkingFromUnknown           = "unknown"
 )
 
-// maxObservedOpenTools bounds the open tool calls a projection lists; the
-// count stays exact.
+// maxObservedOpenTools bounds the open tool calls a projection lists. open_count
+// still counts every tracked call, and is exact only when open_count_exact
+// says so.
 const maxObservedOpenTools = 32
 
 // maxTrackedTools bounds the tool calls tracked as open. Past it the history
