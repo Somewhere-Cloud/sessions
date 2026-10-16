@@ -87,7 +87,16 @@ func waitClaudeQueue(t *testing.T, r *claudeStructuredRunner, condition func(cla
 	}
 	r.queueMu.Lock()
 	defer r.queueMu.Unlock()
-	t.Fatalf("inert provider did not reach expected queue state: %+v", r.queue)
+	// Say which way it failed. Paused with the first item still dispatched
+	// means its turn finished unsuccessfully, and the history says why; not
+	// paused means the turn was still running when the deadline passed.
+	calls, _ := os.ReadFile(filepath.Join(r.cfg.cwd, "provider-calls"))
+	history, _ := os.ReadFile(r.paths.ClaudeP)
+	if len(history) > 2048 {
+		history = history[len(history)-2048:]
+	}
+	t.Fatalf("inert provider did not reach expected queue state within 3s: queue=%+v current=%q provider calls=%q history tail=%s",
+		r.queue, r.queueCurrent, calls, history)
 }
 
 func TestClaudeQueueSavesBusyMessagesAndRunsFIFOOnce(t *testing.T) {
