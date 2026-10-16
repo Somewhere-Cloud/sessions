@@ -15,6 +15,14 @@ import (
 // ProviderTerminal is explicit because an empty Kind also represents PTY
 // requests from older clients. Applying the default only to newly attributed
 // agent requests preserves those older clients' --pty-claude behavior.
+//
+// This runs before Create resolves the creator and records an unnamed child
+// of a session as "agent", so a request that names no delegation kind keeps
+// its terminal runtime even though its ledger record later says "agent". That
+// is deliberate: such a request is indistinguishable from an older client, and
+// changing it would move those clients' sessions onto another runtime. The
+// CLI names the kind itself, which is why its delegated Claude children run
+// structured.
 func resolveDelegatedRuntimeDefault(request state.CreateSessionRequest) (state.CreateSessionRequest, error) {
 	tool := state.CommandTool(request.Cmd)
 	if request.ProviderTerminal {
