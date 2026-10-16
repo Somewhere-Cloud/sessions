@@ -63,14 +63,15 @@ func (m *Manager) withDurableClosedStates(
 		}
 		exitedAt := lane.ClosedAtMS
 		if exitedAt == 0 {
-			exitedAt = lane.LastEventAtMS
+			exitedAt = lane.LastLifecycleAtMS
 		}
+		lastDataAt, lastDataUnknown := durableLastData(lane)
 		info := state.SessionInfo{
 			ID: lane.LaneID, Name: lane.Name, Description: lane.Description,
 			DescriptionSource: string(lane.DescriptionSource), Cwd: lane.Cwd,
 			Profile: lane.Profile, ConfigDir: lane.ConfigDir,
 			WorktreePath: lane.WorktreePath, Branch: lane.Branch, Base: lane.Base, SourceRepo: lane.SourceRepo,
-			CreatedAt: lane.CreatedAtMS, LastDataAt: lane.LastEventAtMS,
+			CreatedAt: lane.CreatedAtMS, LastDataAt: lastDataAt, LastDataUnknown: lastDataUnknown,
 			Kind: lane.Kind, Tool: state.SessionTool(lane.Tool),
 			EndedByKind: string(lane.EndInitiatorKind), EndedByID: lane.EndInitiatorID,
 			EndedByName: lane.EndInitiatorName, EndedByClient: lane.EndClient,
@@ -103,22 +104,43 @@ func (m *Manager) withDurableClosedStates(
 		if lane.Tool == string(state.ToolLane) {
 			info.Kind = state.KindLane
 		}
-		if metadata, metadataErr := state.ReadRunnerMetadata(filepath.Join(m.config.RunnerStateDir, lane.LaneID+".json")); metadataErr == nil {
-			info.Tags = state.CloneTags(metadata.Tags)
-			if metadata.DisplayParentSessionID != nil {
-				displayParent := *metadata.DisplayParentSessionID
-				info.DisplayParentSessionID = &displayParent
-			}
-			if metadata.SetAsideAt != nil {
-				setAsideAt := *metadata.SetAsideAt
-				info.SetAsideAt = &setAsideAt
-			}
-			info.Pinned = metadata.Pinned
-		}
+		overlayRunnerMetadata(&info, filepath.Join(m.config.RunnerStateDir, lane.LaneID+".json"))
 		infos = append(infos, info)
 		seen[lane.LaneID] = struct{}{}
 	}
 	return infos
+}
+
+// overlayRunnerMetadata adds the display choices kept beside the runner while
+// its metadata file still exists. They are not ledger facts, so a retired
+// runner's record simply goes without them.
+func overlayRunnerMetadata(info *state.SessionInfo, path string) {
+	metadata, err := state.ReadRunnerMetadata(path)
+	if err != nil {
+		return
+	}
+	info.Tags = state.CloneTags(metadata.Tags)
+	if metadata.DisplayParentSessionID != nil {
+		displayParent := *metadata.DisplayParentSessionID
+		info.DisplayParentSessionID = &displayParent
+	}
+	if metadata.SetAsideAt != nil {
+		setAsideAt := *metadata.SetAsideAt
+		info.SetAsideAt = &setAsideAt
+	}
+	info.Pinned = metadata.Pinned
+}
+
+// durableLastData is the restored record's last activity. Only recorded human
+// or provider activity counts: a rename, a pull request refresh, a task link,
+// or an archive written after the lane ended is not output. A lane with no
+// recorded activity, including records older than activity facts, reports
+// CreatedAt as a floor and says the real time is unknown.
+func durableLastData(lane ledger.LaneState) (int64, bool) {
+	if lane.LastActivityAtMS > 0 {
+		return max(lane.LastActivityAtMS, lane.CreatedAtMS), false
+	}
+	return lane.CreatedAtMS, true
 }
 
 // durablyClosed reports that a lane reached an end Sessions actually observed:

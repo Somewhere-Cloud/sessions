@@ -69,6 +69,12 @@ type LaneState struct {
 	WorktreeCleanedAtMS     int64
 	WorktreeBranchRemoved   bool
 	PullRequest             LanePullRequest
+
+	// LastEventAtMS above is the newest ledger fact of any kind, including
+	// administrative observations, so it is not activity. LastLifecycleAtMS
+	// is the newest process or activity fact (see isLifecycleEvent); use
+	// LastActivityAtMS for genuine human or provider activity.
+	LastLifecycleAtMS int64
 }
 
 // Fold reduces an event stream in seq order. Input order is irrelevant as

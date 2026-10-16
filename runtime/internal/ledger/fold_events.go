@@ -9,6 +9,9 @@ func applyLaneEvent(state *LaneState, event Event) {
 		state.LastEventAtMS = event.AtMS
 	}
 	state.LatestEvent = event.Type
+	if isLifecycleEvent(event.Type) && event.AtMS > state.LastLifecycleAtMS {
+		state.LastLifecycleAtMS = event.AtMS
+	}
 	switch event.Type {
 	case EventCreated:
 		applyCreatedEvent(state, event)
@@ -24,6 +27,21 @@ func applyLaneEvent(state *LaneState, event Event) {
 		applyClosureEvent(state, event)
 	case EventPullRequestLinked, EventPullRequestUnlinked, EventPullRequestObserved:
 		foldPullRequest(state, event)
+	}
+}
+
+// isLifecycleEvent names the facts about the lane's process and conversation:
+// its creation, runner presence, recorded activity, and endings. Renames, pull
+// request and task links, retention, attribution, verdict pointers, and any
+// type this build does not know are administrative observations; they must
+// never make a lane look recently active or recently ended.
+func isLifecycleEvent(eventType EventType) bool {
+	switch eventType {
+	case EventCreated, EventLaunchStarted, EventRunnerReady, EventProviderBound, EventAttached, EventActivity,
+		EventUserKillRequested, EventRunnerExited, EventRunnerLost, EventReaped, EventReopened:
+		return true
+	default:
+		return false
 	}
 }
 

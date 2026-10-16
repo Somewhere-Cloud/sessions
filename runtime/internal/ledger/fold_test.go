@@ -347,3 +347,31 @@ func TestCreatedRequestFingerprintFoldsAndLegacyEventsHaveNone(t *testing.T) {
 		t.Fatalf("legacy created event = %#v", legacy)
 	}
 }
+
+// Only process and activity facts move the lifecycle and activity clocks.
+// Administrative observations, verdict pointers, and types this build does
+// not know still advance LastEventAtMS, which is honestly "newest fact".
+func TestAdministrativeFactsDoNotMoveActivityClocks(t *testing.T) {
+	const lane = "lane"
+	events := []Event{
+		createdLedgerEvent(1, lane, "terminal", ""),
+		ledgerEvent(2, lane, EventActivity, 200, activityPayload{Source: ActivityHumanInput}),
+		ledgerEvent(3, lane, EventRunnerExited, 300, runnerExitPayload{}),
+		ledgerEvent(4, lane, EventRenamed, 400, renamePayload{Name: "later"}),
+		ledgerEvent(5, lane, EventPullRequestLinked, 500, PullRequestRef{URL: "https://github.com/a/b/pull/1", Host: "github.com", Owner: "a", Repo: "b", Number: 1}),
+		ledgerEvent(6, lane, EventPullRequestObserved, 600, pullRequestObservedPayload{URL: "https://github.com/a/b/pull/1", PullRequestObservation: PullRequestObservation{State: "open"}}),
+		ledgerEvent(7, lane, EventType("verdict"), 700, struct{}{}),
+		ledgerEvent(8, lane, EventType("a_future_fact"), 800, struct{}{}),
+		ledgerEvent(9, lane, EventArchived, 900, struct{}{}),
+	}
+	got := Fold(events)[0]
+	if got.LastActivityAtMS != 200 || got.LastHumanInputAtMS != 200 {
+		t.Fatalf("activity clocks = %d/%d, want 200", got.LastActivityAtMS, got.LastHumanInputAtMS)
+	}
+	if got.LastLifecycleAtMS != 300 || got.ClosedAtMS != 300 {
+		t.Fatalf("lifecycle=%d closed=%d, want 300", got.LastLifecycleAtMS, got.ClosedAtMS)
+	}
+	if got.LastEventAtMS != 900 {
+		t.Fatalf("LastEventAtMS = %d, want the newest fact 900", got.LastEventAtMS)
+	}
+}

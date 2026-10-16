@@ -42,7 +42,10 @@ type session struct {
 	Launching         bool              `json:"launching,omitempty"`
 	Working           bool              `json:"working"`
 	LastDataAt        int64             `json:"lastDataAt"`
-	LastUserMessageAt *int64            `json:"lastUserMessageAt"`
+	// LastDataUnknown means LastDataAt is only the creation floor of a
+	// restored record that has no recorded activity.
+	LastDataUnknown   bool   `json:"lastDataUnknown,omitempty"`
+	LastUserMessageAt *int64 `json:"lastUserMessageAt"`
 	// LastHumanMessageAt and LastAgentMessageAt are the daemon's own record of
 	// who spoke, stamped at the input boundary. LastUserMessageAt is read back
 	// out of the provider transcript and can include provider-internal turns.

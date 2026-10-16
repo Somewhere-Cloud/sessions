@@ -112,6 +112,10 @@ type SessionInfo struct {
 	Launching  bool  `json:"launching,omitempty"`
 	Working    bool  `json:"working"`
 	LastDataAt int64 `json:"lastDataAt"`
+	// LastDataUnknown marks a record restored from the ledger with no
+	// recorded human or provider activity. LastDataAt then holds CreatedAt
+	// as a floor, not an observation of output.
+	LastDataUnknown bool `json:"lastDataUnknown,omitempty"`
 	// LastUserMessageAt is transcript-derived and says nothing about who wrote
 	// the message. It moves whenever a user-role record appears in the
 	// provider's own conversation file, and a provider writes those records for

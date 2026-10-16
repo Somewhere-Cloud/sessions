@@ -66,6 +66,10 @@ type statusOutput struct {
 	UnreachableReason string                   `json:"unreachable_reason,omitempty"`
 	UnreachableSince  *int64                   `json:"unreachable_since_ms,omitempty"`
 	RunnerGone        bool                     `json:"runner_gone,omitempty"`
+
+	// LastActivityUnknown says last_activity_at is the creation time used as
+	// a floor because no activity was ever recorded for this session.
+	LastActivityUnknown bool `json:"last_activity_unknown,omitempty"`
 	// gitMissing is not part of the document: `git` is already null when there
 	// are no facts, and a caller has nothing different to do about the reason.
 	// The card says it because a person on a fresh machine does.
@@ -95,8 +99,10 @@ func (a *app) cmdStatus(args []string) error {
 	if lastActivityAt < createdAt {
 		lastActivityAt = createdAt
 	}
+	activityUnknown := current.LastDataUnknown
 	if current.LastUserMessageAt != nil && *current.LastUserMessageAt > lastActivityAt {
 		lastActivityAt = *current.LastUserMessageAt
+		activityUnknown = false
 	}
 	lastActivityTime := time.UnixMilli(lastActivityAt).UTC()
 	var summary *verdictprotocol.Summary
@@ -106,6 +112,7 @@ func (a *app) cmdStatus(args []string) error {
 		if emittedAt, parseErr := time.Parse(time.RFC3339Nano, latest.EmittedAt); parseErr == nil && emittedAt.After(lastActivityTime) {
 			lastActivityTime = emittedAt
 			lastActivityAt = emittedAt.UnixMilli()
+			activityUnknown = false
 		}
 	}
 	state := liveStatusState(*current)
@@ -128,6 +135,7 @@ func (a *app) cmdStatus(args []string) error {
 		Permissions:    current.Permissions, Lifecycle: current.Lifecycle,
 		Unreachable: current.Unreachable, UnreachableReason: current.UnreachableReason,
 		UnreachableSince: current.UnreachableSince, RunnerGone: current.RunnerGone,
+		LastActivityUnknown: activityUnknown,
 	}
 	if current.Exited {
 		output.ExitCode = current.ExitCode

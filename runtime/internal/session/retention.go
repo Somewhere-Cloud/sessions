@@ -88,7 +88,7 @@ func (m *Manager) ArchiveClosed(ctx context.Context, ids []string) (RetentionRes
 		lane := byID[id]
 		closedAt := lane.ClosedAtMS
 		if closedAt == 0 {
-			closedAt = lane.LastEventAtMS
+			closedAt = lane.LastLifecycleAtMS
 		}
 		kind := "session"
 		if lane.Tool == string(state.ToolLane) {
@@ -167,7 +167,7 @@ func (m *Manager) GCClosed(ctx context.Context, cutoffMS int64, dryRun bool) (Re
 		}
 		closedAt := lane.ClosedAtMS
 		if closedAt == 0 {
-			closedAt = lane.LastEventAtMS
+			closedAt = lane.LastLifecycleAtMS
 		}
 		switch {
 		case closedAt > cutoffMS:
@@ -200,7 +200,7 @@ func (m *Manager) GCClosed(ctx context.Context, cutoffMS int64, dryRun bool) (Re
 		}
 		closedAt := lane.ClosedAtMS
 		if closedAt == 0 {
-			closedAt = lane.LastEventAtMS
+			closedAt = lane.LastLifecycleAtMS
 		}
 		kind := "session"
 		if lane.Tool == string(state.ToolLane) {
