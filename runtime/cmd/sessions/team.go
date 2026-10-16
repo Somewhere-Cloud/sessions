@@ -35,6 +35,7 @@ type teamMember struct {
 	Handoff  *teamHandoff        `json:"handoff,omitempty"`
 	Checkout *teamCheckout       `json:"checkout_warning,omitempty"`
 	Start    *state.StartReceipt `json:"start,omitempty"`
+	TaskRefs []state.TaskRef     `json:"task_refs,omitempty"`
 }
 
 type teamListing struct {

@@ -58,6 +58,9 @@ type teamMember struct {
 	Handoff      *handoffReceipt     `json:"handoff,omitempty"`
 	Checkout     *checkoutWarning    `json:"checkout_warning,omitempty"`
 	Start        *state.StartReceipt `json:"start,omitempty"`
+	// TaskRefs are the recorded task references. A change here is a changed
+	// row in a delta, but never moves updated_at.
+	TaskRefs []state.TaskRef `json:"task_refs,omitempty"`
 }
 
 // teamListing answers "what am I responsible for". Self is the caller; parent
@@ -136,6 +139,7 @@ func teamMemberFrom(info state.SessionInfo, relation teamRelation, depth int) te
 		Reason:  reason, Recovery: recovery,
 		UpdatedAt: updated,
 		Branch:    info.Branch, WorktreePath: info.WorktreePath,
+		TaskRefs: info.TaskRefs,
 	}
 	return member
 }

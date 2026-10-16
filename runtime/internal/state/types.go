@@ -266,6 +266,11 @@ type SessionInfo struct {
 	EndedByClient      string   `json:"ended_by_client,omitempty"`
 	EndReason          string   `json:"end_reason,omitempty"`
 	EndOperationID     string   `json:"end_operation_id,omitempty"`
+
+	// TaskRefs are the task references recorded in the ledger for the session
+	// and its pull request links. They are stated links, not activity, and
+	// never move lastDataAt.
+	TaskRefs []TaskRef `json:"taskRefs,omitempty"`
 }
 
 // ApprovalPrompt is one permission request a structured provider is holding
@@ -291,6 +296,19 @@ const (
 	LifecycleTask          = "task"
 	LifecycleSession       = "session"
 )
+
+// TaskRef is one recorded task reference as listings carry it. PullRequest is
+// set when the reference belongs to that linked pull request rather than the
+// session itself. Scope is github.com/OWNER/REPO, somewhere:<project>, or
+// unresolved; Ambiguous marks a task ID linked on the same target under more
+// than one scope.
+type TaskRef struct {
+	Ref         string `json:"ref"`
+	Scope       string `json:"scope"`
+	Project     string `json:"project,omitempty"`
+	PullRequest string `json:"pull_request,omitempty"`
+	Ambiguous   bool   `json:"ambiguous,omitempty"`
+}
 
 type CreateSessionRequest struct {
 	Cmd  string   `json:"cmd,omitempty"`

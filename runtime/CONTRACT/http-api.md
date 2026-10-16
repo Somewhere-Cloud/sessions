@@ -143,6 +143,7 @@ fields. Optional fields are omitted when their value is `undefined`.
 | `working` | boolean | current activity classification |
 | `launching` | boolean, optional | recorded creation is still executing in this daemon, before runner registration. Shown as Starting, not Working; startup is unconfirmed. The row's `start` object includes the original operation ID when one was recorded. Omitted after creation settles or the daemon restarts; absence is not proof the command started or stopped |
 | `lastDataAt` | number | Unix epoch milliseconds of latest PTY output. A record restored from the ledger after its runner is gone reports its newest recorded human or provider activity; renames, pull request and task links, refreshes, and archive facts never move it |
+| `taskRefs` | array, optional | task references recorded in the ledger for this session and its pull request links, each `{"ref","scope","project"?,"pull_request"?,"ambiguous"?}` with the meanings of `/tasks`; `pull_request` is set for a reference stated on that link. Present on live and restored records, so a listing needs no call per session. Linking is not activity and never moves `lastDataAt` |
 | `lastDataUnknown` | boolean, optional | `true` when a restored record has no recorded activity, so `lastDataAt` is only its `createdAt` floor. Omitted when the time was observed. `sessions status` reports the same fact as `last_activity_unknown`, which differs only when the provider transcript recorded a later turn (`lastUserMessageAt`). A producer verdict's `emitted_at` is a report time and never counts as activity |
 | `lastUserMessageAt` | number or null | latest user-role record in the provider transcript. Transcript-derived, so it includes the provider's own internal injections — a scheduled prompt or cron tick is written straight into the transcript and is indistinguishable there from a person. Do not read it as human contact; use `lastHumanMessageAt` for that |
 | `lastHumanMessageAt` | number or null | Unix epoch milliseconds of the latest input that reached Sessions **without** source-session attribution: a person at a keyboard, a composer, an attached terminal, `sessions send` run by hand. Stamped at the input boundary, which a provider's internal injection never crosses. Null means no person has spoken into this session |
@@ -822,7 +823,8 @@ that would not survive restart. Teams over 512 members must be queried at a smal
 manager. Durable-ledger read failure returns 503, not a partial successful list.
 
 Members also carry the projected `start` receipt when their creation recorded
-one. Delivery progress participates in deltas. `needs_input` includes provider
+one, and `task_refs` (the listing's `taskRefs`) when any are linked; a changed
+reference makes the row changed in a delta but never moves `updated_at`. Delivery progress participates in deltas. `needs_input` includes provider
 authentication failures, approvals and first requests needing inspection or
 resubmission; a stale working hint does not override a provider fault.
 

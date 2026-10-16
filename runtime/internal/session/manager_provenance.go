@@ -215,6 +215,7 @@ func (m *Manager) withProvenanceStates(infos []state.SessionInfo, states []ledge
 			infos[index].Description = current.Description
 			infos[index].DescriptionSource = string(current.DescriptionSource)
 		}
+		infos[index].TaskRefs = listingTaskRefs(current)
 		infos[index].CreatorKind = string(current.CreatorKind)
 		infos[index].CreatorID = current.CreatorID
 		infos[index].DelegationKind = current.DelegationKind

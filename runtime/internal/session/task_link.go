@@ -290,3 +290,22 @@ func planTaskUnlinks(current []ledger.LaneTask, links []ledger.TaskLink) ([]ledg
 	}
 	return present, nil
 }
+
+// listingTaskRefs flattens the session's references and each pull request
+// link's references into the compact form listings, status, and team rows
+// carry, so a consumer needs no extra call per session.
+func listingTaskRefs(lane ledger.LaneState) []state.TaskRef {
+	var refs []state.TaskRef
+	add := func(pullRequest string, tasks []ledger.LaneTask) {
+		for _, view := range taskRefViews(tasks) {
+			refs = append(refs, state.TaskRef{
+				Ref: view.Ref, Scope: view.Scope, Project: view.Project, PullRequest: pullRequest, Ambiguous: view.Ambiguous,
+			})
+		}
+	}
+	add("", lane.Tasks)
+	for _, link := range lane.PullRequests {
+		add(link.URL, link.Tasks)
+	}
+	return refs
+}

@@ -119,3 +119,77 @@ func TestTaskCommandLinksListsAndUnlinksThroughTheDaemon(t *testing.T) {
 		t.Fatalf("scoped unlink exit=%d result=%+v output=%q", code, unlinked, output)
 	}
 }
+
+// Task references ride on the records consumers already read -- the listing,
+// status, and team rows -- so nobody needs an extra call per session, and
+// linking one is not activity.
+func TestTaskRefsAppearInListingStatusAndTeam(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("HOME", root)
+	store, err := ledger.Open(context.Background(), ledger.Options{Path: filepath.Join(root, "ledger", "lanes.sqlite3")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	config := state.Config{
+		Host: "127.0.0.1", Port: 8787, DefaultShell: "/bin/sh", DefaultCwd: root, DefaultCols: 80, DefaultRows: 24,
+		StateRoot: filepath.Join(root, "state"), UserStateRoot: filepath.Join(root, "user-state"),
+		RunnerStateDir: filepath.Join(root, "state", "runners"), TokenPath: filepath.Join(root, "state", "token"),
+		OpenPath: filepath.Join(root, "state", "open"), LaunchAgentsDir: filepath.Join(root, "LaunchAgents"),
+		GlobalHooksPath: filepath.Join(root, "hooks.json"),
+	}
+	manager := sessionruntime.NewManager(config, prototest.NewLauncher(), sessionruntime.ManagerOptions{
+		DisableWatchers: true, Boundaries: store.Boundaries(), Observations: store.Observations(), LedgerReader: store,
+		PullRequests: store.PullRequests(), TaskLinks: store.TaskLinks(),
+	})
+	t.Cleanup(manager.Close)
+	info, err := manager.Create(context.Background(), state.CreateSessionRequest{
+		Cmd: "/bin/sh", Cwd: root, TaskRefs: []string{"sw:tsk_0123abcd"}, TaskProject: "proj",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(daemonapi.New(config, manager, manager.Push()))
+	defer server.Close()
+	read := func(args ...string) map[string]any {
+		var stdout, stderr bytes.Buffer
+		if code := run(append([]string{"--host", server.URL, "--json"}, args...), strings.NewReader(""), &stdout, &stderr); code != 0 {
+			t.Fatalf("%v exit=%d stderr=%q", args, code, stderr.String())
+		}
+		var decoded any
+		if err := json.Unmarshal(stdout.Bytes(), &decoded); err != nil {
+			t.Fatal(err)
+		}
+		if list, ok := decoded.([]any); ok {
+			for _, item := range list {
+				if record, _ := item.(map[string]any); record["id"] == info.ID {
+					return record
+				}
+			}
+			t.Fatalf("%v did not list the session", args)
+		}
+		return decoded.(map[string]any)
+	}
+	before := read("status", info.ID[:8])
+	if _, err := manager.AddPullRequest(context.Background(), info.ID, "https://github.com/acme/app/pull/5", []string{"gh:acme/app#5"}, ""); err != nil {
+		t.Fatal(err)
+	}
+	refs := func(value any) string { encoded, _ := json.Marshal(value); return string(encoded) }
+	want := `[{"project":"proj","ref":"sw:tsk_0123abcd","scope":"somewhere:proj"},` +
+		`{"pull_request":"https://github.com/acme/app/pull/5","ref":"gh:acme/app#5","scope":"github.com/acme/app"}]`
+	status := read("status", info.ID[:8])
+	if got := refs(status["taskRefs"]); got != want {
+		t.Fatalf("status taskRefs = %s", got)
+	}
+	if got := refs(read("ls", "-a")["taskRefs"]); got != want {
+		t.Fatalf("listing taskRefs = %s", got)
+	}
+	team := read("team", info.ID[:8])
+	self, _ := team["self"].(map[string]any)
+	if got := refs(self["task_refs"]); got != want {
+		t.Fatalf("team task_refs = %s", got)
+	}
+	if before["lastDataAt"] != status["lastDataAt"] || before["last_activity_at"] != status["last_activity_at"] {
+		t.Fatalf("linking moved activity: %v/%v -> %v/%v", before["lastDataAt"], before["last_activity_at"], status["lastDataAt"], status["last_activity_at"])
+	}
+}

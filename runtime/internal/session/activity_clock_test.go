@@ -58,6 +58,11 @@ func TestDurableClosedLastDataIgnoresAdministrativeFacts(t *testing.T) {
 		}); err != nil {
 			t.Fatal(err)
 		}
+		if err := store.TaskLinks().RecordTaskLinked(ctx, ledger.TaskLinked{
+			Meta: ledger.Meta{LaneID: id, AtMS: 9_700}, Links: []ledger.TaskLink{{Ref: "gh:acme/app#3"}},
+		}); err != nil {
+			t.Fatal(err)
+		}
 		if err := store.PullRequests().RecordPullRequestObserved(ctx, ledger.PullRequestObserved{
 			Meta: ledger.Meta{LaneID: id, AtMS: 9_900}, URL: ref.URL,
 			Observation: ledger.PullRequestObservation{State: "open", Mergeable: "unknown", Checks: "unknown"},
@@ -76,6 +81,13 @@ func TestDurableClosedLastDataIgnoresAdministrativeFacts(t *testing.T) {
 	byID := make(map[string]state.SessionInfo)
 	for _, info := range manager.withDurableClosed(ctx, nil, true) {
 		byID[info.ID] = info
+	}
+	byID = make(map[string]state.SessionInfo)
+	for _, info := range manager.withProvenance(ctx, manager.withDurableClosed(ctx, nil, true)) {
+		byID[info.ID] = info
+	}
+	if got := byID[active]; len(got.TaskRefs) != 1 || got.TaskRefs[0].Ref != "gh:acme/app#3" {
+		t.Fatalf("restored record task refs = %+v", got.TaskRefs)
 	}
 	if got := byID[active]; got.LastDataAt != 2_000 || got.LastDataUnknown {
 		t.Fatalf("active lane lastDataAt=%d unknown=%v, want the recorded activity 2000", got.LastDataAt, got.LastDataUnknown)
