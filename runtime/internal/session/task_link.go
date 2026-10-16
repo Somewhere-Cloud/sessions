@@ -21,6 +21,9 @@ var (
 	// ErrTaskRefAmbiguous means a reference names several linked scopes and
 	// the request did not say which.
 	ErrTaskRefAmbiguous = errors.New("ambiguous task reference")
+	// ErrTaskRefInherited means a reference shown on a session was linked on
+	// the earlier session it continues, and is unlinked there.
+	ErrTaskRefInherited = errors.New("task reference is inherited")
 	// ErrTaskLinksUnavailable means this daemon was started without a ledger.
 	ErrTaskLinksUnavailable = errors.New("task references need the Sessions ledger, which this daemon was started without")
 )
@@ -38,6 +41,9 @@ type TaskRefView struct {
 	// Ambiguous marks a Somewhere task ID linked on the same target under
 	// more than one scope. Each entry is kept; none is silently moved.
 	Ambiguous bool `json:"ambiguous,omitempty"`
+	// InheritedFrom names the earlier session this one continues, when the
+	// reference was linked there rather than here. See task_inheritance.go.
+	InheritedFrom string `json:"inherited_from,omitempty"`
 }
 
 // TaskLinks answers the task routes. Tasks are stated for the session itself;
@@ -101,16 +107,37 @@ func (m *Manager) taskLane(ctx context.Context, id string) (ledger.LaneState, er
 }
 
 func taskRefViews(tasks []ledger.LaneTask) []TaskRefView {
-	scopes := make(map[string]int, len(tasks))
-	for _, task := range tasks {
+	return sourcedTaskViews(tasks, nil)
+}
+
+// sourcedTaskViews renders a target's own references followed by those it
+// inherits from the session it continues. An inherited reference with the
+// same identity as an own one is shown once, as own; ambiguity is judged over
+// everything shown.
+func sourcedTaskViews(own []ledger.LaneTask, inherited []sourcedTask) []TaskRefView {
+	shown := make([]sourcedTask, 0, len(own)+len(inherited))
+	for _, task := range own {
+		shown = append(shown, sourcedTask{LaneTask: task})
+	}
+	for _, task := range inherited {
+		duplicate := false
+		for _, existing := range shown {
+			duplicate = duplicate || (existing.Ref == task.Ref && existing.Project == task.Project)
+		}
+		if !duplicate {
+			shown = append(shown, task)
+		}
+	}
+	scopes := make(map[string]int, len(shown))
+	for _, task := range shown {
 		scopes[task.Ref]++
 	}
-	views := make([]TaskRefView, 0, len(tasks))
-	for _, task := range tasks {
+	views := make([]TaskRefView, 0, len(shown))
+	for _, task := range shown {
 		view := TaskRefView{
 			Ref: task.Ref, Provider: "unknown", Scope: taskref.ScopeUnresolved, Project: task.Project,
 			LinkedAt:  time.UnixMilli(task.LinkedAtMS).UTC().Format(time.RFC3339),
-			Ambiguous: scopes[task.Ref] > 1,
+			Ambiguous: scopes[task.Ref] > 1, InheritedFrom: task.from,
 		}
 		if parsed, err := taskref.Parse(task.Ref, task.Project); err == nil {
 			view.Provider, view.Scope = parsed.Provider, parsed.Scope
@@ -120,9 +147,9 @@ func taskRefViews(tasks []ledger.LaneTask) []TaskRefView {
 	return views
 }
 
-func taskLinksAnswer(lane ledger.LaneState) TaskLinks {
+func taskLinksAnswer(lane ledger.LaneState, inherited []sourcedTask) TaskLinks {
 	answer := TaskLinks{
-		SessionID: lane.LaneID, Description: lane.Description, Tasks: taskRefViews(lane.Tasks),
+		SessionID: lane.LaneID, Description: lane.Description, Tasks: sourcedTaskViews(lane.Tasks, inherited),
 		PullRequests: make([]PullRequestTasks, 0, len(lane.PullRequests)),
 	}
 	for _, link := range lane.PullRequests {
@@ -156,7 +183,11 @@ func (m *Manager) TaskLinks(ctx context.Context, id string) (TaskLinks, error) {
 	if err != nil {
 		return TaskLinks{}, err
 	}
-	return taskLinksAnswer(lane), nil
+	inherited, err := m.inheritedTasks(ctx, id)
+	if err != nil {
+		return TaskLinks{}, err
+	}
+	return taskLinksAnswer(lane, inherited), nil
 }
 
 // LinkTasks records the references for the session, or for exactly the
@@ -204,6 +235,9 @@ func (m *Manager) UnlinkTasks(ctx context.Context, id string, raws []string, pro
 			return false, err
 		}
 		present, err := planTaskUnlinks(current, links)
+		if err == nil && len(present) == 0 && url == "" {
+			err = m.inheritedUnlinkError(ctx, id, links)
+		}
 		if err != nil || len(present) == 0 {
 			return false, err
 		}
@@ -231,7 +265,11 @@ func (m *Manager) writeTaskLinks(ctx context.Context, id string, write func(ledg
 			return TaskLinks{}, err
 		}
 	}
-	answer := taskLinksAnswer(lane)
+	inherited, err := m.inheritedTasks(ctx, id)
+	if err != nil {
+		return TaskLinks{}, err
+	}
+	answer := taskLinksAnswer(lane, inherited)
 	answer.Changed = &changed
 	return answer, nil
 }
@@ -294,18 +332,19 @@ func planTaskUnlinks(current []ledger.LaneTask, links []ledger.TaskLink) ([]ledg
 // listingTaskRefs flattens the session's references and each pull request
 // link's references into the compact form listings, status, and team rows
 // carry, so a consumer needs no extra call per session.
-func listingTaskRefs(lane ledger.LaneState) []state.TaskRef {
+func listingTaskRefs(lane ledger.LaneState, inherited []sourcedTask) []state.TaskRef {
 	var refs []state.TaskRef
-	add := func(pullRequest string, tasks []ledger.LaneTask) {
-		for _, view := range taskRefViews(tasks) {
+	add := func(pullRequest string, views []TaskRefView) {
+		for _, view := range views {
 			refs = append(refs, state.TaskRef{
-				Ref: view.Ref, Scope: view.Scope, Project: view.Project, PullRequest: pullRequest, Ambiguous: view.Ambiguous,
+				Ref: view.Ref, Scope: view.Scope, Project: view.Project, PullRequest: pullRequest,
+				Ambiguous: view.Ambiguous, InheritedFrom: view.InheritedFrom,
 			})
 		}
 	}
-	add("", lane.Tasks)
+	add("", sourcedTaskViews(lane.Tasks, inherited))
 	for _, link := range lane.PullRequests {
-		add(link.URL, link.Tasks)
+		add(link.URL, taskRefViews(link.Tasks))
 	}
 	return refs
 }

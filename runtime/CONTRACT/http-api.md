@@ -143,7 +143,7 @@ fields. Optional fields are omitted when their value is `undefined`.
 | `working` | boolean | current activity classification |
 | `launching` | boolean, optional | recorded creation is still executing in this daemon, before runner registration. Shown as Starting, not Working; startup is unconfirmed. The row's `start` object includes the original operation ID when one was recorded. Omitted after creation settles or the daemon restarts; absence is not proof the command started or stopped |
 | `lastDataAt` | number | Unix epoch milliseconds of latest PTY output. A record restored from the ledger after its runner is gone reports its newest recorded human or provider activity; renames, pull request and task links, refreshes, and archive facts never move it. A live runner this daemon re-adopted after a restart or reconnect does not count attaching as activity: until it produces new output it reports what an earlier connection observed, else its persisted human/agent message time or the ledger's recorded activity, else its `createdAt` with `lastDataUnknown:true` |
-| `taskRefs` | array, optional | task references recorded in the ledger for this session and its pull request links, each `{"ref","scope","project"?,"pull_request"?,"ambiguous"?}` with the meanings of `/tasks`; `pull_request` is set for a reference stated on that link. Present on live and restored records, so a listing needs no call per session. Linking is not activity and never moves `lastDataAt` |
+| `taskRefs` | array, optional | task references recorded in the ledger for this session and its pull request links, each `{"ref","scope","project"?,"pull_request"?,"ambiguous"?,"inherited_from"?}` with the meanings of `/tasks`; `pull_request` is set for a reference stated on that link. Present on live and restored records, so a listing needs no call per session. Linking is not activity and never moves `lastDataAt` |
 | `lastDataUnknown` | boolean, optional | `true` when a restored record has no recorded activity, so `lastDataAt` is only its `createdAt` floor. Omitted when the time was observed. `sessions status` reports the same fact as `last_activity_unknown`, which differs only when the provider transcript recorded a later turn (`lastUserMessageAt`). A producer verdict's `emitted_at` is a report time and never counts as activity |
 | `lastUserMessageAt` | number or null | latest user-role record in the provider transcript. Transcript-derived, so it includes the provider's own internal injections — a scheduled prompt or cron tick is written straight into the transcript and is indistinguishable there from a person. Do not read it as human contact; use `lastHumanMessageAt` for that |
 | `lastHumanMessageAt` | number or null | Unix epoch milliseconds of the latest input that reached Sessions **without** source-session attribution: a person at a keyboard, a composer, an attached terminal, `sessions send` run by hand. Stamped at the input boundary, which a provider's internal injection never crosses. Null means no person has spoken into this session |
@@ -1454,6 +1454,17 @@ names which.
  "pull_requests":[{"url":"https://github.com/acme/app/pull/42","tasks":[...]}],
  "changed":true}
 ```
+
+Continuations: a session that reopens, recovers, or continues the same
+provider conversation is a new session linked from its source by a ledger
+`reopened` fact. Such a successor also lists the session-level references of
+the sessions it continues, nearest first, each with `"inherited_from":"<source
+session id>"`; a reference it links itself is shown once, as its own. Nothing
+is copied: the link stays on the session where it was stated, and unlinking an
+inherited reference on the successor is `409` naming that session. Forks and
+new sessions record no `reopened` fact and inherit nothing. A paused session
+woken, a runner re-adopted after a restart, or a reconnect keeps its session
+id and therefore its own references.
 
 `scope` is `github.com/OWNER/REPO` for an issue, `somewhere:<project>` for a
 Somewhere task whose project was stated (with `project`), and `unresolved`

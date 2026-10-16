@@ -208,6 +208,7 @@ func (m *Manager) withProvenanceStates(infos []state.SessionInfo, states []ledge
 	for _, candidate := range states {
 		byID[candidate.LaneID] = candidate
 	}
+	inheritance := newTaskInheritance(states)
 	for index := range infos {
 		current, exists := byID[infos[index].ID]
 		if !exists || !current.Created {
@@ -226,7 +227,7 @@ func (m *Manager) withProvenanceStates(infos []state.SessionInfo, states []ledge
 			infos[index].Description = current.Description
 			infos[index].DescriptionSource = string(current.DescriptionSource)
 		}
-		infos[index].TaskRefs = listingTaskRefs(current)
+		infos[index].TaskRefs = listingTaskRefs(current, inheritance.inherited(current.LaneID))
 		overlayLedgerActivity(&infos[index], current)
 		infos[index].CreatorKind = string(current.CreatorKind)
 		infos[index].CreatorID = current.CreatorID

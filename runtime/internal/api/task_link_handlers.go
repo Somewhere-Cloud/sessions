@@ -75,7 +75,8 @@ func taskLinkErrorStatus(err error) int {
 	switch {
 	case errors.Is(err, sessionruntime.ErrTaskRefInvalid), errors.Is(err, pullrequest.ErrInvalidURL):
 		return http.StatusBadRequest
-	case errors.Is(err, sessionruntime.ErrPullRequestNotLinked), errors.Is(err, sessionruntime.ErrTaskRefAmbiguous):
+	case errors.Is(err, sessionruntime.ErrPullRequestNotLinked), errors.Is(err, sessionruntime.ErrTaskRefAmbiguous),
+		errors.Is(err, sessionruntime.ErrTaskRefInherited):
 		return http.StatusConflict
 	case errors.Is(err, sessionruntime.ErrTaskLaneUnknown):
 		return http.StatusNotFound

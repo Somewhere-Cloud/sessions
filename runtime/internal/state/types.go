@@ -308,6 +308,9 @@ type TaskRef struct {
 	Project     string `json:"project,omitempty"`
 	PullRequest string `json:"pull_request,omitempty"`
 	Ambiguous   bool   `json:"ambiguous,omitempty"`
+	// InheritedFrom names the earlier session this one continues the same
+	// conversation of, when the reference was linked there.
+	InheritedFrom string `json:"inherited_from,omitempty"`
 }
 
 type CreateSessionRequest struct {

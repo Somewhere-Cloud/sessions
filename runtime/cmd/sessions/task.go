@@ -13,12 +13,13 @@ const taskUsage = "usage: sessions task <session>\n" +
 	"       a ref is sw:tsk_<id> or gh:OWNER/REPO#NUMBER"
 
 type taskRefView struct {
-	Ref       string `json:"ref"`
-	Provider  string `json:"provider"`
-	Scope     string `json:"scope"`
-	Project   string `json:"project,omitempty"`
-	LinkedAt  string `json:"linked_at"`
-	Ambiguous bool   `json:"ambiguous,omitempty"`
+	Ref           string `json:"ref"`
+	Provider      string `json:"provider"`
+	Scope         string `json:"scope"`
+	Project       string `json:"project,omitempty"`
+	LinkedAt      string `json:"linked_at"`
+	Ambiguous     bool   `json:"ambiguous,omitempty"`
+	InheritedFrom string `json:"inherited_from,omitempty"`
 }
 
 type taskLinks struct {
@@ -114,6 +115,9 @@ func writeTaskRefs(out io.Writer, suffix string, tasks []taskRefView) error {
 		ambiguous := ""
 		if task.Ambiguous {
 			ambiguous = "  (also linked under another scope)"
+		}
+		if task.InheritedFrom != "" {
+			ambiguous += "  (inherited from " + shortID(task.InheritedFrom) + ")"
 		}
 		if _, err := fmt.Fprintf(out, "%s  %s  scope %s  linked %s%s%s\n",
 			terminalSafe(task.Ref), task.Provider, terminalSafe(task.Scope), task.LinkedAt, suffix, ambiguous); err != nil {
