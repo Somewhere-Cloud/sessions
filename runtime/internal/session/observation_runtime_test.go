@@ -89,3 +89,28 @@ func TestUnresolvedTranscriptWatcherIsReported(t *testing.T) {
 		t.Fatalf("observers = %+v", observers)
 	}
 }
+
+// An observer recovers only when its watcher delivers a record read from a
+// bound file; a delivery with no bound file does not count.
+func TestObserverRecoversOnlyOnAnObservedRead(t *testing.T) {
+	root := t.TempDir()
+	manager := NewManager(testConfig(root), prototest.NewLauncher(), ManagerOptions{DisableWatchers: true, ActivityInterval: time.Hour, Notify: func(PushPayload) {}})
+	defer manager.Close()
+	created, err := manager.Create(context.Background(), state.CreateSessionRequest{Cmd: "/usr/local/bin/claude", Cwd: root, ProviderTerminal: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	manager.mu.Lock()
+	runtime := manager.runtimes[created.ID]
+	manager.mu.Unlock()
+	session, _ := manager.Get(created.ID)
+	session.SetObserverHealth(observerClaudeTranscript, state.ObserverError, "read failed")
+	runtime.observerDelivered(observerClaudeTranscript, "")
+	if state := session.Info().Observations.Observers[0].State; state != "error" {
+		t.Fatalf("an unbound delivery recovered the observer: %s", state)
+	}
+	runtime.observerDelivered(observerClaudeTranscript, filepath.Join(root, "transcript.jsonl"))
+	if observer := session.Info().Observations.Observers[0]; observer.State != state.ObserverFollowing || observer.Detail != "" {
+		t.Fatalf("an observed read did not recover the observer: %+v", observer)
+	}
+}

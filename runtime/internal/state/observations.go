@@ -105,11 +105,14 @@ type ObservedTool struct {
 // when observation did not begin at the start of the record stream or records
 // were dropped, so an absent start or end may simply be outside the window.
 type ObservedTools struct {
-	Open            []ObservedTool `json:"open"`
-	OpenCount       int            `json:"open_count"`
-	LastStartedAt   *int64         `json:"last_started_at"`
-	LastEndedAt     *int64         `json:"last_ended_at"`
-	HistoryComplete bool           `json:"history_complete"`
+	Open          []ObservedTool `json:"open"`
+	OpenCount     int            `json:"open_count"`
+	LastStartedAt *int64         `json:"last_started_at"`
+	LastEndedAt   *int64         `json:"last_ended_at"`
+	// LastEndStatus is how the most recently received tool end was reported:
+	// result, error, cancelled, or unknown. A result is not proof of success.
+	LastEndStatus   *string `json:"last_end_status"`
+	HistoryComplete bool    `json:"history_complete"`
 }
 
 // ObserverHealth is one transcript or rollout watcher's own state.
@@ -148,6 +151,7 @@ type observationTracker struct {
 	toolOrder          []string
 	lastToolStartedAt  int64
 	lastToolEndedAt    int64
+	lastToolEndStatus  string
 	historyIncomplete  bool
 	// fromStart is true when this daemon launched the session and so saw its
 	// record stream from the beginning. A re-adopted runner's replay is

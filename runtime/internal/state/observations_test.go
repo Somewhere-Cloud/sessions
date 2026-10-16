@@ -55,7 +55,7 @@ func awaitObservations(t *testing.T, session *Session, satisfied func(*Observati
 // records never move the provider clock.
 func TestObservedStructuredToolOpenForHours(t *testing.T) {
 	session, runner := observedSession(t, "/usr/local/bin/codex", KindCodexAppServer)
-	started := time.Now().Add(-3 * time.Hour)
+	started := time.Now().Add(-5 * time.Hour)
 	runner.AddCodexEvent(map[string]any{"type": "codex", "source": "codex-app-server", "subtype": "turn_started", "timestamp": stamp(started), "turnId": "t1"})
 	runner.AddCodexEvent(map[string]any{"type": "codex", "source": "codex-app-server", "subtype": "item_started", "timestamp": stamp(started),
 		"item": map[string]any{"id": "call-1", "type": "commandExecution"}})
@@ -73,7 +73,7 @@ func TestObservedStructuredToolOpenForHours(t *testing.T) {
 		t.Fatalf("open tool = %+v", tool)
 	}
 	if got := observations.Last.ProviderRecordAt; got == nil || *got != started.UnixMilli() {
-		t.Fatalf("provider clock = %v, want the 3-hour-old record; Sessions, metadata and future records must not move it", got)
+		t.Fatalf("provider clock = %v, want the 5-hour-old record; Sessions, metadata and future records must not move it", got)
 	}
 	if observations.Last.TerminalOutputAt != nil || observations.Working.Source != WorkingFromProviderStream || !observations.Tools.HistoryComplete {
 		t.Fatalf("observations = %+v / %+v / %+v", observations.Last, observations.Working, observations.Tools)

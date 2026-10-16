@@ -85,6 +85,10 @@ func (t *observationTracker) toolsProjection() *ObservedTools {
 		LastStartedAt: optionalMillis(t.lastToolStartedAt), LastEndedAt: optionalMillis(t.lastToolEndedAt),
 		HistoryComplete: t.fromStart && !t.historyIncomplete,
 	}
+	if t.lastToolEndStatus != "" {
+		status := t.lastToolEndStatus
+		tools.LastEndStatus = &status
+	}
 	for _, id := range t.toolOrder {
 		if len(tools.Open) == maxObservedOpenTools {
 			break

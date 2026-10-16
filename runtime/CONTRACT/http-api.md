@@ -41,7 +41,7 @@ This document records the behavior of the normative Go daemon in
   `/events`, `/model-options`, `/model`, `/input`, `/submit`, `/approve`, `/retry`, `/retry/stop`, `/name`,
   `/tags`, `/upload`, `/display-parent`, `/set-aside`, the bare `DELETE`)
   still fall through to the 404 body. `/pin`, `/wait`, `/wait-state`,
-  `/verdict`, `/pr`, `/pr/refresh`, `/prs`, `/prs/refresh`, and `/tasks` return 405. Either way the request is authenticated before the
+  `/verdict`, `/pr`, `/pr/refresh`, `/prs`, `/prs/refresh`, `/tasks`, and `/observations` return 405. Either way the request is authenticated before the
   method is judged, so a wrong method on an API path normally requires auth
   before returning 404 or 405. Each route entry below states its own
   behavior where it differs.
@@ -615,7 +615,8 @@ runtime, never "no" or zero. The same projection is served by the listing,
  "last":{"provider_record_at":null,"terminal_output_at":null,"transcript_record_at":null,
          "input_dispatched_at":null,"input_confirmed_by_provider_at":null},
  "tools":{"open":[{"id":"toolu_1","name":"Bash","started_at":0}],"open_count":1,
-          "last_started_at":null,"last_ended_at":null,"history_complete":true},
+          "last_started_at":null,"last_ended_at":null,"last_end_status":"result|error|cancelled|unknown",
+          "history_complete":true},
  "observers":[{"name":"claude-transcript|codex-rollout","state":"following|unresolved|error|stopped","detail":"...","since":0}]}
 ```
 
@@ -649,14 +650,39 @@ runtime, never "no" or zero. The same projection is served by the listing,
 - `tools` pairs starts and ends by id (Claude-shaped `tool_use`/`tool_result`
   from the stream, transcript, or normalized rollout; Codex app-server
   `item_started`/`item_completed` for non-message items). `open` lists at most
-  32; `open_count` is exact. `history_complete` is `false` for a runner this
+  32; `open_count` is exact. `last_end_status` is how the most recently
+  received end was reported: `result` (the provider returned a result -- not a
+  claim that the tool succeeded), `error`, `cancelled` (declined or
+  interrupted), or `unknown`. `history_complete` is `false` for a runner this
   daemon re-adopted (its replay may be bounded) or when records were
   unreadable. An open tool with no end is reported as that, nothing more.
+- A record with no usable timestamp (older runners, some transcripts) still
+  counts for what it says -- a tool started, a turn ended -- but its time is
+  `null` and it moves no clock.
+- `runner.state:"reachable"` is Sessions' transport to its runner, never
+  provider liveness. A capability says what can be observed, never that
+  anything happened.
 - `observers` are transcript or rollout watchers: `unresolved` when the
   provider file cannot be found or bound yet, `error` with the last watcher
   error. Structured runtimes and shells have none.
 - Nothing here reports filesystem or source writes; terminal output is not a
   write record.
+
+### `GET /api/sessions/:id/observations`
+
+Auth required. The explicit export of one session's observations:
+`{"session_id","observations","facts"}`. `facts` flattens the block into one
+entry per version-1 field, `{"name":"tools.open_count","value":1,"source":"provider-stream"}`,
+in a stable order. `source` is one of `runner` (Sessions' own runner and
+daemon boundary: transport, dispatch, input), `provider-stream`,
+`transcript-file`, `rollout-file`, `terminal`, or `derived` (from the runtime
+kind or Sessions' own bookkeeping). An unknown fact has no `value` and carries
+`"unknown":true` with a `reason`: a whole block reads `not observable for this
+runtime` or `not observed for this record`. Ended and restored sessions answer
+with what is known. It reads only what the daemon holds -- no transcript, no
+provider, no network -- and changes nothing. An unknown session is 404; other
+methods are 405. `sessions observations <session>` prints the facts, and
+`sessions --json observations` writes this answer.
 
 ### `POST /api/sessions`
 

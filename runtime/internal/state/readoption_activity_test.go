@@ -72,7 +72,11 @@ func TestLaunchedSessionActivityIsUnchanged(t *testing.T) {
 func TestReconnectKeepsObservedActivity(t *testing.T) {
 	oldSession, registry, launcher, id := newLostRunnerSession(t)
 	launcher.Runner(id).AddOutput("observed before the socket was lost\n")
-	awaitInfo(t, oldSession, "output", func(info SessionInfo) bool { return info.LastDataAt > info.CreatedAt })
+	// Wait on a fact only output sets: registration alone can already put
+	// lastDataAt past createdAt.
+	awaitInfo(t, oldSession, "output", func(info SessionInfo) bool {
+		return info.Observations != nil && info.Observations.Last.TerminalOutputAt != nil
+	})
 	observed := oldSession.Info().LastDataAt
 	launcher.Runner(id).Emit(proto.Event{Kind: proto.EventRunnerLost})
 	awaitInfo(t, oldSession, "unreachable", func(info SessionInfo) bool { return info.Unreachable })

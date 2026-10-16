@@ -565,9 +565,7 @@ func (r *runtimeSession) startWatcher(info state.SessionInfo) {
 				if info.Tool == state.ToolCodex {
 					r.bindCodexWatcher(watcher.Path())
 				}
-				if watcher.Path() != "" {
-					r.session.SetObserverHealth(observer, state.ObserverFollowing, "")
-				}
+				r.observerDelivered(observer, watcher.Path())
 				raw, err := json.Marshal(event)
 				if err == nil {
 					r.session.RecordClaudeEvent(raw)
@@ -637,6 +635,16 @@ func (r *runtimeSession) openWatcher(info state.SessionInfo) (*watch.FileWatcher
 		r.session.SetObserverHealth(observer, state.ObserverFollowing, "")
 	}
 	return watcher, observer
+}
+
+// observerDelivered records that the watcher delivered a record read from a
+// bound provider file. That successful read, and nothing else -- not terminal
+// output, not time passing -- is what returns an unresolved or failed
+// observer to following.
+func (r *runtimeSession) observerDelivered(observer, path string) {
+	if observer != "" && path != "" {
+		r.session.SetObserverHealth(observer, state.ObserverFollowing, "")
+	}
 }
 
 // Observer names reported in observations.observers.

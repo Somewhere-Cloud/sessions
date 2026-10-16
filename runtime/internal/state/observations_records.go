@@ -69,26 +69,31 @@ func recordTimestamp(value map[string]any, now int64) (int64, bool) {
 
 // observeRecord applies one structured record.
 func (t *observationTracker) observeRecord(value map[string]any, origin recordOrigin, now int64) {
+	// A record with no usable time still carries facts -- a tool started, a
+	// turn ended -- but its time is unknown: it moves no clock, and the facts
+	// it sets report a null time.
 	at, timed := recordTimestamp(value, now)
+	if !timed {
+		at = 0
+	}
 	if sessionsAuthored(value) {
-		t.observeSessionsRecord(value, at, timed)
+		t.observeSessionsRecord(value, at)
 		return
 	}
-	if !timed || metadataRecord(value) {
+	if metadataRecord(value) {
 		return
 	}
-	t.providerRecordAt = max(t.providerRecordAt, at)
-	if origin == fromWatcher {
-		t.transcriptRecordAt = max(t.transcriptRecordAt, at)
+	if timed {
+		t.providerRecordAt = max(t.providerRecordAt, at)
+		if origin == fromWatcher {
+			t.transcriptRecordAt = max(t.transcriptRecordAt, at)
+		}
 	}
 	t.observeProviderTurn(value, at, origin)
 	t.observeTools(value, at)
 }
 
-func (t *observationTracker) observeSessionsRecord(value map[string]any, at int64, timed bool) {
-	if !timed {
-		return
-	}
+func (t *observationTracker) observeSessionsRecord(value map[string]any, at int64) {
 	switch {
 	case value["type"] == "claude" && value["subtype"] == "turn_started":
 		t.turn.start(at, "sessions-dispatch")
@@ -139,7 +144,8 @@ func (t *observationTracker) observeTools(value map[string]any, at int64) {
 		if subtype == "item_started" {
 			t.startTool(id, itemType, at)
 		} else {
-			t.endTool(id, at)
+			status, _ := item["status"].(string)
+			t.endTool(id, at, codexToolEndStatus(status))
 		}
 		return
 	}
@@ -154,7 +160,11 @@ func (t *observationTracker) observeTools(value map[string]any, at int64) {
 			t.startTool(id, name, at)
 		case "tool_result":
 			id, _ := part["tool_use_id"].(string)
-			t.endTool(id, at)
+			status := ToolEndResult
+			if isError, _ := part["is_error"].(bool); isError {
+				status = ToolEndError
+			}
+			t.endTool(id, at, status)
 		}
 	}
 }
@@ -178,11 +188,34 @@ func (t *observationTracker) startTool(id, name string, at int64) {
 	t.toolOrder = append(t.toolOrder, id)
 }
 
-func (t *observationTracker) endTool(id string, at int64) {
+// Tool end statuses. "result" means the provider returned a result for the
+// call; it is not a claim that the tool succeeded at its purpose.
+const (
+	ToolEndResult    = "result"
+	ToolEndError     = "error"
+	ToolEndCancelled = "cancelled"
+	ToolEndUnknown   = "unknown"
+)
+
+func codexToolEndStatus(status string) string {
+	switch status {
+	case "completed":
+		return ToolEndResult
+	case "failed":
+		return ToolEndError
+	case "declined", "cancelled", "canceled", "interrupted":
+		return ToolEndCancelled
+	default:
+		return ToolEndUnknown
+	}
+}
+
+func (t *observationTracker) endTool(id string, at int64, status string) {
 	if id == "" {
 		return
 	}
 	t.lastToolEndedAt = max(t.lastToolEndedAt, at)
+	t.lastToolEndStatus = status
 	if _, open := t.tools[id]; !open {
 		return
 	}
