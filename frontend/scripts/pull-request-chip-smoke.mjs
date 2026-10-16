@@ -19,8 +19,11 @@ const answers = {
   'lane-a': () => ({ session_id: 'lane-a', linked: true, runner: 'live', pull_request: link(42), status: report('open'),
     observed_at: new Date().toISOString(), freshness: 'fresh', fresh_for_ms: FRESH_FOR_MS, work: 'open', closure: { action: 'none', reason: '' } }),
   'lane-b': () => ({ session_id: 'lane-b', linked: true, runner: 'live', pull_request: link(77), status: report('open'),
-    observed_at: '2026-10-12T00:00:00Z', freshness: 'stale', work: 'open', closure: { action: 'none', reason: '' } })
+    observed_at: '2026-10-12T00:00:00Z', freshness: 'stale', work: 'open', closure: { action: 'none', reason: '' }, other_pull_requests: 2 })
 };
+// gh is signed out on the daemon's machine: a missing optional integration,
+// not a failed pull request.
+const unavailableB = { ...answers['lane-b'](), refresh: { ok: false, error_kind: 'auth', error: 'gh is not signed in', recorded: false, unavailable: true } };
 const mergedA = { ...answers['lane-a'](), status: report('merged'), freshness: 'final', fresh_for_ms: undefined, work: 'merged', refresh: { ok: true, recorded: true } };
 // The same lane id on another computer is a different lane with its own link.
 const miniA = () => ({ session_id: 'lane-a', linked: true, runner: 'live', pull_request: link(91), status: report('open'),
@@ -39,7 +42,8 @@ try {
       requests.push(`${request.method} ${request.url}`);
       const send = (body) => { response.writeHead(200, { 'content-type': 'application/json' }); response.end(JSON.stringify(body)); };
       const mini = Boolean(match[1]);
-      if (match[3]) heldRefreshes.push(() => send(mini ? closedMiniA : mergedA)); else send(mini ? miniA() : answers[match[2]]());
+      const refreshed = mini ? closedMiniA : match[2] === 'lane-b' ? unavailableB : mergedA;
+      if (match[3]) heldRefreshes.push(() => send(refreshed)); else send(mini ? miniA() : answers[match[2]]());
       return;
     }
     const name = request.url === '/' ? 'index.html' : request.url.slice(1);
@@ -130,10 +134,18 @@ try {
   assert.deepEqual(requests.slice(sent), ['POST /api/fleet/mini/api/sessions/lane-a/pr/refresh']);
   heldRefreshes.shift()(); await waitForChip('closed');
   assert.match(await chipText(), /PR #91/);
+  // A lane with more links says so, and a signed-out gh reads as
+  // unavailable, not as a failed refresh.
+  await source('fixture'); await show('lane-b'); await waitForChip('PR #77');
+  assert.match(await chipText(), /\+2/);
+  await startRefresh();
+  heldRefreshes.shift()();
+  await page.waitForFunction(() => document.querySelector('.session-pr-refresh')?.textContent === 'GitHub unavailable');
+  assert.doesNotMatch(await chipText(), /Refresh failed/);
   if (process.env.PR_CHIP_SCREENSHOT) await page.screenshot({ path: process.env.PR_CHIP_SCREENSHOT });
 
   assert.deepEqual(errors, []); assert.deepEqual(failed, []);
-  console.log('pull request chip passed: local freshness aging without requests, no cross-session refresh, no stale-epoch refresh, current refresh applies, source-server routing, no cross-server refresh');
+  console.log('pull request chip passed: local freshness aging without requests, no cross-session refresh, no stale-epoch refresh, current refresh applies, source-server routing, no cross-server refresh, other-link count, unavailable gh is not a failure');
 } finally {
   for (const release of heldRefreshes) release();
   await closeBrowser(browser); await closeServer(server); await rm(work, { recursive: true, force: true });

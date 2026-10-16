@@ -142,6 +142,10 @@ type RefreshResult struct {
 	ErrorKind string `json:"error_kind,omitempty"`
 	Error     string `json:"error,omitempty"`
 	Recorded  bool   `json:"recorded"`
+	// Unavailable means the read could not be attempted on this machine: the
+	// GitHub CLI is missing or not signed in. It is a missing optional
+	// integration, not a failure of the pull request or of the lane.
+	Unavailable bool `json:"unavailable,omitempty"`
 	// Superseded means the read succeeded but began before another refresh
 	// whose answer was already applied, so its older answer was dropped and
 	// the status shows the newer one.
@@ -165,6 +169,9 @@ type Status struct {
 	Runner      string         `json:"runner"`
 	Closure     *Closure       `json:"closure,omitempty"`
 	Refresh     *RefreshResult `json:"refresh,omitempty"`
+	// OtherPullRequests counts the lane's links besides this one. A client
+	// that knows only the single primary link learns that more exist.
+	OtherPullRequests int `json:"other_pull_requests,omitempty"`
 }
 
 // Runner values describe the lane's process, independently of its work.

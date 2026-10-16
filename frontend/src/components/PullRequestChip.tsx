@@ -29,6 +29,9 @@ interface ChipView {
   expired: boolean;
   refreshing: boolean;
   error: string;
+  // The last refresh could not reach GitHub from that machine (gh missing or
+  // signed out). Shown calmly: nothing about the pull request failed.
+  unavailable: boolean;
 }
 
 function received(status: PullRequestStatus): Pick<ChipView, 'status' | 'staleAt' | 'expired'> {
@@ -47,12 +50,12 @@ function forEpoch(epoch: number, change: Partial<ChipView>) {
 // which need not be the active one.
 export function PullRequestChip({ sessionId, serverId }: { sessionId: string; serverId?: string }) {
   const epochs = useRef(0);
-  const [view, setView] = useState<ChipView>({ serverId, sessionId, epoch: 0, status: null, staleAt: null, expired: false, refreshing: false, error: '' });
+  const [view, setView] = useState<ChipView>({ serverId, sessionId, epoch: 0, status: null, staleAt: null, expired: false, refreshing: false, error: '', unavailable: false });
 
   useEffect(() => {
     const epoch = ++epochs.current;
     const controller = new AbortController();
-    setView({ serverId, sessionId, epoch, status: null, staleAt: null, expired: false, refreshing: false, error: '' });
+    setView({ serverId, sessionId, epoch, status: null, staleAt: null, expired: false, refreshing: false, error: '', unavailable: false });
     fetchPullRequest(sessionId, serverId, controller.signal)
       .then((status) => setView(forEpoch(epoch, received(status))))
       // A session Sessions did not create, or an older daemon, has no link to
@@ -71,17 +74,18 @@ export function PullRequestChip({ sessionId, serverId }: { sessionId: string; se
     return () => window.clearTimeout(timer);
   }, [staleAt]);
 
-  const { status, epoch, refreshing, error } = view;
+  const { status, epoch, refreshing, error, unavailable } = view;
   if (view.sessionId !== sessionId || view.serverId !== serverId || !status?.linked || !status.pull_request) return null;
   const freshness = status.freshness === 'fresh' && view.expired ? 'stale' : status.freshness;
   const link = status.pull_request;
   const refresh = async (): Promise<void> => {
-    setView(forEpoch(epoch, { refreshing: true, error: '' }));
+    setView(forEpoch(epoch, { refreshing: true, error: '', unavailable: false }));
     try {
       const next = await refreshPullRequest(sessionId, serverId);
       setView(forEpoch(epoch, {
         ...received(next),
-        error: next.refresh && !next.refresh.ok ? next.refresh.error ?? 'GitHub could not be read' : ''
+        error: next.refresh && !next.refresh.ok ? next.refresh.error ?? 'GitHub could not be read' : '',
+        unavailable: next.refresh?.unavailable === true
       }));
     } catch (cause) {
       setView(forEpoch(epoch, { error: cause instanceof Error ? cause.message : String(cause) }));
@@ -97,6 +101,7 @@ export function PullRequestChip({ sessionId, serverId }: { sessionId: string; se
     <span className={`session-pr-chip is-${status.work ?? 'unknown'}`} title={title} data-freshness={freshness}>
       <a href={link.url} target="_blank" rel="noreferrer">PR #{link.number}</a>
       <span>{summary(status, freshness)}</span>
+      {status.other_pull_requests ? <span title="Other pull requests linked to this lane; `sessions pr list` shows them">+{status.other_pull_requests}</span> : null}
       <button
         type="button"
         className="session-pr-refresh"
@@ -104,7 +109,7 @@ export function PullRequestChip({ sessionId, serverId }: { sessionId: string; se
         onClick={() => void refresh()}
         title={error || 'Read this pull request from GitHub once, using your own gh login. Nothing is written to GitHub.'}
       >
-        {refreshing ? 'Reading…' : error ? 'Refresh failed' : 'Refresh'}
+        {refreshing ? 'Reading…' : unavailable ? 'GitHub unavailable' : error ? 'Refresh failed' : 'Refresh'}
       </button>
     </span>
   );

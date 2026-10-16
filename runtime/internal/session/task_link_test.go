@@ -51,18 +51,18 @@ func TestTaskLinksRecordedAtCreateSurviveRetirementAndRestart(t *testing.T) {
 		links.Tasks[1].Ref != "gh:acme/app#7" || links.Tasks[1].Scope != "github.com/acme/app" || links.Description != "Fix the importer" {
 		t.Fatalf("links at create = %+v", links)
 	}
-	resolved, err := manager.LinkTasks(ctx, info.ID, []string{"sw:tsk_0123abcd", "gh:acme/other#1"}, "proj")
+	resolved, err := manager.LinkTasks(ctx, info.ID, []string{"sw:tsk_0123abcd", "gh:acme/other#1"}, "proj", "")
 	if err != nil || resolved.Changed == nil || !*resolved.Changed {
 		t.Fatalf("link = %+v err=%v", resolved, err)
 	}
 	if resolved.Tasks[0].Scope != "somewhere:proj" || len(resolved.Tasks) != 3 {
 		t.Fatalf("resolved = %+v", resolved)
 	}
-	again, err := manager.LinkTasks(ctx, info.ID, []string{"gh:acme/other#1"}, "")
+	again, err := manager.LinkTasks(ctx, info.ID, []string{"gh:acme/other#1"}, "", "")
 	if err != nil || *again.Changed {
 		t.Fatalf("relink changed=%v err=%v", again.Changed, err)
 	}
-	if _, err := manager.UnlinkTasks(ctx, info.ID, []string{"gh:acme/app#7"}); err != nil {
+	if _, err := manager.UnlinkTasks(ctx, info.ID, []string{"gh:acme/app#7"}, ""); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.Remove(filepath.Join(testConfig(root).RunnerStateDir, info.ID+".json")); err != nil {
@@ -125,7 +125,7 @@ func TestTaskLinksNeedTheLedger(t *testing.T) {
 	}); !errors.Is(err, ErrTaskLinksUnavailable) {
 		t.Fatalf("create without ledger err = %v", err)
 	}
-	if _, err := manager.LinkTasks(context.Background(), "x", []string{"gh:acme/app#1"}, ""); !errors.Is(err, ErrTaskLinksUnavailable) {
+	if _, err := manager.LinkTasks(context.Background(), "x", []string{"gh:acme/app#1"}, "", ""); !errors.Is(err, ErrTaskLinksUnavailable) {
 		t.Fatalf("link without ledger err = %v", err)
 	}
 }

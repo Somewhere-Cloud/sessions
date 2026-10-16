@@ -3,6 +3,7 @@ package ledger
 import (
 	"context"
 	"path/filepath"
+	"reflect"
 	"testing"
 )
 
@@ -94,7 +95,7 @@ func TestPullRequestFactsFoldAndPersistAcrossReopen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cleared := Fold(events)[0].PullRequest; cleared != (LanePullRequest{}) {
-		t.Fatalf("unlink left %#v", cleared)
+	if cleared := Fold(events)[0]; !reflect.DeepEqual(cleared.PullRequest, LanePullRequest{}) || len(cleared.PullRequests) != 0 {
+		t.Fatalf("unlink left %#v / %#v", cleared.PullRequest, cleared.PullRequests)
 	}
 }

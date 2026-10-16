@@ -1,6 +1,7 @@
 package pullrequest
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/somewhere-tech/sessions/runtime/internal/ledger"
@@ -22,18 +23,25 @@ const (
 	ClosureArchiveAvailable = "archive_available"
 )
 
-// Compose builds the client view of a lane's pull request from the folded
-// ledger state. confirmedAt, when later than the recorded observation, is the
-// time an identical read was last confirmed in this daemon's lifetime; an
-// identical read is not appended again, so this keeps freshness honest
+// Compose builds the client view of a lane's primary pull request from the
+// folded ledger state. confirmedAt, when later than the recorded observation,
+// is the time an identical read was last confirmed in this daemon's lifetime;
+// an identical read is not appended again, so this keeps freshness honest
 // without growing the ledger on every refresh.
 func Compose(lane ledger.LaneState, live bool, confirmedAt time.Time, now time.Time) Status {
+	return ComposeLink(lane, lane.PullRequest, live, confirmedAt, now)
+}
+
+// ComposeLink builds the client view of one of the lane's pull request links.
+// Each link is judged on its own: its freshness, work, and merged state are
+// that pull request's alone.
+func ComposeLink(lane ledger.LaneState, pr ledger.LanePullRequest, live bool, confirmedAt time.Time, now time.Time) Status {
 	status := Status{SessionID: lane.LaneID, Runner: RunnerState(lane, live)}
-	pr := lane.PullRequest
 	if pr.URL == "" {
 		return status
 	}
 	status.Linked = true
+	status.OtherPullRequests = max(len(lane.PullRequests)-1, 0)
 	status.PullRequest = &Link{
 		URL: pr.URL, Host: pr.Host, Owner: pr.Owner, Repo: pr.Repo, Number: pr.Number,
 		LinkedAt: formatMS(pr.LinkedAtMS),
@@ -59,7 +67,21 @@ func Compose(lane ledger.LaneState, live bool, confirmedAt time.Time, now time.T
 	}
 	status.Status = &report
 	status.Closure = closure(status.Work, status.Runner, lane.LaneID)
+	if unmerged := unmergedOthers(lane, pr.URL); status.Work == WorkMerged && unmerged > 0 {
+		status.Closure = &Closure{Action: ClosureNone, Reason: fmt.Sprintf(
+			"this pull request merged, but %d other linked pull request(s) are not known to be merged; the lane's work may still be open", unmerged)}
+	}
 	return status
+}
+
+func unmergedOthers(lane ledger.LaneState, url string) int {
+	count := 0
+	for _, other := range lane.PullRequests {
+		if other.URL != url && !other.Merged {
+			count++
+		}
+	}
+	return count
 }
 
 func reportFrom(observation ledger.PullRequestObservation) Report {

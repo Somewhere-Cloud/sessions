@@ -22,10 +22,13 @@ const maxTaskLinks = 64
 // Ref is the canonical sw:tsk_<id> or gh:OWNER/REPO#NUMBER form, parsed by
 // internal/taskref before it reaches the ledger. Project is the Somewhere
 // project a sw: reference was stated to belong to; empty means unresolved.
-// Links are facts someone stated, never inferences from names or prose.
+// PullRequestURL, when set, attaches the reference to that pull request link
+// of the lane instead of to the session. Links are facts someone stated,
+// never inferences from names or prose.
 type TaskLink struct {
-	Ref     string `json:"ref"`
-	Project string `json:"project,omitempty"`
+	Ref            string `json:"ref"`
+	Project        string `json:"project,omitempty"`
+	PullRequestURL string `json:"pull_request_url,omitempty"`
 }
 
 // LaneTask is one folded association. Who linked it is deliberately not
@@ -117,20 +120,44 @@ func validateTaskLink(link TaskLink) error {
 	if link.Project != "" && !strings.HasPrefix(link.Ref, "sw:") {
 		return fmt.Errorf("task reference %q cannot carry a Somewhere project", link.Ref)
 	}
+	if link.PullRequestURL != "" && (!strings.HasPrefix(link.PullRequestURL, "https://github.com/") ||
+		len(link.PullRequestURL) > 300 || strings.IndexFunc(link.PullRequestURL, unicode.IsSpace) >= 0) {
+		return fmt.Errorf("task reference %q names an invalid pull request %q", link.Ref, link.PullRequestURL)
+	}
 	return nil
 }
 
+// foldTaskLinks applies each link to its target: the session, or the named
+// pull request link. A link naming a pull request the lane does not hold is
+// history, not state.
 func foldTaskLinks(state *LaneState, event Event) {
 	var payload taskLinksPayload
 	if json.Unmarshal(event.Payload, &payload) != nil || validateTaskLinks(payload.Links) != nil {
 		return
 	}
-	switch event.Type {
-	case EventTaskLinked:
-		state.Tasks = linkTasks(state.Tasks, payload.Links, event)
-	case EventTaskUnlinked:
-		state.Tasks = unlinkTasks(state.Tasks, payload.Links)
+	apply := linkTasks
+	if event.Type == EventTaskUnlinked {
+		apply = func(current []LaneTask, links []TaskLink, _ Event) []LaneTask { return unlinkTasks(current, links) }
 	}
+	byTarget := make(map[string][]TaskLink)
+	var order []string
+	for _, link := range payload.Links {
+		if _, seen := byTarget[link.PullRequestURL]; !seen {
+			order = append(order, link.PullRequestURL)
+		}
+		byTarget[link.PullRequestURL] = append(byTarget[link.PullRequestURL], link)
+	}
+	for _, target := range order {
+		links := byTarget[target]
+		if target == "" {
+			state.Tasks = apply(state.Tasks, links, event)
+			continue
+		}
+		if index := findPullRequest(state.PullRequests, target); index >= 0 {
+			state.PullRequests[index].Tasks = apply(state.PullRequests[index].Tasks, links, event)
+		}
+	}
+	syncPrimaryPullRequest(state, state.PullRequest.URL)
 }
 
 // linkTasks adds each reference not already present. Restating a reference
@@ -148,6 +175,7 @@ func linkTasks(current []LaneTask, links []TaskLink, event Event) []LaneTask {
 			}
 		}
 		if !found && len(current) < maxTaskLinks {
+			link.PullRequestURL = ""
 			current = append(current, LaneTask{TaskLink: link, LinkedAtMS: event.AtMS})
 		}
 	}

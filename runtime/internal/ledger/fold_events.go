@@ -25,7 +25,7 @@ func applyLaneEvent(state *LaneState, event Event) {
 		applyMetadataEvent(state, event)
 	case EventUserKillRequested, EventRunnerExited, EventRunnerLost, EventReaped, EventReopened, EventArchived:
 		applyClosureEvent(state, event)
-	case EventPullRequestLinked, EventPullRequestUnlinked, EventPullRequestObserved:
+	case EventPullRequestLinked, EventPullRequestUnlinked, EventPullRequestObserved, EventPullRequestAdded:
 		foldPullRequest(state, event)
 	case EventTaskLinked, EventTaskUnlinked:
 		foldTaskLinks(state, event)

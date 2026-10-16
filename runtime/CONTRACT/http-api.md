@@ -41,7 +41,7 @@ This document records the behavior of the normative Go daemon in
   `/events`, `/model-options`, `/model`, `/input`, `/submit`, `/approve`, `/retry`, `/retry/stop`, `/name`,
   `/tags`, `/upload`, `/display-parent`, `/set-aside`, the bare `DELETE`)
   still fall through to the 404 body. `/pin`, `/wait`, `/wait-state`,
-  `/verdict`, `/pr`, `/pr/refresh`, and `/tasks` return 405. Either way the request is authenticated before the
+  `/verdict`, `/pr`, `/pr/refresh`, `/prs`, `/prs/refresh`, and `/tasks` return 405. Either way the request is authenticated before the
   method is judged, so a wrong method on an API path normally requires auth
   before returning 404 or 405. Each route entry below states its own
   behavior where it differs.
@@ -1416,18 +1416,22 @@ needs an account, wakes a paused session, or touches a runner. A reference
 says which task someone linked, not whether the task exists or is done, and
 nothing is ever inferred from branch names, commits, or conversation text.
 
-`POST` body is `{"refs":["sw:tsk_<id>","gh:OWNER/REPO#NUMBER"],"project":"<somewhere project>"}`;
-`project` is optional and applies to the `sw:` references only. References
+`POST` body is `{"refs":["sw:tsk_<id>","gh:OWNER/REPO#NUMBER"],"project":"<somewhere project>","pull_request":"<url>"}`;
+`project` is optional and applies to the `sw:` references only. With
+`pull_request`, the references attach to exactly that linked pull request
+instead of the session (409 when it is not linked). References
 already linked record nothing, except that a stated project resolves an
 unresolved one. The batch is appended as one `task_linked` ledger event, so it
-is never half-recorded. `DELETE ?ref=<ref>&ref=<ref>` removes exact references
-as one `task_unlinked` event; a reference that is not linked records nothing.
+is never half-recorded. `DELETE ?ref=<ref>&ref=<ref>[&pull_request=<url>]` removes exact references
+from the session or that pull request as one `task_unlinked` event; a
+reference that is not linked there records nothing.
 `GET` reads the current set. Every answer is:
 
 ```json
 {"session_id":"<id>","description":"<stated intent, when any>",
  "tasks":[{"ref":"sw:tsk_0123abcd","provider":"somewhere","scope":"unresolved","linked_at":"<RFC3339>"},
           {"ref":"gh:acme/app#12","provider":"github","scope":"github.com/acme/app","linked_at":"<RFC3339>"}],
+ "pull_requests":[{"url":"https://github.com/acme/app/pull/42","tasks":[...]}],
  "changed":true}
 ```
 
@@ -1586,11 +1590,14 @@ must be `https` on `github.com` (or `www.github.com`) with no credentials,
 port, or percent-encoding; a trailing slash, a `/files`, `/commits`, or
 `/checks` tab, a query, and a fragment are dropped, and owner and repository
 are lowercased. Anything else is `400 {"error":"invalid pull request URL ...; use https://github.com/OWNER/REPO/pull/NUMBER"}`.
-The canonical link is appended to the ledger as `pull_request_linked`. Linking
-the URL already linked appends nothing and answers `"changed":false`; linking
-a different URL replaces the link and discards the previous observation.
-`DELETE` appends `pull_request_unlinked` when a link exists and answers
-`"changed":false` otherwise. Neither contacts GitHub.
+A lane may hold several links (see `/prs` below); this route reads and writes
+its **primary** one, unchanged for single-link clients. The canonical link is
+appended to the ledger as `pull_request_linked`. Linking the URL already
+primary appends nothing and answers `"changed":false`; linking a different URL
+replaces the primary and discards its observation, and other links are kept.
+`DELETE` appends `pull_request_unlinked` for the primary when one exists and
+answers `"changed":false` otherwise; the most recently linked remaining link
+becomes the primary. Neither contacts GitHub.
 
 `GET` never contacts GitHub. `POST .../pr/refresh` runs
 `gh pr view <url> --json ...` once with the user's existing GitHub CLI login,
@@ -1599,7 +1606,10 @@ that credential and never writes to GitHub. A read that differs from the last
 recorded observation is appended as `pull_request_observed`; an identical read
 appends nothing and refreshes freshness for this daemon's lifetime only. A
 failed read appends nothing and answers 200 with the previous observation and
-`refresh.ok:false`. Refresh with no link is `409`.
+`refresh.ok:false`. `gh_missing` and `auth` also carry `refresh.unavailable:true`:
+GitHub status is unavailable on this machine, which is a missing optional
+integration rather than a failure of the pull request or the lane. Refresh
+with no link is `409`.
 
 An answer is accepted only when gh names exactly the linked pull request: its
 `url` must canonicalize to the linked URL. A matching number in another
@@ -1615,7 +1625,7 @@ example, it disconnected) before gh answered; it says nothing about GitHub.
 `timeout` means the read ran out of time.
 
 Overlapping refreshes are ordered by when each read began, not by clock. A
-read that began before another refresh of the same lane whose answer was
+read that began before another refresh of the same link whose answer was
 already recorded or confirmed is dropped, so an older answer never overwrites
 a newer one. It answers `refresh.ok:true`, `recorded:false`,
 `superseded:true`, and the newer observation. The order is kept by this
@@ -1629,7 +1639,8 @@ Every success answers one status object:
  "status":{"state":"open|closed|merged|unknown","draft":false,"checks":"passing|failing|pending|none|unknown","checks_total":3,"checks_failing":0,"checks_pending":1,"mergeable":"mergeable|conflicting|unknown","head_ref":"...","head_sha":"...","base_ref":"main","merged_at":"...","merge_commit":"..."},
  "observed_at":"<RFC3339>","freshness":"fresh|stale|final|unknown","fresh_for_ms":540000,"branch_match":"match|mismatch|unknown",
  "work":"open|merged|closed_unmerged|unknown","closure":{"action":"none|keep|archive_available","reason":"..."},
- "refresh":{"ok":false,"error_kind":"gh_missing|auth|not_found|network|rate_limited|timeout|cancelled|malformed_response|mismatch|link_changed|failed","error":"...","recorded":false,"superseded":false}}
+ "refresh":{"ok":false,"error_kind":"gh_missing|auth|not_found|network|rate_limited|timeout|cancelled|malformed_response|mismatch|link_changed|failed","error":"...","recorded":false,"superseded":false,"unavailable":true},
+ "other_pull_requests":1}
 ```
 
 An unlinked lane answers only `session_id`, `linked:false`, and `runner`.
@@ -1643,7 +1654,48 @@ answer turns it `stale` locally after that duration instead of polling. `branch_
 Sessions-created branch and is reported, never enforced. A merged pull request
 sets `work:"merged"` but never ends a runner: a live or paused lane answers
 `closure.action:"keep"` with the command to end it, and only a lane whose
-runner already ended answers `archive_available`.
+runner already ended answers `archive_available`. Merged is tracked per link:
+while another linked pull request is not known to be merged, a merged link
+answers `closure.action:"none"` saying the lane's work may still be open.
+`other_pull_requests` counts the lane's other links and is omitted when zero.
+
+### `GET|POST|DELETE /api/sessions/:id/prs` and `POST /api/sessions/:id/prs/refresh`
+
+Auth required. Every pull request linked to a lane, in link order. The same
+ledger, lane, URL, and error rules as `/pr` apply; at most 32 links (`409`
+beyond that).
+
+`POST /prs` body is `{"url":"<pull request URL>","task_refs":["gh:OWNER/REPO#N","sw:tsk_<id>"],"task_project":"<somewhere project>"}`
+(`task_refs` and `task_project` optional). It appends `pull_request_added`,
+which links one more pull request without replacing any; it becomes the
+primary only when the lane has none. Its task references are recorded in the
+same fact. Adding a URL already linked records only task references it does
+not carry yet. A daemon that predates `pull_request_added` ignores it and
+keeps showing its single link. `DELETE /prs?url=<url>` appends
+`pull_request_unlinked` for exactly that link, with its task references; a URL
+that is not linked records nothing. A link that is removed and later added
+again starts with no observation and no task references.
+
+`POST /prs/refresh` with `{"url":"<url>"}` reads exactly that link (409 when it
+is not linked); with `{}` it reads every link one at a time. Each read follows
+the `/pr/refresh` rules and is ordered per link. When a read answers
+`unavailable`, no further link is read in that request, since the same GitHub
+CLI would answer the same way.
+
+Every success answers:
+
+```json
+{"session_id":"<id>","runner":"live|not_connected|ended","changed":true,
+ "pull_requests":[{"primary":true,"tasks":[{"ref":"gh:acme/app#12","provider":"github","scope":"github.com/acme/app","linked_at":"<RFC3339>"}],
+                   "session_id":"<id>","linked":true,"pull_request":{...},"status":{...},"work":"...","closure":{...},"refresh":{...}}]}
+```
+
+Each element is the `/pr` status object for that link plus `primary` and its
+`tasks`. `changed` appears on `POST /prs` and `DELETE`; `refresh` appears
+only for links read by that refresh. Ledger compatibility: a ledger written
+when a lane held one link folds exactly as before, because each
+`pull_request_linked` removed the link it replaced; facts naming a URL the
+lane no longer holds are history and change nothing.
 
 ### `POST /api/sessions/:id/input`
 

@@ -5,14 +5,19 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/somewhere-tech/sessions/runtime/internal/pullrequest"
 	sessionruntime "github.com/somewhere-tech/sessions/runtime/internal/session"
 )
 
 type taskLinkService interface {
 	TaskLinks(context.Context, string) (sessionruntime.TaskLinks, error)
-	LinkTasks(context.Context, string, []string, string) (sessionruntime.TaskLinks, error)
-	UnlinkTasks(context.Context, string, []string) (sessionruntime.TaskLinks, error)
+	LinkTasks(context.Context, string, []string, string, string) (sessionruntime.TaskLinks, error)
+	UnlinkTasks(context.Context, string, []string, string) (sessionruntime.TaskLinks, error)
 }
+
+// The task routes are only reachable through this assertion, so a signature
+// drift must fail the build rather than answer 501 at run time.
+var _ taskLinkService = (*sessionruntime.Manager)(nil)
 
 // handleTaskLinkRoute serves the session's task references. These routes are
 // local ledger reads and writes only: none contacts Somewhere or GitHub, wakes
@@ -41,18 +46,21 @@ func (s *Server) handleTaskLinkRoute(
 		answer, err = service.TaskLinks(request.Context(), id)
 	case http.MethodDelete:
 		// Unlinking names exact references in the query, so a DELETE needs
-		// no body: ?ref=sw:tsk_...&ref=gh:OWNER/REPO%23NUMBER.
-		answer, err = service.UnlinkTasks(request.Context(), id, request.URL.Query()["ref"])
+		// no body: ?ref=sw:tsk_...&ref=gh:OWNER/REPO%23NUMBER, plus
+		// pull_request=<url> to unlink them from that pull request link.
+		query := request.URL.Query()
+		answer, err = service.UnlinkTasks(request.Context(), id, query["ref"], query.Get("pull_request"))
 	default:
 		var body struct {
-			Refs    []string `json:"refs"`
-			Project string   `json:"project"`
+			Refs        []string `json:"refs"`
+			Project     string   `json:"project"`
+			PullRequest string   `json:"pull_request"`
 		}
 		if err := readJSON(request, &body); err != nil {
 			s.sendJSON(response, http.StatusBadRequest, map[string]any{"error": err.Error()}, corsOrigin)
 			return true
 		}
-		answer, err = service.LinkTasks(request.Context(), id, body.Refs, body.Project)
+		answer, err = service.LinkTasks(request.Context(), id, body.Refs, body.Project, body.PullRequest)
 	}
 	if err != nil {
 		s.sendJSON(response, taskLinkErrorStatus(err), map[string]any{"error": err.Error(), "id": id}, corsOrigin)
@@ -64,8 +72,10 @@ func (s *Server) handleTaskLinkRoute(
 
 func taskLinkErrorStatus(err error) int {
 	switch {
-	case errors.Is(err, sessionruntime.ErrTaskRefInvalid):
+	case errors.Is(err, sessionruntime.ErrTaskRefInvalid), errors.Is(err, pullrequest.ErrInvalidURL):
 		return http.StatusBadRequest
+	case errors.Is(err, sessionruntime.ErrPullRequestNotLinked):
+		return http.StatusConflict
 	case errors.Is(err, sessionruntime.ErrTaskLaneUnknown):
 		return http.StatusNotFound
 	case errors.Is(err, sessionruntime.ErrTaskLinksUnavailable):

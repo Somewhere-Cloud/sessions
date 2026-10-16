@@ -79,6 +79,9 @@ type LaneState struct {
 	// Tasks are the task references stated for the session itself, in the
 	// order they were first linked.
 	Tasks []LaneTask
+	// PullRequests are every linked pull request in link order. PullRequest
+	// above is a copy of the primary one, kept for single-link readers.
+	PullRequests []LanePullRequest
 }
 
 // Fold reduces an event stream in seq order. Input order is irrelevant as
@@ -109,6 +112,12 @@ func Fold(events []Event) []LaneState {
 func cloneLaneState(state LaneState) LaneState {
 	state.ResumeArgv = append([]string(nil), state.ResumeArgv...)
 	state.Tasks = append([]LaneTask(nil), state.Tasks...)
+	state.PullRequest = clonePullRequest(state.PullRequest)
+	links := make([]LanePullRequest, 0, len(state.PullRequests))
+	for _, link := range state.PullRequests {
+		links = append(links, clonePullRequest(link))
+	}
+	state.PullRequests = links
 	if state.ExitCode != nil {
 		code := *state.ExitCode
 		state.ExitCode = &code

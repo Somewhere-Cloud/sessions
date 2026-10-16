@@ -21,7 +21,11 @@ export interface PullRequestStatus {
   fresh_for_ms?: number;
   work?: 'open' | 'merged' | 'closed_unmerged' | 'unknown';
   closure?: { action: 'none' | 'keep' | 'archive_available'; reason: string };
-  refresh?: { ok: boolean; error_kind?: string; error?: string; recorded: boolean };
+  // unavailable: gh is missing or signed out on the daemon's machine. That is a
+  // missing optional integration, not a failed read of the pull request.
+  refresh?: { ok: boolean; error_kind?: string; error?: string; recorded: boolean; unavailable?: boolean };
+  // The lane's other linked pull requests; this answer describes the primary.
+  other_pull_requests?: number;
 }
 
 // A lane's link lives on the daemon that runs it. serverId names that daemon;

@@ -86,7 +86,7 @@ Daily workflows:
   keys                     send a named key to a session
   resize                   resize a session PTY
   verdict                  read or emit an explicit producer verdict
-  pr                       link a lane to its GitHub pull request and read its status
+  pr                       link a lane to its GitHub pull requests and read their status
   task                     record which tasks a session works on
   move                     continue an ended conversation on another machine
   adopt                    bind an existing conversation into Sessions
@@ -1179,23 +1179,24 @@ Examples:
 
 ```text
 Usage:
-  sessions pr <session> | pr link <session> <url> | pr unlink <session> | pr refresh <session>
+  sessions pr <session> | pr list <session> | pr link <session> <url> | pr add <session> <url> [--task REF ...] [--task-project P] | pr unlink <session> [<url>] | pr refresh <session> [<url> | --all]
 
-link a lane to its GitHub pull request and read its status
+link a lane to its GitHub pull requests and read their status
 
-Associate a Sessions lane with one GitHub pull request and report its state, checks, and mergeability with an explicit freshness: fresh, stale, final (merged), or unknown (never read).
+Associate a Sessions lane with its GitHub pull requests and report each one's state, checks, and mergeability with an explicit freshness: fresh, stale, final (merged), or unknown (never read).
 
-link validates and canonicalizes a https://github.com/OWNER/REPO/pull/NUMBER URL and records it in the append-only ledger; linking the URL already linked records nothing, and linking a different one replaces it. unlink removes the link. Neither contacts GitHub.
+A lane can hold several pull requests; one of them is the primary, which `sessions pr <session>` shows and which single-link clients see. link validates and canonicalizes a https://github.com/OWNER/REPO/pull/NUMBER URL and makes it the primary, replacing the previous primary exactly as before; linking the URL already primary records nothing. add links one more pull request without replacing any (it becomes the primary only when there is none), and --task REF (repeatable, with --task-project) records the task references that pull request carries; `sessions task link --pr URL` adds more later. unlink without a URL removes the primary, and the most recently linked remaining one becomes the primary; unlink with a URL removes exactly that one. list shows every link with its own state and task references. None of these contacts GitHub, and all are recorded in the append-only ledger.
 
-refresh is the only command that reads GitHub. It runs `gh pr view --json` once with the GitHub CLI login you already have, with a 20-second timeout and no retry; Sessions never reads, stores, or forwards that credential and never writes to GitHub. A failed read records nothing, keeps the last observation with its real age, names the failure (gh_missing, auth, not_found, network, rate_limited, timeout, cancelled, malformed_response, mismatch, link_changed, failed), and exits 1. cancelled means the caller stopped waiting before gh answered and says nothing about GitHub. An answer is accepted only when gh names exactly the linked URL; a relink during the read, even one back to the same URL, is reported as link_changed and nothing is recorded. When refreshes overlap, a read that began before another one whose answer was already applied is dropped as superseded rather than overwriting the newer answer. There is no background polling.
+refresh is the only command that reads GitHub: without a URL it reads the primary, with a URL exactly that link, and with --all every link one at a time. It runs `gh pr view --json` once per pull request with the GitHub CLI login you already have, with a 20-second timeout and no retry; Sessions never reads, stores, or forwards that credential and never writes to GitHub. A failed read records nothing, keeps the last observation with its real age, names the failure (gh_missing, auth, not_found, network, rate_limited, timeout, cancelled, malformed_response, mismatch, link_changed, failed), and exits 1. gh_missing and auth mean GitHub status is unavailable on this machine, not that anything failed: the result carries unavailable:true, the command says so on stderr and exits 0, and --all stops asking after the first such answer. cancelled means the caller stopped waiting before gh answered and says nothing about GitHub. An answer is accepted only when gh names exactly the linked URL; a relink during the read, even one back to the same URL, is reported as link_changed and nothing is recorded. When refreshes overlap, a read that began before another one whose answer was already applied is dropped as superseded rather than overwriting the newer answer. There is no background polling.
 
-A merged pull request marks the lane's work as merged. Sessions never ends a runner because its pull request merged: a live or paused lane is kept and the closure line says how to end it yourself; a lane whose runner already ended is offered `sessions archive`. Under global --machine, --host, --port or --direct, commands in the closure line carry the same flags.
+Merged is tracked per pull request. A merged pull request marks its own work as merged; while another linked pull request is not known to be merged, the closure line says the lane's work may still be open. Sessions never ends a runner because its pull request merged: a live or paused lane is kept and the closure line says how to end it yourself; a lane whose runner already ended is offered `sessions archive`. Under global --machine, --host, --port or --direct, commands in the closure line carry the same flags.
 
 Examples:
   sessions pr link 0123abcd https://github.com/acme/app/pull/42
-  sessions pr refresh 0123abcd
-  sessions --json pr 0123abcd
-  sessions pr unlink 0123abcd
+  sessions pr add 0123abcd https://github.com/acme/app/pull/43 --task gh:acme/app#12
+  sessions pr refresh 0123abcd --all
+  sessions --json pr list 0123abcd
+  sessions pr unlink 0123abcd https://github.com/acme/app/pull/43
 
 --json may appear before the command or among its options. --machine, --direct, --host, and --port must appear before the command. Arguments after `sessions run --` always belong to the child command.
 ```
@@ -1204,13 +1205,13 @@ Examples:
 
 ```text
 Usage:
-  sessions task <session> | task link <session> <ref>... [--project P] | task unlink <session> <ref>...
+  sessions task <session> | task link <session> <ref>... [--project P] [--pr URL] | task unlink <session> <ref>... [--pr URL]
 
 record which tasks a session works on
 
 Record the task references a session works on. A reference is sw:tsk_<id> for a Somewhere task or gh:OWNER/REPO#NUMBER for a GitHub issue; nothing else is accepted, and nothing is ever inferred from a branch name, commit message, or the conversation. One session can carry several references, and the same reference can be on several sessions.
 
-link records references in the append-only ledger; linking one that is already linked records nothing. --project names the Somewhere project the sw: references belong to. Without it their scope is reported as unresolved, because a task ID alone does not say which project it is in; linking the same reference again with --project resolves it. unlink removes exact references. `sessions new --task REF` and `sessions run --task REF` (repeatable, with --task-project) record references with the session's creation.
+link records references in the append-only ledger; linking one that is already linked records nothing. --project names the Somewhere project the sw: references belong to. Without it their scope is reported as unresolved, because a task ID alone does not say which project it is in; linking the same reference again with --project resolves it. unlink removes exact references. --pr URL links or unlinks the references on exactly that linked pull request instead of on the session, so each pull request says which tasks it is for. `sessions new --task REF` and `sessions run --task REF` (repeatable, with --task-project) record references with the session's creation.
 
 Nothing here contacts Somewhere or GitHub or needs an account: a reference says which task someone linked, not whether that task exists, changed, or is done. References survive daemon restarts and runner retirement. With no reference linked, the session's --description is shown as its stated intent.
 

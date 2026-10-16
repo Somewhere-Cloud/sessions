@@ -8,8 +8,8 @@ import (
 )
 
 const taskUsage = "usage: sessions task <session>\n" +
-	"       sessions task link <session> <ref>... [--project SOMEWHERE_PROJECT]\n" +
-	"       sessions task unlink <session> <ref>...\n" +
+	"       sessions task link <session> <ref>... [--project SOMEWHERE_PROJECT] [--pr URL]\n" +
+	"       sessions task unlink <session> <ref>... [--pr URL]\n" +
 	"       a ref is sw:tsk_<id> or gh:OWNER/REPO#NUMBER"
 
 type taskRefView struct {
@@ -21,14 +21,22 @@ type taskRefView struct {
 }
 
 type taskLinks struct {
-	SessionID   string        `json:"session_id"`
-	Description string        `json:"description,omitempty"`
-	Tasks       []taskRefView `json:"tasks"`
-	Changed     *bool         `json:"changed,omitempty"`
+	SessionID    string        `json:"session_id"`
+	Description  string        `json:"description,omitempty"`
+	Tasks        []taskRefView `json:"tasks"`
+	PullRequests []struct {
+		URL   string        `json:"url"`
+		Tasks []taskRefView `json:"tasks"`
+	} `json:"pull_requests"`
+	Changed *bool `json:"changed,omitempty"`
 }
 
 func (a *app) cmdTask(args []string) error {
 	project, hasProject := pluck(&args, "--project")
+	pullRequest, hasPullRequest := pluck(&args, "--pr")
+	if hasPullRequest && strings.TrimSpace(pullRequest) == "" {
+		return fail(1, "--pr needs the linked pull request URL; %s", taskUsage)
+	}
 	if len(args) == 0 || strings.TrimSpace(args[0]) == "" {
 		return fail(1, "%s", taskUsage)
 	}
@@ -42,6 +50,9 @@ func (a *app) cmdTask(args []string) error {
 	if hasProject && (action != "link" || strings.TrimSpace(project) == "") {
 		return fail(1, "--project names the Somewhere project for `task link`; %s", taskUsage)
 	}
+	if hasPullRequest && action == "show" {
+		return fail(1, "--pr applies to `task link` and `task unlink`; %s", taskUsage)
+	}
 	id, err := a.resolveSessionOrLaneID(rest[0])
 	if err != nil {
 		return err
@@ -52,9 +63,13 @@ func (a *app) cmdTask(args []string) error {
 	case "show":
 		err = a.getJSON(path, &result)
 	case "link":
-		err = a.postJSON(path, map[string]any{"refs": rest[1:], "project": strings.TrimSpace(project)}, &result, 2)
+		body := map[string]any{"refs": rest[1:], "project": strings.TrimSpace(project), "pull_request": strings.TrimSpace(pullRequest)}
+		err = a.postJSON(path, body, &result, 2)
 	case "unlink":
 		query := url.Values{"ref": rest[1:]}
+		if hasPullRequest {
+			query.Set("pull_request", strings.TrimSpace(pullRequest))
+		}
 		err = a.deleteJSON(path+"?"+query.Encode(), &result)
 	}
 	if err != nil {
@@ -67,7 +82,11 @@ func (a *app) cmdTask(args []string) error {
 }
 
 func writeTaskLinks(out io.Writer, links taskLinks) error {
-	if len(links.Tasks) == 0 {
+	total := len(links.Tasks)
+	for _, link := range links.PullRequests {
+		total += len(link.Tasks)
+	}
+	if total == 0 {
 		line := "no task references linked"
 		if links.Description != "" {
 			line += "; stated intent: " + terminalSafe(oneLine(links.Description))
@@ -75,9 +94,21 @@ func writeTaskLinks(out io.Writer, links taskLinks) error {
 		_, err := fmt.Fprintln(out, line)
 		return err
 	}
-	for _, task := range links.Tasks {
-		if _, err := fmt.Fprintf(out, "%s  %s  scope %s  linked %s\n",
-			terminalSafe(task.Ref), task.Provider, terminalSafe(task.Scope), task.LinkedAt); err != nil {
+	if err := writeTaskRefs(out, "", links.Tasks); err != nil {
+		return err
+	}
+	for _, link := range links.PullRequests {
+		if err := writeTaskRefs(out, "  on "+terminalSafe(link.URL), link.Tasks); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func writeTaskRefs(out io.Writer, suffix string, tasks []taskRefView) error {
+	for _, task := range tasks {
+		if _, err := fmt.Fprintf(out, "%s  %s  scope %s  linked %s%s\n",
+			terminalSafe(task.Ref), task.Provider, terminalSafe(task.Scope), task.LinkedAt, suffix); err != nil {
 			return err
 		}
 	}

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/somewhere-tech/sessions/runtime/internal/ledger"
+	"github.com/somewhere-tech/sessions/runtime/internal/pullrequest"
 	"github.com/somewhere-tech/sessions/runtime/internal/state"
 	"github.com/somewhere-tech/sessions/runtime/internal/taskref"
 )
@@ -32,13 +33,22 @@ type TaskRefView struct {
 	LinkedAt string `json:"linked_at"`
 }
 
-// TaskLinks answers the task routes. Description is the session's own stated
-// intent, the account-free fallback when no reference is recorded.
+// TaskLinks answers the task routes. Tasks are stated for the session itself;
+// PullRequests lists each linked pull request with the references stated for
+// it. Description is the session's own stated intent, the account-free
+// fallback when no reference is recorded.
 type TaskLinks struct {
-	SessionID   string        `json:"session_id"`
-	Description string        `json:"description,omitempty"`
-	Tasks       []TaskRefView `json:"tasks"`
-	Changed     *bool         `json:"changed,omitempty"`
+	SessionID    string             `json:"session_id"`
+	Description  string             `json:"description,omitempty"`
+	Tasks        []TaskRefView      `json:"tasks"`
+	PullRequests []PullRequestTasks `json:"pull_requests"`
+	Changed      *bool              `json:"changed,omitempty"`
+}
+
+// PullRequestTasks is one pull request link and its task references.
+type PullRequestTasks struct {
+	URL   string        `json:"url"`
+	Tasks []TaskRefView `json:"tasks"`
 }
 
 func parseTaskLinks(raws []string, project string) ([]ledger.TaskLink, error) {
@@ -99,7 +109,32 @@ func taskRefViews(tasks []ledger.LaneTask) []TaskRefView {
 }
 
 func taskLinksAnswer(lane ledger.LaneState) TaskLinks {
-	return TaskLinks{SessionID: lane.LaneID, Description: lane.Description, Tasks: taskRefViews(lane.Tasks)}
+	answer := TaskLinks{
+		SessionID: lane.LaneID, Description: lane.Description, Tasks: taskRefViews(lane.Tasks),
+		PullRequests: make([]PullRequestTasks, 0, len(lane.PullRequests)),
+	}
+	for _, link := range lane.PullRequests {
+		answer.PullRequests = append(answer.PullRequests, PullRequestTasks{URL: link.URL, Tasks: taskRefViews(link.Tasks)})
+	}
+	return answer
+}
+
+// taskTarget resolves where references go: the session itself when rawURL is
+// empty, otherwise exactly that linked pull request.
+func taskTarget(lane ledger.LaneState, rawURL string) (string, []ledger.LaneTask, error) {
+	if rawURL == "" {
+		return "", lane.Tasks, nil
+	}
+	ref, err := pullrequest.Parse(rawURL)
+	if err != nil {
+		return "", nil, err
+	}
+	link, linked := laneLink(lane, ref.URL)
+	if !linked {
+		return "", nil, fmt.Errorf("%w: %s is not linked to %s; add it with `sessions pr add %s %s`",
+			ErrPullRequestNotLinked, ref.URL, lane.LaneID, lane.LaneID, ref.URL)
+	}
+	return ref.URL, link.Tasks, nil
 }
 
 // TaskLinks reports the references recorded for the session. It never
@@ -112,10 +147,11 @@ func (m *Manager) TaskLinks(ctx context.Context, id string) (TaskLinks, error) {
 	return taskLinksAnswer(lane), nil
 }
 
-// LinkTasks records the references for the session. References already
-// linked are not recorded again, except that stating a project for one whose
-// scope was unresolved records that project.
-func (m *Manager) LinkTasks(ctx context.Context, id string, raws []string, project string) (TaskLinks, error) {
+// LinkTasks records the references for the session, or for exactly the
+// linked pull request rawURL names. References already linked there are not
+// recorded again, except that stating a project for one whose scope was
+// unresolved records that project.
+func (m *Manager) LinkTasks(ctx context.Context, id string, raws []string, project, rawURL string) (TaskLinks, error) {
 	links, err := parseTaskLinks(raws, project)
 	if err != nil {
 		return TaskLinks{}, err
@@ -124,26 +160,31 @@ func (m *Manager) LinkTasks(ctx context.Context, id string, raws []string, proje
 		return TaskLinks{}, fmt.Errorf("%w: name at least one task reference", ErrTaskRefInvalid)
 	}
 	return m.writeTaskLinks(ctx, id, func(lane ledger.LaneState) (bool, error) {
-		pending := newTaskLinks(lane.Tasks, links)
+		url, current, err := taskTarget(lane, rawURL)
+		if err != nil {
+			return false, err
+		}
+		pending := targetTaskLinks(newTaskLinks(current, links), url)
 		if len(pending) == 0 {
 			return false, nil
 		}
 		added := 0
 		for _, link := range pending {
-			if !hasTaskRef(lane.Tasks, link.Ref) {
+			if !hasTaskRef(current, link.Ref) {
 				added++
 			}
 		}
-		if len(lane.Tasks)+added > taskref.MaxPerTarget {
-			return false, fmt.Errorf("%w: a session carries at most %d task references", ErrTaskRefInvalid, taskref.MaxPerTarget)
+		if len(current)+added > taskref.MaxPerTarget {
+			return false, fmt.Errorf("%w: a session or pull request carries at most %d task references", ErrTaskRefInvalid, taskref.MaxPerTarget)
 		}
 		return true, m.options.TaskLinks.RecordTaskLinked(ctx, ledger.TaskLinked{Meta: ledger.Meta{LaneID: id}, Links: pending})
 	})
 }
 
-// UnlinkTasks removes the references. Unlinking one that is not linked
+// UnlinkTasks removes the references from the session, or from exactly the
+// linked pull request rawURL names. Unlinking one that is not linked there
 // records nothing.
-func (m *Manager) UnlinkTasks(ctx context.Context, id string, raws []string) (TaskLinks, error) {
+func (m *Manager) UnlinkTasks(ctx context.Context, id string, raws []string, rawURL string) (TaskLinks, error) {
 	links, err := parseTaskLinks(raws, "")
 	if err != nil {
 		return TaskLinks{}, err
@@ -152,15 +193,20 @@ func (m *Manager) UnlinkTasks(ctx context.Context, id string, raws []string) (Ta
 		return TaskLinks{}, fmt.Errorf("%w: name at least one task reference", ErrTaskRefInvalid)
 	}
 	return m.writeTaskLinks(ctx, id, func(lane ledger.LaneState) (bool, error) {
+		url, current, err := taskTarget(lane, rawURL)
+		if err != nil {
+			return false, err
+		}
 		present := make([]ledger.TaskLink, 0, len(links))
 		for _, link := range links {
-			if hasTaskRef(lane.Tasks, link.Ref) {
+			if hasTaskRef(current, link.Ref) {
 				present = append(present, link)
 			}
 		}
 		if len(present) == 0 {
 			return false, nil
 		}
+		present = targetTaskLinks(present, url)
 		return true, m.options.TaskLinks.RecordTaskUnlinked(ctx, ledger.TaskUnlinked{Meta: ledger.Meta{LaneID: id}, Links: present})
 	})
 }
