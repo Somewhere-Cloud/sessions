@@ -88,7 +88,6 @@ Daily workflows:
   verdict                  read or emit an explicit producer verdict
   pr                       link a lane to its GitHub pull requests and read their status
   task                     record which tasks a session works on
-  observations             show what Sessions observed about a session, fact by fact
   move                     continue an ended conversation on another machine
   adopt                    bind an existing conversation into Sessions
   resume (continue, resurrect) resume one saved conversation
@@ -1221,25 +1220,6 @@ Examples:
   sessions task link 0123abcd gh:acme/app#12
   sessions --json task 0123abcd
   sessions task unlink 0123abcd gh:acme/app#12
-
---json may appear before the command or among its options. --machine, --direct, --host, and --port must appear before the command. Arguments after `sessions run --` always belong to the child command.
-```
-
-## `sessions observations`
-
-```text
-Usage:
-  sessions observations <session>
-
-show what Sessions observed about a session, fact by fact
-
-Print the session's observation facts, one per line, each with its source: runner (Sessions' own runner and daemon boundary, never provider liveness), provider-stream, transcript-file, rollout-file, terminal, or derived. Unknown facts say why: not observable for this runtime, not observed for this record, or not observed yet. A capability says what can be observed, not that anything happened; a tool result is not success; terminal output is not a provider record; nothing here infers progress, blocking, completion, or a permission cause.
-
---json writes the daemon's answer unchanged: the observations block and its facts. That is the explicit export to build a review snapshot from; Sessions reads no transcript and contacts no provider to produce it.
-
-Examples:
-  sessions observations 0123abcd
-  sessions --json observations 0123abcd > observations.json
 
 --json may appear before the command or among its options. --machine, --direct, --host, and --port must appear before the command. Arguments after `sessions run --` always belong to the child command.
 ```

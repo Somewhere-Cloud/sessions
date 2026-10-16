@@ -41,7 +41,7 @@ This document records the behavior of the normative Go daemon in
   `/events`, `/model-options`, `/model`, `/input`, `/submit`, `/approve`, `/retry`, `/retry/stop`, `/name`,
   `/tags`, `/upload`, `/display-parent`, `/set-aside`, the bare `DELETE`)
   still fall through to the 404 body. `/pin`, `/wait`, `/wait-state`,
-  `/verdict`, `/pr`, `/pr/refresh`, `/prs`, `/prs/refresh`, `/tasks`, and `/observations` return 405. Either way the request is authenticated before the
+  `/verdict`, `/pr`, `/pr/refresh`, `/prs`, `/prs/refresh`, and `/tasks` return 405. Either way the request is authenticated before the
   method is judged, so a wrong method on an API path normally requires auth
   before returning 404 or 405. Each route entry below states its own
   behavior where it differs.
@@ -601,8 +601,7 @@ sessions as before.
 fact with its source. It infers nothing: not progress, not blocked, not done,
 and not a permission cause. `null` means unknown or not observable for this
 runtime, never "no" or zero. The same projection is served by the listing,
-`sessions status`, team rows, the wait route, and
-`GET /api/sessions/:id/observations`; clients do not reclassify.
+`sessions status`, team rows, and the wait route; clients do not reclassify.
 
 ```json
 {"version":1,
@@ -697,22 +696,6 @@ Values: `capabilities.runtime` is `claude-structured`, `codex-app-server`,
   Structured runtimes and shells have none.
 - Nothing here reports filesystem or source writes; terminal output is not a
   write record.
-
-### `GET /api/sessions/:id/observations`
-
-Auth required. The explicit export of one session's observations:
-`{"session_id","observations","facts"}`. `facts` flattens the block into one
-entry per version-1 field, `{"name":"tools.open_count","value":1,"source":"provider-stream"}`,
-in a stable order. `source` is one of `runner` (Sessions' own runner and
-daemon boundary: transport, dispatch, input), `provider-stream`,
-`transcript-file`, `rollout-file`, `terminal`, or `derived` (from the runtime
-kind or Sessions' own bookkeeping). An unknown fact has no `value` and carries
-`"unknown":true` with a `reason`: a whole block reads `not observable for this
-runtime` or `not observed for this record`. Ended and restored sessions answer
-with what is known. It reads only what the daemon holds -- no transcript, no
-provider, no network -- and changes nothing. An unknown session is 404; other
-methods are 405. `sessions observations <session>` prints the facts, and
-`sessions --json observations` writes this answer.
 
 ### `POST /api/sessions`
 

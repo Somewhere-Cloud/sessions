@@ -3,7 +3,6 @@ package state
 import (
 	"context"
 	"encoding/json"
-	"strings"
 	"testing"
 	"time"
 
@@ -92,53 +91,6 @@ func TestObservedReattachWithToolStartOutsideReplay(t *testing.T) {
 	if tools.OpenCount != 0 || tools.LastEndedAt == nil || tools.HistoryComplete {
 		t.Fatalf("tools = %+v", tools)
 	}
-}
-
-// The flat facts carry a source each, unknown facts carry no value, and a
-// block the runtime cannot produce is distinguished from one this record did
-// not observe.
-func TestObservationFactsCarrySourcesAndUnknowns(t *testing.T) {
-	session, runner := observedSession(t, "/usr/local/bin/codex", KindCodexAppServer)
-	runner.AddCodexEvent(map[string]any{"type": "codex", "source": "codex-app-server", "subtype": "item_started", "timestamp": stamp(time.Now()),
-		"item": map[string]any{"id": "call-1", "type": "commandExecution"}})
-	observations := awaitObservations(t, session, func(o *Observations) bool { return o.Tools.OpenCount == 1 })
-	byName := map[string]ObservedFact{}
-	for _, fact := range observations.Facts() {
-		byName[fact.Name] = fact
-	}
-	for name, source := range map[string]string{
-		"runner.state": FactSourceRunner, "working.value": FactSourceProviderStream, "tools.open_count": FactSourceProviderStream,
-		"tools.history_complete": FactSourceDerived, "capabilities.runtime": FactSourceDerived, "last.terminal_output_at": FactSourceTerminal,
-	} {
-		if byName[name].Source != source {
-			t.Fatalf("%s source = %q, want %q", name, byName[name].Source, source)
-		}
-	}
-	encoded, _ := json.Marshal(byName["runner.exit_code"])
-	if strings.Contains(string(encoded), `"value"`) || !byName["runner.exit_code"].Unknown {
-		t.Fatalf("unknown fact carried a value: %s", encoded)
-	}
-	encoded, _ = json.Marshal(byName["working.value"])
-	if !strings.Contains(string(encoded), `"value":`) {
-		t.Fatalf("a known false/true value was dropped: %s", encoded)
-	}
-	shell := RestoredObservations(SessionInfo{Cmd: "/bin/sh"}).Facts()
-	restoredPTY := RestoredObservations(SessionInfo{Cmd: "claude", Tool: ToolClaude}).Facts()
-	if reason := factReason(shell, "turn"); reason != "not observable for this runtime" {
-		t.Fatalf("shell turn reason = %q", reason)
-	}
-	if reason := factReason(restoredPTY, "turn"); reason != "not observed for this record" {
-		t.Fatalf("restored PTY turn reason = %q", reason)
-	}
-}
-
-func factReason(facts []ObservedFact, name string) string {
-	for _, fact := range facts {
-		if fact.Name == name {
-			return fact.Reason
-		}
-	}
-	return ""
 }
 
 // Terminal output does not repair a failed observer.
