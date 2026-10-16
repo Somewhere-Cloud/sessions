@@ -62,6 +62,7 @@ type claudeTail struct {
 	emitted       map[string]struct{}
 	emittedOrder  []string
 	unresolved    bool
+	health        readHealth
 	reportedSkips int
 
 	mirror      *TranscriptMirror
@@ -212,6 +213,7 @@ func (tail *claudeTail) attach(path string) {
 	}
 	tail.path = path
 	tail.fileInfo = nil
+	tail.health.reset()
 	tail.restartAtZero()
 	tail.mirror.NoteProviderPath(path)
 	tail.watcher.setPath(path)
@@ -228,6 +230,7 @@ func (tail *claudeTail) detach() {
 	lost := tail.path
 	tail.path = ""
 	tail.fileInfo = nil
+	tail.health.reset()
 	tail.restartAtZero()
 	tail.watcher.setPath("")
 	tail.watcher.emitSignal(tail.ctx, SignalDetached, "the provider transcript "+lost+" can no longer be read")
@@ -282,7 +285,11 @@ func (tail *claudeTail) read() {
 	for tail.offset < end && tail.ctx.Err() == nil {
 		length := minInt64(end-tail.offset, claudeReadChunk)
 		chunk, readErr := readRange(file, tail.offset, length)
-		if readErr != nil || len(chunk) == 0 {
+		if readErr != nil {
+			tail.health.failed(tail.ctx, tail.watcher, tail.path, readErr)
+			return
+		}
+		if len(chunk) == 0 {
 			return
 		}
 		tail.offset += int64(len(chunk))
@@ -296,6 +303,7 @@ func (tail *claudeTail) read() {
 		tail.mirrorWrote = false
 		_ = tail.mirror.Sync()
 	}
+	tail.health.succeeded(tail.ctx, tail.watcher)
 	tail.hints.add(tail.path)
 }
 

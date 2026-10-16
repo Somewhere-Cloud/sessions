@@ -633,8 +633,8 @@ func (r *runtimeSession) startWatcher(info state.SessionInfo) {
 // usage all resolve through the same provider path.
 // openWatcher starts the provider transcript or rollout watcher and records
 // its health. A watcher can exist before it has found the provider's file; it
-// is following only once a file is bound, and one that cannot start is
-// unresolved with the reason.
+// is following only once a bound file has been read, and one that cannot start
+// is unresolved with the reason.
 func (r *runtimeSession) openWatcher(info state.SessionInfo) (*watch.FileWatcher, string) {
 	var watcher *watch.FileWatcher
 	var err error
@@ -659,7 +659,9 @@ func (r *runtimeSession) openWatcher(info state.SessionInfo) (*watch.FileWatcher
 	case watcher.Path() == "":
 		r.session.SetObserverHealth(observer, state.ObserverUnresolved, "no provider transcript file is bound yet")
 	default:
-		r.session.SetObserverHealth(observer, state.ObserverFollowing, "")
+		// A bound path is not a successful read; the watcher signals
+		// following once it has read the file.
+		r.session.SetObserverHealth(observer, state.ObserverUnresolved, "the provider transcript file has not been read yet")
 	}
 	return watcher, observer
 }
@@ -689,6 +691,10 @@ func (r *runtimeSession) observeWatchSignal(observer string, signal watch.Signal
 		r.session.SetObserverHealth(observer, state.ObserverUnresolved, signal.Detail)
 	case watch.SignalUnresolved:
 		r.session.SetObserverHealth(observer, state.ObserverUnresolved, signal.Detail)
+	case watch.SignalReadFailed:
+		r.session.SetObserverHealth(observer, state.ObserverError, signal.Detail)
+	case watch.SignalFollowing:
+		r.session.SetObserverHealth(observer, state.ObserverFollowing, "")
 	}
 }
 

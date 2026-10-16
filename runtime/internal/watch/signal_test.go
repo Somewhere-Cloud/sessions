@@ -2,10 +2,12 @@ package watch
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -103,9 +105,8 @@ func TestClaudeWatcherSignalsUndecodableRecordsAndALostFile(t *testing.T) {
 	if err := os.Remove(path); err != nil {
 		t.Fatal(err)
 	}
-	lost := collectStream(t, watcher.Events, 1, 3*time.Second)
-	if signal, _ := SignalOf(lost[0]); signal.Kind != SignalDetached || !strings.Contains(signal.Detail, path) {
-		t.Fatalf("lost file signal = %#v", lost[0])
+	if signal := awaitSignal(t, watcher.Events, SignalDetached, 3*time.Second); !strings.Contains(signal.Detail, path) {
+		t.Fatalf("lost file signal = %#v", signal)
 	}
 	if watcher.Path() != "" {
 		t.Fatalf("watcher still reports path %q", watcher.Path())
@@ -121,5 +122,87 @@ func TestDecodedRecordsCannotSpoofASignal(t *testing.T) {
 	}
 	if _, isSignal := SignalOf(event); isSignal {
 		t.Fatal("a decoded record was read as a signal")
+	}
+}
+
+// failReads makes every readRange fail while the returned flag is set. It is
+// installed before a watcher starts and removed after it closes.
+func failReads(t *testing.T) *atomic.Bool {
+	t.Helper()
+	var failing atomic.Bool
+	readRange = func(file *os.File, start, length int64) ([]byte, error) {
+		if failing.Load() {
+			return nil, errors.New("injected read failure")
+		}
+		return readFileRange(file, start, length)
+	}
+	t.Cleanup(func() { readRange = readFileRange })
+	return &failing
+}
+
+// A bound transcript whose reads fail is reported as such, not left
+// following; the read resumes at the same offset, so the record written
+// meanwhile still arrives, followed by following again.
+func TestClaudeReadFailureIsReportedAndResumesWithoutLoss(t *testing.T) {
+	failing := failReads(t)
+	watcher, path := watchClaudeFixture(t, `{"type":"user","uuid":"one"}`+"\n")
+	if got := collectEvents(t, watcher.Events, 1, 3*time.Second); got[0]["uuid"] != "one" {
+		t.Fatalf("first record = %#v", got[0])
+	}
+	awaitSignal(t, watcher.Events, SignalFollowing, 3*time.Second)
+	failing.Store(true)
+	appendLine(t, path, `{"type":"user","uuid":"two"}`)
+	if signal := awaitSignal(t, watcher.Events, SignalReadFailed, 3*time.Second); !strings.Contains(signal.Detail, "injected read failure") || !strings.Contains(signal.Detail, path) {
+		t.Fatalf("read failure signal = %#v", signal)
+	}
+	failing.Store(false)
+	stream := collectStream(t, watcher.Events, 2, 3*time.Second)
+	if stream[0]["uuid"] != "two" || signalKind(stream[1]) != SignalFollowing {
+		t.Fatalf("after recovery = %#v", stream)
+	}
+	if watcher.Path() != path {
+		t.Fatalf("a read failure unbound the file: %q", watcher.Path())
+	}
+}
+
+// A Codex backfill whose read fails is reported, and is retried rather than
+// replaced by a live read from an offset the backfill never set.
+func TestCodexBackfillReadFailureIsReportedAndRetried(t *testing.T) {
+	failing := failReads(t)
+	failing.Store(true)
+	watcher := watchCodexFixture(t, []string{codexMessageLine(t, "only")})
+	if signal := awaitSignal(t, watcher.Events, SignalReadFailed, 3*time.Second); !strings.Contains(signal.Detail, "injected read failure") {
+		t.Fatalf("read failure signal = %#v", signal)
+	}
+	failing.Store(false)
+	stream := collectStream(t, watcher.Events, 2, 3*time.Second)
+	if eventText(stream[0]) != "only" || signalKind(stream[1]) != SignalFollowing {
+		t.Fatalf("after recovery = %#v", stream)
+	}
+	assertNoEvent(t, watcher.Events, 100*time.Millisecond)
+}
+
+// The same read failure is reported once, not on every poll.
+func TestRepeatedReadFailureIsReportedOnce(t *testing.T) {
+	failing := failReads(t)
+	failing.Store(true)
+	watcher := watchCodexFixture(t, []string{codexMessageLine(t, "only")})
+	awaitSignal(t, watcher.Events, SignalReadFailed, 3*time.Second)
+	select {
+	case event := <-watcher.Events:
+		t.Fatalf("a repeated failure was reported again: %#v", event)
+	case <-time.After(100 * time.Millisecond):
+	}
+}
+
+func appendLine(t *testing.T, path, line string) {
+	t.Helper()
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	if _, err := file.WriteString(line + "\n"); err != nil {
+		t.Fatal(err)
 	}
 }

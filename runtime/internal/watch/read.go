@@ -6,7 +6,10 @@ import (
 	"os"
 )
 
-func readRange(file *os.File, start, length int64) ([]byte, error) {
+// readRange is a variable so tests can inject read failures.
+var readRange = readFileRange
+
+func readFileRange(file *os.File, start, length int64) ([]byte, error) {
 	if length <= 0 {
 		return []byte{}, nil
 	}

@@ -725,10 +725,12 @@ Values: `capabilities.runtime` is `claude-structured`, `codex-app-server`,
   runtimes that cannot observe approvals. A pending approval is a fact, not a
   claim about why a turn is quiet.
 - `observers` are transcript or rollout watchers: `unresolved` when the
-  provider file cannot be found or bound yet, or the bound file can no longer
-  be read; `error` with the last watcher error, including a skipped record;
-  `following` again only after the watcher delivers a record read from
-  a bound file (terminal output never recovers it). An observer error keeps
+  provider file cannot be found, has not been read yet, or can no longer be
+  opened; `error` with the last watcher error, including a skipped record or
+  a failed read of the bound file (the read resumes where it stopped, so a
+  failed read alone is not a gap); `following` only after the watcher has
+  read the bound file successfully or delivered a record from it (terminal
+  output never recovers it). An observer error keeps
   every fact already observed. `since` is when the observer entered its state.
   Structured runtimes and shells have none.
 - Nothing here reports filesystem or source writes; terminal output is not a

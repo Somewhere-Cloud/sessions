@@ -97,3 +97,23 @@ func eventText(event SessionEvent) string {
 	}
 	return text
 }
+
+// awaitSignal returns the next watcher signal of kind, passing over records
+// and other signals.
+func awaitSignal(t *testing.T, events <-chan SessionEvent, kind SignalKind, timeout time.Duration) Signal {
+	t.Helper()
+	deadline := time.After(timeout)
+	for {
+		select {
+		case event, ok := <-events:
+			if !ok {
+				t.Fatalf("event channel closed before a %s signal", kind)
+			}
+			if signal, isSignal := SignalOf(event); isSignal && signal.Kind == kind {
+				return signal
+			}
+		case <-deadline:
+			t.Fatalf("timed out waiting for a %s signal", kind)
+		}
+	}
+}

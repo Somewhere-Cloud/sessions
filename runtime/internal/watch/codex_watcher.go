@@ -97,6 +97,7 @@ type codexTail struct {
 	inputCache    codexInputCache
 
 	reportedSkips int
+	health        readHealth
 }
 
 // WatchCodexRollout starts a backfilling Codex rollout watcher.
@@ -201,6 +202,7 @@ func (tail *codexTail) attach(path string) {
 	tail.path = path
 	tail.resetReadState()
 	tail.fileInfo = nil
+	tail.health.reset()
 	tail.watcher.setPath(path)
 	tail.hints.add(filepath.Dir(path))
 	tail.hints.add(path)
@@ -211,6 +213,7 @@ func (tail *codexTail) detach() {
 	lost := tail.path
 	tail.path = ""
 	tail.fileInfo = nil
+	tail.health.reset()
 	tail.resetReadState()
 	tail.watcher.setPath("")
 	tail.watcher.emitSignal(tail.ctx, SignalDetached, "the Codex rollout "+lost+" can no longer be read")
@@ -250,12 +253,18 @@ func (tail *codexTail) read() {
 		info.Size() < tail.offset ||
 		!tail.anchor.intact(file, tail.offset)
 	if needsBackfill {
-		tail.backfill(file, info)
+		// A failed backfill leaves fileInfo unset, so the next read retries
+		// it rather than reading live from an offset it never established.
+		if err := tail.backfill(file, info); err != nil {
+			tail.health.failed(tail.ctx, tail.watcher, tail.path, err)
+			return
+		}
 		// Re-stat once for an append that raced the attach snapshot. The byte
 		// offset is already the exact snapshot boundary, so this is a no-gap,
 		// no-duplicate live handoff.
 		info, err = file.Stat()
 		if err != nil {
+			tail.health.failed(tail.ctx, tail.watcher, tail.path, err)
 			return
 		}
 	}
@@ -264,25 +273,35 @@ func (tail *codexTail) read() {
 	for tail.offset < end && tail.ctx.Err() == nil {
 		liveEnd := minInt64(end, tail.offset+codexReadByteLimit)
 		chunk, readErr := readRange(file, tail.offset, liveEnd-tail.offset)
-		if readErr != nil || len(chunk) == 0 {
+		if readErr != nil {
+			tail.health.failed(tail.ctx, tail.watcher, tail.path, readErr)
+			return
+		}
+		if len(chunk) == 0 {
 			return
 		}
 		tail.offset += int64(len(chunk))
 		tail.anchor.advance(chunk)
 		tail.consume(chunk)
 	}
+	if tail.ctx.Err() == nil {
+		tail.health.succeeded(tail.ctx, tail.watcher)
+	}
 	tail.hints.add(tail.path)
 }
 
-func (tail *codexTail) backfill(file *os.File, info os.FileInfo) {
+func (tail *codexTail) backfill(file *os.File, info os.FileInfo) error {
 	snapshotEnd := info.Size()
 	windowStart := snapshotEnd - codexReadByteLimit
 	if windowStart < 0 {
 		windowStart = 0
 	}
 	window, err := readRange(file, windowStart, snapshotEnd-windowStart)
-	if err != nil || tail.ctx.Err() != nil {
-		return
+	if err != nil {
+		return err
+	}
+	if tail.ctx.Err() != nil {
+		return nil
 	}
 	tail.resetReadState()
 	tail.fileInfo = info
@@ -298,10 +317,11 @@ func (tail *codexTail) backfill(file *os.File, info os.FileInfo) {
 		if !tail.watcher.emitSignal(tail.ctx, SignalWindowed, fmt.Sprintf(
 			"read only the last %d bytes of %s; earlier records were not read", int64(len(window)-replayStart), tail.path,
 		)) {
-			return
+			return nil
 		}
 	}
 	tail.consume(window[replayStart:])
+	return nil
 }
 
 func boundedBackfillStart(buffer []byte, windowStart int64) int {

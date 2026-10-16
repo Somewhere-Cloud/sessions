@@ -154,3 +154,18 @@ func TestUnreadableScreenWithLowOutputKeepsPTYClaudeWorking(t *testing.T) {
 		t.Fatal("an unreadable screen marked the terminal turn done")
 	}
 }
+
+// Following means the bound file was read, not that a path was found or that
+// a record arrived: an empty transcript that reads cleanly is followed.
+func TestReadableEmptyTranscriptIsFollowed(t *testing.T) {
+	_, session, transcript := startTranscriptSession(t)
+	if err := os.WriteFile(transcript, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	observations := awaitObservations(t, session, "the empty transcript to be followed", func(o *state.Observations) bool {
+		return observerState(o, observerClaudeTranscript) == state.ObserverFollowing
+	})
+	if observations.Tools == nil || !observations.Tools.HistoryComplete {
+		t.Fatalf("a clean read of an empty file marked a gap: %+v", observations.Tools)
+	}
+}
