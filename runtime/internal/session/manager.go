@@ -286,6 +286,9 @@ type runtimeSession struct {
 	preTurnOutput      bool
 	preTurnBlocked     bool
 	preTurnInspectedAt time.Time
+	// readScreen replaces the session snapshot in tests that need a failed
+	// screen read; nil reads the session.
+	readScreen func() (string, error)
 }
 
 func NewManager(config state.Config, launcher proto.RunnerLauncher, options ...ManagerOptions) *Manager {

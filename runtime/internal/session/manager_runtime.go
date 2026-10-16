@@ -443,7 +443,17 @@ func (r *runtimeSession) tick() {
 			// Claude's working indicator keeps the working flag it had rather
 			// than producing an idle edge that would classify the frozen
 			// screen as completed; a real finish repaints the footer away.
-			next = info.Working && r.screenStillWorking()
+			// A screen that cannot be read is no evidence either way, so the
+			// working flag and its source stay as they were.
+			if info.Working {
+				still, read := r.screenStillWorking()
+				if !read {
+					return
+				}
+				next = still
+			} else {
+				next = false
+			}
 			if next {
 				source = state.WorkingFromTerminalHeuristic
 			}
@@ -463,11 +473,20 @@ func (r *runtimeSession) tick() {
 }
 
 // screenStillWorking reports whether the PTY screen still shows Claude's
-// working indicator. It is read only while the session is working, so idle
-// sessions take no snapshot.
-func (r *runtimeSession) screenStillWorking() bool {
-	snapshot, _, err := r.session.Snapshot(context.Background(), 0)
-	return err == nil && ClaudeWorkingFromSnapshot(snapshot)
+// working indicator, and whether the screen could be read at all. It is read
+// only while the session is working, so idle sessions take no snapshot.
+func (r *runtimeSession) screenStillWorking() (working, read bool) {
+	var snapshot string
+	var err error
+	if r.readScreen != nil {
+		snapshot, err = r.readScreen()
+	} else {
+		snapshot, _, err = r.session.Snapshot(context.Background(), 0)
+	}
+	if err != nil {
+		return false, false
+	}
+	return ClaudeWorkingFromSnapshot(snapshot), true
 }
 
 func (r *runtimeSession) setWorking(next bool) {

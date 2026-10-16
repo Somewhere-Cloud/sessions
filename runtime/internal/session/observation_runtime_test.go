@@ -63,6 +63,57 @@ func TestFrozenPTYClaudeScreenDoesNotPublishCompleted(t *testing.T) {
 	}
 }
 
+// A screen that cannot be read is no evidence the working indicator cleared:
+// a working PTY Claude session with no new output keeps working, with no idle
+// or completion edge, until a read succeeds.
+func TestUnreadableScreenKeepsPTYClaudeWorking(t *testing.T) {
+	root := t.TempDir()
+	launcher := prototest.NewLauncher()
+	manager := NewManager(testConfig(root), launcher, ManagerOptions{DisableWatchers: true, ActivityInterval: time.Hour, Notify: func(PushPayload) {}})
+	defer manager.Close()
+	created, err := manager.Create(context.Background(), state.CreateSessionRequest{Cmd: "/usr/local/bin/claude", Cwd: root, ProviderTerminal: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	manager.mu.Lock()
+	runtime := manager.runtimes[created.ID]
+	manager.mu.Unlock()
+	runtime.tick()
+	launcher.Runner(created.ID).AddOutput("Reading files\r\n✻ Thinking… · esc to interrupt\r\n" + strings.Repeat(" ", 120))
+	<-runtime.outputObserved
+	runtime.tick()
+	session, _ := manager.Get(created.ID)
+	if !session.Info().Working {
+		t.Fatal("the working screen was not observed as working")
+	}
+	runtime.readScreen = func() (string, error) { return "", state.ErrNoTerminalMirror }
+	for range 12 {
+		runtime.tick()
+	}
+	info := session.Info()
+	if !info.Working || info.IdleReason == state.IdleReasonCompleted {
+		t.Fatalf("an unreadable screen published an ending: working=%v idleReason=%q", info.Working, info.IdleReason)
+	}
+	if source := info.Observations.Working.Source; source != state.WorkingFromTerminalHeuristic {
+		t.Fatalf("working source = %q", source)
+	}
+	if turn := info.Observations.Turn; turn == nil || turn.EndedAt != nil {
+		t.Fatalf("an unreadable screen ended an observed turn: %+v", turn)
+	}
+	runtime.mu.Lock()
+	done := runtime.terminalTurnDone
+	runtime.mu.Unlock()
+	if done {
+		t.Fatal("an unreadable screen marked the terminal turn done")
+	}
+
+	runtime.readScreen = func() (string, error) { return "Done.\r\n> ", nil }
+	runtime.tick()
+	if session.Info().Working {
+		t.Fatal("a readable screen without the indicator did not end the working flag")
+	}
+}
+
 // A transcript watcher that cannot find the provider's file is reported as
 // unresolved with its reason, not silently absent.
 func TestUnresolvedTranscriptWatcherIsReported(t *testing.T) {
