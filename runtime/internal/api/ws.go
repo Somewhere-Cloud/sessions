@@ -290,12 +290,18 @@ type streamOptions struct {
 	sessionID         string
 	includeOutput     bool
 	includeClaudeLive bool
+	releaseTerminal   func()
 	onExit            func()
 	onUnavailable     func()
 }
 
 func streamAttachment(ctx context.Context, peer *wsPeer, attachment state.Attachment, options streamOptions) {
 	for event := range attachment.Events {
+		// A client can reattach as soon as it reads the terminal frame. Release
+		// the mux slot first; single-mode socket closing still happens after send.
+		if (event.Kind == proto.EventExit || event.Kind == proto.EventRunnerLost) && options.releaseTerminal != nil {
+			options.releaseTerminal()
+		}
 		var message map[string]any
 		switch event.Kind {
 		case proto.EventOutput:

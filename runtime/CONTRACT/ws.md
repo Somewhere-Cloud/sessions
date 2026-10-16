@@ -284,8 +284,10 @@ the separate recoverable form:
 
 `unreachable` means only that sessionsd lost its runner connection. The session
 remains listed, readable, and attachable; it is not marked ended. Mux mode
-releases that one attachment so the client can retry while other streams stay
-open. Single-session mode sends the message, then closes with WebSocket status
+releases that one attachment before sending the terminal frame so an immediate
+client retry is not mistaken for a duplicate attach. This ordering also applies
+to actual exit frames; other streams stay open. Single-session mode sends the
+message, then closes with WebSocket status
 1012 so the client reconnects. A successful runner reattach replaces the
 unreachable connection under the same Sessions ID.
 
