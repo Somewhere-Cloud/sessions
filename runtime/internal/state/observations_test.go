@@ -67,7 +67,7 @@ func TestObservedStructuredToolOpenForHours(t *testing.T) {
 	if observations.Capabilities.Runtime != "codex-app-server" || observations.Capabilities.ToolRecords != ObservedProviderStream || observations.Capabilities.TerminalOutput {
 		t.Fatalf("capabilities = %+v", observations.Capabilities)
 	}
-	if observations.Turn == nil || observations.Turn.Open == nil || !*observations.Turn.Open || observations.Turn.StartedBy != "provider" || observations.Turn.EndedAt != nil {
+	if observations.Turn == nil || observations.Turn.Open == nil || !*observations.Turn.Open || deref(observations.Turn.StartedBy) != "provider" || observations.Turn.EndedAt != nil {
 		t.Fatalf("turn = %+v", observations.Turn)
 	}
 	if tool := observations.Tools.Open[0]; tool.ID != "call-1" || tool.StartedAt == nil || *tool.StartedAt != started.UnixMilli() {
@@ -108,7 +108,7 @@ func TestObservedClaudeDispatchIsNotProviderEvidence(t *testing.T) {
 	base := time.Now().Add(-time.Minute)
 	runner.AddCodexEvent(map[string]any{"type": "claude", "subtype": "turn_started", "source": "claude-p-stream-json", "origin": "sessions", "timestamp": stamp(base)})
 	observations := awaitObservations(t, session, func(o *Observations) bool { return o.Turn != nil && o.Turn.Open != nil })
-	if observations.Turn.StartedBy != "sessions-dispatch" || observations.Turn.ProviderConfirmedAt != nil ||
+	if deref(observations.Turn.StartedBy) != "sessions-dispatch" || observations.Turn.ProviderConfirmedAt != nil ||
 		observations.Last.ProviderRecordObservedAt != nil || observations.Last.ProviderRecordEventAt != nil {
 		t.Fatalf("dispatch read as provider evidence: turn=%+v last=%+v", observations.Turn, observations.Last)
 	}
@@ -117,10 +117,10 @@ func TestObservedClaudeDispatchIsNotProviderEvidence(t *testing.T) {
 		"message": map[string]any{"content": []any{map[string]any{"type": "tool_use", "id": "toolu_1", "name": "Bash"}}}})
 	runner.AddCodexEvent(map[string]any{"type": "result", "subtype": "success", "source": "claude-p-stream-json", "session_id": "s", "timestamp": stamp(base.Add(3 * time.Second))})
 	observations = awaitObservations(t, session, func(o *Observations) bool { return o.Turn.EndedAt != nil })
-	if *observations.Turn.ProviderConfirmedAt != base.Add(time.Second).UnixMilli() || observations.Turn.EndedBy != "provider-result" || *observations.Turn.Open {
+	if *observations.Turn.ProviderConfirmedAt != base.Add(time.Second).UnixMilli() || deref(observations.Turn.EndedBy) != "provider-result" || *observations.Turn.Open {
 		t.Fatalf("turn = %+v", observations.Turn)
 	}
-	if observations.Tools.OpenCount != 1 || observations.Tools.Open[0].Name != "Bash" {
+	if observations.Tools.OpenCount != 1 || deref(observations.Tools.Open[0].Name) != "Bash" {
 		t.Fatalf("tools = %+v", observations.Tools)
 	}
 }

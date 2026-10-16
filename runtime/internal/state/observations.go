@@ -48,6 +48,7 @@ type Observations struct {
 	Turn         *ObservedTurn        `json:"turn"`
 	Last         *ObservedLast        `json:"last"`
 	Tools        *ObservedTools       `json:"tools"`
+	Approval     *ObservedApproval    `json:"approval"`
 	Observers    []ObserverHealth     `json:"observers"`
 }
 
@@ -56,12 +57,28 @@ type ObservedCapabilities struct {
 	TurnBoundaries string `json:"turn_boundaries"`
 	ToolRecords    string `json:"tool_records"`
 	TerminalOutput bool   `json:"terminal_output"`
+	// Approvals is "runner-brokered" when the runner relays the provider's
+	// permission requests as records, otherwise "none".
+	Approvals string `json:"approvals"`
 }
 
 type ObservedRunner struct {
 	State    string `json:"state"`
 	Since    *int64 `json:"since"`
 	ExitCode *int   `json:"exit_code"`
+	// AdoptedAt is when this daemon attached to a runner it did not launch
+	// (after a restart or reconnect); null for a runner it launched.
+	AdoptedAt *int64 `json:"adopted_at"`
+}
+
+// ObservedApproval is a permission request the runner relayed and that has
+// not been answered. Pending false means none is outstanding; it says
+// nothing about why a turn is quiet.
+type ObservedApproval struct {
+	Pending     bool    `json:"pending"`
+	ID          *string `json:"id"`
+	Kind        *string `json:"kind"`
+	RequestedAt *int64  `json:"requested_at"`
 }
 
 type ObservedWorking struct {
@@ -74,12 +91,12 @@ type ObservedWorking struct {
 // provider evidence; ProviderConfirmedAt is the provider's own first record.
 // A turn is never ended by silence.
 type ObservedTurn struct {
-	Open                *bool  `json:"open"`
-	StartedAt           *int64 `json:"started_at"`
-	StartedBy           string `json:"started_by,omitempty"`
-	ProviderConfirmedAt *int64 `json:"provider_confirmed_at"`
-	EndedAt             *int64 `json:"ended_at"`
-	EndedBy             string `json:"ended_by,omitempty"`
+	Open                *bool   `json:"open"`
+	StartedAt           *int64  `json:"started_at"`
+	StartedBy           *string `json:"started_by"`
+	ProviderConfirmedAt *int64  `json:"provider_confirmed_at"`
+	EndedAt             *int64  `json:"ended_at"`
+	EndedBy             *string `json:"ended_by"`
 }
 
 // ObservedLast separates two kinds of time. An observed time is when Sessions
@@ -98,9 +115,9 @@ type ObservedLast struct {
 }
 
 type ObservedTool struct {
-	ID        string `json:"id"`
-	Name      string `json:"name,omitempty"`
-	StartedAt *int64 `json:"started_at"`
+	ID        string  `json:"id"`
+	Name      *string `json:"name"`
+	StartedAt *int64  `json:"started_at"`
 }
 
 // ObservedTools pairs tool starts and ends by id. HistoryComplete is false
@@ -113,8 +130,12 @@ type ObservedTools struct {
 	LastEndedAt   *int64         `json:"last_ended_at"`
 	// LastEndStatus is how the most recently received tool end was reported:
 	// result, error, cancelled, or unknown. A result is not proof of success.
-	LastEndStatus   *string `json:"last_end_status"`
-	HistoryComplete bool    `json:"history_complete"`
+	LastEndStatus *string `json:"last_end_status"`
+	// ObservedSince is the earliest record time in the observed window, or
+	// when this daemon attached if that is earlier or no record had a time.
+	// Calls started before it are outside what was observed.
+	ObservedSince   *int64 `json:"observed_since"`
+	HistoryComplete bool   `json:"history_complete"`
 	// OpenCountExact is true only when the history is complete and no call
 	// was dropped by the tracking bound; otherwise open_count is a lower
 	// bound of what was observed.
@@ -160,6 +181,9 @@ type observationTracker struct {
 	lastToolEndedAt    int64
 	lastToolEndStatus  string
 	historyIncomplete  bool
+	firstRecordAt      int64
+	attachedAt         int64
+	adoptedAt          int64
 	toolsDropped       bool
 	// fromStart is true when this daemon launched the session and so saw its
 	// record stream from the beginning. A re-adopted runner's replay is
@@ -205,11 +229,12 @@ func RuntimeOf(info SessionInfo) string {
 // CapabilitiesOf is what the runtime can report. A PTY provider can still
 // report turns and tools from its transcript or rollout file.
 func CapabilitiesOf(runtime string) ObservedCapabilities {
-	capabilities := ObservedCapabilities{Runtime: runtime, TurnBoundaries: ObservedNone, ToolRecords: ObservedNone, TerminalOutput: true}
+	capabilities := ObservedCapabilities{Runtime: runtime, TurnBoundaries: ObservedNone, ToolRecords: ObservedNone, TerminalOutput: true, Approvals: ObservedNone}
 	switch runtime {
 	case "claude-structured", "codex-app-server":
 		capabilities.TurnBoundaries, capabilities.ToolRecords = ObservedProviderStream, ObservedProviderStream
 		capabilities.TerminalOutput = false
+		capabilities.Approvals = "runner-brokered"
 	case "claude-pty":
 		capabilities.TurnBoundaries, capabilities.ToolRecords = ObservedTranscriptFile, ObservedTranscriptFile
 	case "codex-pty":

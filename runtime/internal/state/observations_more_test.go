@@ -3,6 +3,7 @@ package state
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -164,10 +165,62 @@ func TestRolloutTurnUsesRecordTimeOrUnknown(t *testing.T) {
 	session.ObserveRolloutTurn(true, started)
 	session.ObserveRolloutTurn(false, ended)
 	turn = session.Info().Observations.Turn
-	if *turn.Open || *turn.StartedAt != started || *turn.EndedAt != ended || turn.EndedBy != "rollout-file" {
+	if *turn.Open || *turn.StartedAt != started || *turn.EndedAt != ended || deref(turn.EndedBy) != "rollout-file" {
 		t.Fatalf("rollout turn = %+v", turn)
 	}
 	if session.Info().Observations.Capabilities.TurnBoundaries != ObservedRolloutFile {
 		t.Fatal("codex PTY lost its rollout capability")
 	}
+}
+
+func deref(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+// Review points: unknown is JSON null (labels included), working is null until
+// a classifier states its evidence, a re-adopted runner says so, the observed
+// window has a lower bound, and a relayed approval is a plain fact.
+func TestObservationNullsAdoptionWindowAndApproval(t *testing.T) {
+	session, _ := observedSession(t, "/usr/local/bin/claude", "")
+	observations := session.Info().Observations
+	encoded, _ := json.Marshal(observations)
+	for _, want := range []string{`"working":null`, `"started_by":null`, `"ended_by":null`, `"adopted_at":null`, `"approval":null`} {
+		if !strings.Contains(string(encoded), want) {
+			t.Fatalf("fresh PTY observations %s lack %s", encoded, want)
+		}
+	}
+	session.SetWorkingSource(WorkingFromByteActivity)
+	if working := session.Info().Observations.Working; working == nil || working.Source != WorkingFromByteActivity {
+		t.Fatalf("working after a classifier = %+v", working)
+	}
+
+	registry, _, root := observationRegistry(t)
+	runner := prototest.NewRunner(proto.RunnerInfo{ID: "00000000-0000-4000-8000-000000000705", Cmd: "/usr/local/bin/claude", Cwd: root,
+		Cols: 80, Rows: 24, CreatedAt: time.Now().Add(-time.Hour).UnixMilli(), PID: 4246, ProtocolVersion: proto.ProtocolVersion})
+	first := time.Now().Add(-40 * time.Minute)
+	runner.AddCodexEvent(map[string]any{"type": "assistant", "source": "claude-p-stream-json", "timestamp": stamp(first),
+		"message": map[string]any{"content": []any{map[string]any{"type": "tool_use", "id": "toolu_w", "name": "Bash"}}}})
+	runner.AddCodexEvent(map[string]any{"type": "system", "subtype": "approval_requested", "source": "claude-p-stream-json", "origin": "sessions",
+		"timestamp": stamp(first.Add(time.Minute)), "approval": map[string]any{"id": "ap-1", "kind": "command", "summary": "run tests"}})
+	before := time.Now().UnixMilli()
+	adopted, err := registry.RegisterMetadata(context.Background(), runner, RunnerMetadata{Kind: KindClaudeStructured}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	observations = adopted.Info().Observations
+	if observations.Runner.AdoptedAt == nil || *observations.Runner.AdoptedAt < before {
+		t.Fatalf("re-adoption not visible: %+v", observations.Runner)
+	}
+	if since := observations.Tools.ObservedSince; since == nil || *since != first.UnixMilli() {
+		t.Fatalf("observed window lower bound = %v, want the earliest replayed record", since)
+	}
+	if approval := observations.Approval; approval == nil || !approval.Pending || deref(approval.ID) != "ap-1" || deref(approval.Kind) != "command" {
+		t.Fatalf("approval = %+v", approval)
+	}
+	runner.AddCodexEvent(map[string]any{"type": "system", "subtype": "approval_resolved", "source": "claude-p-stream-json", "origin": "sessions",
+		"timestamp": stamp(time.Now()), "approval": map[string]any{"id": "ap-1"}})
+	awaitObservations(t, adopted, func(o *Observations) bool { return o.Approval != nil && !o.Approval.Pending })
 }

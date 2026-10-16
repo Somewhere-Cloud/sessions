@@ -473,10 +473,11 @@ export type ClaudeSessionEvent = StructuredSessionEvent;
 /** Factual, runtime-aware observations (daemon contract version 1). Null means unknown or not observable for this runtime. */
 export interface SessionObservations {
   version: number;
-  capabilities: { runtime: string; turn_boundaries: string; tool_records: string; terminal_output: boolean };
-  runner: { state: string; since: number | null; exit_code: number | null };
+  capabilities: { runtime: string; turn_boundaries: string; tool_records: string; terminal_output: boolean; approvals?: string };
+  runner: { state: string; since: number | null; exit_code: number | null; adopted_at?: number | null };
   working: { value: boolean; source: string } | null;
-  turn: { open: boolean | null; started_at: number | null; started_by?: string; ended_at: number | null; ended_by?: string } | null;
-  tools: { open_count: number; history_complete: boolean } | null;
+  turn: { open: boolean | null; started_at: number | null; started_by: string | null; ended_at: number | null; ended_by: string | null } | null;
+  tools: { open_count: number; open_count_exact?: boolean; history_complete: boolean; observed_since?: number | null } | null;
+  approval?: { pending: boolean; id: string | null; kind: string | null; requested_at: number | null } | null;
   observers: { name: string; state: string; detail?: string; since: number }[];
 }

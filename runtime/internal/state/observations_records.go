@@ -97,6 +97,9 @@ func recordTime(observed, event int64) int64 {
 func (t *observationTracker) observeRecord(value map[string]any, origin recordOrigin, now int64) {
 	observed, event := recordTimes(value, origin, now)
 	at := recordTime(observed, event)
+	if at > 0 && (t.firstRecordAt == 0 || at < t.firstRecordAt) {
+		t.firstRecordAt = at
+	}
 	if sessionsAuthored(value) {
 		t.observeSessionsRecord(value, at, origin)
 		return
@@ -212,7 +215,7 @@ func (t *observationTracker) startTool(id, name string, at int64) {
 	if t.tools == nil {
 		t.tools = make(map[string]ObservedTool)
 	}
-	t.tools[id] = ObservedTool{ID: id, Name: name, StartedAt: optionalMillis(at)}
+	t.tools[id] = ObservedTool{ID: id, Name: optionalString(name), StartedAt: optionalMillis(at)}
 	t.toolOrder = append(t.toolOrder, id)
 }
 

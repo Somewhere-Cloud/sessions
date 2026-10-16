@@ -605,17 +605,19 @@ runtime, never "no" or zero. The same projection is served by the listing,
 
 ```json
 {"version":1,
- "capabilities":{"runtime":"claude-pty","turn_boundaries":"transcript-file","tool_records":"transcript-file","terminal_output":true},
- "runner":{"state":"reachable","since":null,"exit_code":null},
+ "capabilities":{"runtime":"claude-pty","turn_boundaries":"transcript-file","tool_records":"transcript-file",
+                 "terminal_output":true,"approvals":"none"},
+ "runner":{"state":"reachable","since":null,"exit_code":null,"adopted_at":null},
  "working":{"value":true,"source":"terminal-heuristic"},
  "turn":{"open":true,"started_at":1760000000000,"started_by":"provider","provider_confirmed_at":1760000000000,
-         "ended_at":null},
+         "ended_at":null,"ended_by":null},
  "last":{"provider_record_observed_at":null,"provider_record_event_at":1760000000500,
          "terminal_output_at":1760000004000,"transcript_record_event_at":1760000000500,
          "input_dispatched_at":1759999999000,"provider_user_record_at":1760000000000},
  "tools":{"open":[{"id":"toolu_1","name":"Bash","started_at":1760000000500}],"open_count":1,
           "last_started_at":1760000000500,"last_ended_at":null,"last_end_status":null,
-          "history_complete":true,"open_count_exact":true},
+          "observed_since":1759999999500,"history_complete":true,"open_count_exact":true},
+ "approval":null,
  "observers":[{"name":"claude-transcript","state":"following","since":1759999999500}]}
 ```
 
@@ -630,6 +632,19 @@ Values: `capabilities.runtime` is `claude-structured`, `codex-app-server`,
 `transcript-end-turn`, or `rollout-file`. Observer states are `following`,
 `unresolved`, or `error`.
 
+- Units and clocks: every `*_at` and `since` value is Unix epoch
+  milliseconds. Observed times (`runner.*`, `adopted_at`,
+  `provider_record_observed_at`, `terminal_output_at`, `input_dispatched_at`,
+  `observers[].since`) are Sessions' clock on the machine running the session;
+  event times (`*_event_at`, `provider_user_record_at`, and turn or tool times
+  taken from a record) are the record's own claim, possibly another clock.
+  Compare times only within one kind.
+- Unknown is JSON `null` throughout, including labels: `turn.started_by`,
+  `turn.ended_by`, and a tool's `name` are `null` when not observed, never an
+  empty string or omitted.
+- Version policy: adding a field keeps `version: 1`; any change to an existing
+  field's meaning, enum values, or null rule increments `version`. A consumer
+  that froze a snapshot rejects a version it does not know.
 - `capabilities` follow the runtime kind, not the tool, and say what can be
   observed, never that anything happened. A PTY Claude session can report
   turns and tools from its transcript and a PTY Codex session from its rollout
@@ -637,8 +652,12 @@ Values: `capabilities.runtime` is `claude-structured`, `codex-app-server`,
   and `tools` are `null`, and its output is never a turn event. A structured
   runtime has no terminal, so `last.terminal_output_at` is `null`.
 - `runner.state:"reachable"` is Sessions' transport to its runner, never
-  provider liveness.
-- `working` labels the legacy `working` flag with its evidence. It is never
+  provider liveness. `runner.adopted_at` is when this daemon attached to a
+  runner it did not launch (after a restart or reconnect), and `null` for one
+  it launched; after adoption, `terminal_output_at` is `null` until new output.
+- `working` labels the legacy `working` flag with its evidence, and is `null`
+  until a classifier has stated its evidence (`working.source` is then never
+  `unknown`; the legacy flag stays on the record). It is never
   evidence of useful progress, and an open turn on a reachable runner is not
   progress either. A PTY Claude screen that still shows Claude's working
   indicator keeps the flag through silence rather than being read as
@@ -653,7 +672,10 @@ Values: `capabilities.runtime` is `claude-structured`, `codex-app-server`,
   completion, a Sessions-synthesized runner failure, a transcript assistant
   record with `stop_reason:"end_turn"`, or a rollout task completion; silence
   never ends one, and an open turn does not imply recent activity.
-  `{"open":null}` means no boundary was observed.
+  `{"open":null}` means no boundary was observed. `open:true` with
+  `started_by:"sessions-dispatch"` and `provider_confirmed_at:null` means
+  Sessions dispatched a turn and no provider record has confirmed it; it is
+  not a statement that the provider is working.
 - `last` keeps two kinds of time apart. An observed time is when Sessions saw
   something: `provider_record_observed_at` is the newest provider record's
   receipt time, persisted by the runner as `observed_at` (and kept through
@@ -683,11 +705,20 @@ Values: `capabilities.runtime` is `claude-structured`, `codex-app-server`,
   most 1024); `open_count_exact` is `true` only when `history_complete` is and
   no call was dropped by that bound, otherwise `open_count` is a lower bound.
   `history_complete` is `false` for a runner this daemon re-adopted (its replay
-  may be bounded) or when records were unreadable. `last_end_status` is how the
+  may be bounded) or when records were unreadable. `observed_since` is the
+  start of the observed window: the earliest record time seen, or when this
+  daemon attached if earlier or nothing was timed; calls started before it are
+  outside what was observed. `last_end_status` is how the
   most recently received end was reported: `result` (the provider returned a
   result, not a claim of success), `error`, `cancelled` (declined or
   interrupted), or `unknown`. An open tool with no end is reported as that,
   nothing more.
+- `approval` is present when `capabilities.approvals` is `runner-brokered`
+  (structured runtimes, whose runner relays permission requests):
+  `{"pending":true,"id","kind","requested_at"}` for an outstanding request, or
+  `{"pending":false,...nulls}` when none is outstanding. It is `null` for
+  runtimes that cannot observe approvals. A pending approval is a fact, not a
+  claim about why a turn is quiet.
 - `observers` are transcript or rollout watchers: `unresolved` when the
   provider file cannot be found or bound yet, `error` with the last watcher
   error, `following` again only after the watcher delivers a record read from

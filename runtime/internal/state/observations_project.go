@@ -11,7 +11,13 @@ func (s *Session) observationsLocked(info SessionInfo) *Observations {
 		Version: ObservationsVersion, Capabilities: capabilities,
 		Runner: runnerObservation(info), Observers: s.observed.observerList(),
 	}
-	observations.Working = &ObservedWorking{Value: info.Working || info.Retry != nil, Source: s.workingSourceLocked(info, capabilities)}
+	// No classifier has set the working flag yet: its evidence is unknown,
+	// so the block is null rather than a "false" with an unknown source.
+	if source := s.workingSourceLocked(info, capabilities); source != WorkingFromUnknown {
+		observations.Working = &ObservedWorking{Value: info.Working || info.Retry != nil, Source: source}
+	}
+	observations.Runner.AdoptedAt = optionalMillis(s.observed.adoptedAt)
+	observations.Approval = approvalObservation(info, capabilities)
 	observations.Last = &ObservedLast{
 		ProviderRecordObservedAt: optionalMillis(s.observed.providerObservedAt),
 		ProviderRecordEventAt:    optionalMillis(s.observed.providerEventAt),
@@ -48,6 +54,26 @@ func (s *Session) workingSourceLocked(info SessionInfo, capabilities ObservedCap
 	}
 }
 
+func optionalString(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
+}
+
+// approvalObservation reports the outstanding relayed permission request, for
+// runtimes whose runner brokers them.
+func approvalObservation(info SessionInfo, capabilities ObservedCapabilities) *ObservedApproval {
+	if capabilities.Approvals == ObservedNone {
+		return nil
+	}
+	pending := info.PendingApproval
+	if pending == nil {
+		return &ObservedApproval{}
+	}
+	return &ObservedApproval{Pending: true, ID: optionalString(pending.ID), Kind: optionalString(pending.Kind), RequestedAt: optionalMillis(pending.At)}
+}
+
 func runnerObservation(info SessionInfo) ObservedRunner {
 	runner := ObservedRunner{State: "reachable"}
 	switch {
@@ -74,9 +100,9 @@ func (turn turnTracker) project() *ObservedTurn {
 	}
 	open := turn.open
 	return &ObservedTurn{
-		Open: &open, StartedAt: optionalMillis(turn.startedAt), StartedBy: turn.startedBy,
+		Open: &open, StartedAt: optionalMillis(turn.startedAt), StartedBy: optionalString(turn.startedBy),
 		ProviderConfirmedAt: optionalMillis(turn.providerConfirmedAt),
-		EndedAt:             optionalMillis(turn.endedAt), EndedBy: turn.endedBy,
+		EndedAt:             optionalMillis(turn.endedAt), EndedBy: optionalString(turn.endedBy),
 	}
 }
 
@@ -85,6 +111,7 @@ func (t *observationTracker) toolsProjection() *ObservedTools {
 		Open: make([]ObservedTool, 0, min(len(t.toolOrder), maxObservedOpenTools)), OpenCount: len(t.tools),
 		LastStartedAt: optionalMillis(t.lastToolStartedAt), LastEndedAt: optionalMillis(t.lastToolEndedAt),
 		HistoryComplete: t.fromStart && !t.historyIncomplete,
+		ObservedSince:   optionalMillis(t.observedSince()),
 	}
 	tools.OpenCountExact = tools.HistoryComplete && !t.toolsDropped
 	if t.lastToolEndStatus != "" {
@@ -98,6 +125,19 @@ func (t *observationTracker) toolsProjection() *ObservedTools {
 		tools.Open = append(tools.Open, t.tools[id])
 	}
 	return tools
+}
+
+// observedSince is the start of the observed window: the earliest record time
+// seen, or when this daemon attached if that is earlier or nothing was timed.
+func (t *observationTracker) observedSince() int64 {
+	switch {
+	case t.firstRecordAt > 0 && t.attachedAt > 0:
+		return min(t.firstRecordAt, t.attachedAt)
+	case t.firstRecordAt > 0:
+		return t.firstRecordAt
+	default:
+		return t.attachedAt
+	}
 }
 
 // RestoredObservations is the view of a record rebuilt from the ledger after

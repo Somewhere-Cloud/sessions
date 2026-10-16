@@ -607,15 +607,15 @@ func (a *app) writeStatusObservations(observations *state.Observations) error {
 		case turn.Open == nil:
 			lines = append(lines, "turn     no boundary observed")
 		case *turn.Open && turn.StartedAt != nil:
-			lines = append(lines, fmt.Sprintf("turn     open since %s ago (started by %s)", a.ageOf(*turn.StartedAt), turn.StartedBy))
+			lines = append(lines, fmt.Sprintf("turn     open since %s ago (started by %s)", a.ageOf(*turn.StartedAt), orUnknown(turn.StartedBy)))
 		case !*turn.Open && turn.EndedAt != nil:
-			lines = append(lines, fmt.Sprintf("turn     ended %s ago (%s)", a.ageOf(*turn.EndedAt), turn.EndedBy))
+			lines = append(lines, fmt.Sprintf("turn     ended %s ago (%s)", a.ageOf(*turn.EndedAt), orUnknown(turn.EndedBy)))
 		}
 	}
 	if tools := observations.Tools; tools != nil && tools.OpenCount > 0 {
 		line := fmt.Sprintf("tools    %d open", tools.OpenCount)
 		if oldest := tools.Open[0]; oldest.StartedAt != nil {
-			line += fmt.Sprintf(", oldest %s started %s ago", terminalSafe(oldest.Name), a.ageOf(*oldest.StartedAt))
+			line += fmt.Sprintf(", oldest %s started %s ago", terminalSafe(orUnknown(oldest.Name)), a.ageOf(*oldest.StartedAt))
 		}
 		if !tools.HistoryComplete {
 			line += " (history partial)"
@@ -633,4 +633,11 @@ func (a *app) writeStatusObservations(observations *state.Observations) error {
 		}
 	}
 	return nil
+}
+
+func orUnknown(value *string) string {
+	if value == nil {
+		return "unknown"
+	}
+	return *value
 }
