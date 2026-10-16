@@ -44,59 +44,82 @@ func metadataRecord(value map[string]any) bool {
 	return metadataRecordTypes[recordType] || metadataRecordSubtypes[subtype]
 }
 
-// recordTimestamp is the record's own time. A record without one, with an
-// unparseable one, or dated beyond futureSkew is not evidence of when the
-// provider acted, so it reports false rather than borrowing "now".
-func recordTimestamp(value map[string]any, now int64) (int64, bool) {
-	var at int64
-	switch timestamp := value["timestamp"].(type) {
+func parseRecordTime(value any) int64 {
+	switch timestamp := value.(type) {
 	case float64:
-		at = int64(timestamp)
-	case string:
-		parsed, err := time.Parse(time.RFC3339Nano, timestamp)
-		if err != nil {
-			return 0, false
+		if timestamp > 0 {
+			return int64(timestamp)
 		}
-		at = parsed.UnixMilli()
-	default:
-		return 0, false
+	case string:
+		if parsed, err := time.Parse(time.RFC3339Nano, timestamp); err == nil && parsed.UnixMilli() > 0 {
+			return parsed.UnixMilli()
+		}
 	}
-	if at <= 0 || at > now+futureSkew.Milliseconds() {
-		return 0, false
-	}
-	return at, true
+	return 0
 }
 
-// observeRecord applies one structured record.
-func (t *observationTracker) observeRecord(value map[string]any, origin recordOrigin, now int64) {
-	// A record with no usable time still carries facts -- a tool started, a
-	// turn ended -- but its time is unknown: it moves no clock, and the facts
-	// it sets report a null time.
-	at, timed := recordTimestamp(value, now)
-	if !timed {
-		at = 0
+// recordTimes separates when Sessions observed a record from what the record
+// says about itself. observed_at is the runner's persisted receipt time, kept
+// through replay. A timestamp the runner filled in itself (timestamp_source
+// "observed") is an observed time too, never an event time. A live record
+// that carries neither was observed now, by this daemon; a replayed or
+// watcher-read one without them was not observed at a known time, and is
+// never restamped. Event times are reported as given, never checked against
+// the clock: they are the record's claim.
+func recordTimes(value map[string]any, origin recordOrigin, now int64) (observed, event int64) {
+	stamp := parseRecordTime(value["timestamp"])
+	runnerStamped := value["timestamp_source"] == "observed"
+	observed = parseRecordTime(value["observed_at"])
+	if observed == 0 && runnerStamped {
+		observed = stamp
 	}
+	if observed == 0 && origin == fromRunnerStream {
+		observed = now
+	}
+	if !runnerStamped {
+		event = stamp
+	}
+	return observed, event
+}
+
+// recordTime is the single time a turn or tool fact is reported with: the
+// record's own event time when it states one, otherwise when Sessions
+// observed it, otherwise unknown (0).
+func recordTime(observed, event int64) int64 {
+	if event > 0 {
+		return event
+	}
+	return observed
+}
+
+// observeRecord applies one structured record. A record with no usable time
+// still carries facts -- a tool started, a turn ended -- with a null time.
+func (t *observationTracker) observeRecord(value map[string]any, origin recordOrigin, now int64) {
+	observed, event := recordTimes(value, origin, now)
+	at := recordTime(observed, event)
 	if sessionsAuthored(value) {
-		t.observeSessionsRecord(value, at)
+		t.observeSessionsRecord(value, at, origin)
 		return
 	}
 	if metadataRecord(value) {
 		return
 	}
-	if timed {
-		t.providerRecordAt = max(t.providerRecordAt, at)
-		if origin == fromWatcher {
-			t.transcriptRecordAt = max(t.transcriptRecordAt, at)
-		}
+	if origin != fromWatcher {
+		t.providerObservedAt = max(t.providerObservedAt, observed)
+	}
+	t.providerEventAt = max(t.providerEventAt, event)
+	if origin == fromWatcher {
+		t.transcriptEventAt = max(t.transcriptEventAt, event)
 	}
 	t.observeProviderTurn(value, at, origin)
 	t.observeTools(value, at)
 }
 
-func (t *observationTracker) observeSessionsRecord(value map[string]any, at int64) {
+func (t *observationTracker) observeSessionsRecord(value map[string]any, at int64, origin recordOrigin) {
 	switch {
 	case value["type"] == "claude" && value["subtype"] == "turn_started":
 		t.turn.start(at, "sessions-dispatch")
+		t.turn.dispatchedLive = origin == fromRunnerStream
 	case value["type"] == "result":
 		// A failure Sessions synthesized when the provider ended without a
 		// valid result. It ends the turn, labelled as Sessions' own.
@@ -110,7 +133,12 @@ func (t *observationTracker) observeProviderTurn(value map[string]any, at int64,
 	source, _ := value["source"].(string)
 	switch {
 	case recordType == "system" && subtype == "init":
-		t.turn.confirm(at)
+		// Claude's init confirms only a dispatch this daemon saw live, and
+		// only when the init itself arrives live: a replayed init cannot be
+		// tied to the turn now open.
+		if origin == fromRunnerStream && t.turn.dispatchedLive {
+			t.turn.confirm(at)
+		}
 	case source == "codex-app-server" && subtype == "turn_started":
 		t.turn.start(at, "provider")
 	case source == "codex-app-server" && subtype == "turn_completed":
@@ -178,7 +206,7 @@ func (t *observationTracker) startTool(id, name string, at int64) {
 		return
 	}
 	if len(t.tools) >= maxTrackedTools {
-		t.historyIncomplete = true
+		t.toolsDropped = true
 		return
 	}
 	if t.tools == nil {

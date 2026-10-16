@@ -193,11 +193,14 @@ func (f *factList) lastFacts(last *ObservedLast, capabilities ObservedCapabiliti
 		return
 	}
 	provider := capabilitySource(capabilities.TurnBoundaries)
-	f.addMillis("last.provider_record_at", last.ProviderRecordAt, provider)
+	// The observed provider time is Sessions' own observation through its
+	// runner; event times are the records' own claims.
+	f.addMillis("last.provider_record_observed_at", last.ProviderRecordObservedAt, FactSourceRunner)
+	f.addMillis("last.provider_record_event_at", last.ProviderRecordEventAt, provider)
 	f.addMillis("last.terminal_output_at", last.TerminalOutputAt, FactSourceTerminal)
-	f.addMillis("last.transcript_record_at", last.TranscriptRecordAt, provider)
+	f.addMillis("last.transcript_record_event_at", last.TranscriptRecordEventAt, provider)
 	f.addMillis("last.input_dispatched_at", last.InputDispatchedAt, FactSourceRunner)
-	f.addMillis("last.input_confirmed_by_provider_at", last.InputConfirmedByProviderAt, provider)
+	f.addMillis("last.provider_user_record_at", last.ProviderUserRecordAt, provider)
 }
 
 func (f *factList) toolFacts(tools *ObservedTools, capabilities ObservedCapabilities) {
@@ -218,6 +221,7 @@ func (f *factList) toolFacts(tools *ObservedTools, capabilities ObservedCapabili
 		f.add("tools.last_end_status", *tools.LastEndStatus, source)
 	}
 	f.add("tools.history_complete", tools.HistoryComplete, FactSourceDerived)
+	f.add("tools.open_count_exact", tools.OpenCountExact, FactSourceDerived)
 }
 
 // String renders a fact for diagnostics.

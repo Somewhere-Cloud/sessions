@@ -28,13 +28,13 @@ func TestObservedContinuingToolResults(t *testing.T) {
 	use("a", base)
 	result("a", base.Add(time.Minute), false)
 	observations := awaitObservations(t, session, func(o *Observations) bool { return o.Tools.LastEndStatus != nil })
-	if observations.Tools.OpenCount != 0 || *observations.Tools.LastEndStatus != ToolEndResult || *observations.Last.ProviderRecordAt != base.Add(time.Minute).UnixMilli() {
+	if observations.Tools.OpenCount != 0 || *observations.Tools.LastEndStatus != ToolEndResult || *observations.Last.ProviderRecordEventAt != base.Add(time.Minute).UnixMilli() {
 		t.Fatalf("after a result: %+v / %+v", observations.Tools, observations.Last)
 	}
 	use("b", base.Add(2*time.Minute))
 	result("b", base.Add(3*time.Minute), true)
 	observations = awaitObservations(t, session, func(o *Observations) bool { return *o.Tools.LastEndStatus == ToolEndError })
-	if *observations.Last.ProviderRecordAt != base.Add(3*time.Minute).UnixMilli() {
+	if *observations.Last.ProviderRecordEventAt != base.Add(3*time.Minute).UnixMilli() {
 		t.Fatalf("continuing results did not move the provider clock: %+v", observations.Last)
 	}
 	if codexToolEndStatus("declined") != ToolEndCancelled || codexToolEndStatus("completed") != ToolEndResult || codexToolEndStatus("weird") != ToolEndUnknown {
@@ -42,20 +42,36 @@ func TestObservedContinuingToolResults(t *testing.T) {
 	}
 }
 
-// Old runners and old records may carry no timestamp. Their facts still
-// count -- a tool is open, a turn started -- but their times are unknown and
-// they move no clock.
-func TestObservedTimestampLessRecordsStayUnknownInTime(t *testing.T) {
+// Records may carry no timestamp of their own. A live one was observed now,
+// by this daemon, so structured activity is not left unknown; a replayed one
+// was not observed at a known time and is never restamped. Either way its
+// facts -- a tool open, a turn started -- still count.
+func TestObservedTimestampLessRecords(t *testing.T) {
 	session, runner := observedSession(t, "/usr/local/bin/codex", KindCodexAppServer)
+	before := time.Now().UnixMilli()
 	runner.AddCodexEvent(map[string]any{"type": "codex", "source": "codex-app-server", "subtype": "turn_started"})
 	runner.AddCodexEvent(map[string]any{"type": "codex", "source": "codex-app-server", "subtype": "item_started",
 		"item": map[string]any{"id": "call-x", "type": "commandExecution"}})
 	observations := awaitObservations(t, session, func(o *Observations) bool { return o.Tools.OpenCount == 1 })
-	if observations.Tools.Open[0].StartedAt != nil || observations.Last.ProviderRecordAt != nil {
-		t.Fatalf("a timestamp-less record invented a time: tool=%+v last=%+v", observations.Tools.Open[0], observations.Last)
+	if last := observations.Last; last.ProviderRecordEventAt != nil || last.ProviderRecordObservedAt == nil || *last.ProviderRecordObservedAt < before {
+		t.Fatalf("live untimed records: event=%v observed=%v", last.ProviderRecordEventAt, last.ProviderRecordObservedAt)
 	}
-	if turn := observations.Turn; turn.Open == nil || !*turn.Open || turn.StartedAt != nil {
+	if turn := observations.Turn; turn.Open == nil || !*turn.Open || turn.StartedAt == nil {
 		t.Fatalf("turn = %+v", turn)
+	}
+
+	registry, _, root := observationRegistry(t)
+	replaying := prototest.NewRunner(proto.RunnerInfo{ID: "00000000-0000-4000-8000-000000000703", Cmd: "/usr/local/bin/codex", Cwd: root,
+		Cols: 80, Rows: 24, CreatedAt: time.Now().Add(-time.Hour).UnixMilli(), PID: 4244, ProtocolVersion: proto.ProtocolVersion})
+	replaying.AddCodexEvent(map[string]any{"type": "codex", "source": "codex-app-server", "subtype": "item_started",
+		"item": map[string]any{"id": "call-old", "type": "commandExecution"}})
+	adopted, err := registry.RegisterMetadata(context.Background(), replaying, RunnerMetadata{Kind: KindCodexAppServer}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	replayed := adopted.Info().Observations
+	if replayed.Tools.OpenCount != 1 || replayed.Tools.Open[0].StartedAt != nil || replayed.Last.ProviderRecordObservedAt != nil {
+		t.Fatalf("a replayed untimed record was restamped: tools=%+v last=%+v", replayed.Tools, replayed.Last)
 	}
 }
 
@@ -133,5 +149,50 @@ func TestObserverErrorIsNotClearedByTerminalOutput(t *testing.T) {
 	awaitObservations(t, session, func(o *Observations) bool { return o.Last.TerminalOutputAt != nil })
 	if observers := session.Info().Observations.Observers; observers[0].State != ObserverError {
 		t.Fatalf("terminal output recovered the observer: %+v", observers)
+	}
+}
+
+// A provider init confirms only a dispatch this daemon saw live, and only when
+// it arrives live itself. A replayed dispatch and init cannot be tied to the
+// turn now open, so the confirmation stays unknown; a runner-authored user
+// record never confirms anything.
+func TestStartConfirmationExcludesReplayAndRunnerRecords(t *testing.T) {
+	registry, _, root := observationRegistry(t)
+	runner := prototest.NewRunner(proto.RunnerInfo{ID: "00000000-0000-4000-8000-000000000704", Cmd: "/usr/local/bin/claude", Cwd: root,
+		Cols: 80, Rows: 24, CreatedAt: time.Now().Add(-time.Hour).UnixMilli(), PID: 4245, ProtocolVersion: proto.ProtocolVersion})
+	old := time.Now().Add(-30 * time.Minute)
+	runner.AddCodexEvent(map[string]any{"type": "claude", "subtype": "turn_started", "source": "claude-p-stream-json", "origin": "sessions", "timestamp": stamp(old)})
+	runner.AddCodexEvent(map[string]any{"type": "system", "subtype": "init", "source": "claude-p-stream-json", "timestamp": stamp(old.Add(time.Second))})
+	session, err := registry.RegisterMetadata(context.Background(), runner, RunnerMetadata{Kind: KindClaudeStructured}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if turn := session.Info().Observations.Turn; turn.Open == nil || !*turn.Open || turn.ProviderConfirmedAt != nil {
+		t.Fatalf("a replayed init confirmed the open turn: %+v", turn)
+	}
+	runner.AddCodexEvent(map[string]any{"type": "user", "subtype": "user_message", "source": "claude-p-stream-json", "origin": "sessions", "timestamp": stamp(time.Now())})
+	runner.AddCodexEvent(map[string]any{"type": "system", "subtype": "init", "source": "claude-p-stream-json", "timestamp": stamp(time.Now())})
+	time.Sleep(50 * time.Millisecond)
+	if turn := session.Info().Observations.Turn; turn.ProviderConfirmedAt != nil {
+		t.Fatalf("a live init confirmed a dispatch only seen in replay: %+v", turn)
+	}
+	runner.AddCodexEvent(map[string]any{"type": "claude", "subtype": "turn_started", "source": "claude-p-stream-json", "origin": "sessions", "timestamp": stamp(time.Now())})
+	runner.AddCodexEvent(map[string]any{"type": "system", "subtype": "init", "source": "claude-p-stream-json", "timestamp": stamp(time.Now())})
+	awaitObservations(t, session, func(o *Observations) bool { return o.Turn.ProviderConfirmedAt != nil })
+}
+
+// An observer error is health, not amnesia: what the transcript already
+// showed stays, beside the error.
+func TestObserverErrorKeepsLastKnownTranscriptFacts(t *testing.T) {
+	session, _ := observedSession(t, "/usr/local/bin/claude", "")
+	at := time.Now().Add(-time.Minute)
+	record, _ := json.Marshal(map[string]any{"type": "assistant", "timestamp": stamp(at),
+		"message": map[string]any{"content": []any{map[string]any{"type": "tool_use", "id": "toolu_t", "name": "Read"}}}})
+	session.RecordClaudeEvent(record)
+	awaitObservations(t, session, func(o *Observations) bool { return o.Last.TranscriptRecordEventAt != nil })
+	session.SetObserverHealth("claude-transcript", ObserverError, "read failed")
+	observations := session.Info().Observations
+	if *observations.Last.TranscriptRecordEventAt != at.UnixMilli() || observations.Tools.OpenCount != 1 || observations.Observers[0].State != ObserverError {
+		t.Fatalf("observer error erased facts: last=%+v tools=%+v observers=%+v", observations.Last, observations.Tools, observations.Observers)
 	}
 }

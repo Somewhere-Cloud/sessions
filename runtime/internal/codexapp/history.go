@@ -111,10 +111,15 @@ func SteeringUnconfirmedEvent(conversationID, operationID, text, message string,
 // HistoryEvent preserves every structured app-server notification while
 // projecting completed assistant items into the existing message shape.
 func HistoryEvent(event Event, at time.Time) (json.RawMessage, error) {
+	// timestamp is the runner's receipt time unless the provider stated an
+	// item time below; observed_at is always the receipt time, persisted so
+	// a replay keeps it.
 	value := map[string]any{
-		"type":      "codex",
-		"source":    HistorySource,
-		"timestamp": historyTimestamp(at),
+		"type":             "codex",
+		"source":           HistorySource,
+		"timestamp":        historyTimestamp(at),
+		"timestamp_source": "observed",
+		"observed_at":      historyTimestamp(at),
 	}
 	switch event := event.(type) {
 	case TurnStarted:
@@ -134,6 +139,7 @@ func HistoryEvent(event Event, at time.Time) (json.RawMessage, error) {
 		value["item"] = historyItem(event.Item)
 		if event.StartedAtMS > 0 {
 			value["timestamp"] = historyTimestamp(time.UnixMilli(event.StartedAtMS))
+			value["timestamp_source"] = "provider"
 		}
 	case ItemCompleted:
 		value["subtype"] = "item_completed"
@@ -142,6 +148,7 @@ func HistoryEvent(event Event, at time.Time) (json.RawMessage, error) {
 		value["item"] = historyItem(event.Item)
 		if event.CompletedAtMS > 0 {
 			value["timestamp"] = historyTimestamp(time.UnixMilli(event.CompletedAtMS))
+			value["timestamp_source"] = "provider"
 		}
 		commentary := event.Item.Phase != nil && *event.Item.Phase == "commentary"
 		if event.Item.Type == "agentMessage" && event.Item.Text != "" && !commentary {

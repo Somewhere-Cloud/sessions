@@ -13,11 +13,12 @@ func (s *Session) observationsLocked(info SessionInfo) *Observations {
 	}
 	observations.Working = &ObservedWorking{Value: info.Working || info.Retry != nil, Source: s.workingSourceLocked(info, capabilities)}
 	observations.Last = &ObservedLast{
-		ProviderRecordAt:           optionalMillis(s.observed.providerRecordAt),
-		TerminalOutputAt:           optionalMillis(s.observed.terminalOutputAt),
-		TranscriptRecordAt:         optionalMillis(s.observed.transcriptRecordAt),
-		InputDispatchedAt:          optionalMillis(max(pointerMillis(info.LastHumanMessageAt), pointerMillis(info.LastAgentMessageAt))),
-		InputConfirmedByProviderAt: optionalMillis(pointerMillis(info.LastUserMessageAt)),
+		ProviderRecordObservedAt: optionalMillis(s.observed.providerObservedAt),
+		ProviderRecordEventAt:    optionalMillis(s.observed.providerEventAt),
+		TerminalOutputAt:         optionalMillis(s.observed.terminalOutputAt),
+		TranscriptRecordEventAt:  optionalMillis(s.observed.transcriptEventAt),
+		InputDispatchedAt:        optionalMillis(max(pointerMillis(info.LastHumanMessageAt), pointerMillis(info.LastAgentMessageAt))),
+		ProviderUserRecordAt:     optionalMillis(pointerMillis(info.LastUserMessageAt)),
 	}
 	if !capabilities.TerminalOutput {
 		observations.Last.TerminalOutputAt = nil
@@ -85,6 +86,7 @@ func (t *observationTracker) toolsProjection() *ObservedTools {
 		LastStartedAt: optionalMillis(t.lastToolStartedAt), LastEndedAt: optionalMillis(t.lastToolEndedAt),
 		HistoryComplete: t.fromStart && !t.historyIncomplete,
 	}
+	tools.OpenCountExact = tools.HistoryComplete && !t.toolsDropped
 	if t.lastToolEndStatus != "" {
 		status := t.lastToolEndStatus
 		tools.LastEndStatus = &status

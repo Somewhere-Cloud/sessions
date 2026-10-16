@@ -601,70 +601,97 @@ sessions as before.
 fact with its source. It infers nothing: not progress, not blocked, not done,
 and not a permission cause. `null` means unknown or not observable for this
 runtime, never "no" or zero. The same projection is served by the listing,
-`sessions status`, team rows, and the wait route; clients do not reclassify.
+`sessions status`, team rows, the wait route, and
+`GET /api/sessions/:id/observations`; clients do not reclassify.
 
 ```json
 {"version":1,
- "capabilities":{"runtime":"claude-structured|codex-app-server|claude-pty|codex-pty|terminal|lane",
-                 "turn_boundaries":"provider-stream|transcript-file|rollout-file|none",
-                 "tool_records":"provider-stream|transcript-file|rollout-file|none","terminal_output":true},
- "runner":{"state":"launching|reachable|unreachable|lost|exited","since":null,"exit_code":null},
- "working":{"value":true,"source":"provider-stream|rollout-file|terminal-heuristic|byte-activity|provider-retry|unknown"},
- "turn":{"open":true,"started_at":0,"started_by":"sessions-dispatch|provider","provider_confirmed_at":null,
-         "ended_at":null,"ended_by":"provider-result|provider-turn-complete|runner-failure|transcript-end-turn|rollout-file"},
- "last":{"provider_record_at":null,"terminal_output_at":null,"transcript_record_at":null,
-         "input_dispatched_at":null,"input_confirmed_by_provider_at":null},
- "tools":{"open":[{"id":"toolu_1","name":"Bash","started_at":0}],"open_count":1,
-          "last_started_at":null,"last_ended_at":null,"last_end_status":"result|error|cancelled|unknown",
-          "history_complete":true},
- "observers":[{"name":"claude-transcript|codex-rollout","state":"following|unresolved|error|stopped","detail":"...","since":0}]}
+ "capabilities":{"runtime":"claude-pty","turn_boundaries":"transcript-file","tool_records":"transcript-file","terminal_output":true},
+ "runner":{"state":"reachable","since":null,"exit_code":null},
+ "working":{"value":true,"source":"terminal-heuristic"},
+ "turn":{"open":true,"started_at":1760000000000,"started_by":"provider","provider_confirmed_at":1760000000000,
+         "ended_at":null},
+ "last":{"provider_record_observed_at":null,"provider_record_event_at":1760000000500,
+         "terminal_output_at":1760000004000,"transcript_record_event_at":1760000000500,
+         "input_dispatched_at":1759999999000,"provider_user_record_at":1760000000000},
+ "tools":{"open":[{"id":"toolu_1","name":"Bash","started_at":1760000000500}],"open_count":1,
+          "last_started_at":1760000000500,"last_ended_at":null,"last_end_status":null,
+          "history_complete":true,"open_count_exact":true},
+ "observers":[{"name":"claude-transcript","state":"following","since":1759999999500}]}
 ```
 
-- `capabilities` follow the runtime kind, not the tool. A PTY Claude session
-  can report turns and tools from its transcript and a PTY Codex session from
-  its rollout file; a shell or headless lane reports output and exit only, so
-  its `turn` and `tools` are `null`. A structured runtime has no terminal, so
-  `last.terminal_output_at` is `null`.
+Values: `capabilities.runtime` is `claude-structured`, `codex-app-server`,
+`claude-pty`, `codex-pty`, `terminal`, or `lane`; `turn_boundaries` and
+`tool_records` are `provider-stream`, `transcript-file`, `rollout-file`, or
+`none`. `runner.state` is `launching`, `reachable`, `unreachable`, `lost`, or
+`exited`. `working.source` is `provider-stream`, `rollout-file`,
+`terminal-heuristic`, `byte-activity`, `provider-retry`, or `unknown`.
+`turn.started_by` is `sessions-dispatch` or `provider`; `turn.ended_by` is
+`provider-result`, `provider-turn-complete`, `runner-failure`,
+`transcript-end-turn`, or `rollout-file`. Observer states are `following`,
+`unresolved`, or `error`.
+
+- `capabilities` follow the runtime kind, not the tool, and say what can be
+  observed, never that anything happened. A PTY Claude session can report
+  turns and tools from its transcript and a PTY Codex session from its rollout
+  file; a shell or headless lane reports output and exit only, so its `turn`
+  and `tools` are `null`, and its output is never a turn event. A structured
+  runtime has no terminal, so `last.terminal_output_at` is `null`.
+- `runner.state:"reachable"` is Sessions' transport to its runner, never
+  provider liveness.
 - `working` labels the legacy `working` flag with its evidence. It is never
-  evidence of useful progress. A PTY Claude screen that still shows Claude's
-  working indicator keeps the flag through silence rather than being read as
+  evidence of useful progress, and an open turn on a reachable runner is not
+  progress either. A PTY Claude screen that still shows Claude's working
+  indicator keeps the flag through silence rather than being read as
   finished; only a repaint without the indicator ends it.
 - `turn` holds only observed boundaries. `started_by:"sessions-dispatch"` is
-  Sessions' own record that it dispatched a turn, not provider evidence;
-  `provider_confirmed_at` is the provider's own first record of it. A turn ends
-  only on a provider result, a Codex turn completion, a Sessions-synthesized
-  runner failure, a transcript assistant record with `stop_reason:"end_turn"`,
-  or a rollout task completion; silence never ends one, and an open turn does
-  not imply recent activity. `{"open":null}` means no boundary was observed.
-- `last.provider_record_at` is the newest provider-authored record's own
-  timestamp. Records Sessions wrote (they carry `"origin":"sessions"`; older
-  ones are recognized by type), metadata-only records, unreadable records, and
-  records dated more than five minutes ahead are excluded, and replayed
-  records keep their original times, so reconnecting never refreshes it.
-  `terminal_output_at` is live output only, never replay, and is `null` after
-  a re-adoption until new output arrives. `transcript_record_at` is the newest
-  provider record delivered by a transcript or rollout watcher.
-  `input_dispatched_at` is the newest input Sessions handed to the runner and
-  `input_confirmed_by_provider_at` the newest real user record the provider
-  wrote; a dispatch without a later confirmation is not proof of receipt.
+  Sessions' own record that it dispatched a turn, not provider evidence.
+  `provider_confirmed_at` is set only by the provider's own first record of the
+  turn: a Codex `turn_started`, a transcript user record, or a Claude `init`
+  that arrives live after a dispatch this daemon saw live. A replayed init, or
+  a runner-authored user record, never confirms; such a turn's confirmation
+  stays `null`. A turn ends only on a provider result, a Codex turn
+  completion, a Sessions-synthesized runner failure, a transcript assistant
+  record with `stop_reason:"end_turn"`, or a rollout task completion; silence
+  never ends one, and an open turn does not imply recent activity.
+  `{"open":null}` means no boundary was observed.
+- `last` keeps two kinds of time apart. An observed time is when Sessions saw
+  something: `provider_record_observed_at` is the newest provider record's
+  receipt time, persisted by the runner as `observed_at` (and kept through
+  replay) or, for a live record without one, the daemon's own receipt time; a
+  replayed record without one is never restamped. `terminal_output_at` is live
+  output only, never replay, `null` after a re-adoption until new output.
+  `input_dispatched_at` is the newest input Sessions handed to the runner. An
+  event time is what a record says about itself, reported as given and never
+  checked against the clock: `provider_record_event_at` and
+  `transcript_record_event_at` (records read by a transcript or rollout
+  watcher). A timestamp the runner filled in because the provider gave none is
+  marked `"timestamp_source":"observed"` on the record and is an observed time,
+  not an event time. `provider_user_record_at` is the newest real user-role
+  record the provider wrote; providers write their own injections the same
+  way, so it does not confirm that a dispatched input arrived. Records Sessions
+  wrote (`"origin":"sessions"`, or older ones recognized by type),
+  metadata-only records, and unreadable records move no clock.
+- Turn and tool times are the record's event time when it states one,
+  otherwise its observed time, otherwise `null`.
 - `tools` pairs starts and ends by id (Claude-shaped `tool_use`/`tool_result`
   from the stream, transcript, or normalized rollout; Codex app-server
   `item_started`/`item_completed` for non-message items). `open` lists at most
-  32; `open_count` is exact. `last_end_status` is how the most recently
-  received end was reported: `result` (the provider returned a result -- not a
-  claim that the tool succeeded), `error`, `cancelled` (declined or
-  interrupted), or `unknown`. `history_complete` is `false` for a runner this
-  daemon re-adopted (its replay may be bounded) or when records were
-  unreadable. An open tool with no end is reported as that, nothing more.
-- A record with no usable timestamp (older runners, some transcripts) still
-  counts for what it says -- a tool started, a turn ended -- but its time is
-  `null` and it moves no clock.
-- `runner.state:"reachable"` is Sessions' transport to its runner, never
-  provider liveness. A capability says what can be observed, never that
-  anything happened.
+  32. `open_count` counts open calls within what was observed and tracked (at
+  most 1024); `open_count_exact` is `true` only when `history_complete` is and
+  no call was dropped by that bound, otherwise `open_count` is a lower bound.
+  `history_complete` is `false` for a runner this daemon re-adopted (its replay
+  may be bounded) or when records were unreadable. `last_end_status` is how the
+  most recently received end was reported: `result` (the provider returned a
+  result, not a claim of success), `error`, `cancelled` (declined or
+  interrupted), or `unknown`. An open tool with no end is reported as that,
+  nothing more.
 - `observers` are transcript or rollout watchers: `unresolved` when the
   provider file cannot be found or bound yet, `error` with the last watcher
-  error. Structured runtimes and shells have none.
+  error, `following` again only after the watcher delivers a record read from
+  a bound file (terminal output never recovers it). An observer error keeps
+  every fact already observed. `since` is when the observer entered its state.
+  Structured runtimes and shells have none.
 - Nothing here reports filesystem or source writes; terminal output is not a
   write record.
 

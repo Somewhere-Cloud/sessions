@@ -51,17 +51,18 @@ func awaitObservations(t *testing.T, session *Session, satisfied func(*Observati
 
 // A structured tool that started hours ago and never completed is reported as
 // exactly that: open, with its start time, and nothing inferred about why.
-// Records Sessions wrote, metadata-only records, future-dated and unreadable
-// records never move the provider clock.
+// Records Sessions wrote and metadata-only records move neither the observed
+// nor the event clock, and an unreadable record makes history incomplete.
 func TestObservedStructuredToolOpenForHours(t *testing.T) {
 	session, runner := observedSession(t, "/usr/local/bin/codex", KindCodexAppServer)
 	started := time.Now().Add(-5 * time.Hour)
-	runner.AddCodexEvent(map[string]any{"type": "codex", "source": "codex-app-server", "subtype": "turn_started", "timestamp": stamp(started), "turnId": "t1"})
-	runner.AddCodexEvent(map[string]any{"type": "codex", "source": "codex-app-server", "subtype": "item_started", "timestamp": stamp(started),
+	runner.AddCodexEvent(map[string]any{"type": "codex", "source": "codex-app-server", "subtype": "turn_started",
+		"timestamp": stamp(started), "timestamp_source": "observed", "observed_at": stamp(started), "turnId": "t1"})
+	runner.AddCodexEvent(map[string]any{"type": "codex", "source": "codex-app-server", "subtype": "item_started",
+		"timestamp": stamp(started), "timestamp_source": "provider", "observed_at": stamp(started),
 		"item": map[string]any{"id": "call-1", "type": "commandExecution"}})
 	runner.AddCodexEvent(map[string]any{"type": "codex", "source": "codex-app-server", "subtype": "token_count", "timestamp": stamp(time.Now())})
 	runner.AddCodexEvent(map[string]any{"type": "user", "subtype": "user_message", "source": "codex-app-server", "origin": "sessions", "timestamp": stamp(time.Now())})
-	runner.AddCodexEvent(map[string]any{"type": "codex", "source": "codex-app-server", "subtype": "plan_updated", "timestamp": stamp(time.Now().Add(2 * time.Hour))})
 	observations := awaitObservations(t, session, func(o *Observations) bool { return o.Tools != nil && o.Tools.OpenCount == 1 })
 	if observations.Capabilities.Runtime != "codex-app-server" || observations.Capabilities.ToolRecords != ObservedProviderStream || observations.Capabilities.TerminalOutput {
 		t.Fatalf("capabilities = %+v", observations.Capabilities)
@@ -72,14 +73,31 @@ func TestObservedStructuredToolOpenForHours(t *testing.T) {
 	if tool := observations.Tools.Open[0]; tool.ID != "call-1" || tool.StartedAt == nil || *tool.StartedAt != started.UnixMilli() {
 		t.Fatalf("open tool = %+v", tool)
 	}
-	if got := observations.Last.ProviderRecordAt; got == nil || *got != started.UnixMilli() {
-		t.Fatalf("provider clock = %v, want the 5-hour-old record; Sessions, metadata and future records must not move it", got)
+	last := observations.Last
+	if last.ProviderRecordObservedAt == nil || *last.ProviderRecordObservedAt != started.UnixMilli() ||
+		last.ProviderRecordEventAt == nil || *last.ProviderRecordEventAt != started.UnixMilli() {
+		t.Fatalf("provider clocks = %v / %v, want the 5-hour-old record; Sessions and metadata records must not move them", last.ProviderRecordObservedAt, last.ProviderRecordEventAt)
 	}
-	if observations.Last.TerminalOutputAt != nil || observations.Working.Source != WorkingFromProviderStream || !observations.Tools.HistoryComplete {
-		t.Fatalf("observations = %+v / %+v / %+v", observations.Last, observations.Working, observations.Tools)
+	if last.TerminalOutputAt != nil || observations.Working.Source != WorkingFromProviderStream || !observations.Tools.HistoryComplete || !observations.Tools.OpenCountExact {
+		t.Fatalf("observations = %+v / %+v / %+v", last, observations.Working, observations.Tools)
 	}
 	runner.Emit(proto.Event{Kind: proto.EventCodex, CodexEvent: json.RawMessage(`{not json`)})
-	awaitObservations(t, session, func(o *Observations) bool { return !o.Tools.HistoryComplete })
+	awaitObservations(t, session, func(o *Observations) bool { return !o.Tools.HistoryComplete && !o.Tools.OpenCountExact })
+}
+
+// An event time is the record's claim, reported as given -- even one ahead of
+// the clock -- and kept apart from when Sessions observed the record.
+func TestObservedEventAndObservedTimesStayDistinct(t *testing.T) {
+	session, runner := observedSession(t, "/usr/local/bin/codex", KindCodexAppServer)
+	observedAt := time.Now().Add(-time.Minute)
+	claimed := time.Now().Add(2 * time.Hour)
+	runner.AddCodexEvent(map[string]any{"type": "codex", "source": "codex-app-server", "subtype": "item_started",
+		"timestamp": stamp(claimed), "timestamp_source": "provider", "observed_at": stamp(observedAt),
+		"item": map[string]any{"id": "call-f", "type": "commandExecution"}})
+	last := awaitObservations(t, session, func(o *Observations) bool { return o.Last.ProviderRecordEventAt != nil }).Last
+	if *last.ProviderRecordEventAt != claimed.UnixMilli() || *last.ProviderRecordObservedAt != observedAt.UnixMilli() {
+		t.Fatalf("event %v / observed %v", *last.ProviderRecordEventAt, *last.ProviderRecordObservedAt)
+	}
 }
 
 // The structured Claude runner's own turn_started is Sessions' dispatch, not
@@ -90,7 +108,8 @@ func TestObservedClaudeDispatchIsNotProviderEvidence(t *testing.T) {
 	base := time.Now().Add(-time.Minute)
 	runner.AddCodexEvent(map[string]any{"type": "claude", "subtype": "turn_started", "source": "claude-p-stream-json", "origin": "sessions", "timestamp": stamp(base)})
 	observations := awaitObservations(t, session, func(o *Observations) bool { return o.Turn != nil && o.Turn.Open != nil })
-	if observations.Turn.StartedBy != "sessions-dispatch" || observations.Turn.ProviderConfirmedAt != nil || observations.Last.ProviderRecordAt != nil {
+	if observations.Turn.StartedBy != "sessions-dispatch" || observations.Turn.ProviderConfirmedAt != nil ||
+		observations.Last.ProviderRecordObservedAt != nil || observations.Last.ProviderRecordEventAt != nil {
 		t.Fatalf("dispatch read as provider evidence: turn=%+v last=%+v", observations.Turn, observations.Last)
 	}
 	runner.AddCodexEvent(map[string]any{"type": "system", "subtype": "init", "source": "claude-p-stream-json", "session_id": "s", "timestamp": stamp(base.Add(time.Second))})
@@ -118,7 +137,7 @@ func TestObservedSpinnerRepaintsWithoutProviderRecords(t *testing.T) {
 	if observations.Capabilities.Runtime != "claude-pty" || observations.Capabilities.TurnBoundaries != ObservedTranscriptFile {
 		t.Fatalf("capabilities = %+v", observations.Capabilities)
 	}
-	if observations.Last.ProviderRecordAt != nil || observations.Last.TranscriptRecordAt != nil {
+	if observations.Last.ProviderRecordObservedAt != nil || observations.Last.ProviderRecordEventAt != nil || observations.Last.TranscriptRecordEventAt != nil {
 		t.Fatalf("repaints became provider evidence: %+v", observations.Last)
 	}
 	if observations.Turn == nil || observations.Turn.Open != nil || observations.Turn.EndedAt != nil {
@@ -142,10 +161,10 @@ func TestObservedReplayDoesNotRefreshClocks(t *testing.T) {
 		t.Fatal(err)
 	}
 	observations := session.Info().Observations
-	if got := observations.Last.ProviderRecordAt; got == nil || *got != old.UnixMilli() {
-		t.Fatalf("replay moved the provider clock: %v", got)
+	if last := observations.Last; last.ProviderRecordObservedAt != nil || last.ProviderRecordEventAt == nil || *last.ProviderRecordEventAt != old.UnixMilli() {
+		t.Fatalf("replay restamped a clock: observed=%v event=%v", last.ProviderRecordObservedAt, last.ProviderRecordEventAt)
 	}
-	if observations.Tools.OpenCount != 1 || observations.Tools.HistoryComplete {
+	if observations.Tools.OpenCount != 1 || observations.Tools.HistoryComplete || observations.Tools.OpenCountExact {
 		t.Fatalf("replayed tools = %+v", observations.Tools)
 	}
 	if info := session.Info(); !info.LastDataUnknown {

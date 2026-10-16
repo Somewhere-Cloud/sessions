@@ -108,9 +108,7 @@ func NormalizeEvent(raw json.RawMessage, at time.Time) (Event, error) {
 		value["provider_source"] = existing
 	}
 	value["source"] = HistorySource
-	if _, present := value["timestamp"]; !present {
-		value["timestamp"] = historyTimestamp(at)
-	}
+	stampObservation(value, at)
 	encoded, err := json.Marshal(value)
 	if err != nil {
 		return Event{}, err
@@ -269,6 +267,21 @@ const SessionsOrigin = "sessions"
 
 // marshalHistory encodes a record this package authors. Provider stream events
 // go through NormalizeEvent instead and never carry the Sessions origin.
+// stampObservation records when the runner received a stream record, persisted
+// with it so a replay keeps it. Claude's stream records carry no time of their
+// own; when the runner fills timestamp for them it says so, so the two are
+// never mistaken for a provider-stated event time. Normalizing an already
+// normalized record never restamps it.
+func stampObservation(value map[string]any, at time.Time) {
+	if _, present := value["observed_at"]; !present {
+		value["observed_at"] = historyTimestamp(at)
+	}
+	if _, present := value["timestamp"]; !present {
+		value["timestamp"] = historyTimestamp(at)
+		value["timestamp_source"] = "observed"
+	}
+}
+
 func marshalHistory(value map[string]any) (json.RawMessage, error) {
 	value["origin"] = SessionsOrigin
 	encoded, err := json.Marshal(value)

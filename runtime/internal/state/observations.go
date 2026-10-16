@@ -3,7 +3,6 @@ package state
 import (
 	"sort"
 	"strings"
-	"time"
 )
 
 // ObservationsVersion is the version of the observations block. A consumer
@@ -36,10 +35,6 @@ const maxObservedOpenTools = 32
 // maxTrackedTools bounds the tool calls tracked as open. Past it the history
 // is reported incomplete rather than growing without limit.
 const maxTrackedTools = 1024
-
-// futureSkew is how far ahead of this daemon's clock a provider timestamp may
-// be before the record is treated as invalid evidence of recency.
-const futureSkew = 5 * time.Minute
 
 // Observations is the factual, runtime-aware view of one session. Every field
 // is something Sessions observed, with its source; nothing here infers
@@ -87,12 +82,19 @@ type ObservedTurn struct {
 	EndedBy             string `json:"ended_by,omitempty"`
 }
 
+// ObservedLast separates two kinds of time. An observed time is when Sessions
+// itself saw something; an event time is what a record says about itself, a
+// provider's claim, reported as given and never checked against the clock.
 type ObservedLast struct {
-	ProviderRecordAt           *int64 `json:"provider_record_at"`
-	TerminalOutputAt           *int64 `json:"terminal_output_at"`
-	TranscriptRecordAt         *int64 `json:"transcript_record_at"`
-	InputDispatchedAt          *int64 `json:"input_dispatched_at"`
-	InputConfirmedByProviderAt *int64 `json:"input_confirmed_by_provider_at"`
+	ProviderRecordObservedAt *int64 `json:"provider_record_observed_at"`
+	ProviderRecordEventAt    *int64 `json:"provider_record_event_at"`
+	TerminalOutputAt         *int64 `json:"terminal_output_at"`
+	TranscriptRecordEventAt  *int64 `json:"transcript_record_event_at"`
+	InputDispatchedAt        *int64 `json:"input_dispatched_at"`
+	// ProviderUserRecordAt is the newest real user-role record the provider
+	// wrote. Providers write their own injections the same way, so it is not
+	// confirmation that a dispatched input arrived.
+	ProviderUserRecordAt *int64 `json:"provider_user_record_at"`
 }
 
 type ObservedTool struct {
@@ -113,6 +115,10 @@ type ObservedTools struct {
 	// result, error, cancelled, or unknown. A result is not proof of success.
 	LastEndStatus   *string `json:"last_end_status"`
 	HistoryComplete bool    `json:"history_complete"`
+	// OpenCountExact is true only when the history is complete and no call
+	// was dropped by the tracking bound; otherwise open_count is a lower
+	// bound of what was observed.
+	OpenCountExact bool `json:"open_count_exact"`
 }
 
 // ObserverHealth is one transcript or rollout watcher's own state.
@@ -143,9 +149,10 @@ const (
 // observationTracker keeps the incremental facts behind Observations. Each
 // record updates it once as it arrives; nothing rescans history.
 type observationTracker struct {
-	providerRecordAt   int64
+	providerObservedAt int64
+	providerEventAt    int64
 	terminalOutputAt   int64
-	transcriptRecordAt int64
+	transcriptEventAt  int64
 	turn               turnTracker
 	tools              map[string]ObservedTool
 	toolOrder          []string
@@ -153,6 +160,7 @@ type observationTracker struct {
 	lastToolEndedAt    int64
 	lastToolEndStatus  string
 	historyIncomplete  bool
+	toolsDropped       bool
 	// fromStart is true when this daemon launched the session and so saw its
 	// record stream from the beginning. A re-adopted runner's replay is
 	// bounded and carries no gap marker, so its history cannot be called
@@ -163,10 +171,13 @@ type observationTracker struct {
 }
 
 type turnTracker struct {
-	observed            bool
-	open                bool
-	startedAt           int64
-	startedBy           string
+	observed  bool
+	open      bool
+	startedAt int64
+	startedBy string
+	// dispatchedLive is true when this daemon saw Sessions dispatch the turn
+	// live; only then can a later live provider record confirm it.
+	dispatchedLive      bool
 	providerConfirmedAt int64
 	endedAt             int64
 	endedBy             string
