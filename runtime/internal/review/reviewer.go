@@ -95,7 +95,7 @@ type Comparison struct {
 	SnapshotHash string   `json:"snapshot_hash"`
 	QuestionHash string   `json:"question_hash"`
 	Subject      string   `json:"subject"`
-	UnknownFacts []string `json:"unknown_facts"`
+	NullPaths    []string `json:"null_paths"`
 	Results      []Result `json:"results"`
 	Authority    string   `json:"authority"`
 	Note         string   `json:"note"`
@@ -108,10 +108,7 @@ const comparisonNote = "Reviewer outputs are uncalibrated suggestions with no au
 // records each identity, answer or typed error. It performs no other action.
 func Compare(ctx context.Context, snapshot FrozenSnapshot, questions FrozenQuestions, reviewers []Reviewer) Comparison {
 	out := Comparison{Schema: ComparisonSchema, SnapshotHash: snapshot.Hash, QuestionHash: questions.Hash,
-		Subject: snapshot.Snapshot.Subject, UnknownFacts: snapshot.UnknownFacts(), Authority: "none", Note: comparisonNote}
-	if out.UnknownFacts == nil {
-		out.UnknownFacts = []string{}
-	}
+		Subject: snapshot.Snapshot.Subject, NullPaths: snapshot.NullPaths(), Authority: "none", Note: comparisonNote}
 	for _, reviewer := range reviewers {
 		in := Input{Snapshot: bytes.Clone(snapshot.Canonical), SnapshotHash: snapshot.Hash,
 			Questions: bytes.Clone(questions.Canonical), QuestionHash: questions.Hash, snapshot: snapshot, questions: questions}

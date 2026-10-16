@@ -1229,21 +1229,21 @@ Examples:
 
 ```text
 Usage:
-  sessions review snapshot --observations FILE [--subject ID] [--task-file F] [--tail-file F] | review validate <snapshot.json> | review compare --snapshot FILE --questions FILE [--reviewer baseline|exec:/ABS/PATH]... [--timeout D]
+  sessions review snapshot (<session> | --observations FILE) [--task-file F] [--tail-file F] | review validate <snapshot.json> | review compare --snapshot FILE --questions FILE [--reviewer baseline|exec:/ABS/PATH]... [--timeout D]
 
 experimental: compare reviewers on one frozen evidence snapshot
 
-Experimental. Run explicitly chosen reviewers on one frozen evidence snapshot and print what each one answered. Nothing runs automatically: there are no lifecycle hooks or background calls. Sessions itself does not contact the daemon, load a transcript, or use the network for any of these commands; it reads only the files you name.
+Experimental. Run explicitly chosen reviewers on one frozen evidence snapshot and print what each one answered. Nothing runs automatically: there are no lifecycle hooks or background calls.
 
-snapshot exports one saved observation record, the output of `sessions --json status <session>`, into a sessions.review-snapshot/1 document on stdout. Every observation field becomes a named fact with the source it was observed from (runner, ledger, provider-stream, transcript-file, rollout-file, terminal, derived, and so on), every null becomes an explicit unknown, and a field outside the observation contract's version 1 is exported as unknown rather than given a guessed source. Other observation versions are rejected. Task text and a transcript tail are included only from --task-file and --tail-file; a tail longer than 16 KiB keeps its last 16 KiB and records how much was omitted.
+snapshot freezes one session's lane observations into a sessions.review-snapshot/1 document on stdout. With a session it reads the same record `sessions --json status` prints, once; with --observations it reads a saved copy of that record instead and contacts nothing. The observations object is embedded exactly as the daemon reports it, with its own source labels and nulls meaning unknown; only observations version 1 is accepted. Task text and a transcript tail are included only from --task-file and --tail-file; a tail longer than 16 KiB keeps its last 16 KiB and records how much was omitted. Sessions never loads a transcript or history for a snapshot.
 
-validate checks a snapshot and prints its canonical hash and unknown facts. Other schema versions, duplicate keys, unknown fields and null values are rejected. compare takes a snapshot and a sessions.review-questions/1 document (2 to 64 options and an optional abstention) and gives every reviewer byte-identical input. --reviewer baseline predicts no lane state: it always abstains and reports which facts are unknown, which are only the lane's own claims, and which capabilities are absent. --reviewer exec:/ABS/PATH runs a local executable you choose, with no shell and no PATH lookup, passing one sessions.review-adapter/1 request on stdin and reading one reply of at most 64 KiB from stdout within --timeout (default 30s); --reviewer-arg adds arguments. That executable is your own code: it runs with your environment and permissions and may use the network or an existing login. A reviewer that is missing, times out, or replies with a malformed or out-of-set answer is recorded as an error.
+validate checks a snapshot and prints its canonical hash and how many observation values are null. Other schema or observation versions, duplicate keys and unknown top-level fields are rejected. compare reads only the files you name, never contacts the daemon, and gives every reviewer byte-identical input together with a sessions.review-questions/1 document (2 to 64 options and an optional abstention). --reviewer baseline predicts no lane state: it always abstains and reports which observation values are unknown. --reviewer exec:/ABS/PATH runs a local executable you choose, with no shell and no PATH lookup, passing one sessions.review-adapter/1 request on stdin and reading one reply of at most 64 KiB from stdout within --timeout (default 30s); --reviewer-arg adds arguments. That executable is your own code: it runs with your environment and permissions and may use the network or an existing login. A reviewer that is missing, times out, or replies with a malformed or out-of-set answer is recorded as an error.
 
 The output records the snapshot and question hashes, each reviewer's identity (an executable's sha256), its answer or typed error, and authority none. Reviewer scores are uncalibrated suggestions, not proof; Sessions does not act on them, and they never change a session, a task or a runtime fact.
 
 Examples:
-  sessions --json status 0123abcd > status.json
-  sessions review snapshot --observations status.json > snapshot.json
+  sessions review snapshot 0123abcd > snapshot.json
+  sessions review snapshot 0123abcd --task-file task.md > snapshot.json
   sessions --json review compare --snapshot snapshot.json --questions questions.json --reviewer baseline --reviewer exec:/usr/local/bin/my-reviewer
 
 --json may appear before the command or among its options. --machine, --direct, --host, and --port must appear before the command. Arguments after `sessions run --` always belong to the child command.

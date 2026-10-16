@@ -12,7 +12,7 @@ import (
 	"github.com/somewhere-tech/sessions/runtime/internal/review"
 )
 
-const reviewUsage = "usage: sessions review snapshot --observations FILE [--subject ID] [--task-file FILE] [--tail-file FILE]\n" +
+const reviewUsage = "usage: sessions review snapshot (<session> | --observations FILE) [--task-file FILE] [--tail-file FILE]\n" +
 	"       sessions review validate <snapshot.json>\n" +
 	"       sessions review compare --snapshot FILE --questions FILE [--reviewer baseline | --reviewer exec:/ABS/PATH [--reviewer-arg ARG]...]... [--timeout DURATION]"
 
@@ -49,26 +49,26 @@ func readBounded(path string, limit int64) ([]byte, error) {
 	return data, nil
 }
 
-// cmdReviewSnapshot exports one saved observation record (the output of
-// `sessions --json status <session>`) into a frozen snapshot on stdout. Task
-// text and a transcript tail are included only from files named here.
+// cmdReviewSnapshot freezes one session's core observations into a snapshot
+// on stdout. With <session> it reads the same record `sessions --json status`
+// prints; with --observations it reads a saved copy of that record. Task text
+// and a transcript tail are included only from files named here.
 func (a *app) cmdReviewSnapshot(args []string) error {
-	options := map[string]string{}
-	for index := 0; index < len(args); index += 2 {
-		flag := args[index]
-		if index+1 >= len(args) || (flag != "--observations" && flag != "--subject" && flag != "--task-file" && flag != "--tail-file") {
-			return fail(1, "%s", reviewUsage)
-		}
-		options[flag] = args[index+1]
-	}
-	if options["--observations"] == "" {
-		return fail(1, "--observations is required; %s", reviewUsage)
-	}
-	record, err := readBounded(options["--observations"], review.MaxSnapshotBytes)
+	session, options, err := parseReviewSnapshot(args)
 	if err != nil {
 		return fail(1, "%s", err)
 	}
-	export := review.ExportOptions{Subject: options["--subject"], CapturedAt: time.Now(), Producer: "sessions review snapshot"}
+	var record []byte
+	if session != "" {
+		status, err := a.resolveStatusRecord(session)
+		if err != nil {
+			return err
+		}
+		record = status.raw
+	} else if record, err = readBounded(options["--observations"], review.MaxSnapshotBytes); err != nil {
+		return fail(1, "%s", err)
+	}
+	export := review.ExportOptions{CapturedAt: time.Now(), Producer: "sessions review snapshot"}
 	if path := options["--task-file"]; path != "" {
 		text, err := readBounded(path, review.MaxTaskBytes)
 		if err != nil {
@@ -91,6 +91,30 @@ func (a *app) cmdReviewSnapshot(args []string) error {
 	return err
 }
 
+func parseReviewSnapshot(args []string) (string, map[string]string, error) {
+	options := map[string]string{}
+	session := ""
+	for index := 0; index < len(args); index++ {
+		flag := args[index]
+		switch {
+		case flag == "--observations" || flag == "--task-file" || flag == "--tail-file":
+			if index+1 >= len(args) || args[index+1] == "" {
+				return "", nil, fmt.Errorf("%s needs a file; %s", flag, reviewUsage)
+			}
+			options[flag] = args[index+1]
+			index++
+		case !strings.HasPrefix(flag, "-") && session == "":
+			session = flag
+		default:
+			return "", nil, fmt.Errorf("unexpected %s; %s", flag, reviewUsage)
+		}
+	}
+	if (session == "") == (options["--observations"] == "") {
+		return "", nil, fmt.Errorf("name exactly one of a session or --observations FILE; %s", reviewUsage)
+	}
+	return session, options, nil
+}
+
 func (a *app) cmdReviewValidate(args []string) error {
 	if len(args) != 1 || strings.TrimSpace(args[0]) == "" {
 		return fail(1, "%s", reviewUsage)
@@ -103,18 +127,15 @@ func (a *app) cmdReviewValidate(args []string) error {
 	if err != nil {
 		return fail(1, "%s", err)
 	}
-	unknown := snapshot.UnknownFacts()
-	if unknown == nil {
-		unknown = []string{}
-	}
+	unknown := snapshot.NullPaths()
 	summary := map[string]any{"schema": review.SnapshotSchema, "subject": snapshot.Snapshot.Subject,
-		"snapshot_hash": snapshot.Hash, "facts": len(snapshot.Snapshot.Facts), "unknown_facts": unknown,
+		"snapshot_hash": snapshot.Hash, "observations_version": review.ObservationsVersion, "null_paths": unknown,
 		"task": snapshot.Snapshot.Task != nil, "tail": snapshot.Snapshot.Tail != nil}
 	if a.wantJSON {
 		return writeJSON(a.stdout, summary, true)
 	}
-	_, err = fmt.Fprintf(a.stdout, "valid %s snapshot %s\n  subject %s, %d facts, %d unknown\n", review.SnapshotSchema,
-		snapshot.Hash, terminalSafe(snapshot.Snapshot.Subject), len(snapshot.Snapshot.Facts), len(unknown))
+	_, err = fmt.Fprintf(a.stdout, "valid %s snapshot %s\n  subject %s, observations version %d, %d null (unknown) values\n",
+		review.SnapshotSchema, snapshot.Hash, terminalSafe(snapshot.Snapshot.Subject), review.ObservationsVersion, len(unknown))
 	return err
 }
 
@@ -207,8 +228,8 @@ func (a *app) cmdReviewCompare(args []string) error {
 }
 
 func writeReviewComparison(out io.Writer, c review.Comparison) error {
-	if _, err := fmt.Fprintf(out, "snapshot %s  questions %s\nunknown facts: %s\n", c.SnapshotHash, c.QuestionHash,
-		terminalSafe(strings.Join(c.UnknownFacts, ", "))); err != nil {
+	if _, err := fmt.Fprintf(out, "snapshot %s  questions %s\nnull (unknown) observation values: %d\n", c.SnapshotHash,
+		c.QuestionHash, len(c.NullPaths)); err != nil {
 		return err
 	}
 	for _, result := range c.Results {

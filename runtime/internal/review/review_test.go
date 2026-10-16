@@ -17,7 +17,7 @@ import (
 )
 
 // The test binary doubles as a synthetic external reviewer when this
-// variable is set (passed explicitly through External.Env).
+// variable is set; the adapter inherits it from the test's environment.
 const fixtureMode = "REVIEW_FIXTURE_MODE"
 const fixtureOut = "REVIEW_FIXTURE_OUT"
 
@@ -60,16 +60,18 @@ func fixtureAdapter(mode string) int {
 	return 0
 }
 
+// A synthetic observations object: version 1 with arbitrary nested content
+// and nulls. The seam must embed it verbatim without interpreting fields.
 const fixtureSnapshot = `{
   "schema": "sessions.review-snapshot/1",
   "subject": "synthetic-lane-1",
   "captured_at": "2026-01-02T03:04:05Z",
   "producer": "test fixture",
-  "capabilities": {"turn_boundaries": "provider-stream"},
-  "facts": {
-    "turn.open": {"source": "provider-stream", "value": false},
-    "runner.state": {"source": "runner", "unknown": true, "reason": "not observed"},
-    "last_assistant_text": {"source": "self-report", "value": "Implemented and committed the change."}
+  "observations": {
+    "version": 1,
+    "alpha": {"value": true, "source": "synthetic-source"},
+    "beta": {"inner": null, "list": [1, null]},
+    "gamma": null
   }
 }`
 
@@ -110,16 +112,15 @@ func fixtureReviewer(t *testing.T, mode string, timeout time.Duration) (*Externa
 
 func TestSnapshotRejectsIncompatibleAndAmbiguousInput(t *testing.T) {
 	cases := map[string]string{
-		"version":       strings.Replace(fixtureSnapshot, "review-snapshot/1", "review-snapshot/2", 1),
-		"duplicate key": strings.Replace(fixtureSnapshot, `"subject": "synthetic-lane-1",`, `"subject": "a", "subject": "b",`, 1),
-		"unknown field": strings.Replace(fixtureSnapshot, `"producer"`, `"extra": 1, "producer"`, 1),
-		"null value":    strings.Replace(fixtureSnapshot, `"value": false`, `"value": null`, 1),
-		"unknown+value": strings.Replace(fixtureSnapshot, `"unknown": true,`, `"unknown": true, "value": "reachable",`, 1),
-		"bad source":    strings.Replace(fixtureSnapshot, `"source": "runner"`, `"source": "model"`, 1),
-		"tail no optin": strings.Replace(fixtureSnapshot, `"facts"`, `"tail": {"opt_in": false, "text": "x", "provenance": "t"}, "facts"`, 1),
-		"trailing data": fixtureSnapshot + " {}",
-		"source contract v2": strings.Replace(fixtureSnapshot, `"producer": "test fixture",`,
-			`"producer": "test fixture", "source_contract": {"name": "sessions.lane-observations", "version": 2},`, 1),
+		"schema version":       strings.Replace(fixtureSnapshot, "review-snapshot/1", "review-snapshot/2", 1),
+		"observations version": strings.Replace(fixtureSnapshot, `"version": 1`, `"version": 2`, 1),
+		"observations missing": strings.Replace(fixtureSnapshot, `"observations": {`, `"other": {`, 1),
+		"observations null":    strings.Replace(fixtureSnapshot, `"producer": "test fixture",`, `"producer": "test fixture", "observations": null, "x":`, 1),
+		"duplicate key":        strings.Replace(fixtureSnapshot, `"subject": "synthetic-lane-1",`, `"subject": "a", "subject": "b",`, 1),
+		"nested duplicate key": strings.Replace(fixtureSnapshot, `"gamma": null`, `"gamma": null, "gamma": 1`, 1),
+		"unknown top field":    strings.Replace(fixtureSnapshot, `"producer"`, `"extra": 1, "producer"`, 1),
+		"tail no optin":        strings.Replace(fixtureSnapshot, `"observations"`, `"tail": {"opt_in": false, "text": "x", "provenance": "t"}, "observations"`, 1),
+		"trailing data":        fixtureSnapshot + " {}",
 	}
 	for name, input := range cases {
 		if _, err := DecodeSnapshot([]byte(input)); err == nil {
@@ -143,7 +144,7 @@ func TestHashesAreStableAcrossEncodings(t *testing.T) {
 }
 
 const (
-	goldenSnapshotHash = "b524bb519c8142528c2ac302a6e0ba2798b6a02ceabed94eccaea13066a0dfa9"
+	goldenSnapshotHash = "22a9201fb323492ebe8eab13d734af59277993dc0783e05c46cec812f8f34a15"
 	goldenQuestionHash = "912ea574bc385e79e8069152a0b5ed470d29b60cde94a8c68df7d51b219fd018"
 )
 
@@ -157,31 +158,24 @@ func TestGoldenHash(t *testing.T) {
 	}
 }
 
+// Nulls inside the embedded observations stay exactly where they were and are
+// reported generically by path; nothing is defaulted or reinterpreted.
 func TestUnknownStaysUnknown(t *testing.T) {
-	s, q := frozen(t, strings.Replace(fixtureSnapshot, `"turn.open": {"source": "provider-stream", "value": false}`,
-		`"turn.open": {"source": "provider-stream", "unknown": true}`, 1))
+	s, q := frozen(t, fixtureSnapshot)
 	c := Compare(context.Background(), s, q, []Reviewer{Baseline{}})
-	if strings.Join(c.UnknownFacts, ",") != "runner.state,turn.open" {
-		t.Fatalf("unknown facts = %v", c.UnknownFacts)
+	if got := strings.Join(c.NullPaths, ","); got != "beta.inner,beta.list[1],gamma" {
+		t.Fatalf("null paths = %s", got)
 	}
-	if c.Results[0].Status != "abstained" || c.Results[0].Answer.Choice != "insufficient_evidence" {
-		t.Fatalf("baseline guessed from unknown facts: %+v", c.Results[0])
-	}
-	if !strings.Contains(string(s.Canonical), `"turn.open":{"source":"provider-stream","unknown":true}`) {
-		t.Fatalf("canonical bytes lost the unknown marker: %s", s.Canonical)
+	if !strings.Contains(string(s.Canonical), `"beta":{"inner":null,"list":[1,null]}`) || !strings.Contains(string(s.Canonical), `"gamma":null`) {
+		t.Fatalf("canonical bytes lost a null: %s", s.Canonical)
 	}
 }
 
-// The baseline predicts no lane state, not even from an open turn with a
-// reachable runner and a fresh provider record (an open turn is not progress),
-// nor from a completion claim, nor for whatever options the caller supplies.
+// The baseline predicts no lane state for any snapshot or option set; its note
+// reports the unknown values and whether task text and a tail were supplied.
 func TestBaselineAlwaysAbstainsAndShowsMissingEvidence(t *testing.T) {
-	strongLooking := strings.Replace(fixtureSnapshot, `"turn.open": {"source": "provider-stream", "value": false},`,
-		`"turn.open": {"source": "provider-stream", "value": true},
-    "last.provider_record_at": {"source": "provider-stream", "value": 1767323045000},`, 1)
-	strongLooking = strings.Replace(strongLooking, `"runner.state": {"source": "runner", "unknown": true, "reason": "not observed"}`,
-		`"runner.state": {"source": "runner", "value": "reachable"}`, 1)
-	for name, snap := range map[string]string{"open turn, reachable, fresh": strongLooking, "completion claim": fixtureSnapshot} {
+	allKnown := strings.Replace(strings.Replace(fixtureSnapshot, `"inner": null, "list": [1, null]`, `"inner": 1, "list": [1]`, 1), `"gamma": null`, `"gamma": 0`, 1)
+	for name, snap := range map[string]string{"with unknowns": fixtureSnapshot, "nothing unknown": allKnown} {
 		s, q := frozen(t, snap)
 		r := Compare(context.Background(), s, q, []Reviewer{Baseline{}}).Results[0]
 		if r.Status != "abstained" || r.Answer.Choice != "insufficient_evidence" {
@@ -190,7 +184,7 @@ func TestBaselineAlwaysAbstainsAndShowsMissingEvidence(t *testing.T) {
 	}
 	s, q := frozen(t, fixtureSnapshot)
 	note := Compare(context.Background(), s, q, []Reviewer{Baseline{}}).Results[0].Answer.Notes
-	for _, want := range []string{"predicts no lane state", "1 of 3 facts are unknown (runner.state)", "1 are the lane's own claims (last_assistant_text)", "transcript tail not supplied"} {
+	for _, want := range []string{"predicts no lane state", "null (unknown): 3 (beta.inner, beta.list[1], gamma)", "transcript tail not supplied"} {
 		if !strings.Contains(note, want) {
 			t.Errorf("note %q lacks %q", note, want)
 		}
@@ -200,8 +194,7 @@ func TestBaselineAlwaysAbstainsAndShowsMissingEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := Compare(context.Background(), s, arbitrary, []Reviewer{Baseline{}}).Results[0]
-	if r.Status != "abstained" || r.Answer.Choice != "" {
+	if r := Compare(context.Background(), s, arbitrary, []Reviewer{Baseline{}}).Results[0]; r.Status != "abstained" || r.Answer.Choice != "" {
 		t.Fatalf("baseline mapped caller options without an abstention: %+v", r)
 	}
 }
@@ -306,14 +299,3 @@ func TestPackageHasNoMutationOrNetworkPath(t *testing.T) {
 		}
 	}
 }
-
-func TestSupportedSourceContractIsAccepted(t *testing.T) {
-	ok := strings.Replace(fixtureSnapshot, `"producer": "test fixture",`,
-		`"producer": "test fixture", "source_contract": {"name": "sessions.lane-observations", "version": 1},`, 1)
-	if _, err := DecodeSnapshot([]byte(ok)); err != nil {
-		t.Fatalf("observations v1 snapshot rejected: %v", err)
-	}
-}
-
-// Working needs an observed open turn, a reachable runner and a provider
-// record close to capture time; stale, future-dated or missing records abstain.

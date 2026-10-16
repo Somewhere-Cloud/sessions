@@ -1,6 +1,7 @@
 package review
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -11,40 +12,19 @@ import (
 // SnapshotSchema is the only snapshot version this package accepts.
 const SnapshotSchema = "sessions.review-snapshot/1"
 
+// ObservationsVersion is the only lane observation contract version a
+// snapshot may embed. The observations object itself is owned by the core
+// observation contract and is embedded verbatim, with its own nested source
+// labels and null-as-unknown semantics; this package does not interpret its
+// fields.
+const ObservationsVersion = 1
+
 // Size limits keep a snapshot reviewable and bounded for every reviewer.
 const (
 	MaxSnapshotBytes = 256 << 10
 	MaxTaskBytes     = 32 << 10
 	MaxTailBytes     = 16 << 10
 )
-
-// FactSources is the closed provenance vocabulary. The observer names match the
-// lane observation contract (provider-stream, transcript-file, rollout-file,
-// terminal); self-report stays a claim; derived is a deterministic projection;
-// operator is stated by a person.
-var FactSources = map[string]bool{
-	"runner": true, "ledger": true, "provider-stream": true, "transcript-file": true, "rollout-file": true,
-	"terminal": true, "git": true, "integration": true, "self-report": true, "derived": true, "operator": true,
-}
-
-// SupportedSourceContracts lists the fact contracts a snapshot may declare it
-// was exported from, by name and version. Anything else is rejected.
-var SupportedSourceContracts = map[string]int{"sessions.lane-observations": 1}
-
-// SourceContract names the projection the facts were exported from.
-type SourceContract struct {
-	Name    string `json:"name"`
-	Version int    `json:"version"`
-}
-
-// Fact is one named observation with its provenance. Unknown is explicit:
-// an unknown fact has no value, and a known fact cannot be JSON null.
-type Fact struct {
-	Source  string          `json:"source"`
-	Value   json.RawMessage `json:"value,omitempty"`
-	Unknown bool            `json:"unknown,omitempty"`
-	Reason  string          `json:"reason,omitempty"`
-}
 
 // Task is optional task text supplied by the caller, with its provenance.
 type Task struct {
@@ -60,18 +40,16 @@ type Tail struct {
 	Provenance   string `json:"provenance"`
 }
 
-// Snapshot is one frozen evidence snapshot. Fact names are defined by the
-// producer (the core observation projection), not by this package.
+// Snapshot is one frozen evidence snapshot: one lane's core observations
+// object, verbatim, plus optional caller-supplied task text and tail.
 type Snapshot struct {
-	Schema         string            `json:"schema"`
-	Subject        string            `json:"subject"`
-	CapturedAt     string            `json:"captured_at"`
-	Producer       string            `json:"producer"`
-	SourceContract *SourceContract   `json:"source_contract,omitempty"`
-	Capabilities   map[string]string `json:"capabilities"`
-	Facts          map[string]Fact   `json:"facts"`
-	Task           *Task             `json:"task,omitempty"`
-	Tail           *Tail             `json:"tail,omitempty"`
+	Schema       string          `json:"schema"`
+	Subject      string          `json:"subject"`
+	CapturedAt   string          `json:"captured_at"`
+	Producer     string          `json:"producer"`
+	Observations json.RawMessage `json:"observations"`
+	Task         *Task           `json:"task,omitempty"`
+	Tail         *Tail           `json:"tail,omitempty"`
 }
 
 // FrozenSnapshot is a validated snapshot with the exact canonical bytes and
@@ -80,6 +58,7 @@ type FrozenSnapshot struct {
 	Snapshot  Snapshot
 	Canonical []byte
 	Hash      string
+	nullPaths []string
 }
 
 // DecodeSnapshot validates encoded strictly and freezes it.
@@ -107,7 +86,11 @@ func DecodeSnapshot(encoded []byte) (FrozenSnapshot, error) {
 	if err != nil {
 		return FrozenSnapshot{}, fmt.Errorf("snapshot: %w", err)
 	}
-	return FrozenSnapshot{Snapshot: snapshot, Canonical: canonical, Hash: Hash(canonical)}, nil
+	paths, err := nullPaths(snapshot.Observations)
+	if err != nil {
+		return FrozenSnapshot{}, fmt.Errorf("snapshot observations: %w", err)
+	}
+	return FrozenSnapshot{Snapshot: snapshot, Canonical: canonical, Hash: Hash(canonical), nullPaths: paths}, nil
 }
 
 func validateSnapshot(s Snapshot) error {
@@ -117,18 +100,8 @@ func validateSnapshot(s Snapshot) error {
 	if _, err := time.Parse(time.RFC3339, s.CapturedAt); err != nil {
 		return fmt.Errorf("captured_at must be RFC3339: %w", err)
 	}
-	if c := s.SourceContract; c != nil {
-		if supported, ok := SupportedSourceContracts[c.Name]; !ok || supported != c.Version {
-			return fmt.Errorf("facts were exported from %s version %d, which this version cannot read", c.Name, c.Version)
-		}
-	}
-	if s.Capabilities == nil || s.Facts == nil {
-		return fmt.Errorf("capabilities and facts are required (use empty objects when there are none)")
-	}
-	for _, name := range sortedKeys(s.Facts) {
-		if err := validateFact(name, s.Facts[name]); err != nil {
-			return err
-		}
+	if err := checkObservationsVersion(s.Observations); err != nil {
+		return err
 	}
 	if s.Task != nil && (len(s.Task.Text) > MaxTaskBytes || strings.TrimSpace(s.Task.Provenance) == "") {
 		return fmt.Errorf("task needs provenance and at most %d bytes of text", MaxTaskBytes)
@@ -144,39 +117,75 @@ func validateSnapshot(s Snapshot) error {
 	return nil
 }
 
-func validateFact(name string, fact Fact) error {
-	if strings.TrimSpace(name) == "" {
-		return fmt.Errorf("fact names must be non-empty")
+// checkObservationsVersion accepts only a JSON object whose version is the
+// supported observation contract version. It reads no other field.
+func checkObservationsVersion(raw json.RawMessage) error {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 || trimmed[0] != '{' {
+		return fmt.Errorf("observations must be the lane's observations object; got %s", describeJSON(trimmed))
 	}
-	if !FactSources[fact.Source] {
-		return fmt.Errorf("fact %q has source %q; allowed: %s", name, fact.Source, strings.Join(sortedKeys(FactSources), ", "))
+	var probe struct {
+		Version json.Number `json:"version"`
 	}
-	hasValue := len(fact.Value) > 0
-	if fact.Unknown && hasValue {
-		return fmt.Errorf("fact %q is unknown and also carries a value", name)
+	decoder := json.NewDecoder(bytes.NewReader(trimmed))
+	decoder.UseNumber()
+	if err := decoder.Decode(&probe); err != nil {
+		return fmt.Errorf("observations: %w", err)
 	}
-	if !fact.Unknown && (!hasValue || string(fact.Value) == "null") {
-		return fmt.Errorf("fact %q has no value; mark it \"unknown\": true instead of null or omission", name)
+	if probe.Version.String() != fmt.Sprint(ObservationsVersion) {
+		return fmt.Errorf("observations version %q is not supported; this version reads only version %d", probe.Version.String(), ObservationsVersion)
 	}
 	return nil
 }
 
-// UnknownFacts lists the facts the snapshot marks unknown, sorted.
-func (f FrozenSnapshot) UnknownFacts() []string {
-	var out []string
-	for _, name := range sortedKeys(f.Snapshot.Facts) {
-		if f.Snapshot.Facts[name].Unknown {
-			out = append(out, name)
-		}
+func describeJSON(raw []byte) string {
+	if len(raw) == 0 {
+		return "nothing"
 	}
-	return out
+	if len(raw) > 20 {
+		return string(raw[:20]) + "…"
+	}
+	return string(raw)
 }
 
-func sortedKeys[V any](m map[string]V) []string {
-	keys := make([]string, 0, len(m))
-	for key := range m {
-		keys = append(keys, key)
+// NullPaths lists every JSON path inside the observations object whose value
+// is null (unknown under the observation contract), sorted. It is a generic
+// walk: it does not know or assume any observation field names.
+func (f FrozenSnapshot) NullPaths() []string {
+	return append([]string{}, f.nullPaths...)
+}
+
+func nullPaths(raw json.RawMessage) ([]string, error) {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	var value any
+	if err := decoder.Decode(&value); err != nil {
+		return nil, err
 	}
-	sort.Strings(keys)
-	return keys
+	var out []string
+	var walk func(path string, v any)
+	walk = func(path string, v any) {
+		switch typed := v.(type) {
+		case nil:
+			out = append(out, path)
+		case map[string]any:
+			for key, child := range typed {
+				walk(joinPath(path, key), child)
+			}
+		case []any:
+			for index, child := range typed {
+				walk(fmt.Sprintf("%s[%d]", path, index), child)
+			}
+		}
+	}
+	walk("", value)
+	sort.Strings(out)
+	return out, nil
+}
+
+func joinPath(prefix, key string) string {
+	if prefix == "" {
+		return key
+	}
+	return prefix + "." + key
 }
