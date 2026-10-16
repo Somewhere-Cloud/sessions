@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/somewhere-tech/sessions/runtime/internal/review"
 )
@@ -71,17 +72,18 @@ func (a *app) cmdReviewSnapshot(args []string) error {
 	export := review.ExportOptions{CapturedAt: time.Now(), Producer: "sessions review snapshot"}
 	if path := options["--task-file"]; path != "" {
 		text, err := readBounded(path, review.MaxTaskBytes)
+		if err == nil && !utf8.Valid(text) {
+			err = fmt.Errorf("--task-file %s is not valid UTF-8; convert it to UTF-8 and export again", path)
+		}
 		if err != nil {
 			return fail(1, "%s", err)
 		}
 		export.Task = &review.Task{Text: string(text), Provenance: "file supplied by the caller: " + path}
 	}
 	if path := options["--tail-file"]; path != "" {
-		text, err := readBounded(path, 4*review.MaxSnapshotBytes)
-		if err != nil {
+		if export.Tail, err = readTailFile(path); err != nil {
 			return fail(1, "%s", err)
 		}
-		export.Tail = review.BoundedTail(string(text), "file supplied by the caller: "+path)
 	}
 	snapshot, err := review.ExportObservations(record, export)
 	if err != nil {
@@ -89,6 +91,37 @@ func (a *app) cmdReviewSnapshot(args []string) error {
 	}
 	_, err = fmt.Fprintf(a.stdout, "%s\n", snapshot)
 	return err
+}
+
+// readTailFile reads only the end of a regular file: the last
+// review.MaxTailBytes, plus a few bytes to land on a UTF-8 boundary. A long
+// log is therefore bounded rather than refused, and omitted_bytes counts
+// everything before the kept text. Only regular files are read, so a FIFO or
+// device cannot block or stream without end.
+func readTailFile(path string) (*review.Tail, error) {
+	if info, err := os.Stat(path); err != nil || !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("--tail-file %s must be a readable regular file; save the excerpt to a file first", path)
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil || !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("--tail-file %s must be a readable regular file; save the excerpt to a file first", path)
+	}
+	offset := max(info.Size()-int64(review.MaxTailBytes+utf8.UTFMax), 0)
+	text, err := io.ReadAll(io.NewSectionReader(file, offset, info.Size()-offset))
+	if err != nil {
+		return nil, err
+	}
+	tail := review.BoundedTail(string(text), "file supplied by the caller: "+path)
+	if !utf8.ValidString(tail.Text) {
+		return nil, fmt.Errorf("--tail-file %s is not valid UTF-8; convert it to UTF-8 and export again", path)
+	}
+	tail.OmittedBytes += int(offset)
+	return tail, nil
 }
 
 func parseReviewSnapshot(args []string) (string, map[string]string, error) {
@@ -218,13 +251,20 @@ func (a *app) cmdReviewCompare(args []string) error {
 	if err != nil {
 		return fail(1, "%s", err)
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, stop := reviewContext()
 	defer stop()
 	comparison := review.Compare(ctx, snapshot, questions, options.reviewers)
 	if a.wantJSON {
 		return writeJSON(a.stdout, comparison, true)
 	}
 	return writeReviewComparison(a.stdout, comparison)
+}
+
+// reviewContext is cancelled by any of reviewCancelSignals, so the
+// comparison stops its adapter rather than the CLI exiting and leaving the
+// adapter's process group running.
+func reviewContext() (context.Context, context.CancelFunc) {
+	return signal.NotifyContext(context.Background(), reviewCancelSignals...)
 }
 
 func writeReviewComparison(out io.Writer, c review.Comparison) error {

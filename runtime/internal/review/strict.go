@@ -14,12 +14,19 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"reflect"
+	"strings"
 )
 
 // decodeStrict decodes exactly one JSON value into target, rejecting unknown
-// fields, duplicate object keys and trailing data.
+// fields, duplicate object keys and trailing data. Field names must match
+// exactly: encoding/json alone would also accept "Subject" or "VERSION" and
+// let the last of two case variants win.
 func decodeStrict(encoded []byte, target any) error {
 	if err := rejectDuplicateKeys(encoded); err != nil {
+		return err
+	}
+	if err := requireExactFieldNames(encoded, reflect.TypeOf(target)); err != nil {
 		return err
 	}
 	decoder := json.NewDecoder(bytes.NewReader(encoded))
@@ -29,6 +36,50 @@ func decodeStrict(encoded []byte, target any) error {
 	}
 	if _, err := decoder.Token(); !errors.Is(err, io.EOF) {
 		return errors.New("trailing data after the JSON value")
+	}
+	return nil
+}
+
+// requireExactFieldNames checks that every object decoded into a struct uses
+// that struct's JSON names exactly. Raw JSON members (the embedded
+// observations) and maps hold data, not seam fields, so their keys are left
+// as they are. Shape errors are left for the decoder to report.
+func requireExactFieldNames(encoded []byte, typ reflect.Type) error {
+	for typ.Kind() == reflect.Pointer {
+		typ = typ.Elem()
+	}
+	switch {
+	case typ.Kind() == reflect.Slice && typ.Elem().Kind() != reflect.Uint8:
+		var items []json.RawMessage
+		if json.Unmarshal(encoded, &items) != nil {
+			return nil
+		}
+		for _, item := range items {
+			if err := requireExactFieldNames(item, typ.Elem()); err != nil {
+				return err
+			}
+		}
+	case typ.Kind() == reflect.Struct:
+		var members map[string]json.RawMessage
+		if json.Unmarshal(encoded, &members) != nil {
+			return nil
+		}
+		fields := map[string]reflect.Type{}
+		for index := 0; index < typ.NumField(); index++ {
+			field := typ.Field(index)
+			if name, _, _ := strings.Cut(field.Tag.Get("json"), ","); field.IsExported() && name != "" && name != "-" {
+				fields[name] = field.Type
+			}
+		}
+		for key, value := range members {
+			fieldType, known := fields[key]
+			if !known {
+				return fmt.Errorf("unknown field %q (field names are exact and case-sensitive)", key)
+			}
+			if err := requireExactFieldNames(value, fieldType); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
@@ -78,6 +129,12 @@ func Canonical(encoded []byte) ([]byte, error) {
 	if err := decoder.Decode(&value); err != nil {
 		return nil, err
 	}
+	return encodeUnescaped(value)
+}
+
+// encodeUnescaped encodes value compactly without HTML escaping, so <, > and
+// & stay one byte each and embedded raw JSON keeps those characters as given.
+func encodeUnescaped(value any) ([]byte, error) {
 	var out bytes.Buffer
 	encoder := json.NewEncoder(&out)
 	encoder.SetEscapeHTML(false)

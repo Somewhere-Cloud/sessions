@@ -96,3 +96,30 @@ func TestExportIsDeterministicAndTaskTailAreExplicit(t *testing.T) {
 		t.Fatal("task and tail did not change the snapshot hash")
 	}
 }
+
+// Values are preserved and encoded canonically: no HTML escaping, so a task
+// and tail within their own limits are not inflated past the snapshot limit.
+func TestExportDoesNotHTMLEscapeAndExplainsSizeFailures(t *testing.T) {
+	record := strings.Replace(statusRecord, `"source":"synthetic"`, `"source":"a<b & c>d"`, 1)
+	encoded, err := ExportObservations([]byte(record), ExportOptions{CapturedAt: exportAt,
+		Task: &Task{Text: strings.Repeat("<", 32000), Provenance: "test"}, Tail: BoundedTail(strings.Repeat("<", 20000), "test")})
+	if err != nil {
+		t.Fatalf("task and tail within their limits were refused: %v", err)
+	}
+	if strings.Contains(string(encoded), `\u003c`) || !strings.Contains(string(encoded), `"a<b & c>d"`) {
+		t.Fatalf("exported snapshot is HTML-escaped: %.200s", encoded)
+	}
+	control := strings.Repeat("\u0001", MaxTaskBytes)
+	_, err = ExportObservations([]byte(statusRecord), ExportOptions{CapturedAt: exportAt,
+		Task: &Task{Text: control, Provenance: "test"}, Tail: BoundedTail(strings.Repeat("\u0001", MaxTailBytes), "test")})
+	if err == nil || !strings.Contains(err.Error(), "task text encodes to") || !strings.Contains(err.Error(), "shorten") {
+		t.Fatalf("oversized export error is not instructional: %v", err)
+	}
+}
+
+func TestExportOfABareObjectSaysHowToGetASubject(t *testing.T) {
+	_, err := ExportObservations([]byte(bareObservations), ExportOptions{CapturedAt: exportAt})
+	if err == nil || !strings.Contains(err.Error(), "sessions --json status") {
+		t.Fatalf("missing subject error: %v", err)
+	}
+}

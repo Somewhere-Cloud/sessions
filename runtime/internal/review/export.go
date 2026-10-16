@@ -23,9 +23,11 @@ type ExportOptions struct {
 // ExportObservations freezes one lane's core observations into a
 // sessions.review-snapshot/1 document. record is either a session record as
 // `sessions --json status` prints it (with an "observations" member) or a
-// bare observations object. The observations object is embedded verbatim: its
-// nested source labels and nulls keep the meaning the observation contract
-// gives them, and no field is renamed, flattened or interpreted here.
+// bare observations object. Every observation value is preserved unchanged:
+// nested source labels, nulls and unknown fields keep the meaning the
+// observation contract gives them, and no field is renamed, flattened or
+// interpreted. The bytes are re-encoded compactly without HTML escaping; the
+// snapshot hash is over its canonical form.
 func ExportObservations(record []byte, options ExportOptions) ([]byte, error) {
 	observations, subject, err := locateObservations(record)
 	if err != nil {
@@ -38,14 +40,17 @@ func ExportObservations(record []byte, options ExportOptions) ([]byte, error) {
 		options.Subject = subject
 	}
 	if options.Subject == "" {
-		return nil, fmt.Errorf("the record has no id; pass a subject")
+		return nil, fmt.Errorf("the record has no session id; save the full session record with `sessions --json status <session>` and export that file, or run `sessions review snapshot <session>`")
 	}
 	snapshot := Snapshot{Schema: SnapshotSchema, Subject: options.Subject, CapturedAt: options.CapturedAt.UTC().Format(time.RFC3339),
 		Producer: firstNonEmpty(options.Producer, "sessions review snapshot"), Observations: observations,
 		Task: options.Task, Tail: options.Tail}
-	encoded, err := json.Marshal(snapshot)
+	encoded, err := encodeUnescaped(snapshot)
 	if err != nil {
 		return nil, err
+	}
+	if len(encoded) > MaxSnapshotBytes {
+		return nil, oversizedExport(len(encoded), options)
 	}
 	if _, err := DecodeSnapshot(encoded); err != nil {
 		return nil, fmt.Errorf("exported snapshot failed validation: %w", err)
@@ -80,6 +85,23 @@ func locateObservations(record []byte) (json.RawMessage, string, error) {
 		return json.RawMessage(record), subject, nil
 	}
 	return nil, "", fmt.Errorf("no observations found; this record or daemon does not report lane observations")
+}
+
+// oversizedExport says which caller-supplied part to shorten. Text within its
+// own byte limit can still grow when encoded (a control character takes six
+// bytes), so the encoded sizes are what the message reports.
+func oversizedExport(size int, options ExportOptions) error {
+	taskSize, tailSize := 0, 0
+	if options.Task != nil {
+		encoded, _ := encodeUnescaped(options.Task.Text)
+		taskSize = len(encoded)
+	}
+	if options.Tail != nil {
+		encoded, _ := encodeUnescaped(options.Tail.Text)
+		tailSize = len(encoded)
+	}
+	return fmt.Errorf("the snapshot would be %d bytes; the limit is %d. The task text encodes to %d bytes and the tail to %d; "+
+		"shorten the task text or the tail (or omit one) and export again", size, MaxSnapshotBytes, taskSize, tailSize)
 }
 
 // BoundedTail keeps the last MaxTailBytes of text on a UTF-8 boundary and

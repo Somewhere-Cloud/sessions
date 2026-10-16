@@ -163,3 +163,43 @@ func TestReviewSnapshotOfASessionReusesItsStatusRecord(t *testing.T) {
 		t.Fatalf("a daemon without observations: exit %d stderr %q", code, stderr)
 	}
 }
+
+// A long regular tail file is bounded to its last 16 KiB, not refused, and
+// the omitted byte count covers everything before the kept text.
+func TestReviewSnapshotBoundsALongTailFileAndRejectsBadInput(t *testing.T) {
+	server, calls := countingDaemon(t)
+	status := writeReviewFile(t, "status.json", `{"id":"`+reviewSessionID+`","observations":`+reviewObservationsFixture+`}`)
+	long := strings.Repeat("line é\n", 300000)
+	tail := writeReviewFile(t, "tail.log", long)
+	code, stdout, stderr := runReview(t, "--host", server.URL, "review", "snapshot", "--observations", status, "--tail-file", tail)
+	if code != 0 {
+		t.Fatalf("long tail refused: exit %d stderr %q", code, stderr)
+	}
+	var snapshot struct {
+		Tail struct {
+			Text         string `json:"text"`
+			OmittedBytes int    `json:"omitted_bytes"`
+		} `json:"tail"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &snapshot); err != nil {
+		t.Fatal(err)
+	}
+	if len(snapshot.Tail.Text) > 16<<10 || snapshot.Tail.OmittedBytes+len(snapshot.Tail.Text) != len(long) ||
+		!strings.HasSuffix(long, snapshot.Tail.Text) {
+		t.Fatalf("tail kept %d bytes, omitted %d, of %d", len(snapshot.Tail.Text), snapshot.Tail.OmittedBytes, len(long))
+	}
+	invalid := writeReviewFile(t, "bad.txt", "ok \xff\xfe end")
+	for name, args := range map[string][]string{
+		"invalid UTF-8 task":  {"--task-file", invalid},
+		"invalid UTF-8 tail":  {"--tail-file", invalid},
+		"directory as a tail": {"--tail-file", t.TempDir()},
+	} {
+		code, _, stderr := runReview(t, append([]string{"--host", server.URL, "review", "snapshot", "--observations", status}, args...)...)
+		if code == 0 || (strings.Contains(name, "UTF-8") && !strings.Contains(stderr, "UTF-8")) {
+			t.Errorf("%s: exit %d stderr %q", name, code, stderr)
+		}
+	}
+	if calls.Load() != 0 {
+		t.Fatalf("snapshot from a file made %d daemon requests", calls.Load())
+	}
+}

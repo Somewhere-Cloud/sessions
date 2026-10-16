@@ -32,9 +32,10 @@ func fixtureAdapter(mode string) int {
 	raw, _ := io.ReadAll(os.Stdin)
 	var req adapterRequest
 	_ = json.Unmarshal(raw, &req)
-	sum := sha256.Sum256(req.Snapshot)
+	sum, questionSum := sha256.Sum256(req.Snapshot), sha256.Sum256(req.Questions)
 	if out := os.Getenv(fixtureOut); out != "" {
-		_ = os.WriteFile(out, []byte(hex.EncodeToString(sum[:])+"\n"+strings.Join(os.Environ(), "\n")), 0o600)
+		_ = os.WriteFile(out, []byte(hex.EncodeToString(sum[:])+"\n"+hex.EncodeToString(questionSum[:])+"\n"+
+			strings.Join(os.Environ(), "\n")), 0o600)
 	}
 	reply := `{"protocol":"sessions.review-adapter/1","reviewer":{"id":"fixture","version":"0"},"choice":"claimed_done_unverified","scores":{"claimed_done_unverified":0.7}}`
 	switch mode {
@@ -50,6 +51,8 @@ func fixtureAdapter(mode string) int {
 		reply = strings.Replace(reply, "0.7", "1.5", 1)
 	case "huge":
 		reply = `{"notes":"` + strings.Repeat("x", MaxReplyBytes+10) + `"}`
+	case "casefold":
+		reply = strings.Replace(reply, `"choice"`, `"Choice"`, 1)
 	case "empty":
 		return 0
 	case "exit":

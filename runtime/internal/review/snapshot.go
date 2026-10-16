@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -14,9 +15,9 @@ const SnapshotSchema = "sessions.review-snapshot/1"
 
 // ObservationsVersion is the only lane observation contract version a
 // snapshot may embed. The observations object itself is owned by the core
-// observation contract and is embedded verbatim, with its own nested source
-// labels and null-as-unknown semantics; this package does not interpret its
-// fields.
+// observation contract; every value is kept unchanged, with its own nested
+// source labels and null-as-unknown semantics, and this package does not
+// interpret its fields.
 const ObservationsVersion = 1
 
 // Size limits keep a snapshot reviewable and bounded for every reviewer.
@@ -41,7 +42,8 @@ type Tail struct {
 }
 
 // Snapshot is one frozen evidence snapshot: one lane's core observations
-// object, verbatim, plus optional caller-supplied task text and tail.
+// object with every value unchanged, plus optional caller-supplied task text
+// and tail.
 type Snapshot struct {
 	Schema       string          `json:"schema"`
 	Subject      string          `json:"subject"`
@@ -117,23 +119,24 @@ func validateSnapshot(s Snapshot) error {
 	return nil
 }
 
-// checkObservationsVersion accepts only a JSON object whose version is the
-// supported observation contract version. It reads no other field.
+// checkObservationsVersion accepts only a JSON object whose "version" member
+// (exactly that key) is exactly the JSON integer 1. It reads no other field:
+// observation keys are the core contract's data and are never case-folded.
 func checkObservationsVersion(raw json.RawMessage) error {
 	trimmed := bytes.TrimSpace(raw)
 	if len(trimmed) == 0 || trimmed[0] != '{' {
 		return fmt.Errorf("observations must be the lane's observations object; got %s", describeJSON(trimmed))
 	}
-	var probe struct {
-		Version json.Number `json:"version"`
-	}
-	decoder := json.NewDecoder(bytes.NewReader(trimmed))
-	decoder.UseNumber()
-	if err := decoder.Decode(&probe); err != nil {
+	var members map[string]json.RawMessage
+	if err := json.Unmarshal(trimmed, &members); err != nil {
 		return fmt.Errorf("observations: %w", err)
 	}
-	if probe.Version.String() != fmt.Sprint(ObservationsVersion) {
-		return fmt.Errorf("observations version %q is not supported; this version reads only version %d", probe.Version.String(), ObservationsVersion)
+	version, present := members["version"]
+	if !present {
+		return fmt.Errorf("observations have no \"version\" member; this version reads only observations version %d", ObservationsVersion)
+	}
+	if !bytes.Equal(bytes.TrimSpace(version), []byte(strconv.Itoa(ObservationsVersion))) {
+		return fmt.Errorf("observations version %s is not supported; this version reads only the JSON integer %d", describeJSON(bytes.TrimSpace(version)), ObservationsVersion)
 	}
 	return nil
 }

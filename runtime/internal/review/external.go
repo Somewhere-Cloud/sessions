@@ -62,6 +62,21 @@ type adapterRequest struct {
 	Questions    json.RawMessage `json:"questions"`
 }
 
+// adapterRequestBytes writes an adapterRequest around the canonical snapshot
+// and question bytes exactly as they were hashed. json.Marshal would re-encode
+// those members (compacting them and escaping <, >, & and U+2028 as \u003c and
+// so on), so an adapter hashing what it received would not match the hashes.
+// The other members are fixed ASCII: the protocol name and two hex digests.
+func adapterRequestBytes(in Input) []byte {
+	var request bytes.Buffer
+	fmt.Fprintf(&request, `{"protocol":%q,"snapshot_hash":%q,"question_hash":%q,"snapshot":`, AdapterProtocol, in.SnapshotHash, in.QuestionHash)
+	request.Write(in.Snapshot)
+	request.WriteString(`,"questions":`)
+	request.Write(in.Questions)
+	request.WriteString("}")
+	return request.Bytes()
+}
+
 type adapterReply struct {
 	Protocol string             `json:"protocol"`
 	Reviewer DeclaredReviewer   `json:"reviewer"`
@@ -72,12 +87,7 @@ type adapterReply struct {
 
 // Review implements Reviewer.
 func (e *External) Review(ctx context.Context, in Input) (Answer, error) {
-	request, err := json.Marshal(adapterRequest{Protocol: AdapterProtocol, SnapshotHash: in.SnapshotHash,
-		QuestionHash: in.QuestionHash, Snapshot: bytes.Clone(in.Snapshot), Questions: bytes.Clone(in.Questions)})
-	if err != nil {
-		return Answer{}, reviewError(ErrMalformed, "encode request: %v", err)
-	}
-	stdout, stderr, runErr := e.run(ctx, request)
+	stdout, stderr, runErr := e.run(ctx, adapterRequestBytes(in))
 	if runErr != nil {
 		return Answer{}, runErr
 	}
@@ -117,6 +127,10 @@ func (e *External) run(ctx context.Context, request []byte) (*limitedBuffer, *li
 		return nil, nil, reviewError(ErrCancelled, "comparison was cancelled before the reviewer answered")
 	case errors.Is(runCtx.Err(), context.DeadlineExceeded):
 		return nil, nil, reviewError(ErrTimeout, "no reply within %s; the reviewer was stopped", e.Timeout)
+	case errors.Is(err, exec.ErrWaitDelay):
+		stopLeftoverProcessGroup(cmd)
+		return nil, nil, reviewError(ErrUnavailable, "the reviewer exited, but a process it started kept its output open for more than %s, "+
+			"so the reply may be incomplete and was not used; what remained of the reviewer's own process group was stopped", cmd.WaitDelay)
 	case err != nil:
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
