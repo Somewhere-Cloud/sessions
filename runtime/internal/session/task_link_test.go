@@ -199,3 +199,49 @@ func TestTaskRefLimitIsCumulativeOnEveryPath(t *testing.T) {
 		t.Fatalf("limits = %d / %d err=%v", len(links.Tasks), len(links.PullRequests[0].Tasks), err)
 	}
 }
+
+// At the limit, restating references that are already linked is a no-op
+// rather than a refusal, duplicates inside one batch count once, and a batch
+// that would add even one more reference is refused whole, recording nothing.
+func TestTaskRefLimitTreatsDuplicatesAsNoOpsAndRefusesWholeBatches(t *testing.T) {
+	ctx := context.Background()
+	manager, _, store, id := newMultiPullRequestManager(t, &perURLFetcher{})
+	full := make([]string, 0, 64)
+	for index := 1; index <= 64; index++ {
+		full = append(full, fmt.Sprintf("gh:acme/app#%d", index))
+	}
+	if _, err := manager.AddPullRequest(ctx, id, firstPR, full[:40], ""); err != nil {
+		t.Fatal(err)
+	}
+	// One request of 64 entries: the 24 new references, each sent twice, and
+	// 16 already linked. It reaches exactly the limit.
+	batch := append(append(append([]string(nil), full[40:]...), full[40:]...), full[:16]...)
+	if _, err := manager.AddPullRequest(ctx, id, firstPR, batch, ""); err != nil {
+		t.Fatalf("duplicate-heavy batch reaching exactly the limit: %v", err)
+	}
+	for _, link := range []func([]string) (bool, error){
+		func(refs []string) (bool, error) {
+			links, err := manager.AddPullRequest(ctx, id, firstPR, refs, "")
+			return err == nil && *links.Changed, err
+		},
+		func(refs []string) (bool, error) {
+			links, err := manager.LinkTasks(ctx, id, refs, "", firstPR)
+			return err == nil && *links.Changed, err
+		},
+	} {
+		if changed, err := link(full[:10]); err != nil || changed {
+			t.Fatalf("restating linked references at the limit changed=%v err=%v", changed, err)
+		}
+		before := countEvents(t, store, id, ledger.EventTaskLinked)
+		if _, err := link(append(append([]string(nil), full[:3]...), "gh:acme/app#999")); !errors.Is(err, ErrTaskRefInvalid) {
+			t.Fatalf("a batch adding a 65th reference err = %v", err)
+		}
+		if after := countEvents(t, store, id, ledger.EventTaskLinked); after != before {
+			t.Fatalf("a refused batch recorded %d task facts", after-before)
+		}
+	}
+	links, err := manager.TaskLinks(ctx, id)
+	if err != nil || len(links.PullRequests[0].Tasks) != 64 {
+		t.Fatalf("pull request references = %d err=%v", len(links.PullRequests[0].Tasks), err)
+	}
+}
