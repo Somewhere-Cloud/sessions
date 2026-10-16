@@ -143,7 +143,7 @@ fields. Optional fields are omitted when their value is `undefined`.
 | `working` | boolean | current activity classification |
 | `launching` | boolean, optional | recorded creation is still executing in this daemon, before runner registration. Shown as Starting, not Working; startup is unconfirmed. The row's `start` object includes the original operation ID when one was recorded. Omitted after creation settles or the daemon restarts; absence is not proof the command started or stopped |
 | `lastDataAt` | number | Unix epoch milliseconds of latest PTY output. A record restored from the ledger after its runner is gone reports its newest recorded human or provider activity; renames, pull request and task links, refreshes, and archive facts never move it |
-| `lastDataUnknown` | boolean, optional | `true` when a restored record has no recorded activity, so `lastDataAt` is only its `createdAt` floor. Omitted when the time was observed |
+| `lastDataUnknown` | boolean, optional | `true` when a restored record has no recorded activity, so `lastDataAt` is only its `createdAt` floor. Omitted when the time was observed. `sessions status` reports the same fact as `last_activity_unknown`, which differs only when the provider transcript recorded a later turn (`lastUserMessageAt`). A producer verdict's `emitted_at` is a report time and never counts as activity |
 | `lastUserMessageAt` | number or null | latest user-role record in the provider transcript. Transcript-derived, so it includes the provider's own internal injections — a scheduled prompt or cron tick is written straight into the transcript and is indistinguishable there from a person. Do not read it as human contact; use `lastHumanMessageAt` for that |
 | `lastHumanMessageAt` | number or null | Unix epoch milliseconds of the latest input that reached Sessions **without** source-session attribution: a person at a keyboard, a composer, an attached terminal, `sessions send` run by hand. Stamped at the input boundary, which a provider's internal injection never crosses. Null means no person has spoken into this session |
 | `lastAgentMessageAt` | number or null | Unix epoch milliseconds of the latest input that reached Sessions **with** source-session attribution (`X-Sessions-Creator-Session`), meaning one session relayed it to another. Null means no session has |
@@ -1219,7 +1219,12 @@ the append-only ledger retains their hierarchy provenance.
 
 The default CLI flow is a dry run (`sessions gc`); mutation requires
 `sessions gc --apply`. Each result item reports `archived`, `would_archive`, or
-`skipped` plus an instructional reason. Success is:
+`skipped` plus an instructional reason. Age is judged only by the record's
+recorded closing time (`closed_at_ms`); no other clock substitutes for it, and
+later administrative facts (renames, pull request or task links, refreshes)
+never change it. A record whose closing time is missing or unusable answers
+`closed_at_ms:0`, `closed_at_unknown:true`, and is always skipped by GC; it can
+still be archived explicitly. Success is:
 
 ```json
 {"dry_run":true,"cutoff_ms":1782250000000,"items":[]}

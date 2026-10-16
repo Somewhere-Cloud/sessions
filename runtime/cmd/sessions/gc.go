@@ -18,8 +18,10 @@ type retentionItem struct {
 	Name       string `json:"name,omitempty"`
 	Kind       string `json:"kind"`
 	ClosedAtMS int64  `json:"closed_at_ms"`
-	Status     string `json:"status"`
-	Reason     string `json:"reason,omitempty"`
+	// ClosedAtUnknown mirrors the daemon: no usable closing time was recorded.
+	ClosedAtUnknown bool   `json:"closed_at_unknown,omitempty"`
+	Status          string `json:"status"`
+	Reason          string `json:"reason,omitempty"`
 }
 
 type retentionResult struct {

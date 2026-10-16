@@ -18,8 +18,21 @@ type RetentionItem struct {
 	Name       string `json:"name,omitempty"`
 	Kind       string `json:"kind"`
 	ClosedAtMS int64  `json:"closed_at_ms"`
-	Status     string `json:"status"`
-	Reason     string `json:"reason,omitempty"`
+	// ClosedAtUnknown means the ledger holds no usable closing time, so
+	// closed_at_ms is 0 and the record is never treated as old enough to clear.
+	ClosedAtUnknown bool   `json:"closed_at_unknown,omitempty"`
+	Status          string `json:"status"`
+	Reason          string `json:"reason,omitempty"`
+}
+
+// retentionClosedAt is the recorded closing time. Retention never substitutes
+// another clock for it: an unknown closing time cannot make a record look old
+// enough to clear.
+func retentionClosedAt(lane ledger.LaneState) (int64, bool) {
+	if lane.ClosedAtMS <= 0 {
+		return 0, false
+	}
+	return lane.ClosedAtMS, true
 }
 
 type RetentionResult struct {
@@ -86,16 +99,13 @@ func (m *Manager) ArchiveClosed(ctx context.Context, ids []string) (RetentionRes
 	toArchive := make([]ledger.Archived, 0, len(targets))
 	for id := range requested {
 		lane := byID[id]
-		closedAt := lane.ClosedAtMS
-		if closedAt == 0 {
-			closedAt = lane.LastLifecycleAtMS
-		}
+		closedAt, known := retentionClosedAt(lane)
 		kind := "session"
 		if lane.Tool == string(state.ToolLane) {
 			kind = "lane"
 		}
 		item := RetentionItem{
-			ID: id, Name: lane.Name, Kind: kind, ClosedAtMS: closedAt,
+			ID: id, Name: lane.Name, Kind: kind, ClosedAtMS: closedAt, ClosedAtUnknown: !known,
 			Status: "skipped", Reason: reasons[id],
 		}
 		if _, ok := targets[id]; ok {
@@ -165,11 +175,10 @@ func (m *Manager) GCClosed(ctx context.Context, cutoffMS int64, dryRun bool) (Re
 		if !lane.Created || !durablyClosed(lane) || lane.Archived {
 			continue
 		}
-		closedAt := lane.ClosedAtMS
-		if closedAt == 0 {
-			closedAt = lane.LastLifecycleAtMS
-		}
+		closedAt, known := retentionClosedAt(lane)
 		switch {
+		case !known:
+			reasons[lane.LaneID] = "closing time unknown; archive it explicitly if it should be hidden"
 		case closedAt > cutoffMS:
 			reasons[lane.LaneID] = "newer than retention cutoff"
 		case m.runtimeStillLive(lane.LaneID):
@@ -198,16 +207,13 @@ func (m *Manager) GCClosed(ctx context.Context, cutoffMS int64, dryRun bool) (Re
 		if !lane.Created || !durablyClosed(lane) || lane.Archived {
 			continue
 		}
-		closedAt := lane.ClosedAtMS
-		if closedAt == 0 {
-			closedAt = lane.LastLifecycleAtMS
-		}
+		closedAt, known := retentionClosedAt(lane)
 		kind := "session"
 		if lane.Tool == string(state.ToolLane) {
 			kind = "lane"
 		}
 		item := RetentionItem{
-			ID: lane.LaneID, Name: lane.Name, Kind: kind, ClosedAtMS: closedAt,
+			ID: lane.LaneID, Name: lane.Name, Kind: kind, ClosedAtMS: closedAt, ClosedAtUnknown: !known,
 			Status: "skipped", Reason: reasons[lane.LaneID],
 		}
 		if _, ok := targets[lane.LaneID]; ok {

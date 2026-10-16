@@ -417,7 +417,7 @@ Usage:
 
 archive old closed records safely
 
-Preview or archive sessions and lanes that have been closed longer than the retention age (30d by default). The default is a dry run; --apply records an append-only archive fact. --dry-run only states that default explicitly and changes nothing; it cannot be combined with --apply. Live runners are never archived. Finished parents and children may be archived independently because lineage remains in the append-only ledger. Recovery history, transcripts, and worktrees are preserved.
+Preview or archive sessions and lanes that have been closed longer than the retention age (30d by default). The default is a dry run; --apply records an append-only archive fact. --dry-run only states that default explicitly and changes nothing; it cannot be combined with --apply. Live runners are never archived, and a record is judged only by its recorded closing time: one without a usable closing time is reported with closed_at_unknown and never archived by gc. Finished parents and children may be archived independently because lineage remains in the append-only ledger. Recovery history, transcripts, and worktrees are preserved.
 
 Examples:
   sessions gc
@@ -932,7 +932,7 @@ show a compact session status card
 
 Show session state, tool, working directory, git state, activity timestamps, and the latest explicit verdict when present. Working, exited, the last turn's reason and summary, an unreachable runner and a provider failure each read as their own line, in the words `sessions ls` uses.
 
---json answers with the session record `sessions ls --json` reports, field for field and name for name, plus what only status knows: record, state, git, last_verdict, created_at, last_activity_at, age_ms and the idle/ended detail fields. last_activity_unknown is true when no activity was ever recorded, so last_activity_at is only the creation time; renames, pull request and task links, and refreshes are not activity. An agent inspecting one session before sending to it therefore reads exactly what an agent listing every session reads, and an absent field means the daemon did not report it rather than that status dropped it. `kind` is the session's own kind, as in the listing; the document type is `record`.
+--json answers with the session record `sessions ls --json` reports, field for field and name for name, plus what only status knows: record, state, git, last_verdict, created_at, last_activity_at, age_ms and the idle/ended detail fields. last_activity_unknown is true when no activity was ever recorded, so last_activity_at is only the creation time; it matches the listing's lastDataUnknown unless the provider transcript recorded a later turn. Renames, pull request and task links, refreshes, and verdicts are not activity: a verdict's time is the producer's report time, shown only as last_verdict.emitted_at. An agent inspecting one session before sending to it therefore reads exactly what an agent listing every session reads, and an absent field means the daemon did not report it rather than that status dropped it. `kind` is the session's own kind, as in the listing; the document type is `record`.
 
 Examples:
   sessions status 0123abcd

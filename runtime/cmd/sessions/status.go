@@ -99,21 +99,21 @@ func (a *app) cmdStatus(args []string) error {
 	if lastActivityAt < createdAt {
 		lastActivityAt = createdAt
 	}
+	// last_activity_unknown is exactly the listing's lastDataUnknown unless the
+	// provider transcript itself recorded a later conversation turn.
 	activityUnknown := current.LastDataUnknown
 	if current.LastUserMessageAt != nil && *current.LastUserMessageAt > lastActivityAt {
 		lastActivityAt = *current.LastUserMessageAt
 		activityUnknown = false
 	}
 	lastActivityTime := time.UnixMilli(lastActivityAt).UTC()
+	// A verdict is a report a producer submitted, not activity: it can be
+	// emitted by anyone with access, backfilled, or carry a skewed clock. Its
+	// time stays in last_verdict.emitted_at and never moves last_activity_at.
 	var summary *verdictprotocol.Summary
 	if latest != nil {
 		value := latest.Summary()
 		summary = &value
-		if emittedAt, parseErr := time.Parse(time.RFC3339Nano, latest.EmittedAt); parseErr == nil && emittedAt.After(lastActivityTime) {
-			lastActivityTime = emittedAt
-			lastActivityAt = emittedAt.UnixMilli()
-			activityUnknown = false
-		}
 	}
 	state := liveStatusState(*current)
 	output := statusOutput{
