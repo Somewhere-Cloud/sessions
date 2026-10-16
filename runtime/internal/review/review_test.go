@@ -101,7 +101,7 @@ func fixtureReviewer(t *testing.T, mode string, timeout time.Duration) (*Externa
 	out := filepath.Join(t.TempDir(), "seen")
 	t.Setenv(fixtureMode, mode)
 	t.Setenv(fixtureOut, out)
-	ext, err := NewExternal(self, nil, []string{fixtureMode, fixtureOut}, timeout)
+	ext, err := NewExternal(self, nil, timeout)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,26 +172,37 @@ func TestUnknownStaysUnknown(t *testing.T) {
 	}
 }
 
-func TestBaselineNeverInfersWorkingOrVerifiedCompletion(t *testing.T) {
-	missingEnd := strings.Replace(fixtureSnapshot, `"turn.open": {"source": "provider-stream", "value": false},`, ``, 1)
-	terminalOnly := strings.Replace(fixtureSnapshot, `"source": "provider-stream", "value": false`, `"source": "terminal", "value": true`, 1)
-	openNoRunner := strings.Replace(fixtureSnapshot, `"value": false`, `"value": true`, 1)
-	for name, snap := range map[string]string{"missing end": missingEnd, "terminal-only turn": terminalOnly, "open, runner unknown": openNoRunner} {
+// The baseline predicts no lane state, not even from an open turn with a
+// reachable runner and a fresh provider record (an open turn is not progress),
+// nor from a completion claim, nor for whatever options the caller supplies.
+func TestBaselineAlwaysAbstainsAndShowsMissingEvidence(t *testing.T) {
+	strongLooking := strings.Replace(fixtureSnapshot, `"turn.open": {"source": "provider-stream", "value": false},`,
+		`"turn.open": {"source": "provider-stream", "value": true},
+    "last.provider_record_at": {"source": "provider-stream", "value": 1767323045000},`, 1)
+	strongLooking = strings.Replace(strongLooking, `"runner.state": {"source": "runner", "unknown": true, "reason": "not observed"}`,
+		`"runner.state": {"source": "runner", "value": "reachable"}`, 1)
+	for name, snap := range map[string]string{"open turn, reachable, fresh": strongLooking, "completion claim": fixtureSnapshot} {
 		s, q := frozen(t, snap)
 		r := Compare(context.Background(), s, q, []Reviewer{Baseline{}}).Results[0]
-		if r.Answer == nil || r.Answer.Choice == "working" {
+		if r.Status != "abstained" || r.Answer.Choice != "insufficient_evidence" {
 			t.Errorf("%s: baseline answered %+v, want abstention", name, r)
 		}
 	}
 	s, q := frozen(t, fixtureSnapshot)
-	r := Compare(context.Background(), s, q, []Reviewer{Baseline{}}).Results[0]
-	if r.Answer.Choice != "claimed_done_unverified" {
-		t.Fatalf("self-reported completion = %q, want claimed_done_unverified (never done_verified)", r.Answer.Choice)
+	note := Compare(context.Background(), s, q, []Reviewer{Baseline{}}).Results[0].Answer.Notes
+	for _, want := range []string{"predicts no lane state", "1 of 3 facts are unknown (runner.state)", "1 are the lane's own claims (last_assistant_text)", "transcript tail not supplied"} {
+		if !strings.Contains(note, want) {
+			t.Errorf("note %q lacks %q", note, want)
+		}
 	}
-	review := strings.Replace(fixtureSnapshot, "Implemented and committed the change.", "Committed. I'm idle for review.", 1)
-	s, q = frozen(t, review)
-	if got := Compare(context.Background(), s, q, []Reviewer{Baseline{}}).Results[0].Answer.Choice; got != "waiting_on_review" {
-		t.Fatalf("explicit review wording = %q, want waiting_on_review", got)
+	arbitrary, err := DecodeQuestions([]byte(`{"schema":"sessions.review-questions/1","id":"other","version":"1",
+		"options":[{"id":"working","description":"a"},{"id":"done","description":"b"}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := Compare(context.Background(), s, arbitrary, []Reviewer{Baseline{}}).Results[0]
+	if r.Status != "abstained" || r.Answer.Choice != "" {
+		t.Fatalf("baseline mapped caller options without an abstention: %+v", r)
 	}
 }
 
@@ -227,18 +238,15 @@ func TestExternalFailuresAreTypedErrors(t *testing.T) {
 			t.Errorf("%s: got %+v, want error %s", mode, r, kind)
 		}
 	}
-	missing, err := NewExternal(filepath.Join(t.TempDir(), "absent"), nil, nil, time.Second)
+	missing, err := NewExternal(filepath.Join(t.TempDir(), "absent"), nil, time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if r := Compare(context.Background(), s, q, []Reviewer{missing}).Results[0]; r.Error == nil || r.Error.Kind != ErrUnavailable {
 		t.Fatalf("missing executable: %+v", r)
 	}
-	if _, err := NewExternal("relative/tool", nil, nil, time.Second); err == nil {
+	if _, err := NewExternal("relative/tool", nil, time.Second); err == nil {
 		t.Fatal("relative path accepted; PATH lookup must not happen")
-	}
-	if _, err := NewExternal("/bin/true", nil, nil, MaxTimeout+time.Second); err == nil {
-		t.Fatal("timeout above the limit accepted")
 	}
 }
 
@@ -258,15 +266,17 @@ func TestExternalTimeoutAndCancellationStopTheReviewer(t *testing.T) {
 	}
 }
 
-func TestExternalGetsOnlyMinimalEnvironment(t *testing.T) {
-	t.Setenv("SESSIONS_TOKEN", "secret-should-not-pass")
-	t.Setenv("ANTHROPIC_API_KEY", "secret-should-not-pass")
+// An adapter is the user's own code and runs with the user's environment (for
+// example to reach an existing CLI login). Sessions claims no isolation; this
+// pins that it does not silently strip the environment either.
+func TestExternalRunsWithTheCallersEnvironment(t *testing.T) {
+	t.Setenv("REVIEW_FIXTURE_CALLER_MARK", "visible-to-adapter")
 	s, q := frozen(t, fixtureSnapshot)
 	ext, seen := fixtureReviewer(t, "ok", 10*time.Second)
 	Compare(context.Background(), s, q, []Reviewer{ext})
 	recorded, _ := os.ReadFile(seen)
-	if strings.Contains(string(recorded), "secret-should-not-pass") {
-		t.Fatal("adapter inherited a credential-like variable it was not given")
+	if !strings.Contains(string(recorded), "REVIEW_FIXTURE_CALLER_MARK=visible-to-adapter") {
+		t.Fatal("adapter did not receive the caller's environment")
 	}
 }
 
@@ -307,21 +317,3 @@ func TestSupportedSourceContractIsAccepted(t *testing.T) {
 
 // Working needs an observed open turn, a reachable runner and a provider
 // record close to capture time; stale, future-dated or missing records abstain.
-func TestBaselineWorkingRequiresFreshProviderRecord(t *testing.T) {
-	captured := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
-	open := func(recordAt time.Time) string {
-		facts := fmt.Sprintf(`"turn.open": {"source": "provider-stream", "value": true},
-    "runner.state": {"source": "runner", "value": "reachable"},
-    "last.provider_record_at": {"source": "provider-stream", "value": %d},`, recordAt.UnixMilli())
-		s := strings.Replace(fixtureSnapshot, `"turn.open": {"source": "provider-stream", "value": false},`, facts, 1)
-		return strings.Replace(s, `"runner.state": {"source": "runner", "unknown": true, "reason": "not observed"},`, ``, 1)
-	}
-	cases := map[string]string{"fresh": "working", "stale": "insufficient_evidence", "future": "insufficient_evidence"}
-	at := map[string]time.Time{"fresh": captured.Add(-2 * time.Minute), "stale": captured.Add(-5 * time.Hour), "future": captured.Add(time.Hour)}
-	for name, want := range cases {
-		s, q := frozen(t, open(at[name]))
-		if got := Compare(context.Background(), s, q, []Reviewer{Baseline{}}).Results[0].Answer.Choice; got != want {
-			t.Errorf("%s provider record: baseline = %q, want %q", name, got, want)
-		}
-	}
-}

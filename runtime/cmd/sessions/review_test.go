@@ -73,7 +73,8 @@ func TestReviewCompareReadsOnlyNamedFilesAndNeverCallsTheDaemon(t *testing.T) {
 		t.Fatalf("output is not JSON: %v\n%s", err, stdout.String())
 	}
 	if comparison.Schema != "sessions.review-comparison/1" || comparison.Authority != "none" || len(comparison.Results) != 1 ||
-		comparison.Results[0].Answer.Choice != "waiting_on_review" || strings.Join(comparison.UnknownFacts, ",") != "runner.state" {
+		comparison.Results[0].Status != "abstained" || comparison.Results[0].Answer.Choice != "insufficient_evidence" ||
+		strings.Join(comparison.UnknownFacts, ",") != "runner.state" {
 		t.Fatalf("comparison = %+v", comparison)
 	}
 }
@@ -92,6 +93,7 @@ func TestReviewValidateAndRejections(t *testing.T) {
 		"relative exec":    {"review", "compare", "--snapshot", snapshot, "--questions", questions, "--reviewer", "exec:my-tool"},
 		"stray flag":       {"review", "compare", "--snapshot", snapshot, "--questions", questions, "--network", "on"},
 		"orphan arg":       {"review", "compare", "--snapshot", snapshot, "--questions", questions, "--reviewer-arg", "x"},
+		"removed env flag": {"review", "compare", "--snapshot", snapshot, "--questions", questions, "--reviewer", "exec:/bin/true", "--reviewer-env", "HOME"},
 		"missing question": {"review", "compare", "--snapshot", snapshot},
 	} {
 		stdout.Reset()
@@ -99,6 +101,52 @@ func TestReviewValidateAndRejections(t *testing.T) {
 		if code := run(append([]string{"--host", server.URL}, args...), strings.NewReader(""), &stdout, &stderr); code == 0 {
 			t.Errorf("%s: accepted", name)
 		}
+	}
+	if calls.Load() != 0 {
+		t.Fatalf("review made %d daemon requests", calls.Load())
+	}
+}
+
+const reviewStatusFixture = `{"id":"00000000-0000-4000-8000-00000000000a","observations":{"version":1,
+ "capabilities":{"runtime":"codex-app-server","turn_boundaries":"provider-stream","tool_records":"provider-stream","terminal_output":false},
+ "runner":{"state":"reachable","since":1760000000000,"exit_code":null},"working":{"value":true,"source":"provider-stream"},
+ "turn":{"open":true,"started_at":1760000000000,"started_by":"provider","provider_confirmed_at":1760000000100,"ended_at":null,"ended_by":null},
+ "last":{"provider_record_at":1760000001000,"terminal_output_at":null,"transcript_record_at":null,"input_dispatched_at":null,"input_confirmed_by_provider_at":null},
+ "tools":{"open":[],"open_count":0,"last_started_at":null,"last_ended_at":null,"history_complete":true},"observers":[]}}`
+
+func TestReviewSnapshotExportsASavedStatusRecordWithoutTheDaemon(t *testing.T) {
+	server, calls := countingDaemon(t)
+	dir := t.TempDir()
+	status, tail := filepath.Join(dir, "status.json"), filepath.Join(dir, "tail.txt")
+	_ = os.WriteFile(status, []byte(reviewStatusFixture), 0o600)
+	_ = os.WriteFile(tail, []byte("last lines"), 0o600)
+	snapshotFor := func(extra ...string) map[string]any {
+		var stdout, stderr bytes.Buffer
+		args := append([]string{"--host", server.URL, "review", "snapshot", "--observations", status}, extra...)
+		if code := run(args, strings.NewReader(""), &stdout, &stderr); code != 0 {
+			t.Fatalf("snapshot exit %d stderr %q", code, stderr.String())
+		}
+		var snapshot map[string]any
+		if err := json.Unmarshal(stdout.Bytes(), &snapshot); err != nil {
+			t.Fatalf("snapshot output is not JSON: %v", err)
+		}
+		return snapshot
+	}
+	plain := snapshotFor()
+	if plain["subject"] != "00000000-0000-4000-8000-00000000000a" || plain["tail"] != nil || plain["task"] != nil {
+		t.Fatalf("snapshot = %v", plain)
+	}
+	if withTail := snapshotFor("--tail-file", tail); withTail["tail"] == nil {
+		t.Fatal("--tail-file did not add the opted-in tail")
+	}
+	encoded, _ := json.Marshal(plain)
+	saved := filepath.Join(dir, "snapshot.json")
+	_ = os.WriteFile(saved, encoded, 0o600)
+	_, questions := reviewFiles(t, reviewSnapshotFixture)
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"--host", server.URL, "--json", "review", "compare", "--snapshot", saved, "--questions", questions},
+		strings.NewReader(""), &stdout, &stderr); code != 0 || !strings.Contains(stdout.String(), `"status": "abstained"`) {
+		t.Fatalf("compare on exported snapshot: exit %d out %s err %s", code, stdout.String(), stderr.String())
 	}
 	if calls.Load() != 0 {
 		t.Fatalf("review made %d daemon requests", calls.Load())

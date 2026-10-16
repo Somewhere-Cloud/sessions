@@ -4,6 +4,6 @@ package review
 
 import "os/exec"
 
-// isolateProcess relies on the default cancellation, which kills the adapter
+// stoppableProcessGroup relies on the default cancellation, which kills the adapter
 // process; WaitDelay bounds how long its output pipes may outlive it.
-func isolateProcess(cmd *exec.Cmd) {}
+func stoppableProcessGroup(cmd *exec.Cmd) {}

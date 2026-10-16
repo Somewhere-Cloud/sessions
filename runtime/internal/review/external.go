@@ -19,46 +19,39 @@ import (
 // AdapterProtocol is the stdin/stdout protocol for external reviewers.
 const AdapterProtocol = "sessions.review-adapter/1"
 
-// Adapter limits.
+// Bounded I/O: how long a reviewer may take and how much it may print.
 const (
 	DefaultTimeout = 30 * time.Second
-	MaxTimeout     = 120 * time.Second
 	MaxReplyBytes  = 64 << 10
 	maxStderrBytes = 4 << 10
 )
 
-// baseEnvironment is everything an adapter inherits unless the caller names
-// more variables explicitly. Sessions forwards no credentials or tokens.
-var baseEnvironment = []string{"PATH", "HOME", "TMPDIR", "LANG", "SystemRoot", "USERPROFILE"}
-
-// External runs an explicitly configured local executable. The path is used
-// as given (absolute, no PATH lookup); arguments are passed as an argv list,
-// never through a shell.
+// External runs an explicitly configured local executable: trusted user code
+// running with the user's own environment and permissions. It may use the
+// network or an existing CLI login; Sessions itself sends it only the frozen
+// request on stdin. The path is used as given (absolute, no PATH lookup) and
+// arguments are an argv list, never a shell command.
 type External struct {
 	Path    string
 	Args    []string
-	Env     []string // extra variable names to pass through, explicitly chosen
 	Timeout time.Duration
 	digest  string
 }
 
 // NewExternal validates the configuration before anything runs.
-func NewExternal(path string, args, env []string, timeout time.Duration) (*External, error) {
+func NewExternal(path string, args []string, timeout time.Duration) (*External, error) {
 	if !filepath.IsAbs(path) {
 		return nil, fmt.Errorf("reviewer executable must be an absolute path, got %q", path)
 	}
 	if timeout <= 0 {
 		timeout = DefaultTimeout
 	}
-	if timeout > MaxTimeout {
-		return nil, fmt.Errorf("timeout %s exceeds the %s limit", timeout, MaxTimeout)
-	}
 	digest := ""
 	if contents, err := os.ReadFile(path); err == nil {
 		sum := sha256.Sum256(contents)
 		digest = hex.EncodeToString(sum[:])
 	}
-	return &External{Path: path, Args: append([]string(nil), args...), Env: append([]string(nil), env...), Timeout: timeout, digest: digest}, nil
+	return &External{Path: path, Args: append([]string(nil), args...), Timeout: timeout, digest: digest}, nil
 }
 
 // Identity implements Reviewer.
@@ -114,13 +107,12 @@ func (e *External) run(ctx context.Context, request []byte) (*limitedBuffer, *li
 	runCtx, cancel := context.WithTimeout(ctx, e.Timeout)
 	defer cancel()
 	cmd := exec.CommandContext(runCtx, e.Path, e.Args...)
-	cmd.Env = e.environment()
 	cmd.Stdin = bytes.NewReader(request)
 	stdout := &limitedBuffer{limit: MaxReplyBytes}
 	stderr := &limitedBuffer{limit: maxStderrBytes}
 	cmd.Stdout, cmd.Stderr = stdout, stderr
 	cmd.WaitDelay = 2 * time.Second
-	isolateProcess(cmd)
+	stoppableProcessGroup(cmd)
 	err := cmd.Run()
 	switch {
 	case errors.Is(ctx.Err(), context.Canceled):
@@ -135,16 +127,6 @@ func (e *External) run(ctx context.Context, request []byte) (*limitedBuffer, *li
 		return nil, nil, reviewError(ErrUnavailable, "reviewer could not run: %v", err)
 	}
 	return stdout, stderr, nil
-}
-
-func (e *External) environment() []string {
-	var env []string
-	for _, name := range append(append([]string(nil), baseEnvironment...), e.Env...) {
-		if value, ok := os.LookupEnv(name); ok {
-			env = append(env, name+"="+value)
-		}
-	}
-	return env
 }
 
 func stderrSuffix(stderr *limitedBuffer) string {

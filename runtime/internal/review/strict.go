@@ -1,7 +1,9 @@
 // Package review is an experimental, explicitly invoked seam for comparing
-// reviewers on one frozen evidence snapshot. It never reads lane state,
-// transcripts or the network on its own, never writes facts or tasks, and its
-// results carry no authority: reviewer scores are uncalibrated, not proof.
+// reviewers on one frozen evidence snapshot. The package itself never reads
+// lane state, transcripts or the network, never writes facts or tasks, and
+// gives results no authority: reviewer scores are uncalibrated, not proof. An
+// external reviewer the caller configures is the caller's own code and may do
+// whatever the user's permissions allow.
 package review
 
 import (

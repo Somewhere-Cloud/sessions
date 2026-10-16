@@ -12,8 +12,9 @@ import (
 	"github.com/somewhere-tech/sessions/runtime/internal/review"
 )
 
-const reviewUsage = "usage: sessions review validate <snapshot.json>\n" +
-	"       sessions review compare --snapshot FILE --questions FILE [--reviewer baseline | --reviewer exec:/ABS/PATH [--reviewer-arg ARG]... [--reviewer-env NAME]...]... [--timeout DURATION]"
+const reviewUsage = "usage: sessions review snapshot --observations FILE [--subject ID] [--task-file FILE] [--tail-file FILE]\n" +
+	"       sessions review validate <snapshot.json>\n" +
+	"       sessions review compare --snapshot FILE --questions FILE [--reviewer baseline | --reviewer exec:/ABS/PATH [--reviewer-arg ARG]...]... [--timeout DURATION]"
 
 // cmdReview is an explicitly invoked, experimental comparison. It reads only
 // the files named on its command line and never contacts the daemon.
@@ -22,6 +23,8 @@ func (a *app) cmdReview(args []string) error {
 		return fail(1, "%s", reviewUsage)
 	}
 	switch args[0] {
+	case "snapshot":
+		return a.cmdReviewSnapshot(args[1:])
 	case "validate":
 		return a.cmdReviewValidate(args[1:])
 	case "compare":
@@ -44,6 +47,48 @@ func readBounded(path string, limit int64) ([]byte, error) {
 		return nil, fmt.Errorf("%s is larger than %d bytes", path, limit)
 	}
 	return data, nil
+}
+
+// cmdReviewSnapshot exports one saved observation record (the output of
+// `sessions --json status <session>`) into a frozen snapshot on stdout. Task
+// text and a transcript tail are included only from files named here.
+func (a *app) cmdReviewSnapshot(args []string) error {
+	options := map[string]string{}
+	for index := 0; index < len(args); index += 2 {
+		flag := args[index]
+		if index+1 >= len(args) || (flag != "--observations" && flag != "--subject" && flag != "--task-file" && flag != "--tail-file") {
+			return fail(1, "%s", reviewUsage)
+		}
+		options[flag] = args[index+1]
+	}
+	if options["--observations"] == "" {
+		return fail(1, "--observations is required; %s", reviewUsage)
+	}
+	record, err := readBounded(options["--observations"], review.MaxSnapshotBytes)
+	if err != nil {
+		return fail(1, "%s", err)
+	}
+	export := review.ExportOptions{Subject: options["--subject"], CapturedAt: time.Now(), Producer: "sessions review snapshot"}
+	if path := options["--task-file"]; path != "" {
+		text, err := readBounded(path, review.MaxTaskBytes)
+		if err != nil {
+			return fail(1, "%s", err)
+		}
+		export.Task = &review.Task{Text: string(text), Provenance: "file supplied by the caller: " + path}
+	}
+	if path := options["--tail-file"]; path != "" {
+		text, err := readBounded(path, 4*review.MaxSnapshotBytes)
+		if err != nil {
+			return fail(1, "%s", err)
+		}
+		export.Tail = review.BoundedTail(string(text), "file supplied by the caller: "+path)
+	}
+	snapshot, err := review.ExportObservations(record, export)
+	if err != nil {
+		return fail(1, "%s", err)
+	}
+	_, err = fmt.Fprintf(a.stdout, "%s\n", snapshot)
+	return err
 }
 
 func (a *app) cmdReviewValidate(args []string) error {
@@ -82,8 +127,8 @@ type reviewCompareOptions struct {
 func parseReviewCompare(args []string) (reviewCompareOptions, error) {
 	options := reviewCompareOptions{timeout: review.DefaultTimeout}
 	type pending struct {
-		path      string
-		args, env []string
+		path string
+		args []string
 	}
 	var specs []*pending
 	baseline := false
@@ -109,13 +154,8 @@ func parseReviewCompare(args []string) (reviewCompareOptions, error) {
 			baseline = true
 		case flag == "--reviewer" && strings.HasPrefix(value, "exec:"):
 			specs = append(specs, &pending{path: strings.TrimPrefix(value, "exec:")})
-		case (flag == "--reviewer-arg" || flag == "--reviewer-env") && len(specs) > 0:
-			last := specs[len(specs)-1]
-			if flag == "--reviewer-arg" {
-				last.args = append(last.args, value)
-			} else {
-				last.env = append(last.env, value)
-			}
+		case flag == "--reviewer-arg" && len(specs) > 0:
+			specs[len(specs)-1].args = append(specs[len(specs)-1].args, value)
 		default:
 			return options, fmt.Errorf("unexpected %s %s; %s", flag, value, reviewUsage)
 		}
@@ -127,7 +167,7 @@ func parseReviewCompare(args []string) (reviewCompareOptions, error) {
 		options.reviewers = append(options.reviewers, review.Baseline{})
 	}
 	for _, spec := range specs {
-		external, err := review.NewExternal(spec.path, spec.args, spec.env, options.timeout)
+		external, err := review.NewExternal(spec.path, spec.args, options.timeout)
 		if err != nil {
 			return options, err
 		}
