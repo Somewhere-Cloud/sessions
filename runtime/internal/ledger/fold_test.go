@@ -375,3 +375,18 @@ func TestAdministrativeFactsDoNotMoveActivityClocks(t *testing.T) {
 		t.Fatalf("LastEventAtMS = %d, want the newest fact 900", got.LastEventAtMS)
 	}
 }
+
+// A source continued more than once keeps every successor; ReopenedAs still
+// names the latest, as before.
+func TestReopenedSuccessorsKeepEveryContinuation(t *testing.T) {
+	events := []Event{
+		createdLedgerEvent(1, "source", "terminal", ""),
+		ledgerEvent(2, "source", EventReopened, 200, reopenedPayload{NewLaneID: "first"}),
+		ledgerEvent(3, "source", EventReopened, 300, reopenedPayload{NewLaneID: "second"}),
+		ledgerEvent(4, "source", EventReopened, 400, reopenedPayload{NewLaneID: "first"}),
+	}
+	got := Fold(events)[0]
+	if got.ReopenedAs != "first" || !reflect.DeepEqual(got.ReopenedSuccessors, []string{"first", "second"}) {
+		t.Fatalf("reopened = %q successors = %v", got.ReopenedAs, got.ReopenedSuccessors)
+	}
+}

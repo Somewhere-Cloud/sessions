@@ -1,6 +1,9 @@
 package ledger
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"slices"
+)
 
 // applyLaneEvent applies one event in committed sequence order. Fold and the
 // incremental Store projection share exactly the same state transitions.
@@ -251,6 +254,9 @@ func applyClosureEvent(state *LaneState, event Event) {
 		var payload reopenedPayload
 		if json.Unmarshal(event.Payload, &payload) == nil {
 			state.ReopenedAs = payload.NewLaneID
+			if payload.NewLaneID != "" && !slices.Contains(state.ReopenedSuccessors, payload.NewLaneID) {
+				state.ReopenedSuccessors = append(state.ReopenedSuccessors, payload.NewLaneID)
+			}
 			state.ManagedActive = false
 			if state.ClosedAtMS == 0 {
 				state.ClosedAtMS = event.AtMS

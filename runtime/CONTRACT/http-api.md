@@ -1458,10 +1458,15 @@ names which.
 Continuations: a session that reopens, recovers, or continues the same
 provider conversation is a new session linked from its source by a ledger
 `reopened` fact. Such a successor also lists the session-level references of
-the sessions it continues, nearest first, each with `"inherited_from":"<source
-session id>"`; a reference it links itself is shown once, as its own. Nothing
-is copied: the link stays on the session where it was stated, and unlinking an
-inherited reference on the successor is `409` naming that session. Forks and
+every session it continues, through the whole chain with no depth cut-off
+(cycles end), nearest first and in source-id order at each step, each with
+`"inherited_from":"<source session id>"`; a reference it links itself is shown
+once, as its own. A source continued more than once is inherited by every
+successor its `reopened` facts named. Nothing is copied: the link stays on the
+session where it was stated, and unlinking an inherited reference on the
+successor is `409` naming that session. Unlinking an own reference that the
+successor also inherits removes the own link and answers a `notice` saying the
+reference is still shown and where to unlink it. Forks and
 new sessions record no `reopened` fact and inherit nothing. A paused session
 woken, a runner re-adopted after a restart, or a reconnect keeps its session
 id and therefore its own references.

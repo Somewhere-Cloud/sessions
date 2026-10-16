@@ -56,6 +56,9 @@ type TaskLinks struct {
 	Tasks        []TaskRefView      `json:"tasks"`
 	PullRequests []PullRequestTasks `json:"pull_requests"`
 	Changed      *bool              `json:"changed,omitempty"`
+	// Notice says when an unlink removed a link here but the same reference
+	// is still shown because a session this one continues carries it.
+	Notice string `json:"notice,omitempty"`
 }
 
 // PullRequestTasks is one pull request link and its task references.
@@ -229,12 +232,14 @@ func (m *Manager) UnlinkTasks(ctx context.Context, id string, raws []string, pro
 	if len(links) == 0 {
 		return TaskLinks{}, fmt.Errorf("%w: name at least one task reference", ErrTaskRefInvalid)
 	}
-	return m.writeTaskLinks(ctx, id, func(lane ledger.LaneState) (bool, error) {
+	var unlinked []ledger.TaskLink
+	answer, err := m.writeTaskLinks(ctx, id, func(lane ledger.LaneState) (bool, error) {
 		url, current, err := taskTarget(lane, rawURL)
 		if err != nil {
 			return false, err
 		}
 		present, err := planTaskUnlinks(current, links)
+		unlinked = present
 		if err == nil && len(present) == 0 && url == "" {
 			err = m.inheritedUnlinkError(ctx, id, links)
 		}
@@ -244,6 +249,10 @@ func (m *Manager) UnlinkTasks(ctx context.Context, id string, raws []string, pro
 		present = targetTaskLinks(present, url)
 		return true, m.options.TaskLinks.RecordTaskUnlinked(ctx, ledger.TaskUnlinked{Meta: ledger.Meta{LaneID: id}, Links: present})
 	})
+	if err == nil && rawURL == "" {
+		answer.Notice = stillInheritedNotice(answer, unlinked)
+	}
+	return answer, err
 }
 
 func (m *Manager) writeTaskLinks(ctx context.Context, id string, write func(ledger.LaneState) (bool, error)) (TaskLinks, error) {
@@ -272,6 +281,24 @@ func (m *Manager) writeTaskLinks(ctx context.Context, id string, write func(ledg
 	answer := taskLinksAnswer(lane, inherited)
 	answer.Changed = &changed
 	return answer, nil
+}
+
+// stillInheritedNotice names unlinked references that remain visible through
+// inheritance, so an own unlink is not mistaken for removing the reference.
+func stillInheritedNotice(answer TaskLinks, unlinked []ledger.TaskLink) string {
+	var remaining []string
+	for _, link := range unlinked {
+		for _, view := range answer.Tasks {
+			if view.InheritedFrom != "" && view.Ref == link.Ref && view.Project == link.Project {
+				remaining = append(remaining, link.Ref+" (inherited from "+view.InheritedFrom+")")
+			}
+		}
+	}
+	if len(remaining) == 0 {
+		return ""
+	}
+	return "unlinked here, but still shown because a session this one continues carries it: " +
+		strings.Join(remaining, ", ") + "; unlink it on that session to stop showing it"
 }
 
 // planTaskLinks returns the links that change current under the ledger's

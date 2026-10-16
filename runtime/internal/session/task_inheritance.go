@@ -3,13 +3,10 @@ package session
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/somewhere-tech/sessions/runtime/internal/ledger"
 )
-
-// maxTaskInheritanceDepth bounds how far back a continuation chain is
-// followed, so a malformed chain cannot loop or grow without limit.
-const maxTaskInheritanceDepth = 16
 
 // sourcedTask is a reference together with the session it was linked on, when
 // that is not the session being shown.
@@ -27,7 +24,8 @@ type sourcedTask struct {
 // that the work identity persisted, so the successor shows the source's
 // session-level references, marked inherited_from, without copying them: the
 // links stay facts on the session where they were stated, and unlinking them
-// there changes what every successor shows. A fork or a fresh session records
+// there changes what every successor shows. A source continued more than once
+// is inherited by every successor its reopened facts named. A fork or a fresh session records
 // no reopened fact and inherits nothing, so intent is never cloned onto
 // unrelated work. Pull request links and their references stay with the
 // session that holds those pull requests. A runner woken, re-adopted after a
@@ -41,19 +39,35 @@ func newTaskInheritance(states []ledger.LaneState) taskInheritance {
 	index := taskInheritance{byID: make(map[string]ledger.LaneState, len(states)), sources: make(map[string][]string)}
 	for _, lane := range states {
 		index.byID[lane.LaneID] = lane
-		if lane.ReopenedAs != "" && lane.ReopenedAs != lane.LaneID {
-			index.sources[lane.ReopenedAs] = append(index.sources[lane.ReopenedAs], lane.LaneID)
+		// Every successor a reopened fact named, not only the latest:
+		// continuing one source twice leaves both successors continuing it.
+		successors := lane.ReopenedSuccessors
+		if lane.ReopenedAs != "" && !slices.Contains(successors, lane.ReopenedAs) {
+			successors = append(slices.Clone(successors), lane.ReopenedAs)
 		}
+		for _, successor := range successors {
+			if successor != lane.LaneID {
+				index.sources[successor] = append(index.sources[successor], lane.LaneID)
+			}
+		}
+	}
+	// Sources in lane-id order, so what a session shows, and a team row's
+	// fingerprint, never depend on the order states were read in.
+	for successor := range index.sources {
+		slices.Sort(index.sources[successor])
 	}
 	return index
 }
 
-// inherited walks the continuation chain back from id, nearest source first.
+// inherited walks the whole continuation chain back from id, nearest source
+// first. There is no depth cut-off that could silently drop an older
+// session's references; the visited set ends any cycle, so the walk visits
+// each ledger lane at most once.
 func (t taskInheritance) inherited(id string) []sourcedTask {
 	var tasks []sourcedTask
 	visited := map[string]bool{id: true}
 	frontier := []string{id}
-	for depth := 0; depth < maxTaskInheritanceDepth && len(frontier) > 0; depth++ {
+	for len(frontier) > 0 {
 		var next []string
 		for _, current := range frontier {
 			for _, source := range t.sources[current] {

@@ -82,6 +82,10 @@ type LaneState struct {
 	// PullRequests are every linked pull request in link order. PullRequest
 	// above is a copy of the primary one, kept for single-link readers.
 	PullRequests []LanePullRequest
+	// ReopenedSuccessors is every lane a reopened fact named, in order.
+	// ReopenedAs above keeps only the latest; a source continued twice still
+	// has both successors here.
+	ReopenedSuccessors []string
 }
 
 // Fold reduces an event stream in seq order. Input order is irrelevant as
@@ -112,6 +116,7 @@ func Fold(events []Event) []LaneState {
 func cloneLaneState(state LaneState) LaneState {
 	state.ResumeArgv = append([]string(nil), state.ResumeArgv...)
 	state.Tasks = append([]LaneTask(nil), state.Tasks...)
+	state.ReopenedSuccessors = append([]string(nil), state.ReopenedSuccessors...)
 	state.PullRequest = clonePullRequest(state.PullRequest)
 	links := make([]LanePullRequest, 0, len(state.PullRequests))
 	for _, link := range state.PullRequests {

@@ -30,7 +30,8 @@ type taskLinks struct {
 		URL   string        `json:"url"`
 		Tasks []taskRefView `json:"tasks"`
 	} `json:"pull_requests"`
-	Changed *bool `json:"changed,omitempty"`
+	Changed *bool  `json:"changed,omitempty"`
+	Notice  string `json:"notice,omitempty"`
 }
 
 func (a *app) cmdTask(args []string) error {
@@ -79,6 +80,11 @@ func (a *app) cmdTask(args []string) error {
 	}
 	if err != nil {
 		return err
+	}
+	if result.Notice != "" {
+		if _, err := fmt.Fprintln(a.stderr, terminalSafe(result.Notice)); err != nil {
+			return err
+		}
 	}
 	if a.wantJSON {
 		return writeJSON(a.stdout, result, true)
