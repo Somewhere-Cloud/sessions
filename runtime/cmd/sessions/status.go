@@ -608,18 +608,24 @@ func (a *app) writeStatusObservations(observations *state.Observations) error {
 			lines = append(lines, "turn     no boundary observed")
 		case *turn.Open && turn.StartedAt != nil:
 			lines = append(lines, fmt.Sprintf("turn     open since %s ago (started by %s)", a.ageOf(*turn.StartedAt), orUnknown(turn.StartedBy)))
-		case !*turn.Open && turn.EndedAt != nil:
+		case *turn.Open:
+			lines = append(lines, fmt.Sprintf("turn     open, started unknown (started by %s)", orUnknown(turn.StartedBy)))
+		case turn.EndedAt != nil:
 			lines = append(lines, fmt.Sprintf("turn     ended %s ago (%s)", a.ageOf(*turn.EndedAt), orUnknown(turn.EndedBy)))
+		default:
+			lines = append(lines, fmt.Sprintf("turn     ended, time unknown (%s)", orUnknown(turn.EndedBy)))
 		}
 	}
-	if tools := observations.Tools; tools != nil && tools.OpenCount > 0 {
+	if tools := observations.Tools; tools != nil && (tools.OpenCount > 0 || !tools.OpenCountExact) {
 		line := fmt.Sprintf("tools    %d open", tools.OpenCount)
 		if !tools.OpenCountExact {
 			line = fmt.Sprintf("tools    %d starts without a recorded end", tools.OpenCount)
 		}
+		// Open lists calls in the order they were observed, which is not
+		// necessarily the order they started.
 		if len(tools.Open) > 0 && tools.Open[0].StartedAt != nil {
-			oldest := tools.Open[0]
-			line += fmt.Sprintf(", oldest %s started %s ago", terminalSafe(orUnknown(oldest.Name)), a.ageOf(*oldest.StartedAt))
+			first := tools.Open[0]
+			line += fmt.Sprintf(", first observed %s started %s ago", terminalSafe(orUnknown(first.Name)), a.ageOf(*first.StartedAt))
 		}
 		if !tools.OpenCountExact {
 			line += " (partial history; current open count unknown)"
