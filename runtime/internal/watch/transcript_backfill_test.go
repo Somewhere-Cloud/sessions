@@ -158,7 +158,7 @@ func TestBackfillReportsWhatItCouldNotStore(t *testing.T) {
 // duplicate lines -- one of them 554 of them in a single 7,743-line file.
 func codexRolloutLines() []string {
 	return []string{
-		`{"timestamp":"2026-08-05T11:50:32.000Z","type":"session_meta","payload":{"session_id":"019fd343-5368-7d40-92ac-3ff75509ab9a","cwd":"/Users/uzair/pretty-PTY"}}`,
+		`{"timestamp":"2026-08-05T11:50:32.000Z","type":"session_meta","payload":{"session_id":"019fd343-5368-7d40-92ac-3ff75509ab9a","cwd":"/Users/example/pretty-PTY"}}`,
 		`{"timestamp":"2026-08-05T11:50:33.000Z","type":"turn_context","payload":{"model":"gpt-5"}}`,
 		`{"timestamp":"2026-08-05T11:50:34.000Z","type":"response_item","payload":{"type":"message","role":"user"}}`,
 		// The repeat. Byte identical to the turn_context above.

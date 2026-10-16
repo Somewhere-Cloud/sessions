@@ -96,7 +96,7 @@ func TestAccountClaimIssuesNormalAcknowledgedDeviceCredential(t *testing.T) {
 	root := t.TempDir()
 	requester, err := fleetaccount.New(fleetaccount.Options{
 		BaseURL: cloud.URL, AccountPath: filepath.Join(root, "account.json"),
-		KeyPath: filepath.Join(root, "key.json"), MachineID: "phone-device", MachineName: "Uzair's phone",
+		KeyPath: filepath.Join(root, "key.json"), MachineID: "phone-device", MachineName: "Alice's phone",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -116,7 +116,7 @@ func TestAccountClaimIssuesNormalAcknowledgedDeviceCredential(t *testing.T) {
 	}
 	var credential pairingClaimResponse
 	decodeBody(t, issued, &credential)
-	if credential.Token == "" || credential.Name != "Uzair's phone" || credential.MachineID != daemon.handler.identity.ID {
+	if credential.Token == "" || credential.Name != "Alice's phone" || credential.MachineID != daemon.handler.identity.ID {
 		t.Fatalf("issued credential = %+v", credential)
 	}
 	authorized := serve(t, daemon.handler, http.MethodGet, "/api/sessions", nil, "198.51.100.20:4567",
@@ -125,7 +125,7 @@ func TestAccountClaimIssuesNormalAcknowledgedDeviceCredential(t *testing.T) {
 		t.Fatalf("issued credential did not acknowledge: %d %s", authorized.Code, authorized.Body.String())
 	}
 	devices := serve(t, daemon.handler, http.MethodGet, "/api/devices", nil, "127.0.0.1:4567", nil)
-	if devices.Code != http.StatusOK || !strings.Contains(devices.Body.String(), "Uzair's phone") {
+	if devices.Code != http.StatusOK || !strings.Contains(devices.Body.String(), "Alice's phone") {
 		t.Fatalf("account device was not recorded: %d %s", devices.Code, devices.Body.String())
 	}
 	badReplay := filepath.Join(daemon.config.StateRoot, "fleet-machine-key.json.claim-nonces")

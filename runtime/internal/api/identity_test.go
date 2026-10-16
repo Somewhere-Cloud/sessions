@@ -45,13 +45,13 @@ func TestMachineIdentityCreationUsesComputerName(t *testing.T) {
 	path := filepath.Join(root, "machine-id")
 	identity, err := loadOrCreateMachineIdentityWith(
 		state.Config{StateRoot: root, UserStateRoot: root, MachineIDPath: path},
-		func() string { return "Uzair's MacBook Pro" },
+		func() string { return "Alice's MacBook Pro" },
 		func() (string, error) { return "MacBook-Pro-10.local", nil },
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !validMachineID(identity.ID) || identity.Name != "Uzair's MacBook Pro" {
+	if !validMachineID(identity.ID) || identity.Name != "Alice's MacBook Pro" {
 		t.Fatalf("created identity = %#v, want a durable ID and the computer name", identity)
 	}
 	persisted, legacy, err := readMachineIdentity(path)
@@ -78,13 +78,13 @@ func TestMachineIdentityUpgradesLegacyDNSNameWithoutChangingID(t *testing.T) {
 	config := state.Config{StateRoot: root, UserStateRoot: root, MachineIDPath: path}
 	identity, err := loadOrCreateMachineIdentityWith(
 		config,
-		func() string { return "Uzair's MacBook Pro" },
+		func() string { return "Alice's MacBook Pro" },
 		func() (string, error) { return "MacBook-Pro-10.local", nil },
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if identity.ID != wantID || identity.Name != "Uzair's MacBook Pro" {
+	if identity.ID != wantID || identity.Name != "Alice's MacBook Pro" {
 		t.Fatalf("upgraded identity = %#v, want unchanged ID and friendly name", identity)
 	}
 
@@ -120,13 +120,13 @@ func TestMachineIdentityMigratesLegacyUUIDFile(t *testing.T) {
 	}
 	identity, err := loadOrCreateMachineIdentityWith(
 		state.Config{StateRoot: root, UserStateRoot: root, MachineIDPath: path},
-		func() string { return "Uzair's MacBook Pro" },
+		func() string { return "Alice's MacBook Pro" },
 		func() (string, error) { return "MacBook-Pro-10.local", nil },
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if identity.ID != wantID || identity.Name != "Uzair's MacBook Pro" {
+	if identity.ID != wantID || identity.Name != "Alice's MacBook Pro" {
 		t.Fatalf("migrated identity = %#v, want unchanged ID and friendly name", identity)
 	}
 }

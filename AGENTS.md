@@ -44,7 +44,7 @@ disagree, the code wins.
 - Implementation orientation: [`docs/CODEBASE.md`](docs/CODEBASE.md).
 - Process, protocol, and state topology: [`ARCHITECTURE.md`](ARCHITECTURE.md).
 - Generated command reference: [`docs/CLI.md`](docs/CLI.md).
-- Broad public direction: [`ROADMAP.md`](ROADMAP.md).
+- Public project scope: [`ROADMAP.md`](ROADMAP.md).
 
 Internal orchestration state, dogfood notes, launch plans, commercial plans, and
 private hosted-service designs do not belong in this repository.
@@ -116,7 +116,7 @@ private hosted-service designs do not belong in this repository.
     is too wide, not that another check is needed.
 11. **Keep private planning private.** Public documentation covers shipped
     behavior, public contracts, contributor guidance, security/privacy, and
-    broad roadmap themes. Run `scripts/check-public-tree.sh` before delivery.
+    implemented project scope. Product plans stay private. Run `scripts/check-public-tree.sh` before delivery.
 
 ## Build and test
 

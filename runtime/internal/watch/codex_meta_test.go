@@ -36,7 +36,7 @@ func TestCodexSessionMetaIDReadsBothSpellings(t *testing.T) {
 func TestCodexSessionMetaIDReadsTheRolloutFixture(t *testing.T) {
 	payload := map[string]any{
 		"session_id": "019fd343-5368-7d40-92ac-3ff75509ab9a",
-		"cwd":        "/Users/uzair/pretty-PTY",
+		"cwd":        "/Users/example/pretty-PTY",
 	}
 	if got := CodexSessionMetaID(payload); got != "019fd343-5368-7d40-92ac-3ff75509ab9a" {
 		t.Fatalf("the repo's own rollout fixture has no readable identity: %q", got)

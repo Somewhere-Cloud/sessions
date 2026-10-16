@@ -30,7 +30,7 @@ func TestAccountClaimVerificationRejectsBadReplayOtherAccountAndExpired(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	directory = []Machine{{ID: "requester-machine", Name: "Uzair's phone", MachinePublicKey: requesterPublic}}
+	directory = []Machine{{ID: "requester-machine", Name: "Alice's phone", MachinePublicKey: requesterPublic}}
 
 	valid, err := requester.CreateAccountClaim("host-machine")
 	if err != nil {
@@ -41,7 +41,7 @@ func TestAccountClaimVerificationRejectsBadReplayOtherAccountAndExpired(t *testi
 	if _, err := host.VerifyAccountClaim(context.Background(), bad); !errors.Is(err, ErrClaimInvalid) {
 		t.Fatalf("bad signature error = %v", err)
 	}
-	if device, err := host.VerifyAccountClaim(context.Background(), valid); err != nil || device.Name != "Uzair's phone" {
+	if device, err := host.VerifyAccountClaim(context.Background(), valid); err != nil || device.Name != "Alice's phone" {
 		t.Fatalf("valid claim device=%+v err=%v", device, err)
 	}
 	if _, err := host.VerifyAccountClaim(context.Background(), valid); !errors.Is(err, ErrClaimReplay) {

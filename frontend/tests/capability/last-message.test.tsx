@@ -1,6 +1,6 @@
 // CAPABILITY: the last message a session shows is the last message.
 //
-// Reported by the founder: a row kept showing an agent result after the person
+// Regression scenario: a row kept showing an agent result after the person
 // had already sent something else, and a provider outage read as the agent's
 // reply. Both were true of every list in the app, because each one reached for
 // `lastSummary` — which is the last result the agent produced, deliberately
@@ -49,7 +49,7 @@ describe('capability: what a session says its last message is', () => {
     expect(lastMessage(relayed).kind).toBe('none');
   });
 
-  // The case the founder hit: the person sent something and the agent has not
+  // Regression scenario: the person sent something and the agent has not
   // answered, so the agent's previous result is not the last message.
   it('says the person spoke last, and does not show the older agent result', () => {
     const waiting = sessionOfKind('claude-structured', 'claude-code', {

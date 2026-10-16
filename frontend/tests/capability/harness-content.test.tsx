@@ -1,6 +1,6 @@
 // CAPABILITY: what the harness injected is not what the person said.
 //
-// The founder's screenshot, 11 September: a structured Claude session's
+// Regression scenario: a structured Claude session's
 // transcript showed `<task-notification>` blocks, `<system-reminder>` blocks and
 // a queue marker as his own chat bubbles — each with a timestamp and a copy
 // button — while Claude's own Remote Control showed none of them. They are
@@ -33,7 +33,7 @@ const SYSTEM_REMINDER = [
   '</system-reminder>'
 ].join('\n');
 
-// The four shapes from the founder's session, in one transcript.
+// The four shapes from the user's session, in one transcript.
 function fixtureEvents(): ClaudeSessionEvent[] {
   const user = (text: string, uuid: string, timestamp: string): ClaudeSessionEvent => ({
     type: 'user', uuid, timestamp, message: { role: 'user', content: text }

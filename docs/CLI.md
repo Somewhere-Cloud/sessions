@@ -1411,7 +1411,7 @@ Mint and display a QR code, sessions:// application link, and plain browser fall
 
 Examples:
   sessions pair
-  sessions pair --ttl 5m --name 'Uzair phone'
+  sessions pair --ttl 5m --name 'Alice phone'
   sessions --json pair
 
 --json may appear before the command or among its options. --machine, --direct, --host, and --port must appear before the command. Arguments after `sessions run --` always belong to the child command.

@@ -63,7 +63,7 @@ func TestServiceInstanceIsBoundedAndDoesNotExposeMachineID(t *testing.T) {
 
 func TestSanitizeServiceNamePreservesWords(t *testing.T) {
 	for input, want := range map[string]string{
-		"Uzair's MacBook Pro":       "Uzair's MacBook Pro",
+		"Alice's MacBook Pro":       "Alice's MacBook Pro",
 		"MacBook-Pro":               "MacBook-Pro",
 		"MacBook.Pro":               "MacBook Pro",
 		`Studio.\\Mac`:              "Studio Mac",

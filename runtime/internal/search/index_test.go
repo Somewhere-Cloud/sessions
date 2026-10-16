@@ -45,13 +45,13 @@ func TestRankedSearchMatchesPhrases(t *testing.T) {
 
 func TestRankedSearchUsesBroadTokensByDefaultAndSupportsProximity(t *testing.T) {
 	fixture := rankedFixture(
-		"the founder called the default asinine",
-		"dev mode should be paid only",
+		"the user requested a different default",
+		"development mode enables verbose logs",
 		"alpha one two beta",
 		"alpha one two three four five beta",
 	)
 	indexPath := filepath.Join(t.TempDir(), "search-index.db")
-	result := runRankedFixture(t, fixture, "asinine dev", indexPath)
+	result := runRankedFixture(t, fixture, "requested development", indexPath)
 	if result.Total != 2 {
 		t.Fatalf("broad token result=%#v", result)
 	}

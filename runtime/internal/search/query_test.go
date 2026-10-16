@@ -67,7 +67,7 @@ func TestSearchQueryTreatsProseOperatorsAsProse(t *testing.T) {
 // absolute path whose tail is the repo-relative path in the transcript.
 func TestSearchQueryExpandsPastedPaths(t *testing.T) {
 	for _, test := range []struct{ query, want string }{
-		{query: "/Users/uzair/files.go", want: `("/Users/uzair/files.go" OR "uzair/files.go" OR "files.go")`},
+		{query: "/Users/example/files.go", want: `("/Users/example/files.go" OR "example/files.go" OR "files.go")`},
 		{
 			query: "runtime/internal/api/files.go",
 			want:  `("runtime/internal/api/files.go" OR "internal/api/files.go" OR "api/files.go" OR "files.go")`,

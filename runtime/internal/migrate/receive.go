@@ -102,8 +102,8 @@ func Receive(ctx context.Context, request ReceiveRequest, options ReceiveOptions
 // contains a dot, underscore, space or other punctuation the two disagree and
 // the conversation was written into a directory Claude never reads: the move
 // reported success and native "claude --resume <uuid>" at the destination could
-// not see the conversation at all. /Users/uzair/pretty_tmux is the whole bug --
-// Claude reads -Users-uzair-pretty-tmux, Sessions wrote -Users-uzair-pretty_tmux.
+// not see the conversation at all. /Users/example/pretty_tmux is the whole bug --
+// Claude reads -Users-example-pretty-tmux, Sessions wrote -Users-example-pretty_tmux.
 //
 // Writing into a bucket that several workspaces can share is safe here in a way
 // it is not for resolution. The file is named by provider UUID, which is unique

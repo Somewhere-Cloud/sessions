@@ -99,9 +99,9 @@ func encodeClaudePath(cwd string) string {
 // "+", "~" or any other punctuation lands in a different bucket under the two
 // encoders, and Sessions looking only in the narrow one misses the transcript
 // entirely -- not ambiguously, but completely, while the file sits in the
-// adjacent directory. /Users/uzair/pretty_tmux is the whole failure: Claude
-// writes -Users-uzair-pretty-tmux and the narrow encoder looks in
-// -Users-uzair-pretty_tmux.
+// adjacent directory. /Users/example/pretty_tmux is the whole failure: Claude
+// writes -Users-example-pretty-tmux and the narrow encoder looks in
+// -Users-example-pretty_tmux.
 //
 // This is both a read and a write path: resolution probes it to widen the set
 // of candidate directories, and internal/migrate writes a moved conversation
@@ -347,8 +347,8 @@ func resolveClaudeJSONLDirsForCWD(dirs []string, launchUUID, cwd string) ClaudeR
 // a bucket makes every session in it ambiguous, and an ambiguous bucket
 // currently resolves to no path at all -- the conversation reads as missing
 // while the file is sitting right there. On this machine
-// /Users/uzair/pretty-PTY-desktop-ux and /Users/uzair/pretty-PTY/desktop-ux
-// share the bucket -Users-uzair-pretty-PTY-desktop-ux.
+// /Users/example/pretty-PTY-desktop-ux and /Users/example/pretty-PTY/desktop-ux
+// share the bucket -Users-example-pretty-PTY-desktop-ux.
 //
 // Claude stamps the real, unencoded cwd into the transcript's own records, so
 // the collision the directory name lost is recoverable from the file contents.

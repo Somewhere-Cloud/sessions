@@ -176,7 +176,7 @@ func TestATranscriptTickIsNotCountedAsTheUserSpeaking(t *testing.T) {
 		"type":      "user",
 		"isMeta":    true,
 		"userType":  "external",
-		"message":   map[string]any{"role": "user", "content": "INTEGRATOR TICK (founder-ordered 30-min cadence)"},
+		"message":   map[string]any{"role": "user", "content": "INTEGRATOR TICK (user-requested 30-min cadence)"},
 		"timestamp": "2026-08-07T22:36:20Z",
 	}
 	if !realUserMessage(owner) {
@@ -190,7 +190,7 @@ func TestATranscriptTickIsNotCountedAsTheUserSpeaking(t *testing.T) {
 }
 
 // Claude Code delivers a background task's result, and its own reminders, as
-// user-role records. The founder's transcript showed them as his own chat
+// user-role records. The user's transcript showed them as his own chat
 // bubbles; counting them here would also make every surface say "You sent a
 // message" for something nobody sent.
 func TestHarnessInjectionsAreNotCountedAsTheUserSpeaking(t *testing.T) {

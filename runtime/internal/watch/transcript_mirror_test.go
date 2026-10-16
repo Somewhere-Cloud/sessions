@@ -483,8 +483,8 @@ func TestMirrorCapStopsAppendingWithoutDiscarding(t *testing.T) {
 
 // TestMirrorSurvivesAmbiguousProjectBucket covers the second loss mode, which
 // needs no deletion at all. Claude's project-directory encoding replaces path
-// separators with dashes, so /Users/uzair/pretty-PTY-desktop-ux and
-// /Users/uzair/pretty-PTY/desktop-ux collapse into one bucket — both of those
+// separators with dashes, so /Users/example/pretty-PTY-desktop-ux and
+// /Users/example/pretty-PTY/desktop-ux collapse into one bucket — both of those
 // encodings exist on this machine today. Once a bucket holds more than one
 // transcript and the launch UUID is not known exactly, the resolver correctly
 // refuses to guess and returns no path, and the conversation disappears from

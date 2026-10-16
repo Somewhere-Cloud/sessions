@@ -47,7 +47,7 @@ func TestStageTimerRepeatsAddUp(t *testing.T) {
 	}
 }
 
-// The founder's twelve-second listing could not be attributed from outside the
+// The user's twelve-second listing could not be attributed from outside the
 // daemon, and production daemons run without pprof. ?timing=1 is how the same
 // numbers the log line carries can be asked for directly.
 func TestHistoryListingReportsItsStagesWhenAsked(t *testing.T) {

@@ -221,8 +221,8 @@ func describeClaudeConversation(task resumableTask) (ResumableSession, bool) {
 // and /Users/u/a_b all land in -Users-u-a-b -- and inverting it is a guess.
 // Presenting that guess as the conversation's directory is worse than printing
 // nothing: the directory column is the one a person uses to recognise which
-// conversation is theirs, and this scanner was printing /Users/uzair/pretty/PTY
-// for conversations that ran in /Users/uzair/pretty-PTY. A path that does not
+// conversation is theirs, and this scanner was printing /Users/example/pretty/PTY
+// for conversations that ran in /Users/example/pretty-PTY. A path that does not
 // exist tells the reader nothing and costs them their trust in the column.
 //
 // So: the inversion is accepted only when it names a directory that actually

@@ -19,7 +19,7 @@ import (
 // file there while it runs and refreshes it as its status changes. Verified on
 // this machine against live files; an entry looks like:
 //
-//	{"pid":22440,"sessionId":"3fe0b590-...","cwd":"/Users/uzair/pretty-PTY",
+//	{"pid":22440,"sessionId":"3fe0b590-...","cwd":"/Users/example/pretty-PTY",
 //	 "startedAt":1785878763246,"procStart":"Tue Aug  4 21:26:02 2026",
 //	 "version":"2.1.220","peerProtocol":1,"kind":"interactive","entrypoint":"cli",
 //	 "name":"pretty-pty-02","nameSource":"derived","status":"waiting",
