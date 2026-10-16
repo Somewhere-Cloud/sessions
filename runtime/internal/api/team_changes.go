@@ -139,12 +139,12 @@ func (c *teamChanges) lookup(caller, since string, now time.Time) (teamSnapshot,
 		return teamSnapshot{}, &teamCursorError{reason: teamCursorUnknown}
 	}
 	snapshot, found := c.snapshots[since]
+	fromDisk := false
 	if !found && c.root != "" {
 		loaded, err := readTeamCursor(c.root, since)
 		switch {
 		case err == nil:
-			snapshot, found = loaded, true
-			c.snapshots[since] = loaded
+			snapshot, found, fromDisk = loaded, true, true
 		case !errors.Is(err, errTeamCursorMissing):
 			// Remembering is bounded like the store; this answer says
 			// unreadable either way.
@@ -166,7 +166,31 @@ func (c *teamChanges) lookup(caller, since string, now time.Time) (teamSnapshot,
 	if now.Sub(snapshot.at) >= teamCursorTTL {
 		return teamSnapshot{}, &teamCursorError{reason: teamCursorExpired}
 	}
+	// Only a baseline that answered this caller within its TTL is cached, so
+	// another writer's cursors, other callers' cursors, and expired files read
+	// on the way to an error never accumulate in memory.
+	if fromDisk {
+		c.remember(since, snapshot)
+	}
 	return snapshot, nil
+}
+
+// remember caches a baseline, evicting the oldest first so the cache never
+// exceeds teamCursorMax however it is reached.
+func (c *teamChanges) remember(key string, snapshot teamSnapshot) {
+	if _, present := c.snapshots[key]; !present {
+		for len(c.snapshots) >= teamCursorMax {
+			oldest := ""
+			for candidate, value := range c.snapshots {
+				if oldest == "" || value.at.Before(c.snapshots[oldest].at) {
+					oldest = candidate
+				}
+			}
+			delete(c.snapshots, oldest)
+			c.forget(oldest)
+		}
+	}
+	c.snapshots[key] = snapshot
 }
 
 func (c *teamChanges) ensureLoaded() {
@@ -241,21 +265,11 @@ func (c *teamChanges) save(snapshot teamSnapshot) (string, error) {
 	if _, err := rand.Read(entropy[:]); err != nil {
 		return "", err
 	}
-	for len(c.snapshots) >= teamCursorMax {
-		oldest := ""
-		for key, value := range c.snapshots {
-			if oldest == "" || value.at.Before(c.snapshots[oldest].at) {
-				oldest = key
-			}
-		}
-		delete(c.snapshots, oldest)
-		c.forget(oldest)
-	}
 	key := hex.EncodeToString(entropy[:])
 	if err := c.persist(key, snapshot); err != nil {
 		return "", err
 	}
-	c.snapshots[key] = snapshot
+	c.remember(key, snapshot)
 	return key, nil
 }
 

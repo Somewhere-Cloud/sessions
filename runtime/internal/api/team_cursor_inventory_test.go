@@ -162,3 +162,44 @@ func TestTeamCursorRowsMustBePresent(t *testing.T) {
 		t.Fatalf("a baseline without rows answered %v, want unreadable (never an empty delta)", err)
 	}
 }
+
+// Cursors read from disk on the way to an error -- another caller's, or an
+// expired one -- are never cached, and valid ones read one by one stay within
+// the cap even when every request is answered before any save runs.
+func TestTeamCursorDiskLookupsNeverGrowTheCache(t *testing.T) {
+	root := t.TempDir()
+	now := time.Now()
+	reader := newTeamChanges(root)
+	baseline := teamCursorTestListing("working")
+	if err := reader.apply("manager", "", &baseline, now); err != nil {
+		t.Fatal(err)
+	}
+	const writes = teamCursorMax + 40
+	for index := 0; index < writes; index++ {
+		other := seedCursor(t, root, 2000+index, "another-lane", now)
+		listing := teamCursorTestListing("working")
+		if err := reader.apply("manager", other, &listing, now); teamCursorReason(err) != teamCursorOtherCaller {
+			t.Fatalf("another caller's cursor answered %v", err)
+		}
+		expired := seedCursor(t, root, 4000+index, "manager", now.Add(-2*teamCursorTTL))
+		if err := os.Chtimes(teamCursorPath(root, expired), now, now); err != nil {
+			t.Fatal(err)
+		}
+		if err := reader.apply("manager", expired, &listing, now); teamCursorReason(err) != teamCursorExpired {
+			t.Fatalf("an expired cursor answered %v", err)
+		}
+	}
+	if len(reader.snapshots) != 1 {
+		t.Fatalf("failed lookups were cached: %d baselines in memory", len(reader.snapshots))
+	}
+	for index := 0; index < writes; index++ {
+		valid := seedCursor(t, root, 6000+index, "manager", now)
+		listing := teamCursorTestListing("working")
+		if err := reader.apply("manager", valid, &listing, now); err != nil {
+			t.Fatalf("valid disk cursor %d: %v", index, err)
+		}
+		if len(reader.snapshots) > teamCursorMax {
+			t.Fatalf("cache grew to %d after %d valid disk lookups", len(reader.snapshots), index+1)
+		}
+	}
+}
