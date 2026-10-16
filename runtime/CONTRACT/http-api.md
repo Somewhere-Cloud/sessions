@@ -703,12 +703,14 @@ Values: `capabilities.runtime` is `claude-structured`, `codex-app-server`,
   `item_started`/`item_completed` for non-message items). `open` lists at most
   32. `open_count` counts open calls within what was observed and tracked (at
   most 1024); `open_count_exact` is `true` only when `history_complete` is and
-  no call was dropped by that bound, otherwise `open_count` is a lower bound.
+  no call was dropped by that bound. Otherwise it counts tracked starts without
+  an observed end, not a lower bound on calls currently running: an end may be
+  among the missing records too.
   `history_complete` is `false` for a runner this daemon re-adopted (its replay
   may be bounded) or when records were unreadable. `observed_since` is the
   start of the observed window: the earliest record time seen, or when this
-  daemon attached if earlier or nothing was timed; calls started before it are
-  outside what was observed. `last_end_status` is how the
+  daemon attached if earlier or nothing was timed. This does not guarantee
+  continuous coverage; untimed records may predate that value. `last_end_status` is how the
   most recently received end was reported: `result` (the provider returned a
   result, not a claim of success), `error`, `cancelled` (declined or
   interrupted), or `unknown`. An open tool with no end is reported as that,

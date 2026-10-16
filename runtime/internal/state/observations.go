@@ -134,12 +134,12 @@ type ObservedTools struct {
 	LastEndStatus *string `json:"last_end_status"`
 	// ObservedSince is the earliest record time in the observed window, or
 	// when this daemon attached if that is earlier or no record had a time.
-	// Calls started before it are outside what was observed.
+	// This does not guarantee continuous coverage or timestamped records.
 	ObservedSince   *int64 `json:"observed_since"`
 	HistoryComplete bool   `json:"history_complete"`
 	// OpenCountExact is true only when the history is complete and no call
-	// was dropped by the tracking bound; otherwise open_count is a lower
-	// bound of what was observed.
+	// was dropped by the tracking bound. Otherwise starts or ends may be
+	// missing: open_count is not a bound on calls currently running.
 	OpenCountExact bool `json:"open_count_exact"`
 }
 

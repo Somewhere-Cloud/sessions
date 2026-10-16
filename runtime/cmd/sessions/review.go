@@ -16,8 +16,8 @@ const reviewUsage = "usage: sessions review snapshot (<session> | --observations
 	"       sessions review validate <snapshot.json>\n" +
 	"       sessions review compare --snapshot FILE --questions FILE [--reviewer baseline | --reviewer exec:/ABS/PATH [--reviewer-arg ARG]...]... [--timeout DURATION]"
 
-// cmdReview is an explicitly invoked, experimental comparison. It reads only
-// the files named on its command line and never contacts the daemon.
+// cmdReview is explicitly invoked and experimental. Snapshot may read a
+// session's observations from the daemon; validate and compare read files only.
 func (a *app) cmdReview(args []string) error {
 	if len(args) == 0 {
 		return fail(1, "%s", reviewUsage)

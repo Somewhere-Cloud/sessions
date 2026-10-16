@@ -614,11 +614,15 @@ func (a *app) writeStatusObservations(observations *state.Observations) error {
 	}
 	if tools := observations.Tools; tools != nil && tools.OpenCount > 0 {
 		line := fmt.Sprintf("tools    %d open", tools.OpenCount)
-		if oldest := tools.Open[0]; oldest.StartedAt != nil {
+		if !tools.OpenCountExact {
+			line = fmt.Sprintf("tools    %d starts without a recorded end", tools.OpenCount)
+		}
+		if len(tools.Open) > 0 && tools.Open[0].StartedAt != nil {
+			oldest := tools.Open[0]
 			line += fmt.Sprintf(", oldest %s started %s ago", terminalSafe(orUnknown(oldest.Name)), a.ageOf(*oldest.StartedAt))
 		}
-		if !tools.HistoryComplete {
-			line += " (history partial)"
+		if !tools.OpenCountExact {
+			line += " (partial history; current open count unknown)"
 		}
 		lines = append(lines, line)
 	}

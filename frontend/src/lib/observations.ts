@@ -11,7 +11,9 @@ const WORKING_SOURCES: Record<string, string> = {
 /** A daemon time in epoch milliseconds, with its age when it is in the past, or 'unknown'. */
 export function observedTime(at: number | null | undefined, now: number): string {
   if (at === null || at === undefined) return 'unknown';
-  const stamp = new Date(at).toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC');
+  const date = new Date(at);
+  if (!Number.isFinite(date.getTime())) return 'unknown';
+  const stamp = date.toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC');
   const elapsed = now - at;
   return elapsed >= 0 ? `${stamp} (${elapsedText(elapsed)} ago)` : stamp;
 }
@@ -37,7 +39,7 @@ function toolsNote(tools: NonNullable<SessionObservations['tools']>, now: number
   const plural = tools.open_count === 1 ? '' : 's';
   const count = tools.open_count_exact
     ? `${tools.open_count} tool call${plural} open.`
-    : `At least ${tools.open_count} tool call${plural} open (partial history; count is a lower bound).`;
+    : `${tools.open_count} tool start${plural} without a recorded end (partial history; current open count unknown).`;
   const status = tools.last_end_status ? ` (${tools.last_end_status})` : '';
   return `${count} Last tool end ${observedTime(tools.last_ended_at, now)}${status}.`;
 }
