@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/somewhere-tech/sessions/runtime/internal/ledger"
@@ -17,6 +18,9 @@ var (
 	ErrTaskRefInvalid = taskref.ErrInvalid
 	// ErrTaskLaneUnknown means the ledger has no creation record for the id.
 	ErrTaskLaneUnknown = errors.New("no Sessions ledger record for this session")
+	// ErrTaskRefAmbiguous means a reference names several linked scopes and
+	// the request did not say which.
+	ErrTaskRefAmbiguous = errors.New("ambiguous task reference")
 	// ErrTaskLinksUnavailable means this daemon was started without a ledger.
 	ErrTaskLinksUnavailable = errors.New("task references need the Sessions ledger, which this daemon was started without")
 )
@@ -31,6 +35,9 @@ type TaskRefView struct {
 	Scope    string `json:"scope"`
 	Project  string `json:"project,omitempty"`
 	LinkedAt string `json:"linked_at"`
+	// Ambiguous marks a Somewhere task ID linked on the same target under
+	// more than one scope. Each entry is kept; none is silently moved.
+	Ambiguous bool `json:"ambiguous,omitempty"`
 }
 
 // TaskLinks answers the task routes. Tasks are stated for the session itself;
@@ -94,11 +101,16 @@ func (m *Manager) taskLane(ctx context.Context, id string) (ledger.LaneState, er
 }
 
 func taskRefViews(tasks []ledger.LaneTask) []TaskRefView {
+	scopes := make(map[string]int, len(tasks))
+	for _, task := range tasks {
+		scopes[task.Ref]++
+	}
 	views := make([]TaskRefView, 0, len(tasks))
 	for _, task := range tasks {
 		view := TaskRefView{
 			Ref: task.Ref, Provider: "unknown", Scope: taskref.ScopeUnresolved, Project: task.Project,
-			LinkedAt: time.UnixMilli(task.LinkedAtMS).UTC().Format(time.RFC3339),
+			LinkedAt:  time.UnixMilli(task.LinkedAtMS).UTC().Format(time.RFC3339),
+			Ambiguous: scopes[task.Ref] > 1,
 		}
 		if parsed, err := taskref.Parse(task.Ref, task.Project); err == nil {
 			view.Provider, view.Scope = parsed.Provider, parsed.Scope
@@ -164,28 +176,22 @@ func (m *Manager) LinkTasks(ctx context.Context, id string, raws []string, proje
 		if err != nil {
 			return false, err
 		}
-		pending := targetTaskLinks(newTaskLinks(current, links), url)
-		if len(pending) == 0 {
-			return false, nil
+		pending, err := planTaskLinks(current, links)
+		if err != nil || len(pending) == 0 {
+			return false, err
 		}
-		added := 0
-		for _, link := range pending {
-			if !hasTaskRef(current, link.Ref) {
-				added++
-			}
-		}
-		if len(current)+added > taskref.MaxPerTarget {
-			return false, fmt.Errorf("%w: a session or pull request carries at most %d task references", ErrTaskRefInvalid, taskref.MaxPerTarget)
-		}
+		pending = targetTaskLinks(pending, url)
 		return true, m.options.TaskLinks.RecordTaskLinked(ctx, ledger.TaskLinked{Meta: ledger.Meta{LaneID: id}, Links: pending})
 	})
 }
 
 // UnlinkTasks removes the references from the session, or from exactly the
-// linked pull request rawURL names. Unlinking one that is not linked there
-// records nothing.
-func (m *Manager) UnlinkTasks(ctx context.Context, id string, raws []string, rawURL string) (TaskLinks, error) {
-	links, err := parseTaskLinks(raws, "")
+// linked pull request rawURL names. project names the Somewhere scope of sw:
+// references; without it a reference names its unresolved entry, or its only
+// entry, and a reference linked under several scopes is refused as ambiguous
+// rather than guessed. Unlinking one that is not linked there records nothing.
+func (m *Manager) UnlinkTasks(ctx context.Context, id string, raws []string, project, rawURL string) (TaskLinks, error) {
+	links, err := parseTaskLinks(raws, project)
 	if err != nil {
 		return TaskLinks{}, err
 	}
@@ -197,14 +203,9 @@ func (m *Manager) UnlinkTasks(ctx context.Context, id string, raws []string, raw
 		if err != nil {
 			return false, err
 		}
-		present := make([]ledger.TaskLink, 0, len(links))
-		for _, link := range links {
-			if hasTaskRef(current, link.Ref) {
-				present = append(present, link)
-			}
-		}
-		if len(present) == 0 {
-			return false, nil
+		present, err := planTaskUnlinks(current, links)
+		if err != nil || len(present) == 0 {
+			return false, err
 		}
 		present = targetTaskLinks(present, url)
 		return true, m.options.TaskLinks.RecordTaskUnlinked(ctx, ledger.TaskUnlinked{Meta: ledger.Meta{LaneID: id}, Links: present})
@@ -235,29 +236,57 @@ func (m *Manager) writeTaskLinks(ctx context.Context, id string, write func(ledg
 	return answer, nil
 }
 
-// newTaskLinks returns the links that would change the folded set: a
-// reference not yet linked, or a project stated for an unresolved one.
-func newTaskLinks(current []ledger.LaneTask, links []ledger.TaskLink) []ledger.TaskLink {
+// planTaskLinks returns the links that change current under the ledger's
+// identity rules, and refuses a batch that would take the target past the
+// limit. Every link path shares it, so no path can exceed the limit by
+// repeating small batches.
+func planTaskLinks(current []ledger.LaneTask, links []ledger.TaskLink) ([]ledger.TaskLink, error) {
 	pending := make([]ledger.TaskLink, 0, len(links))
+	next := current
 	for _, link := range links {
-		known := false
-		for _, task := range current {
-			if task.Ref == link.Ref {
-				known = link.Project == "" || link.Project == task.Project
-			}
+		effect, _ := ledger.ClassifyTaskLink(next, link)
+		if effect == ledger.TaskLinkUnchanged {
+			continue
 		}
-		if !known {
-			pending = append(pending, link)
+		if effect == ledger.TaskLinkAdds && len(next) >= taskref.MaxPerTarget {
+			return nil, fmt.Errorf("%w: a session or pull request carries at most %d task references", ErrTaskRefInvalid, taskref.MaxPerTarget)
 		}
+		pending = append(pending, link)
+		next = ledger.LinkTasks(next, []ledger.TaskLink{link}, 0)
 	}
-	return pending
+	return pending, nil
 }
 
-func hasTaskRef(tasks []ledger.LaneTask, ref string) bool {
-	for _, task := range tasks {
-		if task.Ref == ref {
-			return true
+// planTaskUnlinks resolves each requested reference to the exact linked
+// identity it removes. A stated project names that entry. Without one, the
+// unresolved entry is meant, or the only entry; several scoped entries and no
+// unresolved one are ambiguous and refused.
+func planTaskUnlinks(current []ledger.LaneTask, links []ledger.TaskLink) ([]ledger.TaskLink, error) {
+	present := make([]ledger.TaskLink, 0, len(links))
+	for _, link := range links {
+		var matches []ledger.LaneTask
+		exact := false
+		for _, task := range current {
+			if task.Ref != link.Ref {
+				continue
+			}
+			matches = append(matches, task)
+			exact = exact || task.Project == link.Project
+		}
+		switch {
+		case exact:
+			present = append(present, link)
+		case link.Project != "" || len(matches) == 0:
+		case len(matches) == 1:
+			present = append(present, matches[0].TaskLink)
+		default:
+			projects := make([]string, 0, len(matches))
+			for _, match := range matches {
+				projects = append(projects, match.Project)
+			}
+			return nil, fmt.Errorf("%w: %s is linked in projects %s; name the one to unlink with --project",
+				ErrTaskRefAmbiguous, link.Ref, strings.Join(projects, ", "))
 		}
 	}
-	return false
+	return present, nil
 }

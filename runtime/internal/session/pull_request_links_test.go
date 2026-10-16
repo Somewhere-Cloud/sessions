@@ -196,7 +196,7 @@ func TestTaskLinksTargetExactPullRequestLinks(t *testing.T) {
 		links.PullRequests[1].Tasks[0].Scope != "somewhere:proj" {
 		t.Fatalf("targeted links = %+v", links)
 	}
-	if links, err = manager.UnlinkTasks(ctx, id, []string{"gh:acme/app#1"}, secondPR); err != nil || len(links.PullRequests[1].Tasks) != 1 {
+	if links, err = manager.UnlinkTasks(ctx, id, []string{"gh:acme/app#1"}, "", secondPR); err != nil || len(links.PullRequests[1].Tasks) != 1 {
 		t.Fatalf("targeted unlink = %+v err=%v", links, err)
 	}
 	if _, err := manager.RemovePullRequest(ctx, id, secondPR); err != nil {

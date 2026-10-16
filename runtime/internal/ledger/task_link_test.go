@@ -2,6 +2,7 @@ package ledger
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"testing"
 )
@@ -94,5 +95,47 @@ func TestTaskLinkFoldIgnoresMalformedFactsAndClonesDeeply(t *testing.T) {
 	}
 	if lanes[0].LastLifecycleAtMS != 100 || lanes[0].LastActivityAtMS != 0 {
 		t.Fatalf("task links moved activity clocks: %+v", lanes[0])
+	}
+}
+
+// A Somewhere task ID is scoped by its project. Linking it under another
+// project never moves the first link; it adds a second, visible entry.
+// Resolving an unresolved entry keeps when it was first linked, and unlink
+// removes only the exact identity it names.
+func TestTaskIdentityIsScopedAndNeverRelocated(t *testing.T) {
+	const ref = "sw:tsk_0123abcd"
+	steps := []struct {
+		links  []TaskLink
+		unlink bool
+		want   []TaskLink
+	}{
+		{links: []TaskLink{{Ref: ref}}, want: []TaskLink{{Ref: ref}}},
+		{links: []TaskLink{{Ref: ref, Project: "alpha"}}, want: []TaskLink{{Ref: ref, Project: "alpha"}}},
+		{links: []TaskLink{{Ref: ref, Project: "beta"}}, want: []TaskLink{{Ref: ref, Project: "alpha"}, {Ref: ref, Project: "beta"}}},
+		{links: []TaskLink{{Ref: ref}}, want: []TaskLink{{Ref: ref, Project: "alpha"}, {Ref: ref, Project: "beta"}}},
+		{links: []TaskLink{{Ref: ref}}, unlink: true, want: []TaskLink{{Ref: ref, Project: "alpha"}, {Ref: ref, Project: "beta"}}},
+		{links: []TaskLink{{Ref: ref, Project: "beta"}}, unlink: true, want: []TaskLink{{Ref: ref, Project: "alpha"}}},
+	}
+	var current []LaneTask
+	for index, step := range steps {
+		before := append([]LaneTask(nil), current...)
+		if step.unlink {
+			current = UnlinkTasks(current, step.links)
+		} else {
+			current = LinkTasks(current, step.links, int64(100*(index+1)))
+		}
+		if len(before) > 0 && before[0].Project != "" && (len(current) == 0 || current[0].Project != before[0].Project) && !step.unlink {
+			t.Fatalf("step %d moved %+v to %+v", index, before[0], current)
+		}
+		got := make([]TaskLink, 0, len(current))
+		for _, task := range current {
+			got = append(got, task.TaskLink)
+		}
+		if fmt.Sprint(got) != fmt.Sprint(step.want) {
+			t.Fatalf("step %d: got %+v, want %+v", index, got, step.want)
+		}
+	}
+	if current[0].LinkedAtMS != 100 {
+		t.Fatalf("resolving lost the first link time: %+v", current[0])
 	}
 }

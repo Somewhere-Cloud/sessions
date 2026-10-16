@@ -12,7 +12,7 @@ import (
 type taskLinkService interface {
 	TaskLinks(context.Context, string) (sessionruntime.TaskLinks, error)
 	LinkTasks(context.Context, string, []string, string, string) (sessionruntime.TaskLinks, error)
-	UnlinkTasks(context.Context, string, []string, string) (sessionruntime.TaskLinks, error)
+	UnlinkTasks(context.Context, string, []string, string, string) (sessionruntime.TaskLinks, error)
 }
 
 // The task routes are only reachable through this assertion, so a signature
@@ -47,9 +47,10 @@ func (s *Server) handleTaskLinkRoute(
 	case http.MethodDelete:
 		// Unlinking names exact references in the query, so a DELETE needs
 		// no body: ?ref=sw:tsk_...&ref=gh:OWNER/REPO%23NUMBER, plus
+		// project=<somewhere project> to name the scope of sw: references and
 		// pull_request=<url> to unlink them from that pull request link.
 		query := request.URL.Query()
-		answer, err = service.UnlinkTasks(request.Context(), id, query["ref"], query.Get("pull_request"))
+		answer, err = service.UnlinkTasks(request.Context(), id, query["ref"], query.Get("project"), query.Get("pull_request"))
 	default:
 		var body struct {
 			Refs        []string `json:"refs"`
@@ -74,7 +75,7 @@ func taskLinkErrorStatus(err error) int {
 	switch {
 	case errors.Is(err, sessionruntime.ErrTaskRefInvalid), errors.Is(err, pullrequest.ErrInvalidURL):
 		return http.StatusBadRequest
-	case errors.Is(err, sessionruntime.ErrPullRequestNotLinked):
+	case errors.Is(err, sessionruntime.ErrPullRequestNotLinked), errors.Is(err, sessionruntime.ErrTaskRefAmbiguous):
 		return http.StatusConflict
 	case errors.Is(err, sessionruntime.ErrTaskLaneUnknown):
 		return http.StatusNotFound

@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -62,7 +63,7 @@ func TestTaskLinksRecordedAtCreateSurviveRetirementAndRestart(t *testing.T) {
 	if err != nil || *again.Changed {
 		t.Fatalf("relink changed=%v err=%v", again.Changed, err)
 	}
-	if _, err := manager.UnlinkTasks(ctx, info.ID, []string{"gh:acme/app#7"}, ""); err != nil {
+	if _, err := manager.UnlinkTasks(ctx, info.ID, []string{"gh:acme/app#7"}, "", ""); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.Remove(filepath.Join(testConfig(root).RunnerStateDir, info.ID+".json")); err != nil {
@@ -127,5 +128,74 @@ func TestTaskLinksNeedTheLedger(t *testing.T) {
 	}
 	if _, err := manager.LinkTasks(context.Background(), "x", []string{"gh:acme/app#1"}, "", ""); !errors.Is(err, ErrTaskLinksUnavailable) {
 		t.Fatalf("link without ledger err = %v", err)
+	}
+}
+
+// Linking a task ID under a second project keeps both entries and marks them
+// ambiguous; unlinking without a project refuses to guess between them, and
+// naming the project removes exactly that one.
+func TestTaskRefsUnderTwoProjectsStayExplicit(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	store, err := ledger.Open(ctx, ledger.Options{Path: filepath.Join(root, "ledger", "lanes.sqlite3")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	manager := newTaskLinkManager(t, root, store)
+	info, err := manager.Create(ctx, state.CreateSessionRequest{Cmd: "/bin/sh", Cwd: root, TaskRefs: []string{"sw:tsk_0123abcd"}, TaskProject: "alpha"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	links, err := manager.LinkTasks(ctx, info.ID, []string{"sw:tsk_0123abcd"}, "beta", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(links.Tasks) != 2 || links.Tasks[0].Scope != "somewhere:alpha" || links.Tasks[1].Scope != "somewhere:beta" ||
+		!links.Tasks[0].Ambiguous || !links.Tasks[1].Ambiguous {
+		t.Fatalf("second project relocated or hid the first: %+v", links.Tasks)
+	}
+	if _, err := manager.UnlinkTasks(ctx, info.ID, []string{"sw:tsk_0123abcd"}, "", ""); !errors.Is(err, ErrTaskRefAmbiguous) {
+		t.Fatalf("unscoped unlink of an ambiguous ref err = %v", err)
+	}
+	links, err = manager.UnlinkTasks(ctx, info.ID, []string{"sw:tsk_0123abcd"}, "beta", "")
+	if err != nil || len(links.Tasks) != 1 || links.Tasks[0].Scope != "somewhere:alpha" || links.Tasks[0].Ambiguous {
+		t.Fatalf("scoped unlink = %+v err=%v", links.Tasks, err)
+	}
+	// With a single entry, an unscoped unlink is still the convenient form.
+	if links, err = manager.UnlinkTasks(ctx, info.ID, []string{"sw:tsk_0123abcd"}, "", ""); err != nil || len(links.Tasks) != 0 {
+		t.Fatalf("convenient unlink = %+v err=%v", links.Tasks, err)
+	}
+}
+
+// Every link path shares one cumulative limit, so repeated small batches --
+// on the session or on an already linked pull request -- cannot exceed it.
+func TestTaskRefLimitIsCumulativeOnEveryPath(t *testing.T) {
+	ctx := context.Background()
+	manager, _, _, id := newMultiPullRequestManager(t, &perURLFetcher{})
+	if _, err := manager.AddPullRequest(ctx, id, firstPR, nil, ""); err != nil {
+		t.Fatal(err)
+	}
+	for batch := 0; batch < 8; batch++ {
+		refs := make([]string, 0, 8)
+		for index := 0; index < 8; index++ {
+			refs = append(refs, fmt.Sprintf("gh:acme/app#%d", batch*8+index+1))
+		}
+		if _, err := manager.AddPullRequest(ctx, id, firstPR, refs, ""); err != nil {
+			t.Fatalf("batch %d: %v", batch, err)
+		}
+		if _, err := manager.LinkTasks(ctx, id, refs, "", ""); err != nil {
+			t.Fatalf("session batch %d: %v", batch, err)
+		}
+	}
+	if _, err := manager.AddPullRequest(ctx, id, firstPR, []string{"gh:acme/app#999"}, ""); !errors.Is(err, ErrTaskRefInvalid) {
+		t.Fatalf("65th reference on an existing pull request err = %v", err)
+	}
+	if _, err := manager.LinkTasks(ctx, id, []string{"gh:acme/app#999"}, "", ""); !errors.Is(err, ErrTaskRefInvalid) {
+		t.Fatalf("65th reference on the session err = %v", err)
+	}
+	links, err := manager.TaskLinks(ctx, id)
+	if err != nil || len(links.Tasks) != 64 || len(links.PullRequests[0].Tasks) != 64 {
+		t.Fatalf("limits = %d / %d err=%v", len(links.Tasks), len(links.PullRequests[0].Tasks), err)
 	}
 }

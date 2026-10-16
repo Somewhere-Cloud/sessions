@@ -1205,13 +1205,13 @@ Examples:
 
 ```text
 Usage:
-  sessions task <session> | task link <session> <ref>... [--project P] [--pr URL] | task unlink <session> <ref>... [--pr URL]
+  sessions task <session> | task link <session> <ref>... [--project P] [--pr URL] | task unlink <session> <ref>... [--project P] [--pr URL]
 
 record which tasks a session works on
 
 Record the task references a session works on. A reference is sw:tsk_<id> for a Somewhere task or gh:OWNER/REPO#NUMBER for a GitHub issue; nothing else is accepted, and nothing is ever inferred from a branch name, commit message, or the conversation. One session can carry several references, and the same reference can be on several sessions.
 
-link records references in the append-only ledger; linking one that is already linked records nothing. --project names the Somewhere project the sw: references belong to. Without it their scope is reported as unresolved, because a task ID alone does not say which project it is in; linking the same reference again with --project resolves it. unlink removes exact references. --pr URL links or unlinks the references on exactly that linked pull request instead of on the session, so each pull request says which tasks it is for. `sessions new --task REF` and `sessions run --task REF` (repeatable, with --task-project) record references with the session's creation.
+link records references in the append-only ledger; linking one that is already linked records nothing. --project names the Somewhere project the sw: references belong to. Without it their scope is reported as unresolved, because a task ID alone does not say which project it is in; linking the same reference again with --project resolves it. A reference is never moved between projects: linking it under a second project keeps both entries and marks them ambiguous. unlink removes exact references; for a reference linked under several projects, --project names which one, and without it the unlink is refused instead of guessed. --pr URL links or unlinks the references on exactly that linked pull request instead of on the session, so each pull request says which tasks it is for. `sessions new --task REF` and `sessions run --task REF` (repeatable, with --task-project) record references with the session's creation.
 
 Nothing here contacts Somewhere or GitHub or needs an account: a reference says which task someone linked, not whether that task exists, changed, or is done. References survive daemon restarts and runner retirement. With no reference linked, the session's --description is shown as its stated intent.
 

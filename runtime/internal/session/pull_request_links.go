@@ -76,8 +76,9 @@ func (m *Manager) AddPullRequest(ctx context.Context, id, rawURL string, taskRaw
 	}
 	changed := false
 	if existing, linked := laneLink(lane, ref.URL); linked {
-		pending := targetTaskLinks(newTaskLinks(existing.Tasks, links), ref.URL)
-		if len(pending) > 0 {
+		var pending []ledger.TaskLink
+		if pending, err = planTaskLinks(existing.Tasks, links); err == nil && len(pending) > 0 {
+			pending = targetTaskLinks(pending, ref.URL)
 			err = m.options.TaskLinks.RecordTaskLinked(ctx, ledger.TaskLinked{Meta: ledger.Meta{LaneID: id}, Links: pending})
 			changed = err == nil
 		}

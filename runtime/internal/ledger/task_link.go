@@ -160,38 +160,103 @@ func foldTaskLinks(state *LaneState, event Event) {
 	syncPrimaryPullRequest(state, state.PullRequest.URL)
 }
 
-// linkTasks adds each reference not already present. Restating a reference
-// with a project records the project, so an unresolved scope can be resolved
-// later without losing when the link was first made.
-func linkTasks(current []LaneTask, links []TaskLink, event Event) []LaneTask {
+// Task identity. A GitHub issue reference names its repository, so the ref
+// alone is its identity. A Somewhere task ID is not promised to be unique
+// across projects, so a sw: reference's identity is the ref plus its stated
+// project; an unstated project is its own, unresolved identity. Linking never
+// moves a reference from one project to another:
+//
+//   - linking (ref, P) when (ref, P) is linked changes nothing;
+//   - linking (ref, P) when only the unresolved (ref) is linked resolves that
+//     entry to P in place, keeping when it was first linked;
+//   - linking (ref, P) when (ref, Q) is linked adds a second, separate entry,
+//     so the ambiguity stays visible;
+//   - linking an unresolved ref when any entry for it is linked changes
+//     nothing, because the stated scope is already more specific;
+//   - unlinking removes exactly the (ref, project) entry it names.
+
+func sameTaskIdentity(task LaneTask, link TaskLink) bool {
+	return task.Ref == link.Ref && task.Project == link.Project
+}
+
+// LinkTasks returns current with links applied under the identity rules
+// above. It never modifies current.
+func LinkTasks(current []LaneTask, links []TaskLink, atMS int64) []LaneTask {
+	next := append([]LaneTask(nil), current...)
 	for _, link := range links {
-		found := false
-		for index := range current {
-			if current[index].Ref == link.Ref {
-				found = true
-				if link.Project != "" {
-					current[index].Project = link.Project
-				}
-			}
+		link.PullRequestURL = ""
+		next = linkTask(next, link, atMS)
+	}
+	return next
+}
+
+// TaskLinkEffect is what linking one reference would do to a target.
+type TaskLinkEffect int
+
+const (
+	TaskLinkUnchanged TaskLinkEffect = iota
+	TaskLinkResolves
+	TaskLinkAdds
+)
+
+// MaxTaskLinks is how many references one target may hold.
+const MaxTaskLinks = maxTaskLinks
+
+// ClassifyTaskLink applies the identity rules to one link without changing
+// anything. index is the unresolved entry a TaskLinkResolves would update.
+func ClassifyTaskLink(current []LaneTask, link TaskLink) (effect TaskLinkEffect, index int) {
+	unresolved := -1
+	for position, task := range current {
+		if task.Ref != link.Ref {
+			continue
 		}
-		if !found && len(current) < maxTaskLinks {
-			link.PullRequestURL = ""
-			current = append(current, LaneTask{TaskLink: link, LinkedAtMS: event.AtMS})
+		if sameTaskIdentity(task, link) || link.Project == "" {
+			return TaskLinkUnchanged, -1
+		}
+		if task.Project == "" {
+			unresolved = position
+		}
+	}
+	if unresolved >= 0 {
+		return TaskLinkResolves, unresolved
+	}
+	return TaskLinkAdds, -1
+}
+
+func linkTask(current []LaneTask, link TaskLink, atMS int64) []LaneTask {
+	switch effect, index := ClassifyTaskLink(current, link); effect {
+	case TaskLinkResolves:
+		current[index].Project = link.Project
+	case TaskLinkAdds:
+		if len(current) < maxTaskLinks {
+			current = append(current, LaneTask{TaskLink: link, LinkedAtMS: atMS})
 		}
 	}
 	return current
 }
 
-func unlinkTasks(current []LaneTask, links []TaskLink) []LaneTask {
-	remove := make(map[string]struct{}, len(links))
-	for _, link := range links {
-		remove[link.Ref] = struct{}{}
-	}
-	kept := current[:0:0]
+// UnlinkTasks returns current without the exact identities links name. It
+// never modifies current.
+func UnlinkTasks(current []LaneTask, links []TaskLink) []LaneTask {
+	kept := make([]LaneTask, 0, len(current))
 	for _, task := range current {
-		if _, gone := remove[task.Ref]; !gone {
+		gone := false
+		for _, link := range links {
+			if sameTaskIdentity(task, TaskLink{Ref: link.Ref, Project: link.Project}) {
+				gone = true
+			}
+		}
+		if !gone {
 			kept = append(kept, task)
 		}
 	}
 	return kept
+}
+
+func linkTasks(current []LaneTask, links []TaskLink, event Event) []LaneTask {
+	return LinkTasks(current, links, event.AtMS)
+}
+
+func unlinkTasks(current []LaneTask, links []TaskLink) []LaneTask {
+	return UnlinkTasks(current, links)
 }

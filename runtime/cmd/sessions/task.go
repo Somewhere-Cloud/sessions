@@ -9,15 +9,16 @@ import (
 
 const taskUsage = "usage: sessions task <session>\n" +
 	"       sessions task link <session> <ref>... [--project SOMEWHERE_PROJECT] [--pr URL]\n" +
-	"       sessions task unlink <session> <ref>... [--pr URL]\n" +
+	"       sessions task unlink <session> <ref>... [--project SOMEWHERE_PROJECT] [--pr URL]\n" +
 	"       a ref is sw:tsk_<id> or gh:OWNER/REPO#NUMBER"
 
 type taskRefView struct {
-	Ref      string `json:"ref"`
-	Provider string `json:"provider"`
-	Scope    string `json:"scope"`
-	Project  string `json:"project,omitempty"`
-	LinkedAt string `json:"linked_at"`
+	Ref       string `json:"ref"`
+	Provider  string `json:"provider"`
+	Scope     string `json:"scope"`
+	Project   string `json:"project,omitempty"`
+	LinkedAt  string `json:"linked_at"`
+	Ambiguous bool   `json:"ambiguous,omitempty"`
 }
 
 type taskLinks struct {
@@ -47,8 +48,8 @@ func (a *app) cmdTask(args []string) error {
 	if (action == "show" && len(rest) != 1) || (action != "show" && len(rest) < 2) || strings.TrimSpace(rest[0]) == "" {
 		return fail(1, "%s", taskUsage)
 	}
-	if hasProject && (action != "link" || strings.TrimSpace(project) == "") {
-		return fail(1, "--project names the Somewhere project for `task link`; %s", taskUsage)
+	if hasProject && (action == "show" || strings.TrimSpace(project) == "") {
+		return fail(1, "--project names the Somewhere project of sw: references for `task link` and `task unlink`; %s", taskUsage)
 	}
 	if hasPullRequest && action == "show" {
 		return fail(1, "--pr applies to `task link` and `task unlink`; %s", taskUsage)
@@ -67,6 +68,9 @@ func (a *app) cmdTask(args []string) error {
 		err = a.postJSON(path, body, &result, 2)
 	case "unlink":
 		query := url.Values{"ref": rest[1:]}
+		if hasProject {
+			query.Set("project", strings.TrimSpace(project))
+		}
 		if hasPullRequest {
 			query.Set("pull_request", strings.TrimSpace(pullRequest))
 		}
@@ -107,8 +111,12 @@ func writeTaskLinks(out io.Writer, links taskLinks) error {
 
 func writeTaskRefs(out io.Writer, suffix string, tasks []taskRefView) error {
 	for _, task := range tasks {
-		if _, err := fmt.Fprintf(out, "%s  %s  scope %s  linked %s%s\n",
-			terminalSafe(task.Ref), task.Provider, terminalSafe(task.Scope), task.LinkedAt, suffix); err != nil {
+		ambiguous := ""
+		if task.Ambiguous {
+			ambiguous = "  (also linked under another scope)"
+		}
+		if _, err := fmt.Fprintf(out, "%s  %s  scope %s  linked %s%s%s\n",
+			terminalSafe(task.Ref), task.Provider, terminalSafe(task.Scope), task.LinkedAt, suffix, ambiguous); err != nil {
 			return err
 		}
 	}

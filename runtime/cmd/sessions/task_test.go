@@ -105,4 +105,17 @@ func TestTaskCommandLinksListsAndUnlinksThroughTheDaemon(t *testing.T) {
 	if code, shown, _ := cli("--json", "task", info.ID[:8]); code != 0 || len(shown.Tasks) != 1 || shown.Changed != nil {
 		t.Fatalf("show exit=%d result=%+v", code, shown)
 	}
+	// The same task ID under another project is a second, visible entry, and
+	// unlinking it needs the project once it is ambiguous.
+	code, linked, output = cli("--json", "task", "link", info.ID[:8], "sw:tsk_0123abcd", "--project", "other")
+	if code != 0 || len(linked.Tasks) != 2 || !linked.Tasks[0].Ambiguous || !linked.Tasks[1].Ambiguous {
+		t.Fatalf("second project exit=%d result=%+v output=%q", code, linked, output)
+	}
+	if code, _, output = cli("task", "unlink", info.ID[:8], "sw:tsk_0123abcd"); code == 0 || !strings.Contains(output, "--project") {
+		t.Fatalf("ambiguous unlink exit=%d output=%q", code, output)
+	}
+	code, unlinked, output = cli("--json", "task", "unlink", info.ID[:8], "sw:tsk_0123abcd", "--project", "other")
+	if code != 0 || len(unlinked.Tasks) != 1 || unlinked.Tasks[0].Scope != "somewhere:proj" {
+		t.Fatalf("scoped unlink exit=%d result=%+v output=%q", code, unlinked, output)
+	}
 }

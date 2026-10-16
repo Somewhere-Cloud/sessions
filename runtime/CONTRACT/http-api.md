@@ -1424,17 +1424,30 @@ nothing is ever inferred from branch names, commits, or conversation text.
 `POST` body is `{"refs":["sw:tsk_<id>","gh:OWNER/REPO#NUMBER"],"project":"<somewhere project>","pull_request":"<url>"}`;
 `project` is optional and applies to the `sw:` references only. With
 `pull_request`, the references attach to exactly that linked pull request
-instead of the session (409 when it is not linked). References
-already linked record nothing, except that a stated project resolves an
-unresolved one. The batch is appended as one `task_linked` ledger event, so it
-is never half-recorded. `DELETE ?ref=<ref>&ref=<ref>[&pull_request=<url>]` removes exact references
-from the session or that pull request as one `task_unlinked` event; a
-reference that is not linked there records nothing.
+instead of the session (409 when it is not linked).
+
+Identity: a `gh:` reference is identified by itself. A Somewhere task ID is
+not promised to be unique across projects, so a `sw:` reference is identified
+by the reference plus its stated project, and an unstated project is its own,
+unresolved identity. Linking never moves a reference between projects:
+linking an identity already linked records nothing; stating a project for a
+reference linked only unresolved resolves that entry in place (keeping
+`linked_at`); stating a different project than one already linked adds a
+second entry, and every entry of a reference linked under more than one scope
+answers `"ambiguous":true`; linking an unresolved reference that is already
+linked under some scope records nothing. At most 64 references per session
+and per pull request, counted cumulatively on every path. The batch is appended as one `task_linked` ledger event, so it
+is never half-recorded. `DELETE ?ref=<ref>&ref=<ref>[&project=<somewhere project>][&pull_request=<url>]`
+removes exact identities from the session or that pull request as one
+`task_unlinked` event; a reference that is not linked there records nothing.
+Without `project`, a `sw:` reference names its unresolved entry or its only
+entry; one linked under several projects is `409` (ambiguous) until `project`
+names which.
 `GET` reads the current set. Every answer is:
 
 ```json
 {"session_id":"<id>","description":"<stated intent, when any>",
- "tasks":[{"ref":"sw:tsk_0123abcd","provider":"somewhere","scope":"unresolved","linked_at":"<RFC3339>"},
+ "tasks":[{"ref":"sw:tsk_0123abcd","provider":"somewhere","scope":"unresolved","linked_at":"<RFC3339>","ambiguous":false},
           {"ref":"gh:acme/app#12","provider":"github","scope":"github.com/acme/app","linked_at":"<RFC3339>"}],
  "pull_requests":[{"url":"https://github.com/acme/app/pull/42","tasks":[...]}],
  "changed":true}
