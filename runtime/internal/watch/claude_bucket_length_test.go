@@ -11,10 +11,9 @@ import (
 // a deeply nested workspace resolved to a name neither side could agree on --
 // the conversation was not merely somewhere else, it was nowhere findable.
 //
-// Every expectation below came from running the provider's own functions,
-// transcribed out of the installed 2.1.222 bundle, under node. They are not
-// derived from this encoder, so this test cannot pass by the encoder agreeing
-// with itself.
+// These fixed vectors use the provider's 2.1.222 encoding algorithm. The
+// synthetic home-path vectors were recalculated with a separate JavaScript
+// UTF-16 implementation, not this Go encoder.
 func TestStrictEncodingMatchesTheProviderPastItsLengthLimit(t *testing.T) {
 	for _, testCase := range []struct {
 		name  string
@@ -36,16 +35,16 @@ func TestStrictEncodingMatchesTheProviderPastItsLengthLimit(t *testing.T) {
 		},
 		{
 			name: "a long ordinary path",
-			cwd:  "/Users/uzair/" + strings.Repeat("a", 300),
-			want: "-Users-uzair-" + strings.Repeat("a", 187) + "-hvt9og",
+			cwd:  "/Users/example/" + strings.Repeat("a", 300),
+			want: "-Users-example-" + strings.Repeat("a", 185) + "-r01htn",
 		},
 		{
 			// The hash runs over UTF-16 code units, so an astral character
 			// contributes two surrogates. Iterating runes instead would give a
 			// different hash and a different directory.
 			name: "a long path containing an astral character",
-			cwd:  "/Users/uzair/\U0001F600emoji/" + strings.Repeat("y", 240),
-			want: "-Users-uzair---emoji-" + strings.Repeat("y", 179) + "-f06l9w",
+			cwd:  "/Users/example/\U0001F600emoji/" + strings.Repeat("y", 240),
+			want: "-Users-example---emoji-" + strings.Repeat("y", 177) + "-8l96vb",
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -63,13 +62,13 @@ func TestStrictEncodingMatchesTheProviderPastItsLengthLimit(t *testing.T) {
 // Two workspaces sharing their first 200 characters must not share a bucket.
 // That is the whole reason the provider hashes rather than simply truncating.
 func TestLongPathsSharingAPrefixGetDifferentBuckets(t *testing.T) {
-	prefix := "/Users/uzair/" + strings.Repeat("p", 260)
+	prefix := "/Users/example/" + strings.Repeat("p", 260)
 	first := encodeClaudePathStrict(prefix + "/one")
 	second := encodeClaudePathStrict(prefix + "/two")
 	if first == second {
 		t.Fatalf("two workspaces collapsed into one bucket: %q", first)
 	}
-	if !strings.HasPrefix(first, "-Users-uzair-"+strings.Repeat("p", 100)) {
+	if !strings.HasPrefix(first, "-Users-example-"+strings.Repeat("p", 100)) {
 		t.Fatalf("truncated bucket lost its prefix: %q", first)
 	}
 }

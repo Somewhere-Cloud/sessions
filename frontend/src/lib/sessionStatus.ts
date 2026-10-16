@@ -215,7 +215,7 @@ export function classifySession(session: SessionInfo, options: ClassifyOptions =
 /**
  * Why a lost session is lost, in one sentence, with what to do about it.
  *
- * "Lost" on its own is a dead end: the founder's seven sessions after a reboot
+ * "Lost" on its own is a dead end: the user's seven sessions after a reboot
  * said nothing more, though the daemon knew the machine had restarted under
  * them. Empty when the session is not lost, so a surface can render it or not
  * without asking a second question.

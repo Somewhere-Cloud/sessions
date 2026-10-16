@@ -16,7 +16,7 @@ func TestExplainAnnotatesDarwinLocalNetworkFailures(t *testing.T) {
 		annotated   bool
 		originalErr string
 	}{
-		{"private-ip", "http://10.129.174.32:8787", errors.New("dial tcp 10.129.174.32:8787: connect: no route to host"), true, "dial tcp 10.129.174.32:8787: connect: no route to host"},
+		{"private-ip", "http://10.0.0.32:8787", errors.New("dial tcp 10.0.0.32:8787: connect: no route to host"), true, "dial tcp 10.0.0.32:8787: connect: no route to host"},
 		{"private-wrapped-errno", "http://192.168.1.20:8787", syscall.EHOSTUNREACH, true, "no route to host"},
 		{"link-local", "http://169.254.2.4:8787", syscall.EHOSTUNREACH, true, "no route to host"},
 		{"tailnet", "http://100.92.1.2:8787", syscall.EHOSTUNREACH, false, "no route to host"},

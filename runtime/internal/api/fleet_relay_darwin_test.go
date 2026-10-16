@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	fleetTestLANEndpoint     = "http://10.129.174.32:8787"
+	fleetTestLANEndpoint     = "http://10.0.0.32:8787"
 	fleetTestTailnetEndpoint = "http://100.100.20.30:8787"
 )
 
@@ -126,7 +126,7 @@ func TestFleetTailnetFallbackSucceedsWithoutProvingLANPermission(t *testing.T) {
 // failed: a tailnet failure on a machine whose primary is a LAN address used to
 // be reported as a local-network permission problem.
 func TestFleetFallbackFailureIsAttributedToTheEndpointItDialled(t *testing.T) {
-	defer routedFleetTransport(t, nil, map[string]bool{"10.129.174.32:8787": true})()
+	defer routedFleetTransport(t, nil, map[string]bool{"10.0.0.32:8787": true})()
 	daemon := newTestDaemon(t)
 	saveFleetMachineForTest(t, daemon, fleetSavedMachine{
 		MachineID: "machine-b", Name: "B", Endpoint: fleetTestLANEndpoint, Transport: "nearby",
@@ -167,7 +167,7 @@ func TestFleetFallbackFailureIsAttributedToTheEndpointItDialled(t *testing.T) {
 // A peer that is off answers exactly like a blocked local network, so an
 // ordinary refusal must stay an ordinary unreachable row.
 func TestFleetUnreachablePeerIsNotAPermissionStory(t *testing.T) {
-	defer routedFleetTransport(t, nil, map[string]bool{"10.129.174.32:8787": true})()
+	defer routedFleetTransport(t, nil, map[string]bool{"10.0.0.32:8787": true})()
 	daemon := newTestDaemon(t)
 	saveFleetMachineForTest(t, daemon, fleetSavedMachine{
 		MachineID: "machine-b", Name: "B", Endpoint: fleetTestLANEndpoint, Transport: "nearby",
@@ -197,7 +197,7 @@ func TestFleetLANSuccessReconcilesEarlierFailedObservation(t *testing.T) {
 	restore()
 
 	peer := fleetIdentityServer(t, "machine-b")
-	defer routedFleetTransport(t, map[string]string{"10.129.174.32:8787": peer.Listener.Addr().String()}, nil)()
+	defer routedFleetTransport(t, map[string]string{"10.0.0.32:8787": peer.Listener.Addr().String()}, nil)()
 	row := fleetMachineRow(t, daemon)
 	if !row.Reachable || row.Transport != "lan" {
 		t.Fatalf("fleet machine = %+v", row)

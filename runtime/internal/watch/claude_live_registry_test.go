@@ -59,7 +59,7 @@ func liveEntry(pid int, sessionID, cwd string) map[string]any {
 
 func TestClaudeLiveRegistryParsesObservedShape(t *testing.T) {
 	dir := t.TempDir()
-	path := writeLiveEntry(t, dir, liveEntry(22440, "3fe0b590-6916-41cc-a9b8-3b6c4e75fa17", "/Users/uzair/pretty-PTY"))
+	path := writeLiveEntry(t, dir, liveEntry(22440, "3fe0b590-6916-41cc-a9b8-3b6c4e75fa17", "/Users/example/pretty-PTY"))
 
 	sessions, err := ReadClaudeLiveRegistry(ClaudeLiveQuery{
 		Dir:   dir,
@@ -78,7 +78,7 @@ func TestClaudeLiveRegistryParsesObservedShape(t *testing.T) {
 	if got.ProviderSessionID != "3fe0b590-6916-41cc-a9b8-3b6c4e75fa17" {
 		t.Fatalf("sessionId = %q", got.ProviderSessionID)
 	}
-	if got.CWD != "/Users/uzair/pretty-PTY" {
+	if got.CWD != "/Users/example/pretty-PTY" {
 		t.Fatalf("cwd = %q", got.CWD)
 	}
 	if got.Status != ClaudeStatusWaiting || got.WaitingFor != "permission prompt" {
@@ -101,7 +101,7 @@ func TestClaudeLiveRegistryParsesObservedShape(t *testing.T) {
 func TestClaudeConversationOpenDetectsExternalHolder(t *testing.T) {
 	dir := t.TempDir()
 	const conversation = "3fe0b590-6916-41cc-a9b8-3b6c4e75fa17"
-	writeLiveEntry(t, dir, liveEntry(22440, conversation, "/Users/uzair/pretty-PTY"))
+	writeLiveEntry(t, dir, liveEntry(22440, conversation, "/Users/example/pretty-PTY"))
 
 	check := ClaudeConversationOpen(conversation, ClaudeLiveQuery{
 		Dir:   dir,

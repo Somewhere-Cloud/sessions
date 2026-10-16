@@ -12,7 +12,7 @@ import (
 // non-alphanumeric byte to a dash, so a bucket cannot be inverted back into the
 // directory that produced it. The scanner used to invert it anyway and print
 // the result as the conversation's working directory, which on this machine
-// turned /Users/uzair/pretty-PTY into /Users/uzair/pretty/PTY -- a path that
+// turned /Users/example/pretty-PTY into /Users/example/pretty/PTY -- a path that
 // does not exist, in the one column a person uses to recognise which
 // conversation is theirs.
 func TestScanResumableConversationsPrefersTheRecordedWorkingDirectory(t *testing.T) {

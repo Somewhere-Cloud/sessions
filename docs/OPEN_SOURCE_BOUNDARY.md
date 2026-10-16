@@ -34,8 +34,8 @@ The local default remains no account, no relay, and no Sessions telemetry.
 ## Documentation boundary
 
 This repository documents shipped behavior, public architecture and protocol
-contracts, contributor workflows, security/privacy properties, and broad
-roadmap themes. Internal launch planning, unreleased implementation status,
+contracts, contributor workflows, security/privacy properties.
+Product plans, prioritization, internal launch planning, unreleased implementation status,
 commercial planning, private service design, dogfood notes, and rejected
 product options belong in private project systems rather than the public
 source tree.

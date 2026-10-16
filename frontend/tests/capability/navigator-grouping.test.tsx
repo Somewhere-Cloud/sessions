@@ -1,6 +1,6 @@
 // CAPABILITY: the person chooses how the navigator is arranged.
 //
-// Asked for by the founder: grouping by project is right when you are working
+// Usability requirement: grouping by project is right when you are working
 // on one thing, and wrong when you know which conversation you want and not
 // which project it lives in. One control, two arrangements, remembered on this
 // device — and the same sessions in both, because the choice is about

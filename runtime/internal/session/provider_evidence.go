@@ -10,7 +10,7 @@ import (
 
 // What proves a provider fault, and what merely mentions one.
 //
-// Reported by the founder on 11 September: a PTY Claude session that was logged
+// Regression scenario: a PTY Claude session that was logged
 // in and working showed NEEDS LOGIN and "Claude is not logged in — Open the
 // terminal to log in". The session's own event stream says what happened. The
 // agent had run

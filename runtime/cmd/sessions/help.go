@@ -406,7 +406,7 @@ var commandTable = []commandSpec{
 		name: "pair", usage: "pair [--ttl 10m] [--name NAME]",
 		summary: "show a one-time device pairing code", group: adminCommandGroup, localJSON: true,
 		longHelp: "Mint and display a QR code, sessions:// application link, and plain browser fallback containing every enabled LAN and Tailscale endpoint in connection order. The random 32-byte ticket is single use, expires after ten minutes by default, and can be shortened with --ttl. Possession is the host's consent: a claiming device immediately receives its own revocable credential without a separate access accept step. The master daemon token is never embedded in the link.",
-		examples: []string{"sessions pair", "sessions pair --ttl 5m --name 'Uzair phone'", "sessions --json pair"}, run: (*app).cmdPair,
+		examples: []string{"sessions pair", "sessions pair --ttl 5m --name 'Alice phone'", "sessions --json pair"}, run: (*app).cmdPair,
 	},
 	{
 		name: "account", usage: "account <login [--email EMAIL] [--code CODE] | logout | status | key>",

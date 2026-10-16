@@ -397,7 +397,7 @@ func TestTranscriptIndexesMessagesAndExpandsOnlySearchableRelayPayloads(t *testi
 		}}},
 		{"timestamp": "2026-07-23T20:04:00Z", "message": map[string]any{"role": "assistant", "content": []any{
 			map[string]any{"type": "tool_use", "id": "relay-2", "name": "Agent", "input": map[string]any{
-				"description": "Autopsy the failed build", "prompt": "Reconstruct the founder's hello world directions",
+				"description": "Autopsy the failed build", "prompt": "Reconstruct the user's hello world directions",
 			}},
 		}}},
 		{"timestamp": "2026-07-23T20:05:00Z", "message": map[string]any{"role": "assistant", "content": []any{
@@ -436,7 +436,7 @@ func TestTranscriptIndexesMessagesAndExpandsOnlySearchableRelayPayloads(t *testi
 	for _, message := range messages {
 		joined += message.Text
 	}
-	for _, want := range []string{"drafts direction", "child finished", "sibling text is hidden", "hello world failed", "transport timeout", "founder's hello world directions"} {
+	for _, want := range []string{"drafts direction", "child finished", "sibling text is hidden", "hello world failed", "transport timeout", "user's hello world directions"} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("normalized relay text %q does not contain %q", joined, want)
 		}

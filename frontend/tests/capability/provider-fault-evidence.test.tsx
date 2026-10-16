@@ -1,7 +1,7 @@
 // CAPABILITY: a "needs login" claim shows the provider's own words, and steps
 // out of the way when the person can already see the terminal.
 //
-// The founder's session on 11 September was logged in and working while the
+// A session was logged in and working while the
 // header showed NEEDS LOGIN and a card said "Claude is not logged in — Open the
 // terminal to log in". The claim had been read out of the agent's own grep
 // output. The daemon no longer raises a fault from words in tool output; what

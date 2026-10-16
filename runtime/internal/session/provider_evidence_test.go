@@ -11,13 +11,13 @@ import (
 	"github.com/somewhere-tech/sessions/runtime/internal/state"
 )
 
-// The founder's session, 11 September: PTY Claude, logged in, working, showing
+// Regression scenario: PTY Claude, logged in, working, showing
 // NEEDS LOGIN. The agent had gone looking for the code that renders that pill,
 // and a row of its grep output — our own authRE source line — arrived in the
 // terminal. The generic error rule matched the word "error" in it and the whole
 // line was handed to providerfault.Detect, which found "not logged in".
-const founderSnapshot = "⏺ Finding where \"needs login\" is detected and rendered\n" +
-	"  ⎿  $ cd /Users/uzair/Sessions-wt/reliability-core && grep -rn 'not logged in\\|NEEDS LOGIN\\|needs_login\\|needsLogin\\|Open the terminal to log in' frontend/src runtime/internal\n" +
+const toolOutputSnapshot = "⏺ Finding where \"needs login\" is detected and rendered\n" +
+	"  ⎿  $ cd /Users/example/Sessions-wt/reliability-core && grep -rn 'not logged in\\|NEEDS LOGIN\\|needs_login\\|needsLogin\\|Open the terminal to log in' frontend/src runtime/internal\n" +
 	"     runtime/internal/providerfault/providerfault.go:31:\tauthRE = regexp.MustCompile(`(?i)\\b(?:not logged in|please run /login|invalid api key|unauthorized|authentication|auth error)\\b`)\n" +
 	"     frontend/src/lib/sessionStatus.ts:131:  'auth-needed': 'Needs login',\n" +
 	"\n" +
@@ -26,7 +26,7 @@ const founderSnapshot = "⏺ Finding where \"needs login\" is detected and rende
 	"> \n"
 
 func TestToolOutputAboutLoginIsNotAProviderFault(t *testing.T) {
-	classification := ClassifySnapshotFor("claude", founderSnapshot)
+	classification := ClassifySnapshotFor("claude", toolOutputSnapshot)
 
 	if classification.Evidence.proven() {
 		t.Fatalf("the agent's own grep output was taken as proof the provider is logged out: %#v", classification.Evidence)

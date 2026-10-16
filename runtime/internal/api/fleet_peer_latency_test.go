@@ -172,7 +172,7 @@ func TestFleetPeerLatencyToday(t *testing.T) {
 	}{
 		{name: "refusing peer"},
 		{name: "stalling peer", stall: map[string]time.Duration{
-			"10.129.174.32:8787": 30 * time.Second,
+			"10.0.0.32:8787": 30 * time.Second,
 			"100.100.32.1:8787":  30 * time.Second,
 		}},
 	} {
@@ -190,8 +190,8 @@ func TestFleetPeerLatencyToday(t *testing.T) {
 				{MachineID: "machine-healthy", Name: "Healthy", Endpoint: healthy.URL, LANEndpoint: healthy.URL, Transport: "nearby"},
 				{
 					MachineID: "machine-away", Name: "Away", Transport: "nearby",
-					Endpoint:          "http://10.129.174.32:8787",
-					LANEndpoint:       "http://10.129.174.32:8787",
+					Endpoint:          "http://10.0.0.32:8787",
+					LANEndpoint:       "http://10.0.0.32:8787",
 					TailnetEndpoint:   "https://away.example.ts.net",
 					TailnetIPEndpoint: "http://100.100.32.1:8787",
 				},
@@ -215,7 +215,7 @@ func TestFleetPeerLatencyToday(t *testing.T) {
 			}
 			awayAttempts := 0
 			for _, attempt := range attempts {
-				if strings.Contains(attempt.address, "10.129.174.32") || strings.Contains(attempt.address, "100.100.32.1") ||
+				if strings.Contains(attempt.address, "10.0.0.32") || strings.Contains(attempt.address, "100.100.32.1") ||
 					strings.Contains(attempt.address, "away.example.ts.net") {
 					awayAttempts++
 				}
@@ -236,7 +236,7 @@ func TestOneAwayPeerDoesNotCostOneTimeoutPerSavedRoute(t *testing.T) {
 	dialer := &peerDialer{
 		reachAt: map[string]string{healthy.Listener.Addr().String(): healthy.Listener.Addr().String()},
 		stall: map[string]time.Duration{
-			"10.129.174.32:8787":      routeStall,
+			"10.0.0.32:8787":      routeStall,
 			"away.example.ts.net:443": routeStall,
 			"100.100.32.1:8787":       routeStall,
 		},
@@ -248,8 +248,8 @@ func TestOneAwayPeerDoesNotCostOneTimeoutPerSavedRoute(t *testing.T) {
 		{MachineID: "machine-healthy", Name: "Healthy", Endpoint: healthy.URL, LANEndpoint: healthy.URL, Transport: "nearby"},
 		{
 			MachineID: "machine-away", Name: "Away", Transport: "nearby",
-			Endpoint:          "http://10.129.174.32:8787",
-			LANEndpoint:       "http://10.129.174.32:8787",
+			Endpoint:          "http://10.0.0.32:8787",
+			LANEndpoint:       "http://10.0.0.32:8787",
 			TailnetEndpoint:   "https://away.example.ts.net",
 			TailnetIPEndpoint: "http://100.100.32.1:8787",
 		},
@@ -300,15 +300,15 @@ func TestAwayFirstRouteStillFallsBackToALiveOne(t *testing.T) {
 	live := healthyPeer(t, "machine-mixed", &healthyRequests)
 	dialer := &peerDialer{
 		reachAt: map[string]string{"100.100.32.1:8787": live.Listener.Addr().String()},
-		stall:   map[string]time.Duration{"10.129.174.32:8787": 2 * time.Second},
+		stall:   map[string]time.Duration{"10.0.0.32:8787": 2 * time.Second},
 	}
 	defer dialer.install(t)()
 
 	daemon := newTestDaemon(t)
 	savePeers(t, daemon, []fleetSavedMachine{{
 		MachineID: "machine-mixed", Name: "Mixed", Transport: "nearby",
-		Endpoint:          "http://10.129.174.32:8787",
-		LANEndpoint:       "http://10.129.174.32:8787",
+		Endpoint:          "http://10.0.0.32:8787",
+		LANEndpoint:       "http://10.0.0.32:8787",
 		TailnetIPEndpoint: "http://100.100.32.1:8787",
 	}})
 
@@ -350,15 +350,15 @@ func TestSilentPreferredRouteYieldsToALiveOneQuickly(t *testing.T) {
 	live := healthyPeer(t, "machine-mixed", &requests)
 	dialer := &peerDialer{
 		reachAt: map[string]string{"100.100.32.1:8787": live.Listener.Addr().String()},
-		stall:   map[string]time.Duration{"10.129.174.32:8787": fleetDialTimeout},
+		stall:   map[string]time.Duration{"10.0.0.32:8787": fleetDialTimeout},
 	}
 	defer dialer.install(t)()
 
 	daemon := newTestDaemon(t)
 	savePeers(t, daemon, []fleetSavedMachine{{
 		MachineID: "machine-mixed", Name: "Mixed", Transport: "nearby",
-		Endpoint:          "http://10.129.174.32:8787",
-		LANEndpoint:       "http://10.129.174.32:8787",
+		Endpoint:          "http://10.0.0.32:8787",
+		LANEndpoint:       "http://10.0.0.32:8787",
 		TailnetIPEndpoint: "http://100.100.32.1:8787",
 	}})
 
@@ -376,7 +376,7 @@ func TestSilentPreferredRouteYieldsToALiveOneQuickly(t *testing.T) {
 
 	// The silent route was tried -- this is not a test that skipped it -- and it
 	// never connected, so nothing was waiting on it when the answer came back.
-	silent := dialer.dialsFor("10.129.174.32:8787")
+	silent := dialer.dialsFor("10.0.0.32:8787")
 	if len(silent) == 0 {
 		t.Fatal("the preferred route was never dialled")
 	}
@@ -399,20 +399,20 @@ func TestSlowerPreferredRouteStillWins(t *testing.T) {
 	second := healthyPeer(t, "machine-both", &secondRequests)
 	dialer := &peerDialer{
 		reachAt: map[string]string{
-			"10.129.174.32:8787": preferred.Listener.Addr().String(),
+			"10.0.0.32:8787": preferred.Listener.Addr().String(),
 			"100.100.32.1:8787":  second.Listener.Addr().String(),
 		},
 		// The preferred route answers late enough that the second one is already
 		// in, and early enough to be inside the grace.
-		delay: map[string]time.Duration{"10.129.174.32:8787": 200 * time.Millisecond},
+		delay: map[string]time.Duration{"10.0.0.32:8787": 200 * time.Millisecond},
 	}
 	defer dialer.install(t)()
 
 	daemon := newTestDaemon(t)
 	savePeers(t, daemon, []fleetSavedMachine{{
 		MachineID: "machine-both", Name: "Both", Transport: "nearby",
-		Endpoint:          "http://10.129.174.32:8787",
-		LANEndpoint:       "http://10.129.174.32:8787",
+		Endpoint:          "http://10.0.0.32:8787",
+		LANEndpoint:       "http://10.0.0.32:8787",
 		TailnetIPEndpoint: "http://100.100.32.1:8787",
 	}})
 
@@ -427,7 +427,7 @@ func TestSlowerPreferredRouteStillWins(t *testing.T) {
 	if len(body.Machines) != 1 || !body.Machines[0].Reachable {
 		t.Fatalf("mixed peer = %+v", body.Machines)
 	}
-	if body.Machines[0].Transport != "lan" || body.Machines[0].Endpoint != "http://10.129.174.32:8787" {
+	if body.Machines[0].Transport != "lan" || body.Machines[0].Endpoint != "http://10.0.0.32:8787" {
 		t.Fatalf("the slower preferred route lost to the one behind it: %+v", body.Machines[0])
 	}
 }
@@ -436,7 +436,7 @@ func TestSlowerPreferredRouteStillWins(t *testing.T) {
 // address that was tried rather than one of them.
 func TestEverySilentRouteStillSpendsTheBudgetAndNamesEachAddress(t *testing.T) {
 	dialer := &peerDialer{stall: map[string]time.Duration{
-		"10.129.174.32:8787": time.Minute,
+		"10.0.0.32:8787": time.Minute,
 		"100.100.32.1:8787":  time.Minute,
 	}}
 	defer dialer.install(t)()
@@ -444,8 +444,8 @@ func TestEverySilentRouteStillSpendsTheBudgetAndNamesEachAddress(t *testing.T) {
 	daemon := newTestDaemon(t)
 	savePeers(t, daemon, []fleetSavedMachine{{
 		MachineID: "machine-away", Name: "Away", Transport: "nearby",
-		Endpoint:          "http://10.129.174.32:8787",
-		LANEndpoint:       "http://10.129.174.32:8787",
+		Endpoint:          "http://10.0.0.32:8787",
+		LANEndpoint:       "http://10.0.0.32:8787",
 		TailnetIPEndpoint: "http://100.100.32.1:8787",
 	}})
 
@@ -459,7 +459,7 @@ func TestEverySilentRouteStillSpendsTheBudgetAndNamesEachAddress(t *testing.T) {
 		t.Fatalf("deciding a wholly silent peer took %v, want about the %v budget", elapsed, fleetPeerBudget)
 	}
 	body := response.Body.String()
-	for _, address := range []string{"http://10.129.174.32:8787", "http://100.100.32.1:8787"} {
+	for _, address := range []string{"http://10.0.0.32:8787", "http://100.100.32.1:8787"} {
 		if !strings.Contains(body, address) {
 			t.Fatalf("the refusal does not name %s: %s", address, body)
 		}

@@ -60,7 +60,7 @@ func TestTailnetAccessRequiresServeIdentity(t *testing.T) {
 	spoofed := serve(
 		t, daemon.handler, http.MethodPost, "/api/tailnet/access/request",
 		strings.NewReader(`{"client_id":"11111111-1111-4111-8111-111111111111","name":"MacBook"}`),
-		"192.168.1.20:4040", tailnetHeaders("uzair@example.com", "Uzair"),
+		"192.168.1.20:4040", tailnetHeaders("alice@example.com", "Alice"),
 	)
 	if spoofed.Code != http.StatusForbidden {
 		t.Fatalf("direct spoof status = %d, body=%s", spoofed.Code, spoofed.Body.String())
@@ -71,7 +71,7 @@ func TestTailnetAccessRequiresServeIdentity(t *testing.T) {
 		"https://mac-mini.example.ts.net",
 		"https://evil.example",
 	} {
-		headers := tailnetHeaders("uzair@example.com", "Uzair")
+		headers := tailnetHeaders("alice@example.com", "Alice")
 		headers.Set("Origin", origin)
 		rejected := serve(
 			t, daemon.handler, http.MethodPost, "/api/tailnet/access/request",
@@ -82,7 +82,7 @@ func TestTailnetAccessRequiresServeIdentity(t *testing.T) {
 			t.Fatalf("browser origin %q status = %d, body=%s", origin, rejected.Code, rejected.Body.String())
 		}
 	}
-	simpleHeaders := tailnetHeaders("uzair@example.com", "Uzair")
+	simpleHeaders := tailnetHeaders("alice@example.com", "Alice")
 	simpleHeaders.Set("Content-Type", "text/plain")
 	simple := serve(
 		t, daemon.handler, http.MethodPost, "/api/tailnet/access/request",
@@ -96,7 +96,7 @@ func TestTailnetAccessRequiresServeIdentity(t *testing.T) {
 
 func TestTailnetAccessRequestAcceptAndClaim(t *testing.T) {
 	daemon := newTestDaemon(t)
-	identity := tailnetHeaders("uzair@example.com", "Uzair Haq")
+	identity := tailnetHeaders("alice@example.com", "Alice Example")
 	requestBody := strings.NewReader(`{"client_id":"11111111-1111-4111-8111-111111111111","name":"MacBook Pro"}`)
 	created := serve(t, daemon.handler, http.MethodPost, "/api/tailnet/access/request", requestBody, "127.0.0.1:4040", identity)
 	if created.Code != http.StatusAccepted {
@@ -133,7 +133,7 @@ func TestTailnetAccessRequestAcceptAndClaim(t *testing.T) {
 	decodeBody(t, listed, &list)
 	if len(list.Requests) != 1 ||
 		list.Requests[0].Name != "MacBook Pro" ||
-		list.Requests[0].Login != "uzair@example.com" {
+		list.Requests[0].Login != "alice@example.com" {
 		t.Fatalf("pending requests = %#v", list.Requests)
 	}
 
@@ -261,7 +261,7 @@ func TestNearbyAccessRejectsUntrustedSurfaces(t *testing.T) {
 
 func TestTailnetAccessDeny(t *testing.T) {
 	daemon := newTestDaemon(t)
-	identity := tailnetHeaders("uzair@example.com", "Uzair Haq")
+	identity := tailnetHeaders("alice@example.com", "Alice Example")
 	created := serve(
 		t, daemon.handler, http.MethodPost, "/api/tailnet/access/request",
 		strings.NewReader(`{"client_id":"22222222-2222-4222-8222-222222222222","name":"Unknown Mac"}`),
@@ -291,7 +291,7 @@ func TestTailnetAcceptedClaimIsIdempotentAndExpiresUnacknowledgedCredential(t *t
 	now := time.Date(2026, 7, 23, 12, 0, 0, 0, time.UTC)
 	daemon.handler.tailnetAccess.now = func() time.Time { return now }
 	daemon.handler.pair.setNow(func() time.Time { return now })
-	identity := tailnetHeaders("uzair@example.com", "Uzair Haq")
+	identity := tailnetHeaders("alice@example.com", "Alice Example")
 	created := serve(
 		t, daemon.handler, http.MethodPost, "/api/tailnet/access/request",
 		strings.NewReader(`{"client_id":"33333333-3333-4333-8333-333333333333","name":"MacBook"}`),
@@ -399,7 +399,7 @@ func TestTailnetIssuanceGetsASeparateAcknowledgementWindow(t *testing.T) {
 	now := time.Date(2026, 7, 23, 12, 0, 0, 0, time.UTC)
 	daemon.handler.tailnetAccess.now = func() time.Time { return now }
 	daemon.handler.pair.setNow(func() time.Time { return now })
-	identity := tailnetHeaders("uzair@example.com", "Uzair Haq")
+	identity := tailnetHeaders("alice@example.com", "Alice Example")
 	created := serve(
 		t, daemon.handler, http.MethodPost, "/api/tailnet/access/request",
 		strings.NewReader(`{"client_id":"44444444-4444-4444-8444-444444444444","name":"MacBook"}`),

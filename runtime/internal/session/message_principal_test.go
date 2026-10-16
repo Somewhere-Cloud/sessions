@@ -163,7 +163,7 @@ func TestAProviderInternalUserRecordStampsNeitherPrincipal(t *testing.T) {
 	}
 	tickAt := time.Now().Add(-time.Minute).Truncate(time.Millisecond)
 	recordProviderTranscript(t, manager, target.ID,
-		userTranscriptRecord(tickAt, "INTEGRATOR TICK (founder-ordered 30-min cadence)"))
+		userTranscriptRecord(tickAt, "INTEGRATOR TICK (user-requested 30-min cadence)"))
 
 	info := principalInfo(t, manager, target.ID)
 	if info.LastUserMessageAt == nil || *info.LastUserMessageAt != tickAt.UnixMilli() {
@@ -214,7 +214,7 @@ func TestTheCronTickDoesNotOverwriteTheOwnersLastContact(t *testing.T) {
 	recordProviderTranscript(t, manager, target.ID, userTranscriptRecord(spoken, "?"))
 	tickAt := spoken.Add(3 * time.Second)
 	recordProviderTranscript(t, manager, target.ID,
-		userTranscriptRecord(tickAt, "INTEGRATOR TICK (founder-ordered 30-min cadence)"))
+		userTranscriptRecord(tickAt, "INTEGRATOR TICK (user-requested 30-min cadence)"))
 
 	info := principalInfo(t, manager, target.ID)
 	if info.LastUserMessageAt == nil || *info.LastUserMessageAt != tickAt.UnixMilli() {

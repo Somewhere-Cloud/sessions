@@ -256,7 +256,7 @@ func TestReadClaudeConversationSurfaceReadsTheTranscriptPrefix(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "22222222-2222-4222-8222-222222222222.jsonl")
 	contents := "{\"type\":\"summary\",\"summary\":\"no launch context here\"}\n" +
-		"{\"type\":\"user\",\"cwd\":\"/Users/uzair/pretty-PTY\",\"entrypoint\":\"claude-desktop\"," +
+		"{\"type\":\"user\",\"cwd\":\"/Users/example/pretty-PTY\",\"entrypoint\":\"claude-desktop\"," +
 		"\"version\":\"2.1.220\",\"promptSource\":\"typed\",\"isSidechain\":false," +
 		"\"message\":{\"role\":\"user\",\"content\":\"hello\"}}\n"
 	if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
@@ -271,7 +271,7 @@ func TestReadClaudeConversationSurfaceReadsTheTranscriptPrefix(t *testing.T) {
 		t.Fatalf("surface = %#v", surface)
 	}
 	facts, ok := ReadClaudeTranscriptFacts(path)
-	if !ok || facts.CWD != "/Users/uzair/pretty-PTY" {
+	if !ok || facts.CWD != "/Users/example/pretty-PTY" {
 		t.Fatalf("facts = %#v ok=%v", facts, ok)
 	}
 

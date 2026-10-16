@@ -21,13 +21,13 @@ func TestEncodeClaudeCWDStrictMatchesClaudeRegex(t *testing.T) {
 		narrow string
 	}{
 		// The common case: the two agree, which is why the bug went unnoticed.
-		{"/Users/uzair/pretty-PTY", "-Users-uzair-pretty-PTY", "-Users-uzair-pretty-PTY"},
+		{"/Users/example/pretty-PTY", "-Users-example-pretty-PTY", "-Users-example-pretty-PTY"},
 		// Underscore. Claude folds it, Sessions did not.
-		{"/Users/uzair/pretty_tmux", "-Users-uzair-pretty-tmux", "-Users-uzair-pretty_tmux"},
+		{"/Users/example/pretty_tmux", "-Users-example-pretty-tmux", "-Users-example-pretty_tmux"},
 		// Dot, as in any versioned or dotted directory name.
-		{"/Users/uzair/site.com", "-Users-uzair-site-com", "-Users-uzair-site.com"},
+		{"/Users/example/site.com", "-Users-example-site-com", "-Users-example-site.com"},
 		// Space, which is ordinary on macOS.
-		{"/Users/uzair/My Project", "-Users-uzair-My-Project", "-Users-uzair-My Project"},
+		{"/Users/example/My Project", "-Users-example-My-Project", "-Users-example-My Project"},
 		// Mixed punctuation.
 		{"/tmp/a+b~c", "-tmp-a-b-c", "-tmp-a+b~c"},
 		{"/tmp/v1.2.3_final", "-tmp-v1-2-3-final", "-tmp-v1.2.3_final"},

@@ -1,6 +1,6 @@
 // What the harness put in the transcript, and what the person actually wrote.
 //
-// Reported by the founder on 11 September: a structured Claude session showed
+// Regression scenario: a structured Claude session showed
 // `<task-notification>` blocks, `<system-reminder>` blocks and a queue marker as
 // the person's own chat bubbles, each with a timestamp and a copy button, while
 // Claude's own Remote Control showed none of them. They are user-role records in

@@ -52,6 +52,7 @@ stale=
 unexpected=
 external_design_refs=
 legacy_branding=
+private_references=
 
 allowed_roots="$(cat scripts/public-paths.txt)"
 while IFS= read -r tracked_path; do
@@ -159,6 +160,20 @@ scan git grep -n -i -E \
   package.json \
   ':!scripts/check-public-tree.sh'
 legacy_branding="$scan_output"
+
+# Keep internal planning references out of otherwise allowlisted source paths.
+# Test examples should use synthetic identities and describe behavior, not
+# identify the person or private board that reported an incident.
+scan git grep -n -i -E \
+  '(board tsk_|Sessions-builds/|COORDINATOR\.(json|md)|founder.s (session|screenshot))' -- \
+  ':!scripts/check-public-tree.sh'
+private_references="$scan_output"
+
+if [ -n "$private_references" ]; then
+  printf '%s\n' "public files contain internal planning or incident references:" >&2
+  printf '%s\n' "$private_references" >&2
+  exit 1
+fi
 
 if [ -n "$bad" ]; then
   printf '%s\n' "private product artifacts are tracked in the public tree:" >&2

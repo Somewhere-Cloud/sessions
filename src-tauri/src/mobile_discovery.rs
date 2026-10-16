@@ -134,8 +134,8 @@ mod tests {
     #[test]
     fn hides_daemon_collision_suffix_from_people() {
         assert_eq!(
-            strip_machine_id_suffix("Uzair's MacBook Pro · 9896e4"),
-            "Uzair's MacBook Pro"
+            strip_machine_id_suffix("Alice's MacBook Pro · 9896e4"),
+            "Alice's MacBook Pro"
         );
     }
 

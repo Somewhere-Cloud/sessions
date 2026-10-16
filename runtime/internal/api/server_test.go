@@ -1258,7 +1258,7 @@ func TestCaptureEndRequestRejectsAmbiguousOrMultilineAttribution(t *testing.T) {
 func TestCaptureEndRequestBindsRemoteDeviceInsteadOfClaimedSession(t *testing.T) {
 	request := httptest.NewRequest(http.MethodDelete, "/api/sessions/landing-page", strings.NewReader(`{}`))
 	request = request.WithContext(context.WithValue(request.Context(), authPrincipalContextKey{}, authPrincipal{
-		Kind: ledger.CreatorExternal, ID: "device:abc123", Name: "Uzair's phone",
+		Kind: ledger.CreatorExternal, ID: "device:abc123", Name: "Alice's phone",
 	}))
 	request.Header.Set(creatorSessionHeader, "00000000-0000-4000-8000-000000000123")
 	request.Header.Set(endClientHeader, "sessions-android")
@@ -1267,7 +1267,7 @@ func TestCaptureEndRequestBindsRemoteDeviceInsteadOfClaimedSession(t *testing.T)
 		t.Fatal(err)
 	}
 	if end.InitiatorKind != string(ledger.CreatorExternal) || end.InitiatorID != "device:abc123" ||
-		end.InitiatorName != "Uzair's phone" || end.Client != "sessions-android" {
+		end.InitiatorName != "Alice's phone" || end.Client != "sessions-android" {
 		t.Fatalf("remote end principal = %#v", end)
 	}
 }
