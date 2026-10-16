@@ -12,15 +12,18 @@ import (
 // ComparisonSchema identifies the comparison record format.
 const ComparisonSchema = "sessions.review-comparison/1"
 
-// Identity names a reviewer. For an external adapter, ExecutableSHA256 pins
-// the exact binary that answered.
+// Identity names a reviewer. For an external adapter, FileSHA256BeforeRun is
+// the sha256 of the executable file observed just before invocation (omitted
+// when the file is not regular, too large, or unreadable). It records what was
+// on disk; it does not prove which code answered, since the file can change
+// and the program can load other code.
 type Identity struct {
-	ID               string   `json:"id"`
-	Kind             string   `json:"kind"`
-	Version          string   `json:"version"`
-	Path             string   `json:"path,omitempty"`
-	Args             []string `json:"args,omitempty"`
-	ExecutableSHA256 string   `json:"executable_sha256,omitempty"`
+	ID                  string   `json:"id"`
+	Kind                string   `json:"kind"`
+	Version             string   `json:"version"`
+	Path                string   `json:"path,omitempty"`
+	Args                []string `json:"args,omitempty"`
+	FileSHA256BeforeRun string   `json:"file_sha256_before_run,omitempty"`
 }
 
 // Input is what every reviewer receives: the canonical snapshot and question

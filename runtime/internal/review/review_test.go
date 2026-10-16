@@ -215,7 +215,7 @@ func TestBaselineAndExternalReceiveByteIdenticalInput(t *testing.T) {
 	if got := strings.SplitN(string(recorded), "\n", 2)[0]; got != s.Hash {
 		t.Fatalf("adapter received snapshot hash %s, want %s", got, s.Hash)
 	}
-	if c.Results[1].Reviewer.ExecutableSHA256 == "" || c.Results[1].Answer.Declared.ID != "fixture" {
+	if c.Results[1].Reviewer.FileSHA256BeforeRun == "" || c.Results[1].Answer.Declared.ID != "fixture" {
 		t.Fatalf("identity not recorded: %+v", c.Results[1])
 	}
 }
@@ -297,5 +297,36 @@ func TestPackageHasNoMutationOrNetworkPath(t *testing.T) {
 				t.Errorf("%s calls %s", name, call)
 			}
 		}
+	}
+}
+
+// The executable digest is a record of the file observed before invocation:
+// the real sha256 of a regular file, and omitted (never blocking) otherwise.
+func TestFileDigestIsBoundedAndRegularOnly(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "tool")
+	if err := os.WriteFile(path, []byte("synthetic executable"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	info, _ := os.Stat(path)
+	sum := sha256.Sum256([]byte("synthetic executable"))
+	if got := fileDigest(context.Background(), path, info); got != hex.EncodeToString(sum[:]) {
+		t.Fatalf("digest = %s", got)
+	}
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+	if got := fileDigest(cancelled, path, info); got != "" {
+		t.Fatalf("digest after cancellation = %s, want omitted", got)
+	}
+	dirInfo, _ := os.Stat(t.TempDir())
+	if got := fileDigest(context.Background(), path, dirInfo); got != "" {
+		t.Fatalf("digest for a non-regular file = %s, want omitted", got)
+	}
+	s, q := frozen(t, fixtureSnapshot)
+	ext, _ := fixtureReviewer(t, "ok", 10*time.Second)
+	self, _ := os.Executable()
+	body, _ := os.ReadFile(self)
+	selfSum := sha256.Sum256(body)
+	if got := Compare(context.Background(), s, q, []Reviewer{ext}).Results[0].Reviewer.FileSHA256BeforeRun; got != hex.EncodeToString(selfSum[:]) {
+		t.Fatalf("recorded file sha256 = %s, want the file's sha256", got)
 	}
 }

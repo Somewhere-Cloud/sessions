@@ -66,6 +66,12 @@ func TestExportRejectsOtherVersionsAndMissingObservations(t *testing.T) {
 		"no observations":   `{"id":"x","name":"lane"}`,
 		"not an object":     `[1,2]`,
 		"no subject":        bareObservations,
+		"null record":       `null`,
+		"duplicate id":      `{"id":"a","id":"b","observations":` + bareObservations + `}`,
+		"two observations":  `{"id":"a","observations":` + bareObservations + `,"observations":{"version":1}}`,
+		"nested duplicate":  `{"id":"a","observations":{"version":1,"beta":null,"beta":true}}`,
+		"trailing document": statusRecord + `{"id":"other"}`,
+		"trailing garbage":  statusRecord + ` x`,
 	} {
 		if _, err := ExportObservations([]byte(record), ExportOptions{CapturedAt: exportAt}); err == nil {
 			t.Errorf("%s: exported, want rejection", name)

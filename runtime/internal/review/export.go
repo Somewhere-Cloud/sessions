@@ -3,7 +3,9 @@ package review
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 )
@@ -52,9 +54,19 @@ func ExportObservations(record []byte, options ExportOptions) ([]byte, error) {
 }
 
 func locateObservations(record []byte) (json.RawMessage, string, error) {
+	// The same structural rules as a snapshot: one JSON object, no duplicate
+	// keys at any depth (a duplicate would let two readers see different
+	// evidence), and nothing after it.
+	if err := rejectDuplicateKeys(record); err != nil {
+		return nil, "", fmt.Errorf("observation record: %w", err)
+	}
+	decoder := json.NewDecoder(bytes.NewReader(record))
 	var top map[string]json.RawMessage
-	if err := json.Unmarshal(record, &top); err != nil {
-		return nil, "", fmt.Errorf("observation record is not a JSON object: %w", err)
+	if err := decoder.Decode(&top); err != nil || top == nil {
+		return nil, "", fmt.Errorf("observation record is not a JSON object: %v", err)
+	}
+	if _, err := decoder.Token(); !errors.Is(err, io.EOF) {
+		return nil, "", fmt.Errorf("observation record has data after the JSON object")
 	}
 	var subject string
 	_ = json.Unmarshal(top["id"], &subject)

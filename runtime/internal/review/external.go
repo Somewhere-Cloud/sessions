@@ -46,17 +46,12 @@ func NewExternal(path string, args []string, timeout time.Duration) (*External, 
 	if timeout <= 0 {
 		timeout = DefaultTimeout
 	}
-	digest := ""
-	if contents, err := os.ReadFile(path); err == nil {
-		sum := sha256.Sum256(contents)
-		digest = hex.EncodeToString(sum[:])
-	}
-	return &External{Path: path, Args: append([]string(nil), args...), Timeout: timeout, digest: digest}, nil
+	return &External{Path: path, Args: append([]string(nil), args...), Timeout: timeout}, nil
 }
 
 // Identity implements Reviewer.
 func (e *External) Identity() Identity {
-	return Identity{ID: "exec:" + e.Path, Kind: "exec", Version: AdapterProtocol, Path: e.Path, Args: e.Args, ExecutableSHA256: e.digest}
+	return Identity{ID: "exec:" + e.Path, Kind: "exec", Version: AdapterProtocol, Path: e.Path, Args: e.Args, FileSHA256BeforeRun: e.digest}
 }
 
 type adapterRequest struct {
@@ -101,9 +96,11 @@ func (e *External) Review(ctx context.Context, in Input) (Answer, error) {
 }
 
 func (e *External) run(ctx context.Context, request []byte) (*limitedBuffer, *limitedBuffer, error) {
-	if info, err := os.Stat(e.Path); err != nil || info.IsDir() {
+	info, err := os.Stat(e.Path)
+	if err != nil || info.IsDir() {
 		return nil, nil, reviewError(ErrUnavailable, "reviewer executable %s is not available", e.Path)
 	}
+	e.digest = fileDigest(ctx, e.Path, info)
 	runCtx, cancel := context.WithTimeout(ctx, e.Timeout)
 	defer cancel()
 	cmd := exec.CommandContext(runCtx, e.Path, e.Args...)
@@ -113,7 +110,7 @@ func (e *External) run(ctx context.Context, request []byte) (*limitedBuffer, *li
 	cmd.Stdout, cmd.Stderr = stdout, stderr
 	cmd.WaitDelay = 2 * time.Second
 	stoppableProcessGroup(cmd)
-	err := cmd.Run()
+	err = cmd.Run()
 	switch {
 	case errors.Is(ctx.Err(), context.Canceled):
 		return nil, nil, reviewError(ErrCancelled, "comparison was cancelled before the reviewer answered")
@@ -127,6 +124,45 @@ func (e *External) run(ctx context.Context, request []byte) (*limitedBuffer, *li
 		return nil, nil, reviewError(ErrUnavailable, "reviewer could not run: %v", err)
 	}
 	return stdout, stderr, nil
+}
+
+// maxDigestBytes bounds how much of the executable file is hashed for the
+// optional identity record; a larger file is simply not hashed.
+const maxDigestBytes = 256 << 20
+
+// fileDigest hashes the executable file as it is just before invocation, for
+// the record only. It hashes regular files only (so it never opens a FIFO or
+// device), streams with a size bound, stops when ctx ends, and returns "" when
+// any of that does not hold. It is not proof of the code that answers: the
+// file can be replaced, and the program can load other code.
+func fileDigest(ctx context.Context, path string, info os.FileInfo) string {
+	if !info.Mode().IsRegular() || info.Size() > maxDigestBytes {
+		return ""
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer file.Close()
+	hash := sha256.New()
+	buffer := make([]byte, 1<<20)
+	for total := int64(0); ; {
+		if ctx.Err() != nil {
+			return ""
+		}
+		n, err := file.Read(buffer)
+		total += int64(n)
+		if total > maxDigestBytes {
+			return ""
+		}
+		hash.Write(buffer[:n])
+		if errors.Is(err, io.EOF) {
+			return hex.EncodeToString(hash.Sum(nil))
+		}
+		if err != nil {
+			return ""
+		}
+	}
 }
 
 func stderrSuffix(stderr *limitedBuffer) string {
