@@ -128,9 +128,11 @@ func (e *External) run(ctx context.Context, request []byte) (*limitedBuffer, *li
 	case errors.Is(runCtx.Err(), context.DeadlineExceeded):
 		return nil, nil, reviewError(ErrTimeout, "no reply within %s; the reviewer was stopped", e.Timeout)
 	case errors.Is(err, exec.ErrWaitDelay):
-		stopLeftoverProcessGroup(cmd)
-		return nil, nil, reviewError(ErrUnavailable, "the reviewer exited, but a process it started kept its output open for more than %s, "+
-			"so the reply may be incomplete and was not used; what remained of the reviewer's own process group was stopped", cmd.WaitDelay)
+		// Sessions does not signal anything after the reviewer has exited: the
+		// process holding the output may have left the reviewer's group, and
+		// the group ID may already belong to someone else.
+		return nil, nil, reviewError(ErrUnavailable, "the reviewer exited, but its output stayed open for more than %s, so the reply may be "+
+			"incomplete and was not used; a process it started may still be running and was not stopped", cmd.WaitDelay)
 	case err != nil:
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
@@ -146,9 +148,10 @@ func (e *External) run(ctx context.Context, request []byte) (*limitedBuffer, *li
 const maxDigestBytes = 256 << 20
 
 // fileDigest hashes the executable file as it is just before invocation, for
-// the record only. It hashes regular files only (so it never opens a FIFO or
-// device), streams with a size bound, stops when ctx ends, and returns "" when
-// any of that does not hold. It is not proof of the code that answers: the
+// the record only. It opens only a path that was just observed as a regular
+// file, streams with a size bound, checks ctx between reads, and returns ""
+// when any of that does not hold. A path swapped for a FIFO between that check
+// and the open could still block the open itself until a writer appears. It is not proof of the code that answers: the
 // file can be replaced, and the program can load other code.
 func fileDigest(ctx context.Context, path string, info os.FileInfo) string {
 	if !info.Mode().IsRegular() || info.Size() > maxDigestBytes {

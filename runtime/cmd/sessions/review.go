@@ -96,8 +96,10 @@ func (a *app) cmdReviewSnapshot(args []string) error {
 // readTailFile reads only the end of a regular file: the last
 // review.MaxTailBytes, plus a few bytes to land on a UTF-8 boundary. A long
 // log is therefore bounded rather than refused, and omitted_bytes counts
-// everything before the kept text. Only regular files are read, so a FIFO or
-// device cannot block or stream without end.
+// everything before the kept text. Only a path observed as a regular file
+// is opened, and it is checked again once open, so a FIFO or device is not
+// read; a path swapped for a FIFO between the check and the open could still
+// block the open until a writer appears or the command is interrupted.
 func readTailFile(path string) (*review.Tail, error) {
 	if info, err := os.Stat(path); err != nil || !info.Mode().IsRegular() {
 		return nil, fmt.Errorf("--tail-file %s must be a readable regular file; save the excerpt to a file first", path)

@@ -4,7 +4,6 @@ package review
 
 import (
 	"context"
-	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -35,9 +34,12 @@ func TestFIFOReviewerDoesNotBlock(t *testing.T) {
 }
 
 // An adapter that answers but leaves a background process holding its output
-// open is not a complete answer: the reply is not used, the error says what
-// happened, and the adapter's own process group is stopped.
-func TestLeftoverAdapterProcessIsStoppedAndReported(t *testing.T) {
+// open is not a complete answer: the reply is not used, and the error says a
+// process may still be running. Sessions signals nothing after the adapter
+// exited (that process may have left the group, and the group ID may be
+// reused), so the fixture's own background process is still alive here and
+// the test stops it itself.
+func TestLeftoverAdapterOutputIsReportedAndNothingIsSignalledAfterExit(t *testing.T) {
 	dir := t.TempDir()
 	pidFile := filepath.Join(dir, "child.pid")
 	script := "#!/bin/sh\nsleep 37 &\necho $! > " + pidFile + "\n" +
@@ -55,16 +57,21 @@ func TestLeftoverAdapterProcessIsStoppedAndReported(t *testing.T) {
 	raw, _ := os.ReadFile(pidFile)
 	pid, _ := strconv.Atoi(strings.TrimSpace(string(raw)))
 	t.Cleanup(func() { stopFixtureSleep(pid) })
-	if r.Error == nil || r.Error.Kind != ErrUnavailable || !strings.Contains(r.Error.Detail, "kept its output open") || r.Answer != nil {
-		t.Fatalf("leftover process: %+v", r)
+	if r.Error == nil || r.Error.Kind != ErrUnavailable || r.Answer != nil ||
+		!strings.Contains(r.Error.Detail, "may still be running and was not stopped") || strings.Contains(r.Error.Detail, "group was stopped") {
+		t.Fatalf("leftover output: %+v", r)
 	}
-	deadline := time.Now().Add(3 * time.Second)
-	for syscall.Kill(pid, 0) == nil && time.Now().Before(deadline) {
-		time.Sleep(20 * time.Millisecond)
+	if !fixtureSleepRunning(pid) {
+		t.Fatalf("the adapter's background process %d was stopped after the adapter exited", pid)
 	}
-	if err := syscall.Kill(pid, 0); !errors.Is(err, syscall.ESRCH) {
-		t.Fatalf("the adapter's background process %d is still running (%v)", pid, err)
-	}
+}
+
+// fixtureSleepRunning reports whether pid is still the fixture's own running
+// "sleep 37" (not a zombie, which a signal 0 probe would still find).
+func fixtureSleepRunning(pid int) bool {
+	out, err := exec.Command("ps", "-o", "stat=,command=", "-p", strconv.Itoa(pid)).Output()
+	fields := strings.Fields(string(out))
+	return err == nil && len(fields) == 3 && !strings.HasPrefix(fields[0], "Z") && fields[1]+" "+fields[2] == "sleep 37"
 }
 
 // stopFixtureSleep stops the fixture's own background sleep if a failed test
@@ -73,8 +80,7 @@ func stopFixtureSleep(pid int) {
 	if pid <= 1 {
 		return
 	}
-	out, err := exec.Command("ps", "-o", "command=", "-p", strconv.Itoa(pid)).Output()
-	if err == nil && strings.TrimSpace(string(out)) == "sleep 37" {
+	if fixtureSleepRunning(pid) {
 		_ = syscall.Kill(pid, syscall.SIGKILL)
 	}
 }
