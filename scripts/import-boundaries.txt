@@ -120,6 +120,7 @@ internal/session internal/pullrequest
 internal/session internal/resource
 internal/session internal/state
 internal/session internal/storage
+internal/session internal/taskref
 internal/session internal/watch
 internal/smartsearch internal/agentcall
 internal/smartsearch internal/search

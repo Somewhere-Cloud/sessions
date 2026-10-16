@@ -84,6 +84,11 @@ func (m *Manager) answerRecordedStart(ctx context.Context, request state.CreateS
 }
 
 func (m *Manager) prepareCreateRequest(ctx context.Context, request state.CreateSessionRequest) (state.CreateSessionRequest, error) {
+	// Task references are checked before any side effect, so a bad one never
+	// leaves a worktree or a half-started session behind.
+	if err := m.checkCreateTaskRefs(request); err != nil {
+		return request, err
+	}
 	// Settle the account before the Claude defaults read its home. The home is
 	// created only after a replayed operation id has been ruled out.
 	request, err := m.resolveRequestedProfile(ctx, request)

@@ -75,6 +75,8 @@ type createSessionRequest struct {
 	Name              string            `json:"name,omitempty"`
 	Description       string            `json:"description,omitempty"`
 	Tags              map[string]string `json:"tags,omitempty"`
+	TaskRefs          []string          `json:"taskRefs,omitempty"`
+	TaskProject       string            `json:"taskProject,omitempty"`
 	Profile           string            `json:"profile,omitempty"`
 	DefaultProfile    bool              `json:"defaultProfile,omitempty"`
 	Worktree          bool              `json:"worktree,omitempty"`
@@ -234,6 +236,32 @@ func pluckTags(args *[]string) (map[string]string, error) {
 	return normalized, nil
 }
 
+// pluckTaskRefs reads the repeatable --task flag and --task-project. The
+// daemon validates each reference; nothing is inferred from names or branches.
+func pluckTaskRefs(args *[]string) ([]string, string, error) {
+	var refs []string
+	for index := 0; index < len(*args); {
+		if (*args)[index] != "--task" {
+			index++
+			continue
+		}
+		if index+1 >= len(*args) || strings.HasPrefix((*args)[index+1], "--") || strings.TrimSpace((*args)[index+1]) == "" {
+			return nil, "", fail(1, "--task needs a reference: sw:tsk_<id> or gh:OWNER/REPO#NUMBER")
+		}
+		refs = append(refs, strings.TrimSpace((*args)[index+1]))
+		*args = append((*args)[:index], (*args)[index+2:]...)
+	}
+	project, hasProject := pluck(args, "--task-project")
+	project = strings.TrimSpace(project)
+	if hasProject && (project == "" || strings.HasPrefix(project, "-")) {
+		return nil, "", fail(1, "--task-project needs the Somewhere project the sw: tasks belong to")
+	}
+	if hasProject && len(refs) == 0 {
+		return nil, "", fail(1, "--task-project applies to --task sw:tsk_<id> references; add at least one")
+	}
+	return refs, project, nil
+}
+
 func pluckWorktreeOptions(args *[]string) (bool, string, error) {
 	worktree := removeFirst(args, "--worktree")
 	base, hasBase := pluck(args, "--base")
@@ -276,6 +304,9 @@ func (a *app) cmdNew(args []string) error {
 	body.Description = description
 	body.Tags, err = pluckTags(&args)
 	if err != nil {
+		return err
+	}
+	if body.TaskRefs, body.TaskProject, err = pluckTaskRefs(&args); err != nil {
 		return err
 	}
 	if err := pluckProfileChoice(&args, &body); err != nil {

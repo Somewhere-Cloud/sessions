@@ -41,7 +41,7 @@ This document records the behavior of the normative Go daemon in
   `/events`, `/model-options`, `/model`, `/input`, `/submit`, `/approve`, `/retry`, `/retry/stop`, `/name`,
   `/tags`, `/upload`, `/display-parent`, `/set-aside`, the bare `DELETE`)
   still fall through to the 404 body. `/pin`, `/wait`, `/wait-state`,
-  `/verdict`, `/pr`, and `/pr/refresh` return 405. Either way the request is authenticated before the
+  `/verdict`, `/pr`, `/pr/refresh`, and `/tasks` return 405. Either way the request is authenticated before the
   method is judged, so a wrong method on an API path normally requires auth
   before returning 404 or 405. Each route entry below states its own
   behavior where it differs.
@@ -607,6 +607,8 @@ Auth required. Every request field is optional:
 | `env` | object of string values | caller environment after filtering reserved/injection keys |
 | `name` | string | trimmed; empty becomes absent |
 | `profile` | string | optional `[a-z0-9-]{1,32}` Claude/Codex login profile; rejected for shell sessions |
+| `taskRefs` | string[] | optional task references the session works on: `sw:tsk_<8-64 hex>` (Somewhere task) or `gh:OWNER/REPO#NUMBER` (GitHub issue), nothing else; canonicalized, deduplicated, at most 64, and recorded as `task_links` in the `created` ledger event before launch. An invalid one is 400 before any side effect. Requires the ledger |
+| `taskProject` | string | optional Somewhere project the `sw:` references belong to (letters, digits, `.`, `_`, `-`; at most 100); without it their scope is `unresolved`. Requires at least one `taskRefs` entry |
 | `defaultProfile` | boolean | optional; `true` explicitly chooses the provider's default login instead of an inherited account; combining it with `profile` is 400 |
 | `worktree` | boolean | when true, create an isolated Git worktree and use it as `cwd` |
 | `base` | string | optional worktree base ref; requires `worktree`; defaults to the source checkout's current branch |
@@ -665,7 +667,7 @@ ledger event beside `start_operation_id`. It covers `cmd`, `args`, `cwd`,
 `kind`, `specPath`, `profile`, `defaultProfile`, `worktree`, `noWorktree`,
 `base`, `providerTerminal`, `permissions`, `lifecycle`, `onIdle`, and `claude`.
 It leaves out the operation ids, a Claude `--session-id` (clients mint a
-fresh one on every attempt), and `name`, `description`, `tags`, `env`, `cols`,
+fresh one on every attempt), and `name`, `description`, `tags`, `taskRefs`, `taskProject`, `env`, `cols`,
 `rows`, `waitReady`, `force`, `delegationKind`, and `initialInput`. A first
 request a terminal Codex process takes from `args` is therefore compared with
 them. A first request sent through `/submit` is not: only its delivery receipt
@@ -1405,6 +1407,38 @@ trimmed, must be non-empty, and are at most 256 characters; at most 32 tags.
 Returns `200 {"tags":{...}}` with the normalized set, which a live runner also
 adopts immediately. Validation and persistence failures are 400; an unknown
 session or missing metadata file is 404.
+
+### `GET|POST|DELETE /api/sessions/:id/tasks`
+
+Auth required. The task references recorded for a session Sessions created.
+These are local ledger reads and writes: none contacts Somewhere or GitHub,
+needs an account, wakes a paused session, or touches a runner. A reference
+says which task someone linked, not whether the task exists or is done, and
+nothing is ever inferred from branch names, commits, or conversation text.
+
+`POST` body is `{"refs":["sw:tsk_<id>","gh:OWNER/REPO#NUMBER"],"project":"<somewhere project>"}`;
+`project` is optional and applies to the `sw:` references only. References
+already linked record nothing, except that a stated project resolves an
+unresolved one. The batch is appended as one `task_linked` ledger event, so it
+is never half-recorded. `DELETE ?ref=<ref>&ref=<ref>` removes exact references
+as one `task_unlinked` event; a reference that is not linked records nothing.
+`GET` reads the current set. Every answer is:
+
+```json
+{"session_id":"<id>","description":"<stated intent, when any>",
+ "tasks":[{"ref":"sw:tsk_0123abcd","provider":"somewhere","scope":"unresolved","linked_at":"<RFC3339>"},
+          {"ref":"gh:acme/app#12","provider":"github","scope":"github.com/acme/app","linked_at":"<RFC3339>"}],
+ "changed":true}
+```
+
+`scope` is `github.com/OWNER/REPO` for an issue, `somewhere:<project>` for a
+Somewhere task whose project was stated (with `project`), and `unresolved`
+otherwise. `changed` appears on `POST` and `DELETE` only. `description` is the
+session's own stated intent, the account-free fallback when no reference is
+linked. References survive daemon restarts and runner retirement because they
+live only in the ledger. Invalid references or more than 64 on one session are
+400; a session without a ledger creation record is 404; a daemon without a
+ledger is 503; other methods are 405.
 
 ### `GET /api/sessions/:id/snapshot`
 

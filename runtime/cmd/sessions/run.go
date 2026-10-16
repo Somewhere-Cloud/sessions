@@ -15,10 +15,27 @@ type runLaneRequest struct {
 	Name        string            `json:"name,omitempty"`
 	Description string            `json:"description,omitempty"`
 	Tags        map[string]string `json:"tags,omitempty"`
+	TaskRefs    []string          `json:"taskRefs,omitempty"`
+	TaskProject string            `json:"taskProject,omitempty"`
 	Worktree    bool              `json:"worktree,omitempty"`
 	Base        string            `json:"base,omitempty"`
 	Kind        string            `json:"kind"`
 	SpecPath    string            `json:"specPath,omitempty"`
+}
+
+// pluckRunLabels reads what a lane is for: its description, tags, and task
+// references. None of them changes what the lane runs.
+func pluckRunLabels(options *[]string) (runLaneRequest, error) {
+	var labels runLaneRequest
+	var err error
+	if labels.Description, err = pluckDescription(options); err != nil {
+		return labels, err
+	}
+	if labels.Tags, err = pluckTags(options); err != nil {
+		return labels, err
+	}
+	labels.TaskRefs, labels.TaskProject, err = pluckTaskRefs(options)
+	return labels, err
 }
 
 func (a *app) cmdRun(args []string) error {
@@ -37,11 +54,7 @@ func (a *app) cmdRun(args []string) error {
 		return err
 	}
 	command := append([]string(nil), args[separator+1:]...)
-	description, err := pluckDescription(&options)
-	if err != nil {
-		return err
-	}
-	tags, err := pluckTags(&options)
+	labels, err := pluckRunLabels(&options)
 	if err != nil {
 		return err
 	}
@@ -110,8 +123,9 @@ func (a *app) cmdRun(args []string) error {
 		}
 	}
 	body := runLaneRequest{
-		Cmd: command[0], Args: command[1:], Cwd: cwd, Name: strings.TrimSpace(name), Description: description,
-		Tags: tags, Worktree: worktree, Base: base, Kind: state.KindLane, SpecPath: specPath,
+		Cmd: command[0], Args: command[1:], Cwd: cwd, Name: strings.TrimSpace(name), Description: labels.Description,
+		Tags: labels.Tags, Worktree: worktree, Base: base, Kind: state.KindLane, SpecPath: specPath,
+		TaskRefs: labels.TaskRefs, TaskProject: labels.TaskProject,
 	}
 	var created map[string]any
 	if err := a.postJSON("/api/lanes", body, &created, 2); err != nil {

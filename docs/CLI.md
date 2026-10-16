@@ -87,6 +87,7 @@ Daily workflows:
   resize                   resize a session PTY
   verdict                  read or emit an explicit producer verdict
   pr                       link a lane to its GitHub pull request and read its status
+  task                     record which tasks a session works on
   move                     continue an ended conversation on another machine
   adopt                    bind an existing conversation into Sessions
   resume (continue, resurrect) resume one saved conversation
@@ -163,11 +164,11 @@ Examples:
 
 ```text
 Usage:
-  sessions new [--tool claude|codex|shell] [--permissions inherit|constrained|full] [--lifecycle task|session] [--profile NAME | --default-profile] [--cwd P] [--name L] [--model M] [--effort LEVEL] [--fast] [--structured] [--wait-ready] [--on-idle CMD] [--owner ID [--detach]] [--force] [--worktree [--base REF] | --no-worktree] [--operation-id UUID] [--cmd PATH] [options] [args...]
+  sessions new [--tool claude|codex|shell] [--permissions inherit|constrained|full] [--lifecycle task|session] [--profile NAME | --default-profile] [--cwd P] [--name L] [--model M] [--effort LEVEL] [--fast] [--structured] [--wait-ready] [--on-idle CMD] [--owner ID [--detach]] [--force] [--worktree [--base REF] | --no-worktree] [--task REF ... [--task-project P]] [--operation-id UUID] [--cmd PATH] [options] [args...]
 
 create an interactive session
 
-Create a session. --tool selects Claude, Codex, or shell. For Claude and Codex, positional text after the options is sent immediately as the first request. Agent-created children run with autonomous full access by default so delegated work finishes in the background; when the user has chosen inheritance in onboarding or Settings, children inherit their manager's resolved permission policy instead. A child cannot escalate itself past what the machine allows. --permissions makes the policy explicit, while --full-access remains an alias for --permissions full. Every new conversation, including an agent-created child, stays session-lifecycle by default. Use --lifecycle task only when the caller deliberately wants a bounded worker; provider completion alone never authorizes Sessions to end a runtime. Approval questions become needs-input state and are never blindly accepted. Existing sessions keep their original runtime and permission mode. Top-level Claude sessions default to the native interactive runtime; a Claude child created from inside another Sessions session defaults to the provider-native structured runtime so its manager can drive exact events without screen parsing. Use --pty-claude when that child specifically needs the interactive terminal. New user-created Claude and Codex sessions default to full access (YOLO); --permissions constrained explicitly asks for approvals. Codex keeps its terminal runtime by default, while an explicit --full-access selects app-server; --codex-appserver explicitly selects the Rich app-server runtime for constrained or full sessions. Remote Control remains separately consent-gated. --profile selects a private provider login. A Claude or Codex child created from inside another Sessions session of the same provider starts on its manager's recorded login when --profile is omitted; --default-profile chooses the provider's default login instead, and an account is never carried across providers. --description and repeated --tag values record purpose and dimensions. --worktree creates a Sessions-owned worktree, and --base picks its starting ref. A lane created from inside another session gets its own worktree by default when its folder is a usable Git checkout, so autonomous work lands on a branch the manager can diff or merge; --no-worktree makes it share the folder instead, and a folder that cannot host a worktree is shared automatically.
+Create a session. --tool selects Claude, Codex, or shell. For Claude and Codex, positional text after the options is sent immediately as the first request. Agent-created children run with autonomous full access by default so delegated work finishes in the background; when the user has chosen inheritance in onboarding or Settings, children inherit their manager's resolved permission policy instead. A child cannot escalate itself past what the machine allows. --permissions makes the policy explicit, while --full-access remains an alias for --permissions full. Every new conversation, including an agent-created child, stays session-lifecycle by default. Use --lifecycle task only when the caller deliberately wants a bounded worker; provider completion alone never authorizes Sessions to end a runtime. Approval questions become needs-input state and are never blindly accepted. Existing sessions keep their original runtime and permission mode. Top-level Claude sessions default to the native interactive runtime; a Claude child created from inside another Sessions session defaults to the provider-native structured runtime so its manager can drive exact events without screen parsing. Use --pty-claude when that child specifically needs the interactive terminal. New user-created Claude and Codex sessions default to full access (YOLO); --permissions constrained explicitly asks for approvals. Codex keeps its terminal runtime by default, while an explicit --full-access selects app-server; --codex-appserver explicitly selects the Rich app-server runtime for constrained or full sessions. Remote Control remains separately consent-gated. --profile selects a private provider login. A Claude or Codex child created from inside another Sessions session of the same provider starts on its manager's recorded login when --profile is omitted; --default-profile chooses the provider's default login instead, and an account is never carried across providers. --description and repeated --tag values record purpose and dimensions. Repeated --task REF values (sw:tsk_<id> or gh:OWNER/REPO#NUMBER) record which tasks the session works on together with its creation, and --task-project names the Somewhere project for the sw: ones; see `sessions help task`. --worktree creates a Sessions-owned worktree, and --base picks its starting ref. A lane created from inside another session gets its own worktree by default when its folder is a usable Git checkout, so autonomous work lands on a branch the manager can diff or merge; --no-worktree makes it share the folder instead, and a folder that cannot host a worktree is shared automatically.
 
 Agent controls: --model chooses the provider model for the new session and --effort its reasoning effort; both are validated by the provider and are only valid for Claude or Codex. --fast requests the Codex priority service tier and is refused for Claude, which has no service tier. Explicit provider arguments you pass yourself always win over these controls.
 
@@ -290,11 +291,11 @@ Examples:
 
 ```text
 Usage:
-  sessions run [--name N] [--description PURPOSE] [--tag KEY=VALUE ...] [--cwd D] [--worktree [--base REF]] [--spec FILE] [--owner ID [--detach]] [--wait [--timeout D] [--output]] -- <cmd args...>
+  sessions run [--name N] [--description PURPOSE] [--tag KEY=VALUE ...] [--task REF ... [--task-project P]] [--cwd D] [--worktree [--base REF]] [--spec FILE] [--owner ID [--detach]] [--wait [--timeout D] [--output]] -- <cmd args...>
 
 run a command in a headless lane
 
-Create a headless lane for the command following the first -- separator. --description (alias --desc) records why the lane exists. --worktree creates an isolated Sessions-owned worktree; it does not symlink node_modules. Every child argument after the separator is passed unchanged. Without --wait, print the lane id and return. --wait blocks for completion and propagates the child exit code; --output prints the captured output tail. --timeout raises the 30-second default the wait would otherwise be capped at, which is shorter than most delegated work; the lane keeps running past a timeout, so `sessions wait <lane>` can still collect it. --owner records an external principal as the creator instead of the inherited Sessions ancestry, and --detach is required with it when this process already belongs to a session, creating an external root rather than a child.
+Create a headless lane for the command following the first -- separator. --description (alias --desc) records why the lane exists. Repeated --task REF values record which tasks it works on; see `sessions help task`. --worktree creates an isolated Sessions-owned worktree; it does not symlink node_modules. Every child argument after the separator is passed unchanged. Without --wait, print the lane id and return. --wait blocks for completion and propagates the child exit code; --output prints the captured output tail. --timeout raises the 30-second default the wait would otherwise be capped at, which is shorter than most delegated work; the lane keeps running past a timeout, so `sessions wait <lane>` can still collect it. --owner records an external principal as the creator instead of the inherited Sessions ancestry, and --detach is required with it when this process already belongs to a session, creating an external root rather than a child.
 
 Under --wait the completion is reported in the shared wait envelope: ok, kind:"lane", reason, session, and a nested lane object with exit_code, signal, duration_ms, and last_output_tail.
 
@@ -1195,6 +1196,29 @@ Examples:
   sessions pr refresh 0123abcd
   sessions --json pr 0123abcd
   sessions pr unlink 0123abcd
+
+--json may appear before the command or among its options. --machine, --direct, --host, and --port must appear before the command. Arguments after `sessions run --` always belong to the child command.
+```
+
+## `sessions task`
+
+```text
+Usage:
+  sessions task <session> | task link <session> <ref>... [--project P] | task unlink <session> <ref>...
+
+record which tasks a session works on
+
+Record the task references a session works on. A reference is sw:tsk_<id> for a Somewhere task or gh:OWNER/REPO#NUMBER for a GitHub issue; nothing else is accepted, and nothing is ever inferred from a branch name, commit message, or the conversation. One session can carry several references, and the same reference can be on several sessions.
+
+link records references in the append-only ledger; linking one that is already linked records nothing. --project names the Somewhere project the sw: references belong to. Without it their scope is reported as unresolved, because a task ID alone does not say which project it is in; linking the same reference again with --project resolves it. unlink removes exact references. `sessions new --task REF` and `sessions run --task REF` (repeatable, with --task-project) record references with the session's creation.
+
+Nothing here contacts Somewhere or GitHub or needs an account: a reference says which task someone linked, not whether that task exists, changed, or is done. References survive daemon restarts and runner retirement. With no reference linked, the session's --description is shown as its stated intent.
+
+Examples:
+  sessions task link 0123abcd sw:tsk_0123abcd --project my-project
+  sessions task link 0123abcd gh:acme/app#12
+  sessions --json task 0123abcd
+  sessions task unlink 0123abcd gh:acme/app#12
 
 --json may appear before the command or among its options. --machine, --direct, --host, and --port must appear before the command. Arguments after `sessions run --` always belong to the child command.
 ```

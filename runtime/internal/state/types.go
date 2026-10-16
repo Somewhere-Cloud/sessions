@@ -317,6 +317,12 @@ type CreateSessionRequest struct {
 	Description        string            `json:"description,omitempty"`
 	Tags               map[string]string `json:"tags,omitempty"`
 	Profile            string            `json:"profile,omitempty"`
+	// TaskRefs are task references stated for the session (sw:tsk_<id> or
+	// gh:OWNER/REPO#NUMBER), recorded in the ledger with its creation.
+	// TaskProject is the Somewhere project the sw: references belong to;
+	// without it their scope is reported as unresolved.
+	TaskRefs    []string `json:"taskRefs,omitempty"`
+	TaskProject string   `json:"taskProject,omitempty"`
 	// DefaultProfile explicitly chooses the provider's default login. Without
 	// it, an omitted profile lets a same-provider child start on its parent's
 	// recorded account; with it, the child uses the default login instead.

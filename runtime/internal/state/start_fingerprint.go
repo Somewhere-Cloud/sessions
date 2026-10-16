@@ -22,8 +22,9 @@ const createFingerprintVersion = "v1:"
 // Left out on purpose: the operation ids themselves; the first request sent
 // through /submit, which carries its own delivery receipt; the fresh Claude
 // --session-id a client mints on every attempt; and presentation or terminal
-// details (name, description, tags, env, cols, rows, waitReady, force,
-// delegationKind) that a caller may legitimately vary between retries.
+// details (name, description, tags, task references, env, cols, rows,
+// waitReady, force, delegationKind) that a caller may legitimately vary
+// between retries.
 type createFingerprintFields struct {
 	Cmd              string               `json:"cmd"`
 	Args             []string             `json:"args"`

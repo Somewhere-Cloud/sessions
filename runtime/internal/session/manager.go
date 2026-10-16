@@ -100,6 +100,7 @@ type ManagerOptions struct {
 	Worktrees          ledger.WorktreeWriter
 	Attributions       ledger.AttributionWriter
 	PullRequests       ledger.PullRequestWriter
+	TaskLinks          ledger.TaskLinkWriter
 	PullRequestFetcher pullrequest.Fetcher
 	LedgerReader       LedgerReader
 	UsageRecorder      UsageRecorder
@@ -681,6 +682,10 @@ func (m *Manager) recordCreated(ctx context.Context, prepared state.PreparedSess
 	if m.boundaries == nil {
 		return nil
 	}
+	taskLinks, err := parseTaskLinks(prepared.TaskRefs, prepared.TaskProject)
+	if err != nil {
+		return err
+	}
 	info := prepared.Info
 	providerUUID, resumeArgv := "", []string(nil)
 	if prepared.Kind != state.KindLane {
@@ -697,7 +702,7 @@ func (m *Manager) recordCreated(ctx context.Context, prepared state.PreparedSess
 		ResumeArgv: resumeArgv, LaneUUID: info.ID, ProviderUUID: providerUUID,
 		CreatorKind: creatorKind, CreatorID: creatorID, DelegationKind: prepared.DelegationKind,
 		StartOperationID: prepared.StartOperationID, PromptOperationID: prepared.PromptOperationID,
-		RequestFingerprint: prepared.RequestFingerprint,
+		RequestFingerprint: prepared.RequestFingerprint, TaskLinks: taskLinks,
 	}); err != nil {
 		return fmt.Errorf("record lane creation before launch: %w", err)
 	}

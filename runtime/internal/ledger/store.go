@@ -421,6 +421,9 @@ func (w boundaryWriter) RecordCreated(ctx context.Context, value Created) error 
 	if value.ConfigDir != "" && !filepath.IsAbs(value.ConfigDir) {
 		return errors.New("record created: profile config dir must be absolute")
 	}
+	if err := validateCreatedTaskLinks(value.TaskLinks); err != nil {
+		return fmt.Errorf("record created: %w", err)
+	}
 	payload := createdPayload{
 		Name: value.Name, Description: value.Description, DescriptionSource: value.DescriptionSource,
 		Kind: value.Kind, Tool: value.Tool, Cwd: value.Cwd, Profile: value.Profile, ConfigDir: value.ConfigDir,
@@ -429,7 +432,7 @@ func (w boundaryWriter) RecordCreated(ctx context.Context, value Created) error 
 		LaneUUID:   value.LaneUUID, ProviderUUID: value.ProviderUUID,
 		CreatorKind: value.CreatorKind, CreatorID: value.CreatorID, DelegationKind: value.DelegationKind,
 		StartOperationID: value.StartOperationID, PromptOperationID: value.PromptOperationID,
-		RequestFingerprint: value.RequestFingerprint,
+		RequestFingerprint: value.RequestFingerprint, TaskLinks: value.TaskLinks,
 	}
 	return w.store.append(ctx, EventCreated, value.Meta, payload, false)
 }
@@ -912,6 +915,7 @@ type createdPayload struct {
 	StartOperationID   string            `json:"start_operation_id,omitempty"`
 	PromptOperationID  string            `json:"prompt_operation_id,omitempty"`
 	RequestFingerprint string            `json:"request_fingerprint,omitempty"`
+	TaskLinks          []TaskLink        `json:"task_links,omitempty"`
 }
 
 type providerPayload struct {

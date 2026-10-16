@@ -27,6 +27,8 @@ func applyLaneEvent(state *LaneState, event Event) {
 		applyClosureEvent(state, event)
 	case EventPullRequestLinked, EventPullRequestUnlinked, EventPullRequestObserved:
 		foldPullRequest(state, event)
+	case EventTaskLinked, EventTaskUnlinked:
+		foldTaskLinks(state, event)
 	}
 }
 
@@ -77,6 +79,9 @@ func applyCreatedEvent(state *LaneState, event Event) {
 		state.StartOperationID = payload.StartOperationID
 		state.PromptOperationID = payload.PromptOperationID
 		state.RequestFingerprint = payload.RequestFingerprint
+		if validateTaskLinks(payload.TaskLinks) == nil {
+			state.Tasks = linkTasks(nil, payload.TaskLinks, event)
+		}
 	}
 }
 

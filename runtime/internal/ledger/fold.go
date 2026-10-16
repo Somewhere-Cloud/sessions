@@ -75,6 +75,10 @@ type LaneState struct {
 	// is the newest process or activity fact (see isLifecycleEvent); use
 	// LastActivityAtMS for genuine human or provider activity.
 	LastLifecycleAtMS int64
+
+	// Tasks are the task references stated for the session itself, in the
+	// order they were first linked.
+	Tasks []LaneTask
 }
 
 // Fold reduces an event stream in seq order. Input order is irrelevant as
@@ -104,6 +108,7 @@ func Fold(events []Event) []LaneState {
 
 func cloneLaneState(state LaneState) LaneState {
 	state.ResumeArgv = append([]string(nil), state.ResumeArgv...)
+	state.Tasks = append([]LaneTask(nil), state.Tasks...)
 	if state.ExitCode != nil {
 		code := *state.ExitCode
 		state.ExitCode = &code

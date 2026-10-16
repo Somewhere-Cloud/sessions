@@ -59,6 +59,10 @@ type PreparedSession struct {
 	PromptOperationID string
 	// RequestFingerprint travels with StartOperationID into the created event.
 	RequestFingerprint string
+	// TaskRefs and TaskProject are carried as stated; the composition root
+	// parses them into ledger task links with the created event.
+	TaskRefs    []string
+	TaskProject string
 }
 
 type SessionMetadata struct {
@@ -252,6 +256,7 @@ func (r *Registry) CreateWithLifecycle(
 		WorktreePath:       request.WorktreePath, WorktreeBranch: request.WorktreeBranch,
 		WorktreeBase: request.WorktreeBase, SourceRepo: request.SourceRepo,
 		DelegationKind: request.DelegationKind, Permissions: request.Permissions, Lifecycle: request.Lifecycle,
+		TaskRefs: append([]string(nil), request.TaskRefs...), TaskProject: request.TaskProject,
 	}
 	if prepared.Name != "" {
 		launchRequest.Env["RUNNER_NAME"] = prepared.Name

@@ -125,6 +125,9 @@ type Created struct {
 	// with StartOperationID so a repeated id is replayed only for the same
 	// work. It is a hash, never the request itself; older events lack it.
 	RequestFingerprint string
+	// TaskLinks are the task references stated when the session was
+	// requested, recorded in the same write-ahead fact as its creation.
+	TaskLinks []TaskLink
 }
 
 type UserKill struct {

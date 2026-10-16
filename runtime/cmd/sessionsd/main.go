@@ -101,7 +101,7 @@ func main() {
 	manager := session.NewManager(config, daemonLauncher(config), session.ManagerOptions{
 		Boundaries: ledgerStore.Boundaries(), Observations: ledgerStore.Observations(), LedgerReader: ledgerStore,
 		Retention: ledgerStore.Retention(), Worktrees: ledgerStore.Worktrees(), Attributions: ledgerStore.Attributions(),
-		PullRequests: ledgerStore.PullRequests(), UsageRecorder: usageService,
+		PullRequests: ledgerStore.PullRequests(), TaskLinks: ledgerStore.TaskLinks(), UsageRecorder: usageService,
 	})
 	defer manager.Close()
 	api.Version = version
