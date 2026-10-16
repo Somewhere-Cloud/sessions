@@ -80,6 +80,8 @@ func HistoryEvent(provider string, fault Fault, at time.Time) (json.RawMessage, 
 	value := map[string]any{
 		"type": "system", "subtype": "provider_fault", "provider": canonicalProvider(provider),
 		"kind": fault.Kind, "detail": fault.Detail, "timestamp": at.UTC().Format(time.RFC3339Nano),
+		// Sessions classified this fault; the record is not provider output.
+		"origin": "sessions",
 	}
 	if fault.Status != 0 {
 		value["status"] = fault.Status
@@ -95,6 +97,7 @@ func RetryHistoryEvent(attempt, maximum int, nextAt time.Time) (json.RawMessage,
 	value := map[string]any{
 		"type": "system", "subtype": "provider_retry", "attempt": attempt,
 		"max": maximum, "nextAt": nextAt.UnixMilli(), "timestamp": time.Now().UTC().Format(time.RFC3339Nano),
+		"origin": "sessions",
 	}
 	encoded, err := json.Marshal(value)
 	return json.RawMessage(encoded), err

@@ -261,7 +261,16 @@ func HistoryInitialized(raw json.RawMessage) bool {
 		value.Type == "system" && value.Subtype == "init" && value.SessionID != ""
 }
 
+// SessionsOrigin marks a history record Sessions wrote on its own behalf --
+// a turn start it dispatched, an input it relayed, a failure it synthesized,
+// an approval it brokered. The record keeps its existing type and source; the
+// additive origin field is what keeps it from being read as provider evidence.
+const SessionsOrigin = "sessions"
+
+// marshalHistory encodes a record this package authors. Provider stream events
+// go through NormalizeEvent instead and never carry the Sessions origin.
 func marshalHistory(value map[string]any) (json.RawMessage, error) {
+	value["origin"] = SessionsOrigin
 	encoded, err := json.Marshal(value)
 	return json.RawMessage(encoded), err
 }

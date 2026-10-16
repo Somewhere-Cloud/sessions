@@ -212,7 +212,7 @@ func approvalReply(method string, request ApprovalRequest, decision ApprovalDeci
 // daemon reads it to mark the session needs-you and to know what is being
 // asked; the transcript shows it in place.
 func ApprovalRequestedEvent(id string, request ApprovalRequest, at time.Time) (json.RawMessage, error) {
-	return marshalHistory(map[string]any{
+	return marshalSessionsHistory(map[string]any{
 		"type": "system", "subtype": "approval_requested", "source": HistorySource,
 		"timestamp": historyTimestamp(at), "conversationId": request.ConversationID, "turnId": request.TurnID,
 		"approval": map[string]any{
@@ -225,7 +225,7 @@ func ApprovalRequestedEvent(id string, request ApprovalRequest, at time.Time) (j
 // ApprovalResolvedEvent records the answer and who gave it: empty `by` is the
 // person, otherwise the session id of the lane that decided.
 func ApprovalResolvedEvent(conversationID, id string, decision ApprovalDecision, by string, at time.Time) (json.RawMessage, error) {
-	return marshalHistory(map[string]any{
+	return marshalSessionsHistory(map[string]any{
 		"type": "system", "subtype": "approval_resolved", "source": HistorySource,
 		"timestamp": historyTimestamp(at), "conversationId": conversationID,
 		"approval": map[string]any{"id": id, "decision": string(decision), "by": by},

@@ -10,7 +10,7 @@ const HistorySource = "codex-app-server"
 // UserHistoryEvent maps an accepted SendUserTurn input into the normalized
 // event shape already consumed by Sessions' last/transcript API and CLI.
 func UserHistoryEvent(conversationID, text string, at time.Time) (json.RawMessage, error) {
-	return marshalHistory(map[string]any{
+	return marshalSessionsHistory(map[string]any{
 		"type":           "user",
 		"subtype":        "user_message",
 		"source":         HistorySource,
@@ -27,7 +27,7 @@ func UserHistoryEvent(conversationID, text string, at time.Time) (json.RawMessag
 // proof that Codex has applied the input. The timestamp is the submission time;
 // the acknowledgment can arrive after a turn-completed notification.
 func SteeringHistoryEvent(conversationID, turnID, text string, at time.Time) (json.RawMessage, error) {
-	return marshalHistory(map[string]any{
+	return marshalSessionsHistory(map[string]any{
 		"type":           "user",
 		"subtype":        "user_steer",
 		"source":         HistorySource,
@@ -49,7 +49,7 @@ func ImportedHistoryEvent(conversationID, role, text, sourceHistoryID string, at
 	if role == "assistant" {
 		message["content"] = []map[string]any{{"type": "text", "text": text}}
 	}
-	return marshalHistory(map[string]any{
+	return marshalSessionsHistory(map[string]any{
 		"type": role, "subtype": "imported_message", "source": "sessions-continuation",
 		"timestamp": historyTimestamp(at), "conversationId": conversationID,
 		"continuedFromHistoryId": sourceHistoryID, "message": message,
@@ -58,7 +58,7 @@ func ImportedHistoryEvent(conversationID, role, text, sourceHistoryID string, at
 
 // ContinuationStartedEvent is the first visible line before copied history.
 func ContinuationStartedEvent(conversationID, detail string, at time.Time) (json.RawMessage, error) {
-	return marshalHistory(map[string]any{
+	return marshalSessionsHistory(map[string]any{
 		"type": "system", "subtype": "continuation_started", "source": "sessions-continuation",
 		"timestamp": historyTimestamp(at), "conversationId": conversationID, "detail": detail,
 	})
@@ -71,7 +71,7 @@ func ContinuationStartedEvent(conversationID, detail string, at time.Time) (json
 // claudep.InputRejectedEvent so both structured providers report a refused
 // message the same way.
 func InputRejectedEvent(conversationID, message string, at time.Time) (json.RawMessage, error) {
-	return marshalHistory(map[string]any{
+	return marshalSessionsHistory(map[string]any{
 		"type": "system", "subtype": "input_rejected", "source": HistorySource,
 		"timestamp": historyTimestamp(at), "conversationId": conversationID,
 		"error": message,
@@ -81,7 +81,7 @@ func InputRejectedEvent(conversationID, message string, at time.Time) (json.RawM
 // SteeringRejectedEvent retains the exact input Codex refused so a different
 // client can restore it even when the originating composer is gone.
 func SteeringRejectedEvent(conversationID, text, message string, at time.Time) (json.RawMessage, error) {
-	return marshalHistory(map[string]any{
+	return marshalSessionsHistory(map[string]any{
 		"type": "system", "subtype": "input_rejected", "source": HistorySource,
 		"timestamp": historyTimestamp(at), "conversationId": conversationID,
 		"input": text, "error": message,
@@ -105,7 +105,7 @@ func SteeringUnconfirmedEvent(conversationID, operationID, text, message string,
 	if operationID != "" {
 		value["operationId"] = operationID
 	}
-	return marshalHistory(value)
+	return marshalSessionsHistory(value)
 }
 
 // HistoryEvent preserves every structured app-server notification while
@@ -215,6 +215,16 @@ func HistoryLifecycle(raw json.RawMessage) (working bool, authoritative bool) {
 	default:
 		return false, false
 	}
+}
+
+// SessionsOrigin marks a history record Sessions wrote on its own behalf: an
+// input it relayed, a rejection, an approval it brokered, an imported message.
+// Provider notifications from HistoryEvent never carry it.
+const SessionsOrigin = "sessions"
+
+func marshalSessionsHistory(value map[string]any) (json.RawMessage, error) {
+	value["origin"] = SessionsOrigin
+	return marshalHistory(value)
 }
 
 func marshalHistory(value map[string]any) (json.RawMessage, error) {
