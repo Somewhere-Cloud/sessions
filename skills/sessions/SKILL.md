@@ -55,9 +55,8 @@ the orientation you cannot get from a command list.
 
 Use `sessions team --json` to inspect all your delegates in one compact read.
 Keep its `next_cursor`; the next `sessions team --since <cursor> --json`
-returns only changed members. The cursor survives a daemon restart for 24
-hours. An expired or lost baseline is an error, not evidence that nothing
-changed. This compares observations, not every event
+returns only changed members (cursors survive restarts for 24 hours). An
+expired or lost baseline is an error, not evidence that nothing changed. This compares observations, not every event
 between them. Do not repeatedly pull whole conversations just to check status.
 
 When finishing delegated work, emit a verdict with `meta.handoff` describing
@@ -67,11 +66,9 @@ format. These are your attributed claims, not independent verification by
 Sessions. Missing evidence remains unknown. A finished turn is not proof that
 the assignment is done, and a receipt does not authorize ending the runtime.
 
-When the work is for a known task, say so where it lands: `--task REF` on
-`sessions new` or `sessions run`, `sessions task link <session> REF`, and
-`sessions pr add <session> <url> --task REF` for each pull request. REF is
-`sw:tsk_<id>` or `gh:OWNER/REPO#NUMBER` only. A link records which task you
-named; it does not claim the task is done.
+Name the task work is for: `--task REF` on `new`/`run`, `sessions task link`,
+or `sessions pr add <session> <url> --task REF`. REF is only `sw:tsk_<id>` or
+`gh:OWNER/REPO#NUMBER`; a link names the task, it does not claim it is done.
 
 Shared-checkout warnings identify possible collisions, not ownership. Use
 separate worktrees or coordinate explicitly; never reset another lane's edits.
