@@ -1676,7 +1676,8 @@ sets `work:"merged"` but never ends a runner: a live or paused lane answers
 `closure.action:"keep"` with the command to end it, and only a lane whose
 runner already ended answers `archive_available`. Merged is tracked per link:
 while another linked pull request is not known to be merged, a merged link
-answers `closure.action:"none"` saying the lane's work may still be open.
+answers `closure.action:"none"` saying so. `work:"merged"` describes that pull
+request only; no closure reason claims the lane's task is done.
 `other_pull_requests` counts the lane's other links and is omitted when zero.
 
 ### `GET|POST|DELETE /api/sessions/:id/prs` and `POST /api/sessions/:id/prs/refresh`

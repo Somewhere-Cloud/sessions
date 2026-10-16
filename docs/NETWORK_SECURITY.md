@@ -519,7 +519,8 @@ or `POST /api/sessions/:id/pr/refresh`. There is no background polling.
 - **Disable:** do not refresh, or `sessions pr unlink` the lane. Signing out of
   `gh` revokes the capability without touching Sessions.
 
-A merged pull request marks the lane's work as merged. It never ends a runner
+A merged pull request is reported as merged for that pull request only; it is
+not treated as proof that the lane's task is done, and it never ends a runner
 (`runtime/internal/pullrequest`, `runtime/internal/session/pull_request.go`).
 
 ## Feedback and support tickets

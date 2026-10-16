@@ -69,7 +69,7 @@ func ComposeLink(lane ledger.LaneState, pr ledger.LanePullRequest, live bool, co
 	status.Closure = closure(status.Work, status.Runner, lane.LaneID)
 	if unmerged := unmergedOthers(lane, pr.URL); status.Work == WorkMerged && unmerged > 0 {
 		status.Closure = &Closure{Action: ClosureNone, Reason: fmt.Sprintf(
-			"this pull request merged, but %d other linked pull request(s) are not known to be merged; the lane's work may still be open", unmerged)}
+			"this pull request merged, but %d other linked pull request(s) are not known to be merged", unmerged)}
 	}
 	return status
 }
@@ -130,26 +130,27 @@ func workState(pr ledger.LanePullRequest) string {
 	}
 }
 
-// closure is the bounded lifecycle policy: a merged pull request completes the
-// lane's work, but Sessions never ends a runner because of it. Only a lane
-// whose runner already ended is offered the explicit, reversible archive.
+// closure is the bounded lifecycle policy. A merged pull request says that
+// pull request landed; it is not proof that the lane's task is done, so no
+// reason claims that, and Sessions never ends a runner because of it. Only a
+// lane whose runner already ended is offered the explicit, reversible archive.
 func closure(work, runner, id string) *Closure {
 	if work != WorkMerged {
-		reason := "the pull request is not merged; the lane's work is still open"
+		reason := "this pull request is not merged"
 		if work == WorkUnknown {
-			reason = "the pull request state is unknown; run `sessions pr refresh " + id + "` to read it"
+			reason = "this pull request's state is unknown; run `sessions pr refresh " + id + "` to read it"
 		}
 		return &Closure{Action: ClosureNone, Reason: reason}
 	}
 	switch runner {
 	case RunnerLive:
-		return &Closure{Action: ClosureKeep, Reason: "the pull request merged and the work is done, but the runner is still live; " +
-			"Sessions never ends a runner because its pull request merged. End it with `sessions kill " + id + "` when nothing else is running in it"}
+		return &Closure{Action: ClosureKeep, Reason: "this pull request merged, which does not by itself mean the lane's task is done, and the runner is still live; " +
+			"Sessions never ends a runner because a pull request merged. End it with `sessions kill " + id + "` once you know nothing else is needed from it"}
 	case RunnerNotConnected:
-		return &Closure{Action: ClosureKeep, Reason: "the pull request merged and the work is done; the session is paused or lost, not ended, " +
+		return &Closure{Action: ClosureKeep, Reason: "this pull request merged, which does not by itself mean the lane's task is done; the session is paused or lost, not ended, " +
 			"and Sessions leaves it as it is. Resume it or end it with `sessions kill " + id + "`"}
 	default:
-		return &Closure{Action: ClosureArchiveAvailable, Reason: "the pull request merged and the runner has ended; " +
+		return &Closure{Action: ClosureArchiveAvailable, Reason: "this pull request merged and the runner has ended; " +
 			"`sessions archive " + id + "` hides the record without deleting its history"}
 	}
 }
