@@ -150,6 +150,16 @@ func RestoredObservations(info SessionInfo) *Observations {
 	}
 }
 
+// MarkObservationGap records that the watcher following the provider file did
+// not deliver every record: it skipped one, read only a window, or lost the
+// file. Tool history is incomplete from then on; a later successful read does
+// not undo it.
+func (s *Session) MarkObservationGap() {
+	s.mu.Lock()
+	s.observed.historyIncomplete = true
+	s.mu.Unlock()
+}
+
 // SetWorkingSource records which evidence the runtime manager used for the
 // working flag it is about to set.
 func (s *Session) SetWorkingSource(source string) {

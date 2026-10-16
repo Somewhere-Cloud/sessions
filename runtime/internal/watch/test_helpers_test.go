@@ -7,7 +7,19 @@ import (
 	"time"
 )
 
+// collectEvents gathers provider records, passing over watcher signals; use
+// collectStream to see the signals in their place.
 func collectEvents(t *testing.T, events <-chan SessionEvent, count int, timeout time.Duration) []SessionEvent {
+	t.Helper()
+	return collect(t, events, count, timeout, false)
+}
+
+func collectStream(t *testing.T, events <-chan SessionEvent, count int, timeout time.Duration) []SessionEvent {
+	t.Helper()
+	return collect(t, events, count, timeout, true)
+}
+
+func collect(t *testing.T, events <-chan SessionEvent, count int, timeout time.Duration, signals bool) []SessionEvent {
 	t.Helper()
 	collected := make([]SessionEvent, 0, count)
 	deadline := time.NewTimer(timeout)
@@ -18,6 +30,9 @@ func collectEvents(t *testing.T, events <-chan SessionEvent, count int, timeout 
 			if !ok {
 				t.Fatalf("event channel closed after %d/%d events", len(collected), count)
 			}
+			if _, isSignal := SignalOf(event); isSignal && !signals {
+				continue
+			}
 			collected = append(collected, event)
 		case <-deadline.C:
 			t.Fatalf("timed out after %d/%d events", len(collected), count)
@@ -26,12 +41,21 @@ func collectEvents(t *testing.T, events <-chan SessionEvent, count int, timeout 
 	return collected
 }
 
+// assertNoEvent fails on any provider record within duration; watcher
+// signals are not records and are passed over.
 func assertNoEvent(t *testing.T, events <-chan SessionEvent, duration time.Duration) {
 	t.Helper()
-	select {
-	case event := <-events:
-		t.Fatalf("unexpected event: %#v", event)
-	case <-time.After(duration):
+	deadline := time.After(duration)
+	for {
+		select {
+		case event := <-events:
+			if _, isSignal := SignalOf(event); isSignal {
+				continue
+			}
+			t.Fatalf("unexpected event: %#v", event)
+		case <-deadline:
+			return
+		}
 	}
 }
 

@@ -52,21 +52,18 @@ func TestClaudeWatcherSkipsAndCountsAnOversizedRecord(t *testing.T) {
 	}
 	defer watcher.Close()
 
-	// The records on either side of the oversized one still arrive, in order.
-	got := collectEvents(t, watcher.Events, 2, 2*time.Second)
-	assertEventsJSONEqual(t, got, []SessionEvent{before, after})
+	// The records on either side of the oversized one still arrive, in order,
+	// with the skip signalled between them where the gap is.
+	got := collectStream(t, watcher.Events, 3, 2*time.Second)
+	signal, isSignal := SignalOf(got[1])
+	if !isSignal || signal.Kind != SignalSkipped || !strings.Contains(signal.Detail, "skipped a record longer than") {
+		t.Fatalf("no skip signal between the records: %#v", got)
+	}
+	assertEventsJSONEqual(t, []SessionEvent{got[0], got[2]}, []SessionEvent{before, after})
 	assertNoEvent(t, watcher.Events, 80*time.Millisecond)
 
 	if skipped := watcher.SkippedRecords(); skipped != 1 {
 		t.Fatalf("SkippedRecords = %d, want 1", skipped)
-	}
-	select {
-	case err := <-watcher.Errors:
-		if err == nil || !strings.Contains(err.Error(), "skipped a record longer than") {
-			t.Fatalf("watcher error = %v", err)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("no error surfaced for the skipped record")
 	}
 
 	// The provider file is never repaired or truncated: the oversized bytes stay

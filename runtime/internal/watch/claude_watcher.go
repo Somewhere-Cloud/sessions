@@ -63,7 +63,6 @@ type claudeTail struct {
 	emittedOrder  []string
 	unresolved    bool
 	reportedSkips int
-	skipReported  bool
 
 	mirror      *TranscriptMirror
 	mirrorWrote bool
@@ -172,7 +171,7 @@ func (tail *claudeTail) tick() {
 		}
 	} else if tail.path == "" && !tail.unresolved {
 		tail.unresolved = true
-		tail.watcher.emitError(tail.ctx, fmt.Errorf(
+		tail.watcher.emitSignal(tail.ctx, SignalUnresolved, fmt.Sprintf(
 			"unresolved JSONL for %s in %s: %s",
 			valueOr(tail.sessionID, "(no id)"), strings.Join(tail.projectDirs, ", "), resolution.Reason,
 		))
@@ -213,7 +212,6 @@ func (tail *claudeTail) attach(path string) {
 	}
 	tail.path = path
 	tail.fileInfo = nil
-	tail.skipReported = false
 	tail.restartAtZero()
 	tail.mirror.NoteProviderPath(path)
 	tail.watcher.setPath(path)
@@ -227,10 +225,12 @@ func (tail *claudeTail) detach() {
 	// dropped rather than at some later shutdown that may never happen.
 	_ = tail.mirror.Sync()
 	tail.hints.remove(tail.path)
+	lost := tail.path
 	tail.path = ""
 	tail.fileInfo = nil
 	tail.restartAtZero()
 	tail.watcher.setPath("")
+	tail.watcher.emitSignal(tail.ctx, SignalDetached, "the provider transcript "+lost+" can no longer be read")
 }
 
 // restartAtZero puts the tail back at the start of a provider file. The mirror
@@ -304,10 +304,12 @@ func (tail *claudeTail) consume(chunk []byte) {
 	// newline-delimited JSON record is complete. The carry is bounded: a record
 	// longer than the bound is skipped and counted rather than being allowed to
 	// hold the whole file in memory.
-	defer tail.reportSkippedRecords()
 	tail.lines.feed(chunk)
 	for {
 		line, ok := tail.lines.next()
+		// A skip found while reaching this record is reported before it, in
+		// the order the file holds them.
+		tail.reportSkippedRecords()
 		if !ok {
 			return
 		}
@@ -316,6 +318,9 @@ func (tail *claudeTail) consume(chunk []byte) {
 		}
 		var event SessionEvent
 		if json.Unmarshal(line, &event) != nil {
+			if !tail.watcher.emitSignal(tail.ctx, SignalSkipped, "a record in "+tail.path+" could not be decoded; later records still stream") {
+				return
+			}
 			continue
 		}
 		// Tee before the tail's own deduplication. That set is capped and
@@ -342,21 +347,16 @@ func (tail *claudeTail) consume(chunk []byte) {
 }
 
 // reportSkippedRecords publishes any newly skipped oversized records. The count
-// is what the torn-record policy requires a caller to be able to read back; the
-// error stream carries the first skip per attached file as well, because a
-// number nobody polls is not a surfaced number, and one error per skip could
-// flood a bounded channel on a file full of them.
+// is what the torn-record policy requires a caller to be able to read back;
+// each new skip is also a signal on Events, in order with the records around
+// it, so a consumer knows exactly where its view has a gap.
 func (tail *claudeTail) reportSkippedRecords() {
 	if tail.lines.skipped == tail.reportedSkips {
 		return
 	}
 	tail.watcher.noteSkippedRecords(tail.lines.skipped - tail.reportedSkips)
 	tail.reportedSkips = tail.lines.skipped
-	if tail.skipReported {
-		return
-	}
-	tail.skipReported = true
-	tail.watcher.emitError(tail.ctx, fmt.Errorf(
+	tail.watcher.emitSignal(tail.ctx, SignalSkipped, fmt.Sprintf(
 		"skipped a record longer than %d bytes in %s; it stays in the provider file and is counted, later records still stream",
 		tail.lines.limit(), tail.path,
 	))

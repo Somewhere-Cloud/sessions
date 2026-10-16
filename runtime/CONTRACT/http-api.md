@@ -707,7 +707,10 @@ Values: `capabilities.runtime` is `claude-structured`, `codex-app-server`,
   an observed end, not a lower bound on calls currently running: an end may be
   among the missing records too.
   `history_complete` is `false` for a runner this daemon re-adopted (its replay
-  may be bounded) or when records were unreadable. `observed_since` is the
+  may be bounded), when records were unreadable, or once a transcript or
+  rollout watcher skipped a record (too long or undecodable), read only the
+  tail window of its file, or lost its bound file. It stays `false` after
+  later records are read. `observed_since` is the
   start of the observed window: the earliest record time seen, or when this
   daemon attached if earlier or nothing was timed. This does not guarantee
   continuous coverage; untimed records may predate that value. `last_end_status` is how the
@@ -722,8 +725,9 @@ Values: `capabilities.runtime` is `claude-structured`, `codex-app-server`,
   runtimes that cannot observe approvals. A pending approval is a fact, not a
   claim about why a turn is quiet.
 - `observers` are transcript or rollout watchers: `unresolved` when the
-  provider file cannot be found or bound yet, `error` with the last watcher
-  error, `following` again only after the watcher delivers a record read from
+  provider file cannot be found or bound yet, or the bound file can no longer
+  be read; `error` with the last watcher error, including a skipped record;
+  `following` again only after the watcher delivers a record read from
   a bound file (terminal output never recovers it). An observer error keeps
   every fact already observed. `since` is when the observer entered its state.
   Structured runtimes and shells have none.

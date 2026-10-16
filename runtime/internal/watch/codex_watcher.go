@@ -97,7 +97,6 @@ type codexTail struct {
 	inputCache    codexInputCache
 
 	reportedSkips int
-	skipReported  bool
 }
 
 // WatchCodexRollout starts a backfilling Codex rollout watcher.
@@ -200,7 +199,6 @@ func (tail *codexTail) attach(path string) {
 		tail.hints.remove(tail.path)
 	}
 	tail.path = path
-	tail.skipReported = false
 	tail.resetReadState()
 	tail.fileInfo = nil
 	tail.watcher.setPath(path)
@@ -210,10 +208,12 @@ func (tail *codexTail) attach(path string) {
 
 func (tail *codexTail) detach() {
 	tail.hints.remove(tail.path)
+	lost := tail.path
 	tail.path = ""
 	tail.fileInfo = nil
 	tail.resetReadState()
 	tail.watcher.setPath("")
+	tail.watcher.emitSignal(tail.ctx, SignalDetached, "the Codex rollout "+lost+" can no longer be read")
 }
 
 func (tail *codexTail) resetReadState() {
@@ -292,6 +292,15 @@ func (tail *codexTail) backfill(file *os.File, info os.FileInfo) {
 	// has to find unchanged.
 	tail.anchor.advance(window)
 	replayStart := boundedBackfillStart(window, windowStart)
+	if windowStart > 0 || replayStart > 0 {
+		// The records before the window are never read: a gap, reported
+		// before the first record of the window.
+		if !tail.watcher.emitSignal(tail.ctx, SignalWindowed, fmt.Sprintf(
+			"read only the last %d bytes of %s; earlier records were not read", int64(len(window)-replayStart), tail.path,
+		)) {
+			return
+		}
+	}
 	tail.consume(window[replayStart:])
 }
 
@@ -333,10 +342,10 @@ func (tail *codexTail) consume(chunk []byte) {
 	// taken from the buffer's own record count so that a skipped record still
 	// advances it -- the synthesized event ids are "<basename>:<index>", and an
 	// index that silently shifted would rename every event after the skip.
-	defer tail.reportSkippedRecords()
 	tail.lines.feed(chunk)
 	for {
 		line, ok := tail.lines.next()
+		tail.reportSkippedRecords()
 		if !ok {
 			return
 		}
@@ -346,6 +355,9 @@ func (tail *codexTail) consume(chunk []byte) {
 		}
 		var decoded map[string]any
 		if json.Unmarshal(line, &decoded) != nil {
+			if !tail.watcher.emitSignal(tail.ctx, SignalSkipped, "a record in "+tail.path+" could not be decoded; later records still stream") {
+				return
+			}
 			continue
 		}
 		normalized := NormalizeCodexRolloutLine(decoded, CodexNormalizeContext{
@@ -363,19 +375,15 @@ func (tail *codexTail) consume(chunk []byte) {
 	}
 }
 
-// reportSkippedRecords mirrors the Claude tail: count every skip, surface it
-// once per attached rollout, and leave the provider file untouched.
+// reportSkippedRecords mirrors the Claude tail: count every skip and signal
+// it in order on Events, leaving the rollout file untouched.
 func (tail *codexTail) reportSkippedRecords() {
 	if tail.lines.skipped == tail.reportedSkips {
 		return
 	}
 	tail.watcher.noteSkippedRecords(tail.lines.skipped - tail.reportedSkips)
 	tail.reportedSkips = tail.lines.skipped
-	if tail.skipReported {
-		return
-	}
-	tail.skipReported = true
-	tail.watcher.emitError(tail.ctx, fmt.Errorf(
+	tail.watcher.emitSignal(tail.ctx, SignalSkipped, fmt.Sprintf(
 		"skipped a record longer than %d bytes in %s; it stays in the rollout file and is counted, later records still stream",
 		tail.lines.limit(), tail.path,
 	))

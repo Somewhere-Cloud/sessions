@@ -457,8 +457,12 @@ func (r *runtimeSession) tick() {
 			if next {
 				source = state.WorkingFromTerminalHeuristic
 			}
-		} else if snapshot, _, err := r.session.Snapshot(context.Background(), 0); err == nil {
-			next, source = ClaudeWorkingFromSnapshot(snapshot), state.WorkingFromTerminalHeuristic
+		} else if still, read := r.screenStillWorking(); read {
+			next, source = still, state.WorkingFromTerminalHeuristic
+		} else if !byteWorking {
+			// An unreadable screen and too little output to count are no
+			// evidence either way: the flag and its source stay as they were.
+			return
 		}
 	case state.ToolCodex:
 		if structured != nil {
@@ -472,9 +476,8 @@ func (r *runtimeSession) tick() {
 	}
 }
 
-// screenStillWorking reports whether the PTY screen still shows Claude's
-// working indicator, and whether the screen could be read at all. It is read
-// only while the session is working, so idle sessions take no snapshot.
+// screenStillWorking reports whether the PTY screen shows Claude's working
+// indicator, and whether the screen could be read at all.
 func (r *runtimeSession) screenStillWorking() (working, read bool) {
 	var snapshot string
 	var err error
@@ -581,6 +584,10 @@ func (r *runtimeSession) startWatcher(info state.SessionInfo) {
 				if !ok {
 					return
 				}
+				if signal, isSignal := watch.SignalOf(event); isSignal {
+					r.observeWatchSignal(observer, signal)
+					continue
+				}
 				if info.Tool == state.ToolCodex {
 					r.bindCodexWatcher(watcher.Path())
 				}
@@ -664,6 +671,24 @@ func (r *runtimeSession) openWatcher(info state.SessionInfo) (*watch.FileWatcher
 func (r *runtimeSession) observerDelivered(observer, path string) {
 	if observer != "" && path != "" {
 		r.session.SetObserverHealth(observer, state.ObserverFollowing, "")
+	}
+}
+
+// observeWatchSignal applies what the watcher reported about its own
+// coverage, in order with the records around it. A gap is sticky; observer
+// health still returns to following on the next record read from a bound file.
+func (r *runtimeSession) observeWatchSignal(observer string, signal watch.Signal) {
+	switch signal.Kind {
+	case watch.SignalSkipped:
+		r.session.MarkObservationGap()
+		r.session.SetObserverHealth(observer, state.ObserverError, signal.Detail)
+	case watch.SignalWindowed:
+		r.session.MarkObservationGap()
+	case watch.SignalDetached:
+		r.session.MarkObservationGap()
+		r.session.SetObserverHealth(observer, state.ObserverUnresolved, signal.Detail)
+	case watch.SignalUnresolved:
+		r.session.SetObserverHealth(observer, state.ObserverUnresolved, signal.Detail)
 	}
 }
 
