@@ -357,7 +357,7 @@ func (tail *codexTail) consume(chunk []byte) {
 				return
 			}
 		}
-		if normalized.Working != nil && !tail.watcher.emitWorking(tail.ctx, *normalized.Working) {
+		if normalized.Working != nil && !tail.watcher.emitWorking(tail.ctx, WorkingEdge{Working: *normalized.Working, At: normalized.WorkingAt}) {
 			return
 		}
 	}

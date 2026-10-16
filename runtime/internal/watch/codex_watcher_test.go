@@ -106,8 +106,11 @@ func TestCodexWatcherBoundedBackfillAndExactLiveHandoff(t *testing.T) {
 	}
 	select {
 	case working := <-watcher.Working:
-		if !working {
+		if !working.Working {
 			t.Fatal("task_started working state = false, want true")
+		}
+		if want := time.Date(2026, time.July, 16, 12, 1, 1, 0, time.UTC).UnixMilli(); working.At != want {
+			t.Fatalf("task_started time = %d, want the record's own %d", working.At, want)
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for task_started working state")
@@ -246,5 +249,52 @@ func TestBoundedBackfillStart(t *testing.T) {
 	}
 	if count != codexBackfillLineLimit {
 		t.Fatalf("bounded line count = %d, want %d", count, codexBackfillLineLimit)
+	}
+}
+
+// Reattaching to an existing rollout backfills its lifecycle records. Each
+// edge carries the record's own time, never the moment the watcher read it,
+// and a record without a time carries none.
+func TestCodexWatcherBackfillKeepsLifecycleRecordTimes(t *testing.T) {
+	root := t.TempDir()
+	rolloutPath := filepath.Join(root, "sessions", "2026", "07", "16", "rollout-2026-07-16T12-00-00-lifecycle.jsonl")
+	if err := os.MkdirAll(filepath.Dir(rolloutPath), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	lines := []map[string]any{
+		{"timestamp": "2026-07-16T12:00:00Z", "type": "event_msg", "payload": map[string]any{"type": "task_started"}},
+		{"timestamp": "2026-07-16T12:05:00Z", "type": "event_msg", "payload": map[string]any{"type": "task_complete"}},
+		{"type": "event_msg", "payload": map[string]any{"type": "task_started"}},
+	}
+	var encoded []byte
+	for _, line := range lines {
+		record, err := json.Marshal(line)
+		if err != nil {
+			t.Fatal(err)
+		}
+		encoded = append(append(encoded, record...), '\n')
+	}
+	if err := os.WriteFile(rolloutPath, encoded, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	watcher := WatchCodexRollout(CodexWatcherOptions{
+		CreatedAt: time.Date(2026, time.July, 16, 12, 0, 0, 0, time.Local), SessionsDir: filepath.Join(root, "sessions"),
+		RolloutPath: rolloutPath, InitialDelay: time.Millisecond, PollInterval: 10 * time.Millisecond,
+	})
+	defer watcher.Close()
+	want := []WorkingEdge{
+		{Working: true, At: time.Date(2026, time.July, 16, 12, 0, 0, 0, time.UTC).UnixMilli()},
+		{Working: false, At: time.Date(2026, time.July, 16, 12, 5, 0, 0, time.UTC).UnixMilli()},
+		{Working: true, At: 0},
+	}
+	for index, expected := range want {
+		select {
+		case edge := <-watcher.Working:
+			if edge != expected {
+				t.Fatalf("edge %d = %+v, want %+v", index, edge, expected)
+			}
+		case <-time.After(3 * time.Second):
+			t.Fatalf("timed out waiting for lifecycle edge %d", index)
+		}
 	}
 }

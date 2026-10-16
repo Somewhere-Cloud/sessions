@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"time"
 	"unicode"
 )
 
@@ -19,6 +20,20 @@ type CodexNormalizeContext struct {
 type CodexNormalization struct {
 	Events  []SessionEvent
 	Working *bool
+	// WorkingAt is the lifecycle record's own time in Unix milliseconds, or
+	// 0 when the rollout line carries none. It is never the time the watcher
+	// read the line, so a backfill reports the original time or nothing.
+	WorkingAt int64
+}
+
+// codexTimestampMillis is a rollout line's own time, or 0 when it has none.
+func codexTimestampMillis(line map[string]any) int64 {
+	timestamp, _ := codexTimestamp(line).(string)
+	parsed, err := time.Parse(time.RFC3339Nano, timestamp)
+	if err != nil {
+		return 0
+	}
+	return parsed.UnixMilli()
 }
 
 func stableCodexUUID(context CodexNormalizeContext, suffix string) string {
@@ -335,11 +350,12 @@ func NormalizeCodexRolloutLine(raw any, context CodexNormalizeContext) CodexNorm
 	if lineType == "event_msg" {
 		switch recordString(payload, "type") {
 		case "task_started":
-			return CodexNormalization{Working: boolPointer(true)}
+			return CodexNormalization{Working: boolPointer(true), WorkingAt: codexTimestampMillis(line)}
 		case "task_complete":
 			return CodexNormalization{
-				Events:  normalizeCodexTaskComplete(line, context),
-				Working: boolPointer(false),
+				Events:    normalizeCodexTaskComplete(line, context),
+				Working:   boolPointer(false),
+				WorkingAt: codexTimestampMillis(line),
 			}
 		case "token_count":
 			return CodexNormalization{Events: normalizeCodexTokenCount(payload, line, context)}

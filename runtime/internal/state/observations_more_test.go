@@ -196,3 +196,26 @@ func TestObserverErrorKeepsLastKnownTranscriptFacts(t *testing.T) {
 		t.Fatalf("observer error erased facts: last=%+v tools=%+v observers=%+v", observations.Last, observations.Tools, observations.Observers)
 	}
 }
+
+// A rollout lifecycle edge carries the rollout record's own time, or none;
+// observing it never stamps the observer's clock, so a reattach backfill
+// cannot manufacture turn timing.
+func TestRolloutTurnUsesRecordTimeOrUnknown(t *testing.T) {
+	session, _ := observedSession(t, "/usr/local/bin/codex", "")
+	session.ObserveRolloutTurn(true, 0)
+	turn := session.Info().Observations.Turn
+	if turn.Open == nil || !*turn.Open || turn.StartedAt != nil {
+		t.Fatalf("an untimed rollout start manufactured a time: %+v", turn)
+	}
+	started, ended := time.Now().Add(-2*time.Hour).UnixMilli(), time.Now().Add(-time.Hour).UnixMilli()
+	session.ObserveRolloutTurn(false, ended)
+	session.ObserveRolloutTurn(true, started)
+	session.ObserveRolloutTurn(false, ended)
+	turn = session.Info().Observations.Turn
+	if *turn.Open || *turn.StartedAt != started || *turn.EndedAt != ended || turn.EndedBy != "rollout-file" {
+		t.Fatalf("rollout turn = %+v", turn)
+	}
+	if session.Info().Observations.Capabilities.TurnBoundaries != ObservedRolloutFile {
+		t.Fatal("codex PTY lost its rollout capability")
+	}
+}

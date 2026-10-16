@@ -570,10 +570,11 @@ func (r *runtimeSession) startWatcher(info state.SessionInfo) {
 				if err == nil {
 					r.session.RecordClaudeEvent(raw)
 				}
-			case working, ok := <-watcher.Working:
+			case edge, ok := <-watcher.Working:
 				if !ok {
 					return
 				}
+				working := edge.Working
 				if !working {
 					r.markTerminalTurnDone()
 				}
@@ -581,7 +582,7 @@ func (r *runtimeSession) startWatcher(info state.SessionInfo) {
 				value := working
 				r.structuredLifecycleWorking = &value
 				r.mu.Unlock()
-				r.session.ObserveRolloutTurn(working)
+				r.session.ObserveRolloutTurn(working, edge.At)
 				r.session.SetWorkingSource(state.WorkingFromRolloutFile)
 				r.setWorking(working)
 			case watchErr, ok := <-watcher.Errors:

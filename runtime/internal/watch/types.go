@@ -19,11 +19,11 @@ type SessionEvent map[string]any
 // loop. Working is used by Codex lifecycle records; Claude never writes it.
 type FileWatcher struct {
 	Events  <-chan SessionEvent
-	Working <-chan bool
+	Working <-chan WorkingEdge
 	Errors  <-chan error
 
 	events  chan SessionEvent
-	working chan bool
+	working chan WorkingEdge
 	errors  chan error
 
 	cancel    context.CancelFunc
@@ -38,7 +38,7 @@ type FileWatcher struct {
 func newFileWatcher() (*FileWatcher, context.Context) {
 	ctx, cancel := context.WithCancel(context.Background())
 	events := make(chan SessionEvent, 4096)
-	working := make(chan bool, 256)
+	working := make(chan WorkingEdge, 256)
 	errors := make(chan error, 32)
 	w := &FileWatcher{
 		Events:  events,
@@ -135,12 +135,19 @@ func (w *FileWatcher) emitEvent(ctx context.Context, event SessionEvent) bool {
 	}
 }
 
-func (w *FileWatcher) emitWorking(ctx context.Context, working bool) bool {
+// WorkingEdge is one provider lifecycle transition and the time the provider
+// record states for it, in Unix milliseconds, or 0 when the record has none.
+type WorkingEdge struct {
+	Working bool
+	At      int64
+}
+
+func (w *FileWatcher) emitWorking(ctx context.Context, edge WorkingEdge) bool {
 	if ctx.Err() != nil {
 		return false
 	}
 	select {
-	case w.working <- working:
+	case w.working <- edge:
 		return true
 	case <-ctx.Done():
 		return false

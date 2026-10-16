@@ -119,10 +119,12 @@ func (s *Session) SetWorkingSource(source string) {
 }
 
 // ObserveRolloutTurn records a Codex rollout lifecycle edge as a turn
-// boundary sourced from the rollout file.
-func (s *Session) ObserveRolloutTurn(working bool) {
+// boundary sourced from the rollout file. at is the rollout record's own time,
+// or 0 when it has none; the watcher's read time is never used, so a backfill
+// after a reattach cannot manufacture turn timing.
+func (s *Session) ObserveRolloutTurn(working bool, at int64) {
 	s.mu.Lock()
-	s.observed.observeRollout(working, time.Now().UnixMilli())
+	s.observed.observeRollout(working, at)
 	s.mu.Unlock()
 }
 

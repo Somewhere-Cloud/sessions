@@ -673,7 +673,10 @@ Values: `capabilities.runtime` is `claude-structured`, `codex-app-server`,
   wrote (`"origin":"sessions"`, or older ones recognized by type),
   metadata-only records, and unreadable records move no clock.
 - Turn and tool times are the record's event time when it states one,
-  otherwise its observed time, otherwise `null`.
+  otherwise its observed time, otherwise `null`. A Codex PTY rollout boundary
+  carries the rollout record's own time, or `null` when the record has none;
+  the watcher's read time is never used, so a backfill after a reattach does
+  not manufacture turn timing.
 - `tools` pairs starts and ends by id (Claude-shaped `tool_use`/`tool_result`
   from the stream, transcript, or normalized rollout; Codex app-server
   `item_started`/`item_completed` for non-message items). `open` lists at most
