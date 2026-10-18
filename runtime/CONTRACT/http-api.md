@@ -2099,11 +2099,14 @@ For a Rich Claude session with no failure on record, it asks the runner to
 continue saved next-turn messages not yet dispatched; the runner decides from
 its own queue and turn state, and never resends a dispatched message. Success
 is 200 with the current bare `SessionInfo`. A PTY session, a Codex session with
-no failed turn, an active or ended session, an older runner that cannot accept
+no failed turn, a working session with a failed turn, an ended session, an older
+runner that cannot accept
 retry controls, or a Claude runner that answers that it has nothing to retry or
 continue (including one still holding a turn whose provider has not exited)
-returns `409 {"error":"<sentence explaining why>"}`. Unknown session is 404.
-Other runner-control failures are 502.
+returns `409 {"error":"<sentence explaining why>"}`. With no failure on record,
+the daemon's `working` flag does not refuse a Claude continuation: that flag is
+inferred from history, and only the runner knows whether its turn is open.
+Unknown session is 404. Other runner-control failures are 502.
 
 ### `POST /api/sessions/:id/retry/stop`
 

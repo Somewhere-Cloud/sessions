@@ -133,6 +133,20 @@ func TestProviderRetryAsksClaudeRunnerToContinueSavedMessages(t *testing.T) {
 		t.Fatalf("runner controls = %d, want the runner asked once", runs)
 	}
 
+	// Working is inferred from history, and an older runner leaves it set
+	// after an interruption; with nothing failed the runner decides from its
+	// own turn state, and its "active" answer is the refusal.
+	current, _ := daemon.registry.Get(claude.ID)
+	current.SetWorking(true)
+	runner.RefuseRetry("Claude turn is active")
+	if code, message := retry(claude.ID); code != http.StatusConflict || !strings.Contains(message, "Claude turn is active") {
+		t.Fatalf("working continuation = %d %q", code, message)
+	}
+	if runs, _ := runner.RetryControls(); runs != 2 {
+		t.Fatalf("runner controls = %d, want the runner asked about its own turn", runs)
+	}
+	current.SetWorking(false)
+
 	// The runner's own refusal, including an older runner's from before the
 	// queue existed, is a known outcome: 409 with its reason, not a 502.
 	for _, reason := range []string{"no failed turn or saved next-turn message to retry", "the runner has no failed turn to retry"} {
@@ -163,7 +177,6 @@ func TestProviderRetryAsksClaudeRunnerToContinueSavedMessages(t *testing.T) {
 		t.Fatalf("failed-turn refusal = %d %q", code, message)
 	}
 
-	current, _ := daemon.registry.Get(claude.ID)
 	current.SetWorking(true)
 	before, _ := runner.RetryControls()
 	if code, message := retry(claude.ID); code != http.StatusConflict || !strings.Contains(message, "working") {

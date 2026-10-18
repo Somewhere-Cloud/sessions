@@ -694,7 +694,11 @@ func (s *Session) retryEligibilityLocked(stop bool) error {
 	if !stop && s.info.FailureKind == "" && s.info.Kind != KindClaudeStructured {
 		return ErrNoFailedTurn
 	}
-	if !stop && s.info.Working {
+	// Only a failed-turn retry is refused here for working. Continuing saved
+	// Claude messages is the runner's call on its own turn state: this flag is
+	// inferred from history, and a runner from before turn_interrupted leaves
+	// it set after an interruption although its turn has ended.
+	if !stop && s.info.Working && s.info.FailureKind != "" {
 		return fmt.Errorf("%w; wait for the active turn to finish", ErrSessionWorking)
 	}
 	return nil
