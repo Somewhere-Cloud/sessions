@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"iter"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -629,18 +628,27 @@ func (s *Session) Approve(ctx context.Context, control proto.ApprovalControl) er
 	return s.runner.Approve(ctx, control)
 }
 
+// RetryProvider and StopProviderRetry hold the exclusive control admission
+// across the runner frame, so retry controls stay ordered with model changes,
+// approvals and input. The state lock is held only to decide eligibility and
+// to record the outcome, never across the runner's answer (up to five
+// seconds): readers and the event pump keep running meanwhile. The facts the
+// decision used are captured with it, so the answer is read against the
+// question that was asked even if a later event changes the session.
 func (s *Session) RetryProvider(ctx context.Context) error {
 	s.controlMu.Lock()
 	defer s.controlMu.Unlock()
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if err := s.retryEligibilityLocked(false); err != nil {
+	s.mu.RLock()
+	err := s.retryEligibilityLocked(false)
+	failureRecorded := s.info.FailureKind != ""
+	s.mu.RUnlock()
+	if err != nil {
 		return err
 	}
 	controller := s.runner.(interface{ Retry(context.Context) error })
-	err := controller.Retry(ctx)
+	err = controller.Retry(ctx)
 	var refusal proto.RetryRefusal
-	if err != nil && s.info.FailureKind == "" && errors.As(err, &refusal) {
+	if err != nil && !failureRecorded && errors.As(err, &refusal) {
 		return fmt.Errorf("%w: %s. Nothing was resent", ErrNothingToContinue, refusal.Reason)
 	}
 	if err != nil {
@@ -652,16 +660,25 @@ func (s *Session) RetryProvider(ctx context.Context) error {
 func (s *Session) StopProviderRetry(ctx context.Context) error {
 	s.controlMu.Lock()
 	defer s.controlMu.Unlock()
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if err := s.retryEligibilityLocked(true); err != nil {
+	s.mu.RLock()
+	err := s.retryEligibilityLocked(true)
+	stopped := s.info.Retry
+	s.mu.RUnlock()
+	if err != nil {
 		return err
 	}
 	controller := s.runner.(interface{ StopRetry(context.Context) error })
 	if err := controller.StopRetry(ctx); err != nil {
 		return fmt.Errorf("stop provider retry: %w", err)
 	}
-	s.info.Retry = nil
+	// Clear only the schedule this control stopped. The runner's own cleared
+	// state may already have arrived, and a schedule published since then is
+	// a newer one this stop did not address.
+	s.mu.Lock()
+	if s.info.Retry == stopped {
+		s.info.Retry = nil
+	}
+	s.mu.Unlock()
 	return nil
 }
 
@@ -898,19 +915,16 @@ func (s *Session) ClaudeEventLog() []json.RawMessage {
 	return events
 }
 
-// RetainedClaudeEvents yields each retained structured event in order under
-// the read lock, without copying. The caller must not keep an event past its
-// iteration or call back into this session while iterating.
-func (s *Session) RetainedClaudeEvents() iter.Seq[json.RawMessage] {
-	return func(yield func(json.RawMessage) bool) {
-		s.mu.RLock()
-		defer s.mu.RUnlock()
-		for _, event := range s.claude {
-			if !yield(event) {
-				return
-			}
-		}
-	}
+// RetainedClaudeEvents returns the retained structured events in order. Only
+// the slice of references is copied, under a short read lock; reading the
+// events happens after it is released, so a slow reader never holds back the
+// event pump. Retained event bytes are never modified once recorded (window
+// trimming moves references, not bytes), so the events stay valid; the
+// caller must not modify them.
+func (s *Session) RetainedClaudeEvents() []json.RawMessage {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return append([]json.RawMessage(nil), s.claude...)
 }
 
 func (s *Session) EventsWindow(since, tail, before *int64) ClaudeEventsWindow {

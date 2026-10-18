@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/somewhere-tech/sessions/runtime/internal/delivery"
@@ -133,5 +134,5 @@ func (s *Server) claudeDeliveryEvidence(record delivery.Record, status delivery.
 	if !ok || current.Info().Kind != state.KindClaudeStructured {
 		return delivery.ClaudeEvidence{}, false
 	}
-	return delivery.ObserveClaudeOperation(current.RetainedClaudeEvents(), record.OperationID), true
+	return delivery.ObserveClaudeOperation(slices.Values(current.RetainedClaudeEvents()), record.OperationID), true
 }

@@ -143,8 +143,8 @@ func (r *claudeStructuredRunner) admitClaudeMessage(control proto.MessageControl
 	result.Accepted, result.Boundary = true, boundary
 	if r.queue.Paused {
 		result.Error = "Saved for the next turn, but the queue is paused. Resolve the failed turn or inspect the conversation and use Retry; do not resend this message."
-	} else if reason := r.activeTurnReason(); active && reason != "Claude turn is active" {
-		result.Error = "Saved for the next turn; do not resend this message. " + reason + "."
+	} else if active && r.answeredTurnStillOpen() {
+		result.Error = "Saved for the next turn; do not resend this message. " + claudeAnsweredTurnOpenReason + "."
 	}
 	_, err = r.claimQueuedTurnLocked(false)
 	if err != nil {

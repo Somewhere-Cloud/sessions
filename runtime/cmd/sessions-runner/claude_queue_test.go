@@ -445,7 +445,7 @@ func TestClaudeAnsweredTurnWhoseProcessLingersSaysSo(t *testing.T) {
 		t.Fatal(result)
 	}
 	deadline := time.Now().Add(3 * time.Second)
-	for !strings.Contains(r.activeTurnReason(), "has not exited") {
+	for !r.answeredTurnStillOpen() {
 		if time.Now().After(deadline) {
 			t.Fatal("runner never recorded the provider's answer")
 		}
@@ -460,7 +460,7 @@ func TestClaudeAnsweredTurnWhoseProcessLingersSaysSo(t *testing.T) {
 	}
 	r.handleInput("\x1b")
 	waitClaudeQueue(t, r, func(queue claudeMessageQueue) bool { return queue.Paused })
-	if r.activeTurnReason() != "Claude turn is active" {
+	if r.answeredTurnStillOpen() || r.activeTurnReason() != "Claude turn is active" {
 		t.Fatal("a new turn inherited the previous answer")
 	}
 }
@@ -484,7 +484,7 @@ func TestClaudeInterruptedTurnAfterSuccessfulAnswerRetainsNoFailure(t *testing.T
 		t.Fatal(err)
 	}
 	deadline := time.Now().Add(3 * time.Second)
-	for !strings.Contains(r.activeTurnReason(), "has not exited") {
+	for !r.answeredTurnStillOpen() {
 		if time.Now().After(deadline) {
 			t.Fatal("runner never recorded the provider's answer")
 		}

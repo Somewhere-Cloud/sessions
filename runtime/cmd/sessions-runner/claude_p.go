@@ -437,16 +437,23 @@ func (r *claudeStructuredRunner) handleRetryControl(c *client, stop bool) error 
 	return c.write(proto.RetryRes, payload)
 }
 
+const claudeAnsweredTurnOpenReason = "Claude answered the current turn, but its provider process has not exited, so the turn is still open. " +
+	"Interrupt the turn to stop that process, then use Retry"
+
+// answeredTurnStillOpen reports that the provider gave the current turn its
+// result but its process has not ended, so the turn is still open.
+func (r *claudeStructuredRunner) answeredTurnStillOpen() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.turnAnswered
+}
+
 // activeTurnReason says why the runner is still in a turn. A provider that
 // has answered but not exited is reported as exactly that; Sessions does not
 // stop it on its own, because only the person knows whether it should end.
 func (r *claudeStructuredRunner) activeTurnReason() string {
-	r.mu.Lock()
-	answered := r.turnAnswered
-	r.mu.Unlock()
-	if answered {
-		return "Claude answered the current turn, but its provider process has not exited, so the turn is still open. " +
-			"Interrupt the turn to stop that process, then use Retry"
+	if r.answeredTurnStillOpen() {
+		return claudeAnsweredTurnOpenReason
 	}
 	return "Claude turn is active"
 }
