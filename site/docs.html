@@ -202,7 +202,7 @@
         <pre>{
   "onIdle": "~/bin/notify-sessions"
 }</pre>
-        <p>The hook receives these environment variables. <code>SESSIONS_OUTCOME</code> is <code>done</code>, <code>blocked</code>, or <code>error</code>; a missing final assistant summary is an empty string.</p>
+        <p>The hook receives these environment variables. <code>SESSIONS_OUTCOME</code> is <code>done</code>, <code>blocked</code>, or <code>error</code>; a missing final assistant summary is an empty string. A turn interrupted before the provider gave a result has no outcome, so the hook does not run for it.</p>
         <div class="env">
           <code>SESSIONS_SESSION_ID</code>
           <code>SESSIONS_SESSION_NAME</code>

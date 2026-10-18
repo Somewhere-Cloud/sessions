@@ -106,11 +106,15 @@ const (
 	noticeWaiting
 )
 
-// idleNotice chooses the notification for a published idle record. A current
+// idleNotice chooses the notification for a published idle record. A turn
+// with no outcome (an interruption) sends nothing. A current
 // provider fault is reported unless the runner has a retry scheduled; a
 // structured result, which carries its own notification, suppresses the done
 // and waiting notices, but never the fault.
 func idleNotice(outcome IdleOutcome, fault, retrying, resultSeen bool) idleNoticeKind {
+	if outcome == idleNoOutcome {
+		return noticeNone
+	}
 	if outcome == IdleError && fault {
 		if retrying {
 			return noticeNone

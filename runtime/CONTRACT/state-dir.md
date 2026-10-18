@@ -273,7 +273,9 @@ directory follows `SESSIONS_STATE_DIR` like `delivery-operations/`.
 ### `idle/<id>`
 
 A best-effort completion sentinel written on an observed `working: true ->
-false` transition after the activity classifier's first sample. Contents are
+false` transition after the activity classifier's first sample. A structured
+turn that ends with no outcome in its own records, such as one the person
+interrupted before the provider gave a result, writes none. Contents are
 one compact JSON object plus newline:
 
 ```json

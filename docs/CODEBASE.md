@@ -704,8 +704,12 @@ with those transitions. A structured result notifies once per observed turn,
 in the words of its outcome (a failed result is never "done"); a repeated
 result before the next observed start is not notified again, which is per
 turn rather than globally exactly-once because results carry no identity.
-Summaries in notifications and hooks come from the ended turn's own records
-only. Reconnect replay and HELLO only bootstrap state; they publish no effects.
+Summaries in notifications and hooks, and a structured runtime's outcome,
+come from the ended turn's own records only; a structured runtime is never
+classified from its rendered screen. A structured turn with no outcome in its
+records (interrupted before the provider's result, or Codex status
+`interrupted`) clears the idle reason and runs no hook, sentinel, or
+notification. Reconnect replay and HELLO only bootstrap state; they publish no effects.
 A turn adopted at attach that ends before this daemon observes a start is the
 runtime's first sample, which only initializes: its result notifies, but no
 idle record, hook, or sentinel is published for it. Creation and user-kill intent are

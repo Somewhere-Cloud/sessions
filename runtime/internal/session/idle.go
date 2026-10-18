@@ -54,21 +54,39 @@ func inspectIdle(session *state.Session) (IdleClassification, string, string) {
 	return classification, summary, snapshot
 }
 
-// currentTurnEvents returns the events of the most recent turn: those after
-// the last record that opens one, which is a user message other than a tool
-// result, or a provider turn_started record. A log with no opener is all one
-// turn as far as this daemon observed it. Summaries and questions read only
-// this, so a turn with no text of its own does not borrow an earlier turn's.
+// currentTurnEvents returns the events of the most recent turn. A structured
+// log opens every turn with a provider turn_started record, so the turn is
+// what follows the last one; a user message inside it (a Codex steer) stays
+// inside it. A log with no turn_started (a terminal transcript) opens a turn
+// at each user message other than a tool result. A log with no opener is all
+// one turn as far as this daemon observed it. Summaries, questions and
+// structured outcomes read only this, so a turn with nothing of its own does
+// not borrow an earlier turn's text or result.
 func currentTurnEvents(events []json.RawMessage) []json.RawMessage {
+	user := -1
 	for index := len(events) - 1; index >= 0; index-- {
-		if opensTurn(events[index]) {
+		switch turnOpener(events[index]) {
+		case openedByTurnStart:
 			return events[index+1:]
+		case openedByUser:
+			if user < 0 {
+				user = index
+			}
 		}
+	}
+	if user >= 0 {
+		return events[user+1:]
 	}
 	return events
 }
 
-func opensTurn(raw json.RawMessage) bool {
+const (
+	notAnOpener = iota
+	openedByTurnStart
+	openedByUser
+)
+
+func turnOpener(raw json.RawMessage) int {
 	var event struct {
 		Type    string `json:"type"`
 		Subtype string `json:"subtype"`
@@ -77,86 +95,114 @@ func opensTurn(raw json.RawMessage) bool {
 		} `json:"message"`
 	}
 	if json.Unmarshal(raw, &event) != nil {
-		return false
+		return notAnOpener
 	}
-	if event.Subtype == "turn_started" {
-		return event.Type == "claude" || event.Type == "codex"
+	if event.Subtype == "turn_started" && (event.Type == "claude" || event.Type == "codex") {
+		return openedByTurnStart
 	}
 	if event.Type != "user" {
-		return false
+		return notAnOpener
 	}
 	blocks, ok := event.Message.Content.([]any)
 	if !ok {
-		return true
+		return openedByUser
 	}
 	for _, item := range blocks {
 		if block, ok := item.(map[string]any); ok && block["type"] == "tool_result" {
-			return false
+			return notAnOpener
 		}
 	}
-	return true
+	return openedByUser
 }
 
+// idleNoOutcome is an ended structured turn with no outcome in its own
+// records: the person interrupted it before the provider gave a result, or
+// the result is not in the turn. It is neither completed nor failed, so the
+// idle reason is cleared and no hook, sentinel or notification runs; the
+// hook's documented outcomes are done, blocked and error.
+const idleNoOutcome IdleOutcome = ""
+
+type structuredRecord struct {
+	Source  string `json:"source"`
+	Type    string `json:"type"`
+	Subtype string `json:"subtype"`
+	Status  string `json:"status"`
+	IsError bool   `json:"is_error"`
+	Result  string `json:"result"`
+	Error   any    `json:"error"`
+}
+
+// structuredIdleClassification reads a structured runtime's outcome from the
+// current turn's own records, never from the screen. The provider's result
+// decides; without one, an approval still open in the turn blocks it, and
+// otherwise the turn has no outcome. An approval answered or left behind by
+// an interruption no longer blocks. Any other runtime is not authoritative.
 func structuredIdleClassification(kind string, events []json.RawMessage) (IdleClassification, bool) {
-	for index := len(events) - 1; index >= 0; index-- {
-		var event struct {
-			Source  string `json:"source"`
-			Type    string `json:"type"`
-			Subtype string `json:"subtype"`
-			Status  string `json:"status"`
-			IsError bool   `json:"is_error"`
-			Result  string `json:"result"`
-			Error   any    `json:"error"`
-		}
-		if json.Unmarshal(events[index], &event) != nil {
+	if kind != state.KindCodexAppServer && kind != state.KindClaudeStructured {
+		return IdleClassification{}, false
+	}
+	turn := currentTurnEvents(events)
+	answered, interrupted := 0, false
+	for index := len(turn) - 1; index >= 0; index-- {
+		var record structuredRecord
+		if json.Unmarshal(turn[index], &record) != nil || !structuredSource(kind, record) {
 			continue
 		}
-		switch kind {
-		case state.KindCodexAppServer:
-			if event.Source != codexapp.HistorySource {
+		switch {
+		case structuredResultRecord(kind, record):
+			return structuredResultClassification(kind, record, turn[:index+1]), true
+		case record.Type == "claude" && record.Subtype == "turn_interrupted":
+			interrupted = true
+		case record.Subtype == "approval_resolved":
+			answered++
+		case record.Subtype == "approval_requested":
+			if answered > 0 {
+				answered--
 				continue
 			}
-			// An approval the runner is holding open is the reason the lane
-			// stopped; it is answered, not replied to.
-			if event.Subtype == "approval_requested" {
-				return IdleClassification{Outcome: IdleBlocked, Line: approvalLine(events[index])}, true
+			if !interrupted {
+				return IdleClassification{Outcome: IdleBlocked, Line: approvalLine(turn[index])}, true
 			}
-			if event.Subtype != "turn_completed" {
-				continue
-			}
-			if strings.EqualFold(event.Status, "completed") {
-				if question, asked := AssistantQuestion(currentTurnEvents(events[:index+1])); asked {
-					return IdleClassification{Outcome: IdleBlocked, Line: question}, true
-				}
-				return IdleClassification{Outcome: IdleDone}, true
-			}
-			return IdleClassification{
-				Outcome: IdleError,
-				Line:    structuredFailureDetail(event.Status, event.Error, ""),
-			}, true
-		case state.KindClaudeStructured:
-			if event.Source != claudep.HistorySource {
-				continue
-			}
-			if event.Type == "system" && event.Subtype == "approval_requested" {
-				return IdleClassification{Outcome: IdleBlocked, Line: approvalLine(events[index])}, true
-			}
-			if event.Type != "result" {
-				continue
-			}
-			if !event.IsError && strings.EqualFold(event.Subtype, "success") {
-				if question, asked := AssistantQuestion(currentTurnEvents(events[:index+1])); asked {
-					return IdleClassification{Outcome: IdleBlocked, Line: question}, true
-				}
-				return IdleClassification{Outcome: IdleDone}, true
-			}
-			return IdleClassification{
-				Outcome: IdleError,
-				Line:    structuredFailureDetail(event.Subtype, event.Error, event.Result),
-			}, true
 		}
 	}
-	return IdleClassification{}, false
+	return IdleClassification{Outcome: idleNoOutcome}, true
+}
+
+func structuredSource(kind string, record structuredRecord) bool {
+	if kind == state.KindCodexAppServer {
+		return record.Source == codexapp.HistorySource
+	}
+	return record.Source == claudep.HistorySource
+}
+
+func structuredResultRecord(kind string, record structuredRecord) bool {
+	if kind == state.KindCodexAppServer {
+		return record.Subtype == "turn_completed"
+	}
+	return record.Type == "result"
+}
+
+// structuredResultClassification classifies the provider's result for the
+// turn whose records end at it. Codex reports an interrupted turn in its own
+// result; that is no outcome, not a failure.
+func structuredResultClassification(kind string, record structuredRecord, turn []json.RawMessage) IdleClassification {
+	succeeded := !record.IsError && strings.EqualFold(record.Subtype, "success")
+	if kind == state.KindCodexAppServer {
+		if strings.EqualFold(record.Status, "interrupted") {
+			return IdleClassification{Outcome: idleNoOutcome}
+		}
+		succeeded = strings.EqualFold(record.Status, "completed")
+	}
+	if succeeded {
+		if question, asked := AssistantQuestion(turn); asked {
+			return IdleClassification{Outcome: IdleBlocked, Line: question}
+		}
+		return IdleClassification{Outcome: IdleDone}
+	}
+	if kind == state.KindCodexAppServer {
+		return IdleClassification{Outcome: IdleError, Line: structuredFailureDetail(record.Status, record.Error, "")}
+	}
+	return IdleClassification{Outcome: IdleError, Line: structuredFailureDetail(record.Subtype, record.Error, record.Result)}
 }
 
 func structuredFailureDetail(status string, raw any, result string) string {
@@ -183,6 +229,8 @@ func structuredFailureDetail(status string, raw any, result string) string {
 
 func idleReason(outcome IdleOutcome) string {
 	switch outcome {
+	case idleNoOutcome:
+		return ""
 	case IdleBlocked:
 		return state.IdleReasonNeedsInput
 	case IdleError:
@@ -356,7 +404,7 @@ func (m *Manager) applyIdle(session *state.Session, outcome idleOutcome) idleRec
 	})
 	now := time.Now().UnixMilli()
 	classification, summary := applyProviderOutcome(session, outcome.classification, outcome.summary, now)
-	session.SetIdleResult(idleReason(classification.Outcome), classification.Line, summary, now)
+	publishIdleResult(session, classification, summary, now)
 	if !supportsTurnLifecycle(session.Info()) && classification.Outcome == IdleDone {
 		// Shells have an idle edge for hooks and notifications, but remaining
 		// alive at a prompt is not a completed session lifecycle state.
@@ -366,6 +414,16 @@ func (m *Manager) applyIdle(session *state.Session, outcome idleOutcome) idleRec
 		classification: classification, summary: summary, duration: outcome.duration,
 		at: now, info: session.Info(),
 	}
+}
+
+// publishIdleResult records an ended turn's outcome on the session. A turn
+// with no outcome clears the previous one rather than claiming a reason.
+func publishIdleResult(session *state.Session, classification IdleClassification, summary string, at int64) {
+	if classification.Outcome == idleNoOutcome {
+		session.ClearIdleResult()
+		return
+	}
+	session.SetIdleResult(idleReason(classification.Outcome), classification.Line, summary, at)
 }
 
 func applyProviderOutcome(session *state.Session, classification IdleClassification, summary string, at int64) (IdleClassification, string) {

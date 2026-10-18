@@ -211,6 +211,9 @@ func (r *runtimeSession) notifyResult(record *idleRecord) {
 		classification, _ = structuredIdleClassification(r.session.Info().Kind, events)
 		summary = FinalAssistantSummary(currentTurnEvents(events))
 	}
+	if classification.Outcome == idleNoOutcome {
+		return
+	}
 	if classification.Outcome != IdleError {
 		r.notifyDone(summary)
 		return

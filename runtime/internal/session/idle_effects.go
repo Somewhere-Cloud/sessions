@@ -18,6 +18,10 @@ import (
 // deliverIdle writes the sentinel and starts the lane hook, then the global
 // hook, for one published idle record.
 func (m *Manager) deliverIdle(record idleRecord) {
+	if record.classification.Outcome == idleNoOutcome {
+		// Not a completion: no completion sentinel, and no hook outcome to give.
+		return
+	}
 	hookContext := idleHookContext{
 		Summary: record.summary, Outcome: record.classification.Outcome, DurationMS: record.duration.Milliseconds(),
 	}

@@ -93,12 +93,7 @@ func (m *Manager) manage(session *state.Session) *runtimeSession {
 			// Stamped with this daemon's own observation clock, exactly as
 			// before activity became truthful after re-adoption.
 			classification, summary = applyProviderOutcome(session, classification, summary, session.ObservedOutputAt())
-			session.SetIdleResult(
-				idleReason(classification.Outcome),
-				classification.Line,
-				summary,
-				session.ObservedOutputAt(),
-			)
+			publishIdleResult(session, classification, summary, session.ObservedOutputAt())
 		} else {
 			session.ClearIdleResult()
 		}
