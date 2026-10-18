@@ -22,8 +22,9 @@ import (
 
 // The provider is an inert script, so this spends nothing and contacts no
 // one. The prompt picks its behavior: hang* stays in the turn until stopped,
-// linger* answers and then stays alive with its output open, flaky* fails
-// once and then answers, and anything else answers at once.
+// linger* answers and then stays alive with its output open, exiterr*
+// answers and then exits 1, flaky* fails once and then answers, and anything
+// else answers at once.
 const queueRecoveryFakeClaude = `#!/bin/sh
 sid=
 prev=
@@ -39,6 +40,9 @@ hang*) exec /bin/sleep 120 ;;
 linger*)
   printf '{"type":"result","subtype":"success","is_error":false,"result":"done","session_id":"%s"}\n' "$sid"
   exec /bin/sleep 120 ;;
+exiterr*)
+  printf '{"type":"result","subtype":"success","is_error":false,"result":"done","session_id":"%s"}\n' "$sid"
+  exit 1 ;;
 flaky*)
   if [ ! -e "$FAKE_CLAUDE_LOG.$prompt" ]; then
     : > "$FAKE_CLAUDE_LOG.$prompt"
@@ -204,7 +208,33 @@ func TestClaudeQueueRecoveryThroughRetryEndToEnd(t *testing.T) {
 	h.interruptAndWaitPaused()
 	h.retry(true, "")
 	h.waitQueue(func(queue queueRecoveryQueue) bool { return queue.phase("queued-l") == "done" })
-	h.assertCalls(append(prefix, "queued-l")...)
+	prefix = append(prefix, "queued-l")
+	h.assertCalls(prefix...)
+
+	// Claude answers, then its process exits 1. The answered message is done
+	// and never run again; the next saved message stays saved, paused for an
+	// explicit Retry; no failure is on record for the answered turn.
+	h.send("hang-m", "runner")
+	h.waitCalls(append(prefix, "hang-m")...)
+	exitErr := h.send("exiterr-n", "queue")
+	h.send("queued-o", "queue")
+	h.interruptAndWaitPaused()
+	h.retry(true, "")
+	h.waitQueue(func(queue queueRecoveryQueue) bool {
+		return queue.Paused && queue.phase("exiterr-n") == "done" && queue.phase("queued-o") == "queued"
+	})
+	prefix = append(prefix, "hang-m", "exiterr-n")
+	h.assertCalls(prefix...)
+	if kind := h.info().FailureKind; kind != "" {
+		t.Fatalf("an answered turn recorded failure %q", kind)
+	}
+	if evidence := h.receipt(exitErr).Evidence; evidence == nil || evidence.ProviderResult == nil || *evidence.ProviderResult != "success" {
+		t.Fatalf("answered-then-exited receipt evidence = %+v", evidence)
+	}
+	h.retry(true, "")
+	h.waitQueue(func(queue queueRecoveryQueue) bool { return queue.phase("queued-o") == "done" && !queue.Paused })
+	h.assertCalls(append(prefix, "queued-o")...)
+	h.retry(false, "no failed turn or saved next-turn message")
 }
 
 func newQueueRecoveryHarness(t *testing.T) *queueRecoveryHarness {

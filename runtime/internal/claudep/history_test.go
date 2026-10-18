@@ -2,6 +2,7 @@ package claudep
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 )
@@ -36,6 +37,15 @@ func TestNormalizeEventAndLifecycle(t *testing.T) {
 	}
 	if err := json.Unmarshal(interrupted, &value); err != nil || value["origin"] != SessionsOrigin || value["is_error"] != nil {
 		t.Fatalf("interruption must be Sessions' own record, not a failure: %s", interrupted)
+	}
+	exited, _ := ProviderExitAfterResultEvent("session-1", errors.New("claude -p turn: exit status 1"), time.Unix(5, 0))
+	if _, authoritative := HistoryLifecycle(exited); authoritative {
+		t.Fatalf("an exit after the answer changed the turn lifecycle: %s", exited)
+	}
+	value = nil
+	if err := json.Unmarshal(exited, &value); err != nil || value["origin"] != SessionsOrigin || value["is_error"] != nil ||
+		value["subtype"] != "provider_exit_after_result" || value["error"] != "claude -p turn: exit status 1" {
+		t.Fatalf("exit after result must be Sessions' evidence record, not a failure: %s", exited)
 	}
 }
 

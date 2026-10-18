@@ -64,6 +64,18 @@ func TurnInterruptedEvent(sessionID string, at time.Time) (json.RawMessage, erro
 	})
 }
 
+// ProviderExitAfterResultEvent records that Claude's process reported an
+// error after its own result said the turn succeeded. It is evidence of the
+// transport, not a failed turn: the answer stands and is never run again.
+func ProviderExitAfterResultEvent(sessionID string, cause error, at time.Time) (json.RawMessage, error) {
+	return marshalHistory(map[string]any{
+		"type": "system", "subtype": "provider_exit_after_result", "source": HistorySource,
+		"timestamp": historyTimestamp(at), "session_id": sessionID, "error": cause.Error(),
+		"detail": "Claude answered this turn, then its process reported an error: " + cause.Error() +
+			". The answer is kept and will not be run again.",
+	})
+}
+
 // InputRejectedEvent makes steering semantics explicit when a structured
 // Claude turn is already active. Sessions never hides a prompt queue behind
 // the composer; the user must send again after the current turn finishes.

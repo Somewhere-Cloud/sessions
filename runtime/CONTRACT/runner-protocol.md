@@ -241,7 +241,13 @@ dispatched, and Retry may continue only those entries. An interrupted turn
 ends with a Sessions-authored `{"type":"claude","subtype":"turn_interrupted"}`
 history record (working=false); an interruption is never recorded as a failed
 turn for Retry to run again. While a provider has given its result but its
-process has not exited, the turn stays open and the runner says so. Dispatch intent is committed before
+process has not exited, the turn stays open and the runner says so. When
+Claude's own result says a turn succeeded and its process then reports an
+error (a nonzero exit or an unreadable stream line), the message is answered:
+its entry is `done`, no failed input is retained, and the error is kept as a
+Sessions-authored `{"type":"system","subtype":"provider_exit_after_result"}`
+record with `error` and `detail`, not as a provider fault. Later entries stay
+saved and the queue pauses for an explicit Retry. Dispatch intent is committed before
 provider launch; a previously dispatched entry is never automatically replayed.
 Recent operation receipts are retained (64 completed entries plus pending
 entries); the daemon's durable receipt remains the authority for older IDs.

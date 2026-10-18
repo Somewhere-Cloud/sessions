@@ -499,3 +499,64 @@ func TestClaudeInterruptedTurnAfterSuccessfulAnswerRetainsNoFailure(t *testing.T
 		t.Fatalf("provider calls = %q", data)
 	}
 }
+
+// Claude answers successfully, and only afterwards does its process report
+// an error: a nonzero exit, or a stream line it could not read. The answered
+// input is never retained for Retry or replayed; the error stays visible in
+// history as what it is; later saved messages stay saved, paused for an
+// explicit Retry rather than dropped or started behind an abnormal exit.
+func TestClaudeAnsweredTurnThenProcessErrorNeverReplaysAnsweredInput(t *testing.T) {
+	for name, tail := range map[string]string{
+		"nonzero exit":    "exit 1\n",
+		"unreadable line": "printf 'not json\\n'\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			r, logPath := newClaudeQueueFixture(t)
+			r.retry = newStructuredRetryController(r.startRetryTurn, r.appendStructured, r.publishRetryState)
+			command := filepath.Join(r.cfg.cwd, "fake-claude")
+			script := "#!/bin/sh\nfor prompt do :; done\nprintf '%s\\n' \"$prompt\" >> \"$QUEUE_TEST_LOG\"\n" +
+				"printf '%s\\n' '{\"type\":\"result\",\"session_id\":\"fixture-claude\",\"subtype\":\"success\",\"is_error\":false,\"result\":\"done\"}'\n" +
+				"if [ \"$prompt\" = answered ]; then\n" + tail + "fi\n"
+			if err := os.WriteFile(command, []byte(script), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			for _, text := range []string{"answered", "later"} {
+				if result := r.submitMessage(proto.MessageControl{OperationID: text, Text: text}); !result.Accepted || result.Boundary != "queue" {
+					t.Fatalf("receipt = %+v", result)
+				}
+			}
+			r.finishClaudeTurn("", true)
+			waitClaudeQueue(t, r, func(queue claudeMessageQueue) bool { return queue.Paused && queue.Items[0].Phase == "done" })
+			if r.queue.Items[1].Phase != "queued" || r.retry.hasFailedInput() {
+				t.Fatalf("queue = %+v, failed input retained = %v", r.queue, r.retry.hasFailedInput())
+			}
+			r.mu.Lock()
+			history := cloneStructured(r.history)
+			r.mu.Unlock()
+			exitRecords := 0
+			for _, raw := range history {
+				var value map[string]any
+				_ = json.Unmarshal(raw, &value)
+				if value["subtype"] == "provider_fault" || (value["type"] == "result" && value["is_error"] == true) {
+					t.Fatalf("an answered turn was recorded as failed: %s", raw)
+				}
+				if value["subtype"] == "provider_exit_after_result" {
+					exitRecords++
+					if detail, _ := value["detail"].(string); !strings.Contains(detail, "will not be run again") || value["error"] == "" {
+						t.Fatalf("exit record = %s", raw)
+					}
+				}
+			}
+			if exitRecords != 1 {
+				t.Fatalf("history kept %d records of the process error, want 1", exitRecords)
+			}
+			if started, err := r.resumeClaudeQueue(); !started || err != nil {
+				t.Fatalf("resume = %v, %v", started, err)
+			}
+			waitClaudeQueue(t, r, func(queue claudeMessageQueue) bool { return queue.Items[1].Phase == "done" && !queue.Paused })
+			if data, _ := os.ReadFile(logPath); string(data) != "answered\nlater\n" {
+				t.Fatalf("provider calls = %q; the answered message must run exactly once", data)
+			}
+		})
+	}
+}

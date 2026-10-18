@@ -528,12 +528,12 @@ func (r *claudeStructuredRunner) runTurn(text string, attempt int, recordUser bo
 	r.mu.Lock()
 	r.turnCancel, r.turnAnswered = turnCancel, false
 	r.mu.Unlock()
-	successful := false
+	outcome := turnUnresolved
 	id := ""
 	if len(operationID) > 0 {
 		id = operationID[0]
 	}
-	defer func() { turnCancel(); r.finishClaudeTurn(id, successful) }()
+	defer func() { turnCancel(); r.settleClaudeTurn(id, outcome) }()
 	if recordUser {
 		r.appendClaudeUser(text, id)
 	}
@@ -586,7 +586,7 @@ func (r *claudeStructuredRunner) runTurn(text string, attempt int, recordUser bo
 			r.mu.Unlock()
 		}
 	}
-	successful = r.consumeTurn(text, attempt, cfg.profile, turnCtx, stream)
+	outcome = r.consumeTurn(text, attempt, cfg.profile, turnCtx, stream)
 }
 
 func (r *claudeStructuredRunner) consumeTurn(
@@ -595,7 +595,7 @@ func (r *claudeStructuredRunner) consumeTurn(
 	profile string,
 	turnCtx context.Context,
 	stream *claudep.TurnStream,
-) bool {
+) claudeTurnOutcome {
 	completed := false
 	failed := false
 	for event := range stream.Events {
@@ -627,19 +627,31 @@ func (r *claudeStructuredRunner) consumeTurn(
 			r.retry.Succeeded()
 		}
 		r.recordTurnInterrupted()
-		return false
+		return turnUnresolved
+	}
+	answered := completed && !failed
+	if answered && r.retry != nil {
+		r.retry.Succeeded()
+	}
+	if err != nil && answered {
+		// Claude's own result said the turn succeeded before the process
+		// reported this. Retaining the input would let Retry run an answered
+		// message again, so the error is kept as evidence, not as a failure.
+		if raw, encodeErr := claudep.ProviderExitAfterResultEvent(r.sessionID, err, time.Now()); encodeErr == nil {
+			r.appendStructured(raw)
+		}
+		return turnAnsweredThenErrored
 	}
 	if err != nil {
 		if !failed {
 			r.recordTurnFailure(text, attempt, structuredProfileLoginHint(err, profile))
 		}
-		return false
+		return turnUnresolved
 	}
-	successful := completed && !failed
-	if successful && r.retry != nil {
-		r.retry.Succeeded()
+	if answered {
+		return turnAnswered
 	}
-	return successful
+	return turnUnresolved
 }
 
 func structuredProfileLoginHint(err error, profile string) error {

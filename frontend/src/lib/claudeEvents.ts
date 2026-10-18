@@ -395,7 +395,9 @@ function providerSystemMessage(event: ClaudeSessionEvent, index: number): Dispat
       errorResponse: detail
     };
   }
-  if (event.subtype === 'continuation_started' || event.subtype === 'resume_history_unavailable') {
+  // provider_exit_after_result: Claude answered, then its process reported an
+  // error. The answer stands; the record says so rather than posing as a fault.
+  if (event.subtype === 'continuation_started' || event.subtype === 'resume_history_unavailable' || event.subtype === 'provider_exit_after_result') {
     const detail = typeof event.detail === 'string' ? event.detail.trim() : '';
     if (!detail) return null;
     return {

@@ -207,7 +207,31 @@ func (r *claudeStructuredRunner) claimQueuedTurnLocked(resume bool) (bool, error
 	return false, nil
 }
 
+// claudeTurnOutcome is how a turn ended, as far as its queue entry goes.
+type claudeTurnOutcome int
+
+const (
+	// turnUnresolved: failed, interrupted, or never answered.
+	turnUnresolved claudeTurnOutcome = iota
+	// turnAnswered: Claude's own result said the turn succeeded.
+	turnAnswered
+	// turnAnsweredThenErrored: Claude's result said the turn succeeded, then
+	// its process reported an error. The message is answered and is never run
+	// again, but later saved messages wait for an explicit Retry rather than
+	// starting behind an abnormal exit.
+	turnAnsweredThenErrored
+)
+
 func (r *claudeStructuredRunner) finishClaudeTurn(id string, successful bool) {
+	outcome := turnUnresolved
+	if successful {
+		outcome = turnAnswered
+	}
+	r.settleClaudeTurn(id, outcome)
+}
+
+func (r *claudeStructuredRunner) settleClaudeTurn(id string, outcome claudeTurnOutcome) {
+	answered := outcome != turnUnresolved
 	r.queueMu.Lock()
 	defer r.queueMu.Unlock()
 	r.mu.Lock()
@@ -215,9 +239,9 @@ func (r *claudeStructuredRunner) finishClaudeTurn(id string, successful bool) {
 	r.mu.Unlock()
 	next := r.queue
 	next.Items = append([]claudeQueuedMessage(nil), next.Items...)
-	next.Paused = !successful
+	next.Paused = outcome != turnAnswered
 	for index := range next.Items {
-		if next.Items[index].ID == id && successful {
+		if next.Items[index].ID == id && answered {
 			next.Items[index].Phase, next.Items[index].Text = "done", ""
 		}
 	}
@@ -230,13 +254,15 @@ func (r *claudeStructuredRunner) finishClaudeTurn(id string, successful bool) {
 		}
 	}
 	r.queue = next
-	if successful {
+	if answered {
 		r.queueCurrent = ""
 	}
-	if successful {
+	if outcome == turnAnswered {
 		if _, err := r.claimQueuedTurnLocked(false); err != nil {
 			r.queueNotice("Saved next-turn messages could not start: " + err.Error() + ". Fix storage, then use Retry; do not resend.")
 		}
+	} else if outcome == turnAnsweredThenErrored && r.queuePauseHoldsWork() {
+		r.queueNotice("Next-turn messages remain saved. Claude answered the current turn, but its process then reported an error; inspect the conversation, then use Retry to continue them. The answered message will not be run again.")
 	} else if r.queuePauseHoldsWork() {
 		r.queueNotice("Next-turn messages remain saved. The current turn failed or was interrupted; resolve it before continuing the queue with Retry.")
 	}
