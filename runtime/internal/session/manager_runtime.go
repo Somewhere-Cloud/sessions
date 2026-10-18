@@ -17,7 +17,6 @@ import (
 	"github.com/somewhere-tech/sessions/runtime/internal/ledger"
 	"github.com/somewhere-tech/sessions/runtime/internal/proto"
 	"github.com/somewhere-tech/sessions/runtime/internal/providerargs"
-	"github.com/somewhere-tech/sessions/runtime/internal/providerfault"
 	"github.com/somewhere-tech/sessions/runtime/internal/state"
 	"github.com/somewhere-tech/sessions/runtime/internal/watch"
 )
@@ -328,15 +327,10 @@ func (r *runtimeSession) observe() {
 				})
 			}
 			kind := r.session.Info().Kind
-			if structuredTurnCompleted(kind, event.CodexEvent) {
-				r.markStructuredDone()
-			}
-			if working, ok := structuredHistoryLifecycle(kind, event.CodexEvent); ok {
-				r.mu.Lock()
-				value := working
-				r.structuredLifecycleWorking = &value
-				r.mu.Unlock()
-				r.setWorking(working)
+			completed := structuredTurnCompleted(kind, event.CodexEvent)
+			working, lifecycle := structuredHistoryLifecycle(kind, event.CodexEvent)
+			if completed || lifecycle {
+				r.observeStructuredEvent(completed, lifecycle, working)
 			}
 			r.manager.recordStructuredUsage(r.session.Info(), event.CodexEvent)
 			// A structured runner's frames arrive as EventCodex whichever
@@ -366,27 +360,6 @@ func (r *runtimeSession) observe() {
 	}
 }
 
-func (r *runtimeSession) publishObservedProviderFault() {
-	info := r.session.Info()
-	if info.Working || (info.IdleReason == state.IdleReasonFailed && info.IdleDetail == info.FailureDetail) {
-		return
-	}
-	fault, ok := r.session.ProviderFault()
-	if !ok {
-		return
-	}
-	if (fault.Kind == providerfault.KindUnavailable || fault.Kind == providerfault.KindRateLimited) &&
-		supportsStructuredRetry(info) {
-		// The runner publishes its schedule immediately after this fault event.
-		// Let the provider's terminal event decide between scheduled and exhausted
-		// so no notification races ahead of retry state.
-		return
-	}
-	classification := IdleClassification{Outcome: IdleError, Line: fault.Detail}
-	r.manager.publishIdle(r.session, 0, classification, fault.Detail)
-	r.notifyProviderFault(r.session.Info(), fault)
-}
-
 func (m *Manager) recordStructuredUsage(info state.SessionInfo, raw json.RawMessage) {
 	if m.usage == nil || !bytes.Contains(raw, []byte(`"usage"`)) {
 		return
@@ -399,6 +372,9 @@ func (m *Manager) recordStructuredUsage(info state.SessionInfo, raw json.RawMess
 func (r *runtimeSession) stop() {
 	r.stopOnce.Do(func() {
 		r.attachment.Cancel()
+		// Waiting for an in-flight transition means no effect of this
+		// runtime runs after stop returns.
+		r.transitionMu.Lock()
 		r.mu.Lock()
 		r.stopped = true
 		r.waitingGeneration++
@@ -409,6 +385,7 @@ func (r *runtimeSession) stop() {
 		watcher := r.watcher
 		r.watcher = nil
 		r.mu.Unlock()
+		r.transitionMu.Unlock()
 		if watcher != nil {
 			watcher.Close()
 		}
@@ -436,9 +413,7 @@ func (r *runtimeSession) tick() {
 	next, source := byteWorking, state.WorkingFromByteActivity
 	switch info.Tool {
 	case state.ToolClaude:
-		if info.Kind == state.KindClaudeStructured && structured != nil {
-			next, source = *structured, state.WorkingFromProviderStream
-		} else if recent <= 0 {
+		if recent <= 0 {
 			// Silence alone does not end a turn. A frozen screen still showing
 			// Claude's working indicator keeps the working flag it had rather
 			// than producing an idle edge that would classify the frozen
@@ -469,8 +444,7 @@ func (r *runtimeSession) tick() {
 			next, source = *structured, state.WorkingFromRolloutFile
 		}
 	}
-	r.session.SetWorkingSource(source)
-	r.setWorking(next)
+	r.setWorkingFrom(source, next)
 	if !next {
 		r.inspectPreTurn(recent)
 	}
@@ -490,75 +464,6 @@ func (r *runtimeSession) screenStillWorking() (working, read bool) {
 		return false, false
 	}
 	return ClaudeWorkingFromSnapshot(snapshot), true
-}
-
-func (r *runtimeSession) setWorking(next bool) {
-	previous, exited := r.session.SetWorking(next)
-	now := time.Now()
-	r.mu.Lock()
-	if !previous && next {
-		r.workingStartedAt = now
-		r.faultAtTurnStart = r.session.Info().FailureAt
-		r.structuredDone = false
-		r.terminalTurnDone = false
-		r.preTurnBlocked = false
-		r.cancelWaitingLocked()
-		r.manager.removeIdleSentinel(r.session.Info().ID)
-	}
-	if !r.pushWorkingObserved {
-		r.pushWorkingObserved = true
-		r.mu.Unlock()
-		return
-	}
-	if !previous || next {
-		r.mu.Unlock()
-		return
-	}
-	started := r.workingStartedAt
-	r.workingStartedAt = time.Time{}
-	faultAtStart := r.faultAtTurnStart
-	r.faultAtTurnStart = 0
-	suppressWaiting := r.structuredDone
-	r.structuredDone = false
-	authoritativeDone := r.terminalTurnDone
-	r.terminalTurnDone = false
-	r.cancelWaitingLocked()
-	r.mu.Unlock()
-	if exited {
-		return
-	}
-	duration := time.Duration(0)
-	if !started.IsZero() {
-		duration = now.Sub(started)
-		if duration < 0 {
-			duration = 0
-		}
-	}
-	classification := IdleClassification{Outcome: IdleDone}
-	if authoritativeDone {
-		classification = r.manager.handleCompletedTurn(r.session, duration, faultAtStart)
-	} else {
-		classification = r.manager.handleIdle(r.session, duration)
-	}
-	if !supportsTurnLifecycle(r.session.Info()) && classification.Outcome == IdleDone {
-		// Shells have an idle edge for hooks and notifications, but remaining
-		// alive at a prompt is not a completed session lifecycle state.
-		r.session.ClearIdleResult()
-	}
-	if classification.Outcome == IdleError {
-		if fault, ok := r.session.ProviderFault(); ok {
-			info := r.session.Info()
-			if info.Retry == nil {
-				r.notifyProviderFault(info, fault)
-			}
-		} else if !suppressWaiting {
-			r.scheduleWaiting()
-		}
-	} else if !suppressWaiting && classification.Outcome == IdleDone {
-		r.notifyDone()
-	} else if !suppressWaiting {
-		r.scheduleWaiting()
-	}
 }
 
 func (r *runtimeSession) startWatcher(info state.SessionInfo) {
@@ -600,17 +505,7 @@ func (r *runtimeSession) startWatcher(info state.SessionInfo) {
 				if !ok {
 					return
 				}
-				working := edge.Working
-				if !working {
-					r.markTerminalTurnDone()
-				}
-				r.mu.Lock()
-				value := working
-				r.structuredLifecycleWorking = &value
-				r.mu.Unlock()
-				r.session.ObserveRolloutTurn(working, edge.At)
-				r.session.SetWorkingSource(state.WorkingFromRolloutFile)
-				r.setWorking(working)
+				r.observeRolloutEdge(edge.Working, edge.At)
 			case watchErr, ok := <-watcher.Errors:
 				if !ok {
 					return

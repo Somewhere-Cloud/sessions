@@ -690,7 +690,16 @@ notifications (`runtime/internal/session/manager.go`,
 authoritative when present; PTY output classification is the fallback
 (`runtime/internal/session/classifier.go`). A transition to non-working records
 an operator-facing reason/detail/time and last useful summary, which powers GUI
-health, CLI status/list output, and summary-returning waits. Creation and user-kill intent are
+health, CLI status/list output, and summary-returning waits. A working sample
+is reduced deterministically into a start, end, or no edge
+(`runtime/internal/session/working_transition.go`); an ended turn is then
+classified, published to the session and the ledger, and only after that
+delivered to the idle sentinel, the lane and global `onIdle` hooks
+(`runtime/internal/session/idle_effects.go`), and notifications. Each
+runtime applies its samples, structured results, rollout edges, independent
+provider faults, and waiting reminders one at a time with their effects, and
+none after it stops (`runtime/internal/session/working_effects.go`).
+Reconnect replay and HELLO only bootstrap state; they publish no effects. Creation and user-kill intent are
 recorded before the corresponding process action. Its daily activity projection
 selects sessions and lanes active in a local day, carries hierarchy/tags/outcome,
 and uses only final structured assistant summaries for the local journal
@@ -985,7 +994,7 @@ daily driver's ledger and sweep the daily driver's runner plists (`docs/DEV.md`)
 | Integration errors | `~/.local/state/sessions/errors.jsonl`; follows an explicit `SESSIONS_STATE_DIR` | `runtime/internal/integrations/errors.go` |
 | Local usage rollup | `~/.local/state/sessions/usage.sqlite3`; follows an explicit `SESSIONS_STATE_DIR` | `runtime/internal/usage/config.go` |
 | Browser push keys and subscriptions | `~/.local/state/sessions/{vapid.json,push-subscriptions.json}` | `runtime/internal/session/push.go` |
-| Idle completion sentinels | `~/.local/state/sessions/idle/<session-id>` | `runtime/internal/session/idle.go` |
+| Idle completion sentinels | `~/.local/state/sessions/idle/<session-id>` | `runtime/internal/session/idle_effects.go` |
 | Saved provider profiles | `~/.local/state/sessions/profiles/<tool>/<name>` | `runtime/internal/session/profiles.go` |
 | Fleet-search peer health cache (CLI-local, best effort) | `<user state root>/fleet-search-health.json`, so Windows gets `%LOCALAPPDATA%\Sessions\state`; written only by the CLI, holding the last failure and a five-minute cooldown per approved peer | `runtime/cmd/sessions/fleet.go` |
 | Windows supervisor identity | `%LOCALAPPDATA%\Sessions\state\supervisor.json` | `runtime/cmd/sessionsd/supervisor_windows.go` |

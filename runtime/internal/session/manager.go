@@ -260,14 +260,14 @@ type runtimeSession struct {
 	session    *state.Session
 	attachment state.Attachment
 
+	// transitionMu sequences working transitions and their effects; see
+	// working_effects.go. It is taken before mu, never while mu is held.
+	transitionMu sync.Mutex
+
 	mu                         sync.Mutex
 	recentBytes                int
 	structuredLifecycleWorking *bool
-	pushWorkingObserved        bool
-	workingStartedAt           time.Time
-	faultAtTurnStart           int64
-	structuredDone             bool
-	terminalTurnDone           bool
+	turn                       turnBookkeeping
 	faultNotified              bool
 	waitingTimer               *time.Timer
 	waitingGeneration          uint64

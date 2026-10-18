@@ -200,7 +200,7 @@ func TestCodexAppServerStructuredHistoryAndLifecycleAreAuthoritative(t *testing.
 	runtime := manager.runtimes[created.ID]
 	manager.mu.Unlock()
 	runtime.mu.Lock()
-	runtime.pushWorkingObserved = false
+	runtime.turn.observed = false
 	runtime.mu.Unlock()
 
 	phase := "final_answer"
@@ -461,7 +461,7 @@ func TestClaudeStructuredHistoryLifecycleMetadataLedgerAndAuth(t *testing.T) {
 	managed := manager.runtimes[created.ID]
 	manager.mu.Unlock()
 	managed.mu.Lock()
-	managed.pushWorkingObserved = false
+	managed.turn.observed = false
 	managed.mu.Unlock()
 	assistant, err := claudep.NormalizeEvent(json.RawMessage(`{"type":"assistant","session_id":"019f7181-cb32-46e0-952d-2f5f7862e668","message":{"role":"assistant","content":[{"type":"text","text":"CLAUDEP_UNIT_OK"}]}}`), time.Unix(3, 0))
 	if err != nil {
@@ -1436,7 +1436,7 @@ func TestWorkingEdgeWritesSentinelAndHookEnvironment(t *testing.T) {
 		t.Fatal("created session has no managed runtime")
 	}
 	// Drive classifier samples synchronously. The first idle sample only
-	// initializes pushWorkingObserved and must not emit an idle edge.
+	// initializes the turn bookkeeping and must not emit an idle edge.
 	runtime.tick()
 	if _, err := os.Stat(filepath.Join(config.UserStateRoot, "idle", created.ID)); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("initial idle sample wrote a sentinel: %v", err)

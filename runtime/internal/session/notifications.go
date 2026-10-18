@@ -42,26 +42,13 @@ func structuredTurnCompleted(kind string, raw json.RawMessage) bool {
 	}
 }
 
-func (r *runtimeSession) markStructuredDone() {
-	r.mu.Lock()
-	if r.stopped {
-		r.mu.Unlock()
-		return
-	}
-	r.structuredDone = true
-	r.cancelWaitingLocked()
-	r.mu.Unlock()
-
-	r.notifyDone()
-}
-
 func (r *runtimeSession) markTerminalTurnDone() {
 	r.mu.Lock()
 	if r.stopped {
 		r.mu.Unlock()
 		return
 	}
-	r.terminalTurnDone = true
+	r.turn.terminalDone = true
 	r.cancelWaitingLocked()
 	r.mu.Unlock()
 }
@@ -188,7 +175,11 @@ func (r *runtimeSession) scheduleWaiting() {
 	r.mu.Unlock()
 }
 
+// fireWaiting runs in the transition sequence: a start edge either precedes
+// it and invalidated its generation, or follows the reminder it sent.
 func (r *runtimeSession) fireWaiting(generation uint64) {
+	r.transitionMu.Lock()
+	defer r.transitionMu.Unlock()
 	r.mu.Lock()
 	if r.stopped || generation != r.waitingGeneration {
 		r.mu.Unlock()

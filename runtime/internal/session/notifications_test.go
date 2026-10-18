@@ -95,8 +95,8 @@ func TestStructuredActivityTickCannotReplaceOrderedLifecycleState(t *testing.T) 
 				stale := !working
 				runtime.mu.Lock()
 				runtime.structuredLifecycleWorking = &stale
-				runtime.structuredDone = !working
-				runtime.pushWorkingObserved = true
+				runtime.turn.resultNotified = !working
+				runtime.turn.observed = true
 				runtime.mu.Unlock()
 				runtime.tick()
 				got := current.Info()

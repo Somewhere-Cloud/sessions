@@ -3,9 +3,7 @@ package session
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -14,20 +12,6 @@ import (
 	"github.com/somewhere-tech/sessions/runtime/internal/ledger"
 	"github.com/somewhere-tech/sessions/runtime/internal/state"
 )
-
-type idleHookContext struct {
-	Summary    string
-	Outcome    IdleOutcome
-	DurationMS int64
-}
-
-func (m *Manager) idleDir() string {
-	root := m.config.UserStateRoot
-	if root == "" {
-		root = m.config.StateRoot
-	}
-	return filepath.Join(root, "idle")
-}
 
 func sessionDisplayLabel(info state.SessionInfo) string {
 	for _, value := range []string{info.Name, info.ClaudeCustomTitle, info.ClaudeAITitle} {
@@ -48,31 +32,6 @@ func sessionDisplayLabel(info state.SessionInfo) string {
 		return info.ID[:8]
 	}
 	return info.ID
-}
-
-func (m *Manager) removeIdleSentinel(id string) {
-	_ = os.Remove(filepath.Join(m.idleDir(), id))
-}
-
-func (m *Manager) writeIdleSentinel(info state.SessionInfo) {
-	dir := m.idleDir()
-	if os.MkdirAll(dir, 0o700) != nil {
-		return
-	}
-	body := struct {
-		ID   string `json:"id"`
-		Name string `json:"name"`
-		At   string `json:"at"`
-	}{info.ID, sessionDisplayLabel(info), time.Now().UTC().Format("2006-01-02T15:04:05.000Z")}
-	encoded, err := json.Marshal(body)
-	if err != nil {
-		return
-	}
-	encoded = append(encoded, '\n')
-	path := filepath.Join(dir, info.ID)
-	if os.WriteFile(path, encoded, 0o600) == nil {
-		_ = os.Chmod(path, 0o600)
-	}
 }
 
 func inspectIdle(session *state.Session) (IdleClassification, string, string) {
@@ -249,14 +208,45 @@ func (r *runtimeSession) inspectPreTurn(recentBytes int) {
 	}
 }
 
-func (m *Manager) handleIdle(session *state.Session, duration time.Duration) IdleClassification {
-	info := session.Info()
-	if info.Exited {
-		return IdleClassification{Outcome: IdleDone}
+// idleOutcome is an ended turn's classification before it is applied.
+// snapshot is the screen evidence the classification read; retireFault says
+// whether a terminal-read fault that screen no longer supports is retired.
+type idleOutcome struct {
+	classification IdleClassification
+	summary        string
+	snapshot       string
+	retireFault    bool
+	duration       time.Duration
+}
+
+// idleRecord is a published idle result. The sentinel, hooks and
+// notifications read it instead of reconstructing the outcome.
+type idleRecord struct {
+	classification IdleClassification
+	summary        string
+	duration       time.Duration
+	at             int64
+	info           state.SessionInfo
+}
+
+// classifyEndedTurn collects the evidence for an ended turn and classifies
+// it. It reads the session; it publishes nothing.
+func classifyEndedTurn(session *state.Session, transition workingTransition) idleOutcome {
+	if transition.terminalDone {
+		if classification, failed := terminalProviderFault(session, transition.faultAtStart); failed {
+			return idleOutcome{classification: classification, summary: classification.Line, duration: transition.duration}
+		}
+		return idleOutcome{
+			classification: IdleClassification{Outcome: IdleDone},
+			summary:        FinalAssistantSummary(session.ClaudeEventLog()),
+			duration:       transition.duration,
+		}
 	}
 	classification, summary, snapshot := inspectIdle(session)
-	clearFaultWithoutEvidence(session, classification, snapshot)
-	return m.publishIdle(session, duration, classification, summary)
+	return idleOutcome{
+		classification: classification, summary: summary, snapshot: snapshot,
+		retireFault: true, duration: transition.duration,
+	}
 }
 
 // clearFaultWithoutEvidence retires a terminal-read fault the screen no longer
@@ -281,14 +271,6 @@ func clearFaultWithoutEvidence(session *state.Session, classification IdleClassi
 	session.ClearProviderFault()
 }
 
-func (m *Manager) handleCompletedTurn(session *state.Session, duration time.Duration, faultAtStart int64) IdleClassification {
-	if classification, failed := terminalProviderFault(session, faultAtStart); failed {
-		return m.publishIdle(session, duration, classification, classification.Line)
-	}
-	summary := FinalAssistantSummary(session.ClaudeEventLog())
-	return m.publishIdle(session, duration, IdleClassification{Outcome: IdleDone}, summary)
-}
-
 func terminalProviderFault(session *state.Session, faultAtStart int64) (IdleClassification, bool) {
 	info := session.Info()
 	if fault, ok := session.ProviderFault(); ok {
@@ -308,20 +290,29 @@ func terminalProviderFault(session *state.Session, faultAtStart int64) (IdleClas
 	return classification, classification.Evidence.proven()
 }
 
-func (m *Manager) publishIdle(session *state.Session, duration time.Duration, classification IdleClassification, summary string) IdleClassification {
-	info := session.Info()
+// applyIdle records the idle observation and publishes the outcome to the
+// session, then returns the published record. Nothing outside the ledger and
+// the session record is touched here.
+func (m *Manager) applyIdle(session *state.Session, outcome idleOutcome) idleRecord {
+	if outcome.retireFault {
+		clearFaultWithoutEvidence(session, outcome.classification, outcome.snapshot)
+	}
+	id := session.Info().ID
 	m.observe(context.Background(), "idle", func(writer ledger.ObservationWriter) error {
-		return writer.RecordIdle(context.Background(), ledger.Observation{Meta: ledger.Meta{LaneID: info.ID}})
+		return writer.RecordIdle(context.Background(), ledger.Observation{Meta: ledger.Meta{LaneID: id}})
 	})
 	now := time.Now().UnixMilli()
-	classification, summary = applyProviderOutcome(session, classification, summary, now)
+	classification, summary := applyProviderOutcome(session, outcome.classification, outcome.summary, now)
 	session.SetIdleResult(idleReason(classification.Outcome), classification.Line, summary, now)
-	info = session.Info()
-	hookContext := idleHookContext{Summary: summary, Outcome: classification.Outcome, DurationMS: duration.Milliseconds()}
-	m.writeIdleSentinel(info)
-	m.runHook(info.OnIdle, info, hookContext, false)
-	m.runHook(m.hooks.OnIdle, info, hookContext, true)
-	return classification
+	if !supportsTurnLifecycle(session.Info()) && classification.Outcome == IdleDone {
+		// Shells have an idle edge for hooks and notifications, but remaining
+		// alive at a prompt is not a completed session lifecycle state.
+		session.ClearIdleResult()
+	}
+	return idleRecord{
+		classification: classification, summary: summary, duration: outcome.duration,
+		at: now, info: session.Info(),
+	}
 }
 
 func applyProviderOutcome(session *state.Session, classification IdleClassification, summary string, at int64) (IdleClassification, string) {
@@ -366,58 +357,6 @@ func supportsStructuredRetry(info state.SessionInfo) bool {
 // provider's structured event stream rather than from a rendered terminal.
 func providerEventRuntime(info state.SessionInfo) bool {
 	return info.Kind == state.KindCodexAppServer || info.Kind == state.KindClaudeStructured
-}
-
-func (m *Manager) runHook(script string, info state.SessionInfo, hook idleHookContext, timeout bool) {
-	if script == "" {
-		return
-	}
-	command := newIdleHookCommand(script)
-	command.Dir = info.Cwd
-	command.Stdin = nil
-	command.Stdout = nil
-	command.Stderr = nil
-	command.Env = hookEnvironment(info, hook)
-	if command.Start() != nil {
-		return
-	}
-	if !timeout {
-		go func() { _ = command.Wait() }()
-		return
-	}
-	done := make(chan struct{})
-	go func() {
-		_ = command.Wait()
-		close(done)
-	}()
-	go func() {
-		select {
-		case <-done:
-		case <-time.After(30 * time.Second):
-			_ = command.Process.Kill()
-		}
-	}()
-}
-
-func hookEnvironment(info state.SessionInfo, hook idleHookContext) []string {
-	environment := make(map[string]string)
-	for _, entry := range os.Environ() {
-		if index := strings.IndexByte(entry, '='); index >= 0 {
-			environment[entry[:index]] = entry[index+1:]
-		}
-	}
-	environment["SESSIONS_SESSION_ID"] = info.ID
-	environment["SESSIONS_SESSION_NAME"] = sessionDisplayLabel(info)
-	environment["SESSIONS_SESSION_TOOL"] = string(info.Tool)
-	environment["SESSIONS_SESSION_CWD"] = info.Cwd
-	environment["SESSIONS_FINAL_MESSAGE"] = hook.Summary
-	environment["SESSIONS_OUTCOME"] = string(hook.Outcome)
-	environment["SESSIONS_DURATION_MS"] = strconv.FormatInt(hook.DurationMS, 10)
-	result := make([]string, 0, len(environment))
-	for key, value := range environment {
-		result = append(result, key+"="+value)
-	}
-	return result
 }
 
 func approvalLine(raw json.RawMessage) string {

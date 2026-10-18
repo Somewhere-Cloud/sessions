@@ -148,7 +148,7 @@ func TestUnreadableScreenWithLowOutputKeepsPTYClaudeWorking(t *testing.T) {
 		t.Fatalf("an unreadable screen with low output published an ending: working=%v idleReason=%q", info.Working, info.IdleReason)
 	}
 	runtime.mu.Lock()
-	done := runtime.terminalTurnDone
+	done := runtime.turn.terminalDone
 	runtime.mu.Unlock()
 	if done {
 		t.Fatal("an unreadable screen marked the terminal turn done")

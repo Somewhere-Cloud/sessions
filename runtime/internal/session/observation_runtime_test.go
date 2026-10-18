@@ -101,7 +101,7 @@ func TestUnreadableScreenKeepsPTYClaudeWorking(t *testing.T) {
 		t.Fatalf("an unreadable screen ended an observed turn: %+v", turn)
 	}
 	runtime.mu.Lock()
-	done := runtime.terminalTurnDone
+	done := runtime.turn.terminalDone
 	runtime.mu.Unlock()
 	if done {
 		t.Fatal("an unreadable screen marked the terminal turn done")
