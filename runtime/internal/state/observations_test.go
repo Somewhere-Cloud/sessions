@@ -209,3 +209,18 @@ func TestObserverHealthIsReported(t *testing.T) {
 		t.Fatalf("observers = %+v", observers)
 	}
 }
+
+// An interrupted structured Claude turn has no provider result. The runner's
+// own interruption record ends it, labelled as the runner's, never as a
+// failure or a provider answer.
+func TestObservedClaudeInterruptionEndsTurnAsRunnerInterrupt(t *testing.T) {
+	session, runner := observedSession(t, "/usr/local/bin/claude", KindClaudeStructured)
+	base := time.Now().Add(-time.Minute)
+	runner.AddCodexEvent(map[string]any{"type": "claude", "subtype": "turn_started", "source": "claude-p-stream-json", "origin": "sessions", "timestamp": stamp(base)})
+	awaitObservations(t, session, func(o *Observations) bool { return o.Turn != nil && o.Turn.Open != nil && *o.Turn.Open })
+	runner.AddCodexEvent(map[string]any{"type": "claude", "subtype": "turn_interrupted", "source": "claude-p-stream-json", "origin": "sessions", "timestamp": stamp(base.Add(time.Second))})
+	observations := awaitObservations(t, session, func(o *Observations) bool { return o.Turn.EndedAt != nil })
+	if deref(observations.Turn.EndedBy) != "runner-interrupt" || *observations.Turn.Open || observations.Last.ProviderRecordObservedAt != nil {
+		t.Fatalf("interruption observed as turn=%+v last=%+v", observations.Turn, observations.Last)
+	}
+}

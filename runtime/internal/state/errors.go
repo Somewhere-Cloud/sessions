@@ -12,6 +12,9 @@ var (
 	ErrRetryUnsupported  = errors.New("provider retry is available only for Rich Claude or Codex sessions")
 	ErrNoFailedTurn      = errors.New("nothing failed, so there is no provider turn to retry")
 	ErrNoRetryScheduled  = errors.New("no automatic provider retry is scheduled")
+	// ErrNothingToContinue: a Rich Claude runner with no recorded failure
+	// answered Retry itself and started nothing, so no saved message moved.
+	ErrNothingToContinue = errors.New("Claude did not continue saved messages")
 	// ErrNoTerminalMirror: this session kind is not backed by a terminal
 	// screen, so there is no rendered viewport to return. A lane answers from
 	// its raw output tail and a structured provider from its event log; asking

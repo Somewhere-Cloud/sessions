@@ -48,13 +48,16 @@ type claudeStructuredRunner struct {
 	cancel context.CancelFunc
 	done   chan int
 
-	streamMu     sync.Mutex
-	mu           sync.Mutex
-	clients      map[*client]struct{}
-	history      []json.RawMessage
-	composer     strings.Builder
-	active       bool
-	turnCancel   context.CancelFunc
+	streamMu   sync.Mutex
+	mu         sync.Mutex
+	clients    map[*client]struct{}
+	history    []json.RawMessage
+	composer   strings.Builder
+	active     bool
+	turnCancel context.CancelFunc
+	// turnAnswered: the provider gave this turn its result, but its process
+	// has not ended yet, so the turn is still open.
+	turnAnswered bool
 	retry        *structuredRetryController
 	queueMu      sync.Mutex
 	queue        claudeMessageQueue
@@ -412,7 +415,7 @@ func (r *claudeStructuredRunner) handleRetryControl(c *client, stop bool) error 
 		active := r.active
 		r.mu.Unlock()
 		if active {
-			err = errors.New("Claude turn is active")
+			err = errors.New(r.activeTurnReason())
 		} else {
 			if r.retry.hasFailedInput() {
 				err = r.retry.RunNow()
@@ -432,6 +435,20 @@ func (r *claudeStructuredRunner) handleRetryControl(c *client, stop bool) error 
 		return marshalErr
 	}
 	return c.write(proto.RetryRes, payload)
+}
+
+// activeTurnReason says why the runner is still in a turn. A provider that
+// has answered but not exited is reported as exactly that; Sessions does not
+// stop it on its own, because only the person knows whether it should end.
+func (r *claudeStructuredRunner) activeTurnReason() string {
+	r.mu.Lock()
+	answered := r.turnAnswered
+	r.mu.Unlock()
+	if answered {
+		return "Claude answered the current turn, but its provider process has not exited, so the turn is still open. " +
+			"Interrupt the turn to stop that process, then use Retry"
+	}
+	return "Claude turn is active"
 }
 
 func (r *claudeStructuredRunner) startRetryTurn(text string, attempt int) bool {
@@ -509,7 +526,7 @@ func (r *claudeStructuredRunner) handleInput(data string) {
 func (r *claudeStructuredRunner) runTurn(text string, attempt int, recordUser bool, operationID ...string) {
 	turnCtx, turnCancel := context.WithCancel(r.ctx)
 	r.mu.Lock()
-	r.turnCancel = turnCancel
+	r.turnCancel, r.turnAnswered = turnCancel, false
 	r.mu.Unlock()
 	successful := false
 	id := ""
@@ -553,7 +570,9 @@ func (r *claudeStructuredRunner) runTurn(text string, attempt int, recordUser bo
 			updated.ProviderContext = ""
 			_ = state.WriteContinuation(r.paths.Continuation, updated)
 		}
-		if !errors.Is(err, context.Canceled) {
+		if turnCtx.Err() != nil {
+			r.recordTurnInterrupted()
+		} else {
 			r.recordTurnFailure(text, attempt, structuredProfileLoginHint(err, cfg.profile))
 		}
 		return
@@ -587,6 +606,9 @@ func (r *claudeStructuredRunner) consumeTurn(
 		}
 		if event.Type == "result" {
 			completed = true
+			r.mu.Lock()
+			r.turnAnswered = true
+			r.mu.Unlock()
 		}
 		if fault, failureText, isFailure := claudeResultProviderFault(event); isFailure {
 			r.recordProviderFailure(text, attempt, fault, failureText)
@@ -595,13 +617,20 @@ func (r *claudeStructuredRunner) consumeTurn(
 		r.appendStructured(event.Raw)
 	}
 	_, err := stream.Result(turnCtx)
+	// Decide from the turn's own context, not from whichever of the stopped
+	// process and the cancellation Result happened to report first: an
+	// interruption must never become a failed turn that Retry runs again.
+	if turnCtx.Err() != nil {
+		r.recordTurnInterrupted()
+		return false
+	}
 	if err != nil {
-		if !errors.Is(err, context.Canceled) && !failed {
+		if !failed {
 			r.recordTurnFailure(text, attempt, structuredProfileLoginHint(err, profile))
 		}
 		return false
 	}
-	successful := completed && !failed && turnCtx.Err() == nil
+	successful := completed && !failed
 	if successful && r.retry != nil {
 		r.retry.Succeeded()
 	}
@@ -613,6 +642,18 @@ func structuredProfileLoginHint(err error, profile string) error {
 		return err
 	}
 	return fmt.Errorf("%w; new profile: open a regular PTY session with --profile %s once to log in", err, profile)
+}
+
+// recordTurnInterrupted ends an interrupted turn in history so every reader
+// sees it end. A runner that is stopping writes nothing: its restart records
+// the unfinished turn instead.
+func (r *claudeStructuredRunner) recordTurnInterrupted() {
+	if r.ctx.Err() != nil {
+		return
+	}
+	if raw, err := claudep.TurnInterruptedEvent(r.sessionID, time.Now()); err == nil {
+		r.appendStructured(raw)
+	}
 }
 
 func (r *claudeStructuredRunner) recordTurnFailure(text string, attempt int, err error) {

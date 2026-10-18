@@ -30,6 +30,13 @@ func TestNormalizeEventAndLifecycle(t *testing.T) {
 	if working, authoritative := HistoryLifecycle(result.Raw); working || !authoritative {
 		t.Fatalf("result lifecycle = %v %v", working, authoritative)
 	}
+	interrupted, _ := TurnInterruptedEvent("session-1", time.Unix(4, 0))
+	if working, authoritative := HistoryLifecycle(interrupted); working || !authoritative {
+		t.Fatalf("interrupted lifecycle = %v %v", working, authoritative)
+	}
+	if err := json.Unmarshal(interrupted, &value); err != nil || value["origin"] != SessionsOrigin || value["is_error"] != nil {
+		t.Fatalf("interruption must be Sessions' own record, not a failure: %s", interrupted)
+	}
 }
 
 func TestNormalizeEventRejectsMissingSessionID(t *testing.T) {

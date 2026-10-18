@@ -70,7 +70,7 @@ func TestProviderRetryRoutesControlRichRunner(t *testing.T) {
 func TestProviderRetryRoutesExplainConflicts(t *testing.T) {
 	daemon := newTestDaemon(t)
 	rich, err := daemon.registry.Create(context.Background(), state.CreateSessionRequest{
-		Cmd: "claude", Cwd: daemon.root, Kind: state.KindClaudeStructured,
+		Cmd: "codex", Cwd: daemon.root, Kind: state.KindCodexAppServer,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -97,5 +97,86 @@ func TestProviderRetryRoutesExplainConflicts(t *testing.T) {
 		if json.Unmarshal(response.Body.Bytes(), &body) != nil || !strings.Contains(body["error"].(string), test.contains) {
 			t.Errorf("%s body=%s, want %q", test.path, response.Body.String(), test.contains)
 		}
+	}
+}
+
+// With nothing failed, Retry asks a Rich Claude runner to continue saved
+// next-turn messages; the runner decides. A Codex runner keeps no such queue,
+// so it is refused before any control is sent, exactly as before.
+func TestProviderRetryAsksClaudeRunnerToContinueSavedMessages(t *testing.T) {
+	daemon := newTestDaemon(t)
+	claude, err := daemon.registry.Create(context.Background(), state.CreateSessionRequest{
+		Cmd: "claude", Cwd: daemon.root, Kind: state.KindClaudeStructured,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	codex, err := daemon.registry.Create(context.Background(), state.CreateSessionRequest{
+		Cmd: "codex", Cwd: daemon.root, Kind: state.KindCodexAppServer,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	retry := func(id string) (int, string) {
+		response := serve(t, daemon.handler, http.MethodPost, "/api/sessions/"+id+"/retry", nil, "127.0.0.1:1", nil)
+		var body map[string]any
+		_ = json.Unmarshal(response.Body.Bytes(), &body)
+		message, _ := body["error"].(string)
+		return response.Code, message
+	}
+	runner := daemon.launcher.Runner(claude.ID)
+
+	if code, message := retry(claude.ID); code != http.StatusOK || message != "" {
+		t.Fatalf("continue saved messages = %d %q", code, message)
+	}
+	if runs, _ := runner.RetryControls(); runs != 1 {
+		t.Fatalf("runner controls = %d, want the runner asked once", runs)
+	}
+
+	// The runner's own refusal, including an older runner's from before the
+	// queue existed, is a known outcome: 409 with its reason, not a 502.
+	for _, reason := range []string{"no failed turn or saved next-turn message to retry", "the runner has no failed turn to retry"} {
+		runner.RefuseRetry(reason)
+		code, message := retry(claude.ID)
+		if code != http.StatusConflict || !strings.Contains(message, reason) || !strings.Contains(message, "Nothing was resent") {
+			t.Fatalf("runner refusal %q = %d %q", reason, code, message)
+		}
+	}
+
+	// A refusal while a failure is on record keeps the failed-turn wording.
+	runner.AddClaudeEvent(map[string]any{
+		"type": "system", "subtype": "provider_fault", "provider": "claude",
+		"kind": "provider-unavailable", "detail": "Claude API unavailable (503, overloaded)",
+	})
+	deadline := time.Now().Add(time.Second)
+	for {
+		if session, ok := daemon.registry.Get(claude.ID); ok && session.Info().FailureKind != "" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("provider fault did not reach the session")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	runner.RefuseRetry("the runner has no failed turn to retry")
+	if code, message := retry(claude.ID); code != http.StatusBadGateway || !strings.Contains(message, "retry failed provider turn") {
+		t.Fatalf("failed-turn refusal = %d %q", code, message)
+	}
+
+	current, _ := daemon.registry.Get(claude.ID)
+	current.SetWorking(true)
+	before, _ := runner.RetryControls()
+	if code, message := retry(claude.ID); code != http.StatusConflict || !strings.Contains(message, "working") {
+		t.Fatalf("working retry = %d %q", code, message)
+	}
+	if after, _ := runner.RetryControls(); after != before {
+		t.Fatal("a working session's retry reached the runner")
+	}
+
+	if code, message := retry(codex.ID); code != http.StatusConflict || !strings.Contains(message, "nothing failed") {
+		t.Fatalf("codex retry without failure = %d %q", code, message)
+	}
+	if runs, _ := daemon.launcher.Runner(codex.ID).RetryControls(); runs != 0 {
+		t.Fatal("codex retry without failure reached the runner")
 	}
 }

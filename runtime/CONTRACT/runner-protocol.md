@@ -233,8 +233,15 @@ has answered. `boundary:"queue"` means a structured Claude runner saved the
 message in its bounded next-turn queue (32 pending messages / 1 MiB), not that
 Claude has read it. The queue is committed before acknowledgment and dispatched
 in order after successful turns. Failure or interruption pauses it; retrying
-the failed turn successfully continues it. After runner restart, Retry may
-continue only entries not yet dispatched. Dispatch intent is committed before
+the failed turn successfully continues it, and with no failed turn retained
+Retry continues the entries not yet dispatched. A pause that holds no such entry
+and no failed turn holds nothing back, so the next message starts as usual.
+After runner restart, the queue is paused only when an entry is not yet
+dispatched, and Retry may continue only those entries. An interrupted turn
+ends with a Sessions-authored `{"type":"claude","subtype":"turn_interrupted"}`
+history record (working=false); an interruption is never recorded as a failed
+turn for Retry to run again. While a provider has given its result but its
+process has not exited, the turn stays open and the runner says so. Dispatch intent is committed before
 provider launch; a previously dispatched entry is never automatically replayed.
 Recent operation receipts are retained (64 completed entries plus pending
 entries); the daemon's durable receipt remains the authority for older IDs.
@@ -334,8 +341,14 @@ there is no separate response frame.
 
 Protocol-4 Rich runners retain the exact input from their latest failed turn.
 RETRY_REQ runs the pending attempt now, or starts a fresh manual attempt after
-automatic retries exhausted. RETRY_STOP cancels only a live automatic schedule.
-Both are acknowledged with RETRY_RES. PTY runners never accept these controls.
+automatic retries exhausted. A structured Claude runner with no retained failed
+input instead continues its paused next-turn queue from the first entry not yet
+dispatched; with neither, or while its turn is active, it refuses and starts
+nothing. The runner decides from its own active, paused and queued state, so a
+daemon may send RETRY_REQ to a Claude runner whose session shows no failure.
+Older Claude runners and Codex runners refuse it when nothing failed. RETRY_STOP
+cancels only a live automatic schedule. Both are acknowledged with RETRY_RES.
+PTY runners never accept these controls.
 
 ### RESIZE (`0x11`)
 

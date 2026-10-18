@@ -60,6 +60,7 @@ func (s *Server) sendProviderRetryError(response http.ResponseWriter, err error,
 		status = http.StatusNotFound
 	case errors.Is(err, state.ErrRetryUnsupported),
 		errors.Is(err, state.ErrNoFailedTurn),
+		errors.Is(err, state.ErrNothingToContinue),
 		errors.Is(err, state.ErrNoRetryScheduled),
 		errors.Is(err, state.ErrSessionWorking),
 		errors.Is(err, state.ErrSessionEnded),

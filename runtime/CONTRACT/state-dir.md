@@ -215,8 +215,8 @@ text is local private data, bounded to 32 messages / 1 MiB. Completed entries
 drop text and retain at most 64 recent receipts. The runner syncs the temporary
 file and atomically renames it before acknowledging or claiming a message.
 
-Daemon/UI restarts do not stop the queue. Runner restart pauses it and never
-replays a dispatched entry: a crash after claim is an uncertain outcome, even
+Daemon/UI restarts do not stop the queue. Runner restart pauses it when an
+entry is not yet dispatched, and never replays a dispatched entry: a crash after claim is an uncertain outcome, even
 if provider launch had not yet happened. Retry can explicitly continue only
 undispatched entries. Queued history events carry the same operation identity
 as their later user event so repeated identical messages reconcile separately.

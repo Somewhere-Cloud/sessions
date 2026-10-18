@@ -629,7 +629,7 @@ Values: `capabilities.runtime` is `claude-structured`, `codex-app-server`,
 `terminal-heuristic`, `byte-activity`, `provider-retry`, or `unknown`.
 `turn.started_by` is `sessions-dispatch` or `provider`; `turn.ended_by` is
 `provider-result`, `provider-turn-complete`, `runner-failure`,
-`transcript-end-turn`, or `rollout-file`. Observer states are `following`,
+`runner-interrupt`, `transcript-end-turn`, or `rollout-file`. Observer states are `following`,
 `unresolved`, or `error`.
 
 - Units and clocks: every `*_at` and `since` value is Unix epoch
@@ -1906,9 +1906,10 @@ new turn when idle and steers Codex when active. Updated structured Claude
 runners save active-turn input for the next turn; older live runners still
 refuse it explicitly. Receipts optionally report
 `acceptance:"runner"|"queue"|"provider"`; none means the turn completed.
-`queue` means stored by the runner, not read by Claude. Queued work pauses on
-failure, interruption or runner restart; use Retry to resolve the failed turn
-or continue only undispatched entries. Never resend an accepted queued message.
+`queue` means stored by the runner, not dispatched to Claude. Queued work
+pauses on failure, interruption or runner restart; use Retry to resolve the
+failed turn or continue only undispatched entries, including when nothing
+failed. Never resend an accepted queued message.
 `delivered:true` at this boundary describes queue acceptance, not provider
 consumption. Ambiguous
 provider transport failures remain `unknown`, never automatically retried.
@@ -2069,10 +2070,15 @@ lane, and the runner records an `approval_resolved` event with that id in
 
 Auth required. Runs the pending automatic retry immediately, or runs the last
 retained failed Rich Claude/Codex turn after its automatic schedule exhausted.
-Success is 200 with the current bare `SessionInfo`. A PTY session, a session
-with no failed turn, an active or ended session, or an older runner that cannot
-accept retry controls returns `409 {"error":"<sentence explaining why>"}`.
-Unknown session is 404. Other runner-control failures are 502.
+For a Rich Claude session with no failure on record, it asks the runner to
+continue saved next-turn messages not yet dispatched; the runner decides from
+its own queue and turn state, and never resends a dispatched message. Success
+is 200 with the current bare `SessionInfo`. A PTY session, a Codex session with
+no failed turn, an active or ended session, an older runner that cannot accept
+retry controls, or a Claude runner that answers that it has nothing to retry or
+continue (including one still holding a turn whose provider has not exited)
+returns `409 {"error":"<sentence explaining why>"}`. Unknown session is 404.
+Other runner-control failures are 502.
 
 ### `POST /api/sessions/:id/retry/stop`
 

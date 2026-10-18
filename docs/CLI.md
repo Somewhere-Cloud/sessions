@@ -60,7 +60,7 @@ Daily workflows:
   team                     show the lanes a manager delegated and their state
   fanout                   give one request to a lane per provider and join them
   approve                  answer the permission a Rich lane is waiting on
-  retry                    retry or stop retrying a failed Rich provider turn
+  retry                    retry a failed Rich provider turn, or continue saved Claude messages
   projects                 list or name the projects sessions are grouped under
   send                     send a message to a session
   send-status              inspect a durable message-delivery receipt
@@ -653,9 +653,11 @@ Examples:
 Usage:
   sessions retry <session-id> [--stop]
 
-retry or stop retrying a failed Rich provider turn
+retry a failed Rich provider turn, or continue saved Claude messages
 
 Run a failed Rich Claude or Codex turn again immediately. While Sessions is waiting through the automatic outage backoff, this uses the pending attempt now; after retries are exhausted, it retries the retained failed turn. During that schedule `sessions ls` shows the attempt and countdown, and `sessions wait` keeps treating the session as working. --stop cancels only the automatic schedule and leaves the provider fault visible. PTY sessions cannot retain a structured failed turn and are refused with the reason.
+
+For a Rich Claude session with nothing failed, retry continues saved next-turn messages that an interruption, runner restart or storage error paused, starting with the first one not yet dispatched. A message already dispatched to Claude is never sent again. The runner decides from its own queue and turn state: when it has nothing to retry or continue, or its turn is still open, it says why and nothing is sent. A Codex session with nothing failed is refused before anything reaches its runner.
 
 Examples:
   sessions retry 0123abcd

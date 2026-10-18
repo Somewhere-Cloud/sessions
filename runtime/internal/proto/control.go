@@ -23,6 +23,13 @@ type RetryControlResult struct {
 	Error string `json:"error,omitempty"`
 }
 
+// RetryRefusal is a runner's own RETRY_RES answer declining the control. The
+// runner decided and said why, so the outcome is known: nothing was started.
+// A disconnect or timeout is never one of these, because then nobody knows.
+type RetryRefusal struct{ Reason string }
+
+func (r RetryRefusal) Error() string { return r.Reason }
+
 func EncodeModelControl(control ModelControl) ([]byte, error) {
 	return json.Marshal(control)
 }

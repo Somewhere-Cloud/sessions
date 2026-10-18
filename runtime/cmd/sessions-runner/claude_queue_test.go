@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/somewhere-tech/sessions/runtime/internal/claudep"
 	"github.com/somewhere-tech/sessions/runtime/internal/proto"
+	"github.com/somewhere-tech/sessions/runtime/internal/providerfault"
 	"github.com/somewhere-tech/sessions/runtime/internal/state"
 )
 
@@ -298,5 +300,167 @@ func TestClaudeQueueUndispatchedReceiptNeverClaimsTurnStarted(t *testing.T) {
 	r.queue.Items = []claudeQueuedMessage{{ID: "saved", Text: "saved", Hash: claudeMessageHash("saved"), Phase: "queued", Boundary: "runner"}}
 	if result := r.submitMessage(proto.MessageControl{OperationID: "saved", Text: "saved"}); !result.Accepted || result.Boundary != "queue" {
 		t.Fatalf("unclaimed duplicate was mislabeled as started: %+v", result)
+	}
+}
+
+// A pause holds back saved messages behind a failed or interrupted turn. With
+// none saved and no failed turn retained it holds nothing, so a new message
+// starts rather than waiting behind a Retry that has nothing to retry.
+func TestClaudeQueuePauseHoldingNothingDoesNotParkNextMessage(t *testing.T) {
+	r, logPath := newClaudeQueueFixture(t)
+	r.active = false
+	r.queue = claudeMessageQueue{Version: 1, Paused: true, Items: []claudeQueuedMessage{
+		{ID: "interrupted", Text: "never resend", Phase: "dispatched", Hash: claudeMessageHash("never resend"), Boundary: "runner"},
+	}}
+	if result := r.submitMessage(proto.MessageControl{OperationID: "next", Text: "next"}); !result.Accepted || result.Boundary != "runner" || result.Error != "" {
+		t.Fatalf("receipt = %+v", result)
+	}
+	waitClaudeQueue(t, r, func(queue claudeMessageQueue) bool { return !queue.Paused && queue.Items[1].Phase == "done" })
+	if data, _ := os.ReadFile(logPath); string(data) != "next\n" {
+		t.Fatalf("provider calls = %q", data)
+	}
+}
+
+func TestClaudeQueuePauseStillHoldsSavedMessagesAndFailedTurns(t *testing.T) {
+	for _, held := range []string{"saved message", "failed turn"} {
+		t.Run(held, func(t *testing.T) {
+			r, logPath := newClaudeQueueFixture(t)
+			r.active = false
+			r.queue = claudeMessageQueue{Version: 1, Paused: true}
+			r.retry = newStructuredRetryController(r.startRetryTurn, r.appendStructured, r.publishRetryState)
+			if held == "saved message" {
+				r.queue.Items = []claudeQueuedMessage{{ID: "saved", Text: "saved", Phase: "queued", Hash: claudeMessageHash("saved"), Boundary: "queue"}}
+			} else {
+				r.retry.Failed("failed", 0, providerfault.Fault{Kind: providerfault.KindAuth}, "permission denied")
+			}
+			result := r.submitMessage(proto.MessageControl{OperationID: "later", Text: "later"})
+			if !result.Accepted || result.Boundary != "queue" || !strings.Contains(result.Error, "paused") || !r.queue.Paused {
+				t.Fatalf("receipt = %+v, paused = %v", result, r.queue.Paused)
+			}
+			if _, err := os.Stat(logPath); !os.IsNotExist(err) {
+				t.Fatal("a paused queue launched the provider")
+			}
+		})
+	}
+}
+
+// A restart that finds only dispatched entries has nothing to pause: those
+// entries are never replayed, and are reported as unknown instead.
+func TestClaudeQueueRestartWithOnlyDispatchedEntriesDoesNotPause(t *testing.T) {
+	r, logPath := newClaudeQueueFixture(t)
+	queue := claudeMessageQueue{Version: 1, Items: []claudeQueuedMessage{
+		{ID: "uncertain", Text: "never resend", Phase: "dispatched", Hash: claudeMessageHash("never resend"), Boundary: "queue"},
+		{ID: "finished", Phase: "done", Hash: claudeMessageHash("finished"), Boundary: "runner"},
+	}}
+	if err := writeClaudeQueue(r.paths.MessageQueue, queue); err != nil {
+		t.Fatal(err)
+	}
+	r.active = false
+	if err := r.loadMessageQueue(); err != nil {
+		t.Fatal(err)
+	}
+	if r.queue.Paused {
+		t.Fatal("restart paused a queue with nothing undispatched")
+	}
+	if !r.queueHistoryIDs()["sessions-message:uncertain:unknown"] {
+		t.Fatal("restart did not report the dispatched entry as unknown")
+	}
+	if result := r.submitMessage(proto.MessageControl{OperationID: "next", Text: "next"}); result.Boundary != "runner" {
+		t.Fatalf("receipt = %+v", result)
+	}
+	waitClaudeQueue(t, r, func(queue claudeMessageQueue) bool { return queue.Items[2].Phase == "done" })
+	if data, _ := os.ReadFile(logPath); string(data) != "next\n" {
+		t.Fatalf("restart replayed a dispatched message: %q", data)
+	}
+}
+
+// Whether Result reports the stopped process or the cancellation first is a
+// race. Either way an interruption ends the turn in history, records no
+// failure, and leaves nothing for Retry to run again.
+func TestClaudeInterruptionEndsTurnWithoutFailure(t *testing.T) {
+	r, logPath := newClaudeQueueFixture(t)
+	r.retry = newStructuredRetryController(r.startRetryTurn, r.appendStructured, r.publishRetryState)
+	command := filepath.Join(r.cfg.cwd, "fake-claude")
+	script := "#!/bin/sh\nprintf 'started\\n' >> \"$QUEUE_TEST_LOG\"\nexec /bin/sleep 30\n"
+	if err := os.WriteFile(command, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	r.active = false
+	for attempt := range 12 {
+		id := fmt.Sprintf("slow-%d", attempt)
+		if result := r.submitMessage(proto.MessageControl{OperationID: id, Text: id}); !result.Accepted {
+			t.Fatal(result)
+		}
+		deadline := time.Now().Add(3 * time.Second)
+		for data, _ := os.ReadFile(logPath); strings.Count(string(data), "started") <= attempt; data, _ = os.ReadFile(logPath) {
+			if time.Now().After(deadline) {
+				t.Fatal("inert provider never started")
+			}
+			time.Sleep(time.Millisecond)
+		}
+		r.handleInput("\x1b")
+		waitClaudeQueue(t, r, func(queue claudeMessageQueue) bool { return queue.Paused })
+		r.mu.Lock()
+		active := r.active
+		r.mu.Unlock()
+		if active || r.retry.hasFailedInput() {
+			t.Fatalf("attempt %d: interruption left active=%v failed input=%v", attempt, active, r.retry.hasFailedInput())
+		}
+	}
+	r.mu.Lock()
+	history := cloneStructured(r.history)
+	r.mu.Unlock()
+	interrupted := 0
+	for _, raw := range history {
+		if working, ok := claudep.HistoryLifecycle(raw); ok && !working {
+			var value map[string]any
+			_ = json.Unmarshal(raw, &value)
+			if value["subtype"] != "turn_interrupted" {
+				t.Fatalf("interruption ended a turn as %s", raw)
+			}
+			interrupted++
+		}
+		if strings.Contains(string(raw), "provider_fault") {
+			t.Fatalf("interruption recorded a provider fault: %s", raw)
+		}
+	}
+	if interrupted != 12 {
+		t.Fatalf("history ended %d interrupted turns, want 12", interrupted)
+	}
+}
+
+// A provider that answered but has not exited still holds the turn. The
+// runner says so where the person asks, and stops nothing on its own.
+func TestClaudeAnsweredTurnWhoseProcessLingersSaysSo(t *testing.T) {
+	r, logPath := newClaudeQueueFixture(t)
+	command := filepath.Join(r.cfg.cwd, "fake-claude")
+	script := "#!/bin/sh\nprintf 'started\\n' >> \"$QUEUE_TEST_LOG\"\n" +
+		"printf '%s\\n' '{\"type\":\"result\",\"session_id\":\"fixture-claude\",\"subtype\":\"success\",\"is_error\":false,\"result\":\"done\"}'\n" +
+		"exec /bin/sleep 30\n"
+	if err := os.WriteFile(command, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	r.active = false
+	if result := r.submitMessage(proto.MessageControl{OperationID: "answered", Text: "answered"}); !result.Accepted {
+		t.Fatal(result)
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for !strings.Contains(r.activeTurnReason(), "has not exited") {
+		if time.Now().After(deadline) {
+			t.Fatal("runner never recorded the provider's answer")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	result := r.submitMessage(proto.MessageControl{OperationID: "next", Text: "next"})
+	if !result.Accepted || result.Boundary != "queue" || !strings.Contains(result.Error, "has not exited") || !strings.Contains(result.Error, "do not resend") {
+		t.Fatalf("receipt = %+v", result)
+	}
+	if data, _ := os.ReadFile(logPath); string(data) != "started\n" {
+		t.Fatalf("a second provider process started: %q", data)
+	}
+	r.handleInput("\x1b")
+	waitClaudeQueue(t, r, func(queue claudeMessageQueue) bool { return queue.Paused })
+	if r.activeTurnReason() != "Claude turn is active" {
+		t.Fatal("a new turn inherited the previous answer")
 	}
 }

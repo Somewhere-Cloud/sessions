@@ -25,6 +25,8 @@ func (a *app) cmdRetry(args []string) error {
 			Stopped bool   `json:"stopped"`
 		}{true, id, stop}, false)
 	}
+	// The runner chose what to start: the failed turn, or else the next
+	// saved Claude message not yet dispatched.
 	action := "retry started"
 	if stop {
 		action = "automatic retry stopped"

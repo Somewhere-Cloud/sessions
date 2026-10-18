@@ -3,6 +3,7 @@ package state
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -636,7 +637,12 @@ func (s *Session) RetryProvider(ctx context.Context) error {
 		return err
 	}
 	controller := s.runner.(interface{ Retry(context.Context) error })
-	if err := controller.Retry(ctx); err != nil {
+	err := controller.Retry(ctx)
+	var refusal proto.RetryRefusal
+	if err != nil && s.info.FailureKind == "" && errors.As(err, &refusal) {
+		return fmt.Errorf("%w: %s. Nothing was resent", ErrNothingToContinue, refusal.Reason)
+	}
+	if err != nil {
 		return fmt.Errorf("retry failed provider turn: %w", err)
 	}
 	return nil
@@ -677,7 +683,14 @@ func (s *Session) retryEligibilityLocked(stop bool) error {
 	if stop && s.info.Retry == nil {
 		return ErrNoRetryScheduled
 	}
-	if !stop && s.info.FailureKind == "" {
+	// With no recorded failure, Retry is still how a Rich Claude runner is
+	// asked to continue saved next-turn messages that a failure, interruption,
+	// restart or storage error paused. Only that runner knows whether any are
+	// waiting, whether it is active, and which were already dispatched, so
+	// the daemon asks instead of deciding; a runner with nothing to continue,
+	// including one from before the queue existed, refuses and starts nothing.
+	// A Codex runner has no such queue, so nothing failed means nothing to do.
+	if !stop && s.info.FailureKind == "" && s.info.Kind != KindClaudeStructured {
 		return ErrNoFailedTurn
 	}
 	if !stop && s.info.Working {

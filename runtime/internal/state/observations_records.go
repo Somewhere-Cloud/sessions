@@ -123,6 +123,8 @@ func (t *observationTracker) observeSessionsRecord(value map[string]any, at int6
 	case value["type"] == "claude" && value["subtype"] == "turn_started":
 		t.turn.start(at, "sessions-dispatch")
 		t.turn.dispatchedLive = origin == fromRunnerStream
+	case value["type"] == "claude" && value["subtype"] == "turn_interrupted":
+		t.turn.end(at, "runner-interrupt")
 	case value["type"] == "result":
 		// A failure Sessions synthesized when the provider ended without a
 		// valid result. It ends the turn, labelled as Sessions' own.

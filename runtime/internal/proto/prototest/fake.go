@@ -95,6 +95,7 @@ type Runner struct {
 	models       []proto.ModelControl
 	retries      int
 	retryStops   int
+	retryRefusal string
 	cols         int
 	rows         int
 	exited       bool
@@ -205,7 +206,18 @@ func (r *Runner) Retry(context.Context) error {
 	}
 	r.retries++
 	r.signalChangeLocked()
+	if r.retryRefusal != "" {
+		return proto.RetryRefusal{Reason: r.retryRefusal}
+	}
 	return nil
+}
+
+// RefuseRetry makes later retry controls answer with this runner refusal, the
+// way a runner with nothing to retry or continue answers RETRY_REQ.
+func (r *Runner) RefuseRetry(reason string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.retryRefusal = reason
 }
 
 func (r *Runner) StopRetry(context.Context) error {

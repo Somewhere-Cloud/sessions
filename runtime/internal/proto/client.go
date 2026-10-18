@@ -435,7 +435,7 @@ func (r *SocketRunner) handleRetryResponse(payload []byte) {
 	var result RetryControlResult
 	err := json.Unmarshal(payload, &result)
 	if err == nil && result.Error != "" {
-		err = errors.New(result.Error)
+		err = RetryRefusal{Reason: result.Error}
 	}
 	r.mu.Lock()
 	request := r.retry

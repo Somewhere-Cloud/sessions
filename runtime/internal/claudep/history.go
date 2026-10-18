@@ -54,6 +54,16 @@ func TurnStartedEvent(sessionID string, at time.Time) (json.RawMessage, error) {
 	})
 }
 
+// TurnInterruptedEvent is the working=false boundary for a turn the person
+// interrupted. The provider was stopped before it gave a result, so nothing
+// else would end the turn, and an interruption is not a failure to retry.
+func TurnInterruptedEvent(sessionID string, at time.Time) (json.RawMessage, error) {
+	return marshalHistory(map[string]any{
+		"type": "claude", "subtype": "turn_interrupted", "source": HistorySource,
+		"timestamp": historyTimestamp(at), "session_id": sessionID,
+	})
+}
+
 // InputRejectedEvent makes steering semantics explicit when a structured
 // Claude turn is already active. Sessions never hides a prompt queue behind
 // the composer; the user must send again after the current turn finishes.
@@ -233,6 +243,9 @@ func HistoryLifecycle(raw json.RawMessage) (working bool, authoritative bool) {
 	}
 	if value.Type == "claude" && value.Subtype == "turn_started" {
 		return true, true
+	}
+	if value.Type == "claude" && value.Subtype == "turn_interrupted" {
+		return false, true
 	}
 	if value.Type == "result" {
 		return false, true

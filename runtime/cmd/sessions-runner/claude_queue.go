@@ -53,7 +53,7 @@ func (r *claudeStructuredRunner) loadMessageQueue() error {
 			(item.Phase != "done" && (item.Text == "" || item.Hash != claudeMessageHash(item.Text))) {
 			return errors.New("invalid saved Claude message; preserve the queue and inspect the conversation before recovery")
 		}
-		pending = pending || item.Phase != "done"
+		pending = pending || item.Phase == "queued"
 		if item.Phase == "queued" && !seen["sessions-message:"+item.ID] {
 			r.appendQueueEvent(item)
 		}
@@ -122,13 +122,15 @@ func (r *claudeStructuredRunner) admitClaudeMessage(control proto.MessageControl
 	r.mu.Lock()
 	active := r.active
 	r.mu.Unlock()
+	paused := r.queue.Paused && r.queuePauseHoldsWork()
 	boundary := "runner"
-	if active || r.queue.Paused {
+	if active || paused {
 		boundary = "queue"
 	}
 	item := claudeQueuedMessage{ID: control.OperationID, Text: control.Text, Hash: claudeMessageHash(control.Text),
 		Phase: "queued", Boundary: boundary, At: time.Now().UTC().Format(time.RFC3339Nano)}
 	next, err := r.queueWith(item)
+	next.Paused = paused
 	if err == nil {
 		err = writeClaudeQueue(r.paths.MessageQueue, next)
 	}
@@ -141,6 +143,8 @@ func (r *claudeStructuredRunner) admitClaudeMessage(control proto.MessageControl
 	result.Accepted, result.Boundary = true, boundary
 	if r.queue.Paused {
 		result.Error = "Saved for the next turn, but the queue is paused. Resolve the failed turn or inspect the conversation and use Retry; do not resend this message."
+	} else if reason := r.activeTurnReason(); active && reason != "Claude turn is active" {
+		result.Error = "Saved for the next turn; do not resend this message. " + reason + "."
 	}
 	_, err = r.claimQueuedTurnLocked(false)
 	if err != nil {
@@ -148,6 +152,22 @@ func (r *claudeStructuredRunner) admitClaudeMessage(control proto.MessageControl
 		result.Error = "Message is saved, but could not start: " + err.Error() + ". Fix storage, then use Retry; do not resend."
 	}
 	return result
+}
+
+// queuePauseHoldsWork reports whether a pause is still holding anything back:
+// a saved message not yet dispatched, or a retained failed turn that Retry
+// would run first. An interruption, a failure whose input was replaced, or a
+// restart that left only dispatched entries pauses a queue with neither. Such
+// a pause protects nothing, and keeping it would park the next message behind
+// a Retry that has nothing to retry. Dispatched entries never count: they are
+// never sent again, so they cannot be what the pause preserves.
+func (r *claudeStructuredRunner) queuePauseHoldsWork() bool {
+	for _, item := range r.queue.Items {
+		if item.Phase == "queued" {
+			return true
+		}
+	}
+	return r.retry != nil && r.retry.hasFailedInput()
 }
 
 func (r *claudeStructuredRunner) claimQueuedTurnLocked(resume bool) (bool, error) {
@@ -191,7 +211,7 @@ func (r *claudeStructuredRunner) finishClaudeTurn(id string, successful bool) {
 	r.queueMu.Lock()
 	defer r.queueMu.Unlock()
 	r.mu.Lock()
-	r.active, r.turnCancel = false, nil
+	r.active, r.turnCancel, r.turnAnswered = false, nil, false
 	r.mu.Unlock()
 	next := r.queue
 	next.Items = append([]claudeQueuedMessage(nil), next.Items...)
@@ -217,7 +237,7 @@ func (r *claudeStructuredRunner) finishClaudeTurn(id string, successful bool) {
 		if _, err := r.claimQueuedTurnLocked(false); err != nil {
 			r.queueNotice("Saved next-turn messages could not start: " + err.Error() + ". Fix storage, then use Retry; do not resend.")
 		}
-	} else if len(next.Items) > 0 {
+	} else if r.queuePauseHoldsWork() {
 		r.queueNotice("Next-turn messages remain saved. The current turn failed or was interrupted; resolve it before continuing the queue with Retry.")
 	}
 }
