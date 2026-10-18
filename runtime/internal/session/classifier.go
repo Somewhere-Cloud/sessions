@@ -95,9 +95,6 @@ func ClaudeWorkingFromSnapshot(snapshot string) bool {
 	return workingFooterRE.MatchString(strings.Join(lines, "\n"))
 }
 
-// ClassifyIdleReason applies the terminal-tail completion rules.
-func ClassifyIdleReason(snapshot string) IdleOutcome { return ClassifySnapshot(snapshot).Outcome }
-
 // ClassifySnapshotFor is ClassifySnapshot for a caller that knows which
 // provider is running. The provider decides what counts as its own login UI;
 // without one, only an anchored provider error line can be evidence.

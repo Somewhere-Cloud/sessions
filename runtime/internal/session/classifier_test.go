@@ -7,7 +7,7 @@ import (
 	"github.com/somewhere-tech/sessions/runtime/internal/state"
 )
 
-func TestClassifyIdleReasonHeritageSnapshots(t *testing.T) {
+func TestClassifySnapshotHeritageOutcomes(t *testing.T) {
 	tests := []struct {
 		name     string
 		snapshot string
@@ -24,8 +24,8 @@ func TestClassifyIdleReasonHeritageSnapshots(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if got := ClassifyIdleReason(test.snapshot); got != test.want {
-				t.Fatalf("ClassifyIdleReason() = %q, want %q", got, test.want)
+			if got := ClassifySnapshot(test.snapshot).Outcome; got != test.want {
+				t.Fatalf("ClassifySnapshot().Outcome = %q, want %q", got, test.want)
 			}
 		})
 	}
