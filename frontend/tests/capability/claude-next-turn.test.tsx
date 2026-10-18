@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { submitMessage } from '../../src/api/sessionsd/operations';
 import { eventsToMessages } from '../../src/lib/claudeEvents';
@@ -7,6 +7,55 @@ import { InputBar } from '../../src/components/InputBar';
 import { RemoteView } from '../../src/components/RemoteView';
 import { useFakeMachines } from './fake-daemon';
 import type { ClaudeSessionEvent } from '../../src/types';
+
+const workingSidebar = { parserName: 'Claude', parserIcon: '', isWorking: true, timer: '', tokens: '', context: '', finalElapsed: '', currentTask: '', checklist: [] };
+const savedMessage: ClaudeSessionEvent = { type: 'queue-operation', source: 'sessions-next-turn', operation: 'enqueue', content: 'Saved follow-up', uuid: 'sessions-message:saved', timestamp: '2026-10-18T08:11:00Z' };
+
+function renderSavedQueue(terminalAvailable: boolean): void {
+  render(<RemoteView sessionId="paused-chat" events={[savedMessage]} historyPending={false} connected sendConfirmed={async () => {}} submitMessage={async () => {}}
+    hasEarlierClaudeEvents={false} loadingEarlierClaudeEvents={false} onLoadEarlierClaudeEvents={() => {}}
+    sidebar={workingSidebar} onOpenTerminal={() => {}} terminalAvailable={terminalAvailable} provider="claude-code" />);
+}
+
+describe('Claude saved-message continuation', () => {
+  it.each([
+    ['refused', 409, { error: 'Claude did not continue saved messages: Claude turn is active. Nothing was resent' }],
+    ['accepted', 200, { id: 'paused-chat' }]
+  ] as const)('asks the runner once even while the view says working: %s', async (_name, status, body) => {
+    useFakeMachines([{ id: 'local', name: 'Fixture', host: 'localhost', port: 8787, isDefault: true, sessions: [] }]);
+    const user = userEvent.setup();
+    const posts: string[] = [];
+    globalThis.fetch = vi.fn(async (url: unknown, init?: RequestInit) => {
+      if (init?.method === 'POST') posts.push(String(url));
+      return Response.json(body, { status });
+    });
+    renderSavedQueue(false);
+    // The view's working flag is inferred; a paused queue can sit behind it,
+    // so continuing stays offered and the runner decides.
+    expect(screen.getByText(/runner decides/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Continue saved messages' }));
+    await waitFor(() => expect(posts).toHaveLength(1));
+    expect(posts[0]).toMatch(/\/api\/sessions\/paused-chat\/retry$/);
+    if (status === 409) expect(await screen.findByRole('alert')).toHaveTextContent('Claude turn is active. Nothing was resent');
+    else expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    // Asking is the only request: no message is resent and nothing is interrupted.
+    expect(posts.some((url) => /\/(submit|input)$/.test(url))).toBe(false);
+  });
+
+  it('is not offered for a terminal session, which has no saved-message queue', () => {
+    useFakeMachines([{ id: 'local', name: 'Fixture', host: 'localhost', port: 8787, isDefault: true, sessions: [] }]);
+    renderSavedQueue(true);
+    expect(screen.queryByRole('button', { name: 'Continue saved messages' })).not.toBeInTheDocument();
+  });
+
+  it('shows a process error after Claude answered as what it is, not a failed turn', () => {
+    const messages = eventsToMessages([{ type: 'system', subtype: 'provider_exit_after_result', origin: 'sessions', timestamp: '2026-10-18T08:12:00Z',
+      detail: 'Claude answered this turn, then its process reported an error: exit status 1. The answer is kept and will not be run again.' } as ClaudeSessionEvent]);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]?.quietStatus).toContain('will not be run again');
+    expect(messages[0]?.errorResponse).toBeUndefined();
+  });
+});
 
 describe('Claude next-turn acceptance', () => {
   it.each([false, true])('preserves a queued receipt after broken HTTP: %s', async (broken) => {

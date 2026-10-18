@@ -594,7 +594,7 @@ export function RemoteView({
 
 
       <div className="remote-input-wrap">
-        {queuedSend.length ? <QueuedComposerStatus messages={queuedSend} providerName={providerName} sessionId={sessionId} resumable={!terminalAvailable && provider === 'claude-code' && !sidebar.isWorking} /> : null}
+        {queuedSend.length ? <QueuedComposerStatus messages={queuedSend} providerName={providerName} sessionId={sessionId} resumable={!terminalAvailable && provider === 'claude-code'} working={sidebar.isWorking} /> : null}
         <InputBar
           send={sendConfirmed}
           submitMessage={submitMessage}
@@ -658,14 +658,20 @@ function QueuedBadge({ agentName }: { agentName: string }): JSX.Element {
 
 // A send the provider has not picked up yet: status where the person is
 // waiting, rather than a line in the record of what was said.
-function QueuedComposerStatus({ messages, providerName, sessionId, resumable }: { messages: DispatchMessage[]; providerName: string; sessionId: string; resumable: boolean }): JSX.Element {
+//
+// Continuing is offered whether or not this view thinks Claude is working:
+// that flag is inferred, and a paused queue can sit behind it. The button only
+// asks; the runner decides from its own turn and queue, starts at most the
+// next undispatched message, and its refusal is shown as given. Nothing here
+// resends, interrupts, or retries on its own.
+function QueuedComposerStatus({ messages, providerName, sessionId, resumable, working }: { messages: DispatchMessage[]; providerName: string; sessionId: string; resumable: boolean; working: boolean }): JSX.Element {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const resume = async (): Promise<void> => {
     if (busy) return;
     setBusy(true); setError('');
     try { await retryProviderSession(sessionId); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not continue saved messages. Nothing was resent.'); }
+    catch (reason) { setError(reason instanceof Error && reason.message.trim() ? reason.message : 'Saved messages were not continued. Nothing was resent.'); }
     finally { setBusy(false); }
   };
   return (
@@ -674,7 +680,8 @@ function QueuedComposerStatus({ messages, providerName, sessionId, resumable }: 
       <span>{messages.length} saved for {providerName}'s next turn · not dispatched yet</span>
       <details><summary>View saved messages</summary>{messages.map((message) => <p key={message.id} className="remote-queued-text">{message.content}</p>)}</details>
       {resumable ? <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void resume()}
-        title="Retry the failed turn, if any; otherwise continue only saved messages not yet dispatched. A dispatched message is never sent again. Inspect the conversation first.">{busy ? 'Continuing…' : 'Retry / continue saved messages'}</button> : null}
+        title="Ask Claude's runner to retry the failed turn, if any, or else to start the next saved message not yet dispatched. It refuses, and says why, while its turn is still open. A dispatched message is never sent again.">{busy ? 'Asking…' : 'Continue saved messages'}</button> : null}
+      {resumable && working && !error ? <span className="remote-queued-hint">{providerName} may still be in a turn; its runner decides and says why if it cannot continue.</span> : null}
       {error ? <span role="alert">{error}</span> : null}
     </div>
   );

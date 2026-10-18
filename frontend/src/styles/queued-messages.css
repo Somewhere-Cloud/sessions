@@ -2,3 +2,4 @@
 .remote-queued-status details { min-width: 0; flex-basis: 100%; }
 .remote-queued-status summary { cursor: pointer; }
 .remote-queued-text { margin: 8px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.remote-queued-hint { color: var(--fg-dim); }
