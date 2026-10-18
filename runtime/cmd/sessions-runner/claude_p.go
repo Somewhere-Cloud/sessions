@@ -621,6 +621,11 @@ func (r *claudeStructuredRunner) consumeTurn(
 	// process and the cancellation Result happened to report first: an
 	// interruption must never become a failed turn that Retry runs again.
 	if turnCtx.Err() != nil {
+		// Claude's own result said this turn succeeded before it was stopped,
+		// so no failed input remains for Retry to run again.
+		if completed && !failed && r.retry != nil {
+			r.retry.Succeeded()
+		}
 		r.recordTurnInterrupted()
 		return false
 	}

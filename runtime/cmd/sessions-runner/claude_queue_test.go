@@ -464,3 +464,38 @@ func TestClaudeAnsweredTurnWhoseProcessLingersSaysSo(t *testing.T) {
 		t.Fatal("a new turn inherited the previous answer")
 	}
 }
+
+// Retrying a failed turn that Claude then answers successfully, but whose
+// process has to be interrupted, leaves no failed input behind: Claude's own
+// result said it succeeded, so Retry must not run it a second time.
+func TestClaudeInterruptedTurnAfterSuccessfulAnswerRetainsNoFailure(t *testing.T) {
+	r, logPath := newClaudeQueueFixture(t)
+	r.retry = newStructuredRetryController(r.startRetryTurn, r.appendStructured, r.publishRetryState)
+	command := filepath.Join(r.cfg.cwd, "fake-claude")
+	script := "#!/bin/sh\nprintf 'started\\n' >> \"$QUEUE_TEST_LOG\"\n" +
+		"printf '%s\\n' '{\"type\":\"result\",\"session_id\":\"fixture-claude\",\"subtype\":\"success\",\"is_error\":false,\"result\":\"done\"}'\n" +
+		"exec /bin/sleep 30\n"
+	if err := os.WriteFile(command, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	r.active = false
+	r.retry.Failed("earlier", 0, providerfault.Fault{Kind: providerfault.KindAuth}, "permission denied")
+	if err := r.retry.RunNow(); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for !strings.Contains(r.activeTurnReason(), "has not exited") {
+		if time.Now().After(deadline) {
+			t.Fatal("runner never recorded the provider's answer")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	r.handleInput("\x1b")
+	waitClaudeQueue(t, r, func(queue claudeMessageQueue) bool { return queue.Paused })
+	if r.retry.hasFailedInput() {
+		t.Fatal("a turn Claude answered successfully stayed retained as a failure")
+	}
+	if data, _ := os.ReadFile(logPath); string(data) != "started\n" {
+		t.Fatalf("provider calls = %q", data)
+	}
+}
