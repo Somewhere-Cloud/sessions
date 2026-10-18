@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/somewhere-tech/sessions/runtime/internal/delivery"
+	"github.com/somewhere-tech/sessions/runtime/internal/state"
 )
 
 const deliveryRoutePrefix = "/api/message-deliveries/"
@@ -102,7 +103,7 @@ func (s *Server) deliveryReceiptBody(record delivery.Record, duplicate bool) (ma
 			reason = "the request was recorded, but Sessions cannot prove whether runner input happened before the previous caller disconnected"
 		}
 	}
-	return map[string]any{
+	body := map[string]any{
 		"operation_id":  record.OperationID,
 		"session_id":    record.SessionID,
 		"status":        status,
@@ -113,5 +114,24 @@ func (s *Server) deliveryReceiptBody(record delivery.Record, duplicate bool) (ma
 		"duplicate":     duplicate,
 		"created_at_ms": record.CreatedAtMS,
 		"updated_at_ms": record.UpdatedAtMS,
-	}, status
+	}
+	if evidence, ok := s.claudeDeliveryEvidence(record, status); ok {
+		body["evidence"] = evidence
+	}
+	return body, status
+}
+
+// claudeDeliveryEvidence adds what a structured Claude runner's records show
+// after it accepted a message: acceptance alone does not say the message was
+// dispatched, and dispatch does not say what the provider did with it. It is
+// read from retained history each time, never stored in the receipt.
+func (s *Server) claudeDeliveryEvidence(record delivery.Record, status delivery.Status) (delivery.ClaudeEvidence, bool) {
+	if status != delivery.StatusAccepted || (record.Acceptance != "queue" && record.Acceptance != "runner") {
+		return delivery.ClaudeEvidence{}, false
+	}
+	current, ok := s.registry.Get(record.SessionID)
+	if !ok || current.Info().Kind != state.KindClaudeStructured {
+		return delivery.ClaudeEvidence{}, false
+	}
+	return delivery.ObserveClaudeOperation(current.RetainedClaudeEvents(), record.OperationID), true
 }

@@ -80,8 +80,14 @@ func TestClaudeQueueRecoveryThroughRetryEndToEnd(t *testing.T) {
 	// "nothing failed" and the saved message could never continue.
 	h.send("hang-a", "runner")
 	h.waitCalls("hang-a")
-	h.send("queued-b", "queue")
+	queuedB := h.send("queued-b", "queue")
 	h.interruptAndWaitPaused()
+	// Accepted into the queue is not dispatched, and the receipt says only
+	// what the runner's records show.
+	if receipt := h.receipt(queuedB); receipt.Status != "accepted" || receipt.Acceptance != "queue" || receipt.Evidence == nil ||
+		receipt.Evidence.EnqueuedAt == nil || receipt.Evidence.Dispatch != "not-observed" || receipt.Evidence.ProviderResult != nil {
+		t.Fatalf("paused receipt = %+v evidence %+v", receipt, receipt.Evidence)
+	}
 	if kind := h.info().FailureKind; kind != "" {
 		t.Fatalf("an interruption recorded failure %q", kind)
 	}
@@ -92,6 +98,15 @@ func TestClaudeQueueRecoveryThroughRetryEndToEnd(t *testing.T) {
 	h.retry(true, "")
 	h.waitCalls("hang-a", "queued-b")
 	h.waitQueue(func(queue queueRecoveryQueue) bool { return queue.phase("queued-b") == "done" && !queue.Paused })
+	evidence := h.receipt(queuedB).Evidence
+	if evidence == nil || evidence.Dispatch != "dispatched" || evidence.DispatchedAt == nil || *evidence.DispatchedAt < *evidence.EnqueuedAt ||
+		evidence.ProviderRecordObservedAt == nil || evidence.ProviderResult == nil || *evidence.ProviderResult != "success" {
+		t.Fatalf("continued receipt evidence = %+v", evidence)
+	}
+	if stdout, _, _ := h.cli("send-status", queuedB); !strings.Contains(stdout, "dispatched to a Claude turn: ") ||
+		!strings.Contains(stdout, "Claude's result for that turn: success at ") {
+		t.Fatalf("send-status = %s", stdout)
+	}
 
 	// Nothing failed and nothing is saved: the runner says so, starts nothing,
 	// and the refusal is a known conflict rather than a gateway error.
@@ -290,6 +305,16 @@ func (h *queueRecoveryHarness) send(text, acceptance string) string {
 		h.t.Fatalf("send %q: exit=%d stdout=%s stderr=%s, want %s-accepted", text, code, stdout, stderr, acceptance)
 	}
 	return operation
+}
+
+func (h *queueRecoveryHarness) receipt(operation string) deliveryReceipt {
+	h.t.Helper()
+	stdout, stderr, code := h.cli("--json", "send-status", operation)
+	var receipt deliveryReceipt
+	if code != 0 || json.Unmarshal([]byte(stdout), &receipt) != nil {
+		h.t.Fatalf("send-status %s: exit=%d stdout=%s stderr=%s", operation, code, stdout, stderr)
+	}
+	return receipt
 }
 
 func (h *queueRecoveryHarness) retry(started bool, refusal string) {

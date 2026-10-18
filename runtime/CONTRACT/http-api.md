@@ -1963,7 +1963,32 @@ this reconciliation, including after the delivery store is reopened.
 
 The response is a delivery receipt with `operation_id`, `session_id`, `status`,
 `delivered`, `retry`, `reason`, `duplicate`, `created_at_ms`, and
-`updated_at_ms`. `status` is one of `accepted`, `not-delivered`, `unknown`, or
+`updated_at_ms`.
+
+An accepted `runner` or `queue` receipt for a currently known structured Claude
+session also carries additive `evidence`: what that runner's own history
+records show after acceptance, read from the daemon's retained window at the
+time of the request and never stored in the receipt.
+
+```json
+"evidence":{"source":"retained-history","enqueued_at":1760775060000,
+            "dispatch":"dispatched","dispatched_at":1760775120000,
+            "provider_record_observed_at":1760775122000,
+            "provider_result":"success","provider_result_observed_at":1760775180000}
+```
+
+`enqueued_at` is when the runner saved the message and `dispatched_at` when it
+started a Claude turn with it; `dispatch` is `dispatched`, `dispatch-unknown` (a
+restarted runner found the message claimed and will never send it again), or
+`not-observed`. `provider_record_observed_at` is when the runner received the
+first record Claude's process wrote for that turn, and `provider_result` is
+`success` or `error` as Claude's latest result record for that turn (including
+a retry of it) said, with `provider_result_observed_at`. All times are Unix
+epoch milliseconds on the runner's clock; a time no record shows is `null`.
+`not-observed` and `null` mean only that the retained window holds no such
+record, not that it did not happen. None of these fields says what the model
+read or understood, and none is a reason to resend: `delivered:true` on a
+`queue` receipt still describes queue acceptance. `status` is one of `accepted`, `not-delivered`, `unknown`, or
 `text-delivered`. Retrying the same operation id with the same target and
 content reads the original receipt without sending another message, including
 after a daemon restart. Reusing it for different content or a different target

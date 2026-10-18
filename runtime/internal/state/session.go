@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"iter"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -891,6 +892,21 @@ func (s *Session) ClaudeEventLog() []json.RawMessage {
 		events[i] = append(json.RawMessage(nil), s.claude[i]...)
 	}
 	return events
+}
+
+// RetainedClaudeEvents yields each retained structured event in order under
+// the read lock, without copying. The caller must not keep an event past its
+// iteration or call back into this session while iterating.
+func (s *Session) RetainedClaudeEvents() iter.Seq[json.RawMessage] {
+	return func(yield func(json.RawMessage) bool) {
+		s.mu.RLock()
+		defer s.mu.RUnlock()
+		for _, event := range s.claude {
+			if !yield(event) {
+				return
+			}
+		}
+	}
 }
 
 func (s *Session) EventsWindow(since, tail, before *int64) ClaudeEventsWindow {

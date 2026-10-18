@@ -651,7 +651,7 @@ function QueuedBadge({ agentName }: { agentName: string }): JSX.Element {
       <span aria-hidden>⏳</span>
       <span>{agentName === 'Codex'
         ? 'Accepted for this turn · may wait for a tool to finish'
-        : 'queued — Claude is finishing the previous turn'}</span>
+        : 'Saved for Claude\'s next turn · not dispatched yet'}</span>
     </div>
   );
 }
@@ -671,10 +671,10 @@ function QueuedComposerStatus({ messages, providerName, sessionId, resumable }: 
   return (
     <div className="remote-provider-retry remote-queued-status" role="status">
       <span aria-hidden>⏳</span>
-      <span>{messages.length} saved for {providerName}'s next turn · not yet read</span>
+      <span>{messages.length} saved for {providerName}'s next turn · not dispatched yet</span>
       <details><summary>View saved messages</summary>{messages.map((message) => <p key={message.id} className="remote-queued-text">{message.content}</p>)}</details>
       {resumable ? <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void resume()}
-        title="Retry the failed current turn, if any; otherwise continue only saved messages not yet dispatched. Inspect the conversation first.">{busy ? 'Continuing…' : 'Retry / continue saved messages'}</button> : null}
+        title="Retry the failed turn, if any; otherwise continue only saved messages not yet dispatched. A dispatched message is never sent again. Inspect the conversation first.">{busy ? 'Continuing…' : 'Retry / continue saved messages'}</button> : null}
       {error ? <span role="alert">{error}</span> : null}
     </div>
   );

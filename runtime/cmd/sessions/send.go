@@ -66,6 +66,9 @@ type deliveryReceipt struct {
 	Reason      string `json:"reason,omitempty"`
 	Duplicate   bool   `json:"duplicate"`
 	Acceptance  string `json:"acceptance,omitempty"`
+	// Evidence is what a structured Claude runner's records show after it
+	// accepted the message; sessionsd omits it for every other receipt.
+	Evidence *delivery.ClaudeEvidence `json:"evidence,omitempty"`
 }
 
 var (
@@ -770,7 +773,8 @@ func (a *app) cmdSend(args []string) error {
 			return err
 		}
 		if result.Confidence == "queue-accepted" {
-			_, err := fmt.Fprintln(a.stdout, strings.TrimSpace("saved for next turn; not yet read by Claude (do not resend) "+result.Reason))
+			_, err := fmt.Fprintln(a.stdout, strings.TrimSpace("saved for Claude's next turn; not dispatched yet (do not resend; follow it with `sessions send-status "+
+				result.OperationID+"`) "+result.Reason))
 			return err
 		}
 		_, err := io.WriteString(a.stdout, "delivered\n")
@@ -874,12 +878,54 @@ func (a *app) cmdSendStatus(args []string) error {
 	if receipt.Reason != "" {
 		fmt.Fprintln(a.stdout, receipt.Reason)
 	}
+	for _, line := range claudeEvidenceLines(receipt.Evidence) {
+		fmt.Fprintln(a.stdout, line)
+	}
 	if receipt.Retry {
 		fmt.Fprintln(a.stdout, "Sessions confirmed that retrying this exact operation is safe.")
 	} else if receipt.Status != "accepted" {
 		fmt.Fprintln(a.stdout, "Do not resend the message automatically.")
 	}
 	return nil
+}
+
+// claudeEvidenceLines says what the runner's records show, one fact a line,
+// with the time each was observed. A fact no record shows is said as such,
+// never as having not happened.
+func claudeEvidenceLines(evidence *delivery.ClaudeEvidence) []string {
+	if evidence == nil {
+		return nil
+	}
+	at := func(value *int64) string {
+		if value == nil {
+			return "time not recorded"
+		}
+		return formatStatusTime(*value)
+	}
+	lines := []string{"saved by the runner: " + at(evidence.EnqueuedAt)}
+	if evidence.EnqueuedAt == nil {
+		lines[0] = "saved by the runner: no enqueue record in retained history"
+	}
+	switch evidence.Dispatch {
+	case delivery.DispatchObserved:
+		lines = append(lines, "dispatched to a Claude turn: "+at(evidence.DispatchedAt))
+	case delivery.DispatchUnknown:
+		lines = append(lines, "dispatch unknown: the runner restarted after claiming it; it will not be sent again")
+	default:
+		lines = append(lines, "dispatched: not observed in retained history")
+	}
+	if evidence.Dispatch != delivery.DispatchObserved {
+		return lines
+	}
+	if evidence.ProviderRecordObservedAt == nil {
+		lines = append(lines, "Claude records for that turn: none observed")
+	} else {
+		lines = append(lines, "first Claude record for that turn: "+at(evidence.ProviderRecordObservedAt))
+	}
+	if evidence.ProviderResult != nil {
+		lines = append(lines, "Claude's result for that turn: "+*evidence.ProviderResult+" at "+at(evidence.ProviderResultObservedAt))
+	}
+	return lines
 }
 
 // readDeliveryReceipt reads one durable receipt. A receipt is recognised by its

@@ -669,6 +669,17 @@ export interface MessageDeliveryReceipt {
   reason?: string;
   duplicate?: boolean;
   acceptance?: 'runner' | 'provider' | 'transcript' | 'queue' | 'unknown';
+  // What a structured Claude runner's records show after acceptance. Runner
+  // clock milliseconds; null and not-observed mean no retained record shows it.
+  evidence?: {
+    source: 'retained-history';
+    enqueued_at: number | null;
+    dispatch: 'dispatched' | 'dispatch-unknown' | 'not-observed';
+    dispatched_at: number | null;
+    provider_record_observed_at: number | null;
+    provider_result: 'success' | 'error' | null;
+    provider_result_observed_at: number | null;
+  };
 }
 
 // Read-only recovery: checking a receipt never executes the submission again.
