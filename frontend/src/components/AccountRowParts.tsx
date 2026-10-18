@@ -6,13 +6,14 @@ import { relativeTime } from './AccountUsageSummary';
 // computer last confirmed, and the actions that belong to that computer's copy.
 
 export function AccountPlacementRow(
-  { placement, title, busy, onSignIn, onRename, onForget }: {
+  { placement, title, busy, onSignIn, onRename, onForget, unfinished = false }: {
     placement: AccountPlacement;
     title: string;
     busy: boolean;
     onSignIn: (placement: AccountPlacement) => void;
     onRename: (placement: AccountPlacement, label: string) => Promise<string | null>;
     onForget: (placement: AccountPlacement) => void;
+    unfinished?: boolean;
   }
 ): JSX.Element {
   const labelId = useId();
@@ -31,9 +32,11 @@ export function AccountPlacementRow(
   return (
     <li className="accounts-placement">
       <div className="accounts-placement-head">
-        <span id={labelId} className="accounts-placement-name">{placement.machineName}</span>
+        <span id={labelId} className="accounts-placement-name">{placement.machineName}{unfinished ? ` · ${account.tool === 'claude' ? 'Claude' : 'ChatGPT'} · ${account.label || account.name}` : ''}</span>
         <PlacementStatus check={check} signedIn={account.signed_in} />
       </div>
+      <details className="accounts-placement-details">
+      <summary aria-label={`Manage ${title} on ${placement.machineName}`}>Manage sign-in</summary>
       {editing ? (
         <NicknameEditor
           label={account.label ?? ''}
@@ -63,6 +66,7 @@ export function AccountPlacementRow(
           </button>
         </div>
       ) : null}
+      </details>
     </li>
   );
 }

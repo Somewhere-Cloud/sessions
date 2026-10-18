@@ -38,6 +38,15 @@ async function openLauncher(): Promise<HTMLSelectElement> {
   return await screen.findByLabelText('Account') as HTMLSelectElement;
 }
 
+async function unfinishedProfile(label: string): Promise<HTMLElement> {
+  const section = screen.getByText(/Unfinished sign-ins/, { selector: 'summary' });
+  if (!section.parentElement!.hasAttribute('open')) await userEvent.click(section);
+  const list = screen.getByRole('list', { name: 'Unfinished sign-ins' });
+  const item = within(list).getByText(new RegExp(` · ${label}$`)).closest('li')!;
+  await userEvent.click(within(item).getByText('Manage sign-in'));
+  return item;
+}
+
 describe('capability: accounts are a first-class choice', () => {
   it('offers the accounts on the selected computer beside Agent and Computer', async () => {
     const machines = fleet();
@@ -195,7 +204,7 @@ describe('capability: adding an account is a guided login', () => {
     );
     // Presence of a provider's sign-in file is the whole fact. "Signed in"
     // would claim a working login Sessions has never checked.
-    const pending = screen.getByRole('list', { name: 'Computers for Pending' });
+    const pending = await unfinishedProfile('Pending');
     expect(within(pending).getByText('Identity not checked')).toBeInTheDocument();
     expect(screen.queryByText(/Not signed in/)).not.toBeInTheDocument();
     expect(within(pending).getByRole('button', { name: 'Sign in' })).toBeEnabled();
@@ -213,7 +222,7 @@ describe('capability: adding an account is a guided login', () => {
         onReload={() => {}}
       />
     );
-    await user.click(within(screen.getByRole('list', { name: 'Computers for Work — team plan' })).getByRole('button', { name: 'Remove' }));
+    await user.click(within(await unfinishedProfile('Work — team plan')).getByRole('button', { name: 'Remove' }));
     const note = await screen.findByText(/was removed from this list/);
     expect(note.textContent).toContain('Work — team plan');
     expect(note.textContent).toMatch(/saved chats and sign-in are unchanged/);
@@ -242,7 +251,7 @@ describe('capability: a session says which account it is on', () => {
     expect(badges[0]!.textContent).toBe('work');
   }, 20_000);
 
-  it('reports a login file it can see without calling it a working login', () => {
+  it('reports a login file it can see without calling it a working login', async () => {
     const machines = fleet();
     installFakeDaemon(machines);
     useFakeMachines(machines, 'local');
@@ -253,7 +262,7 @@ describe('capability: a session says which account it is on', () => {
         onReload={() => {}}
       />
     );
-    const state = within(screen.getByRole('list', { name: 'Computers for Work' })).getByText('Identity not checked');
+    const state = within(await unfinishedProfile('Work')).getByText('Identity not checked');
     expect(state).toBeInTheDocument();
     expect(state.title).toMatch(/confirm who is signed in/);
     expect(screen.queryByText('Signed in')).not.toBeInTheDocument();
@@ -289,7 +298,7 @@ describe('capability: a session says which account it is on', () => {
     );
 
     // Mac mini's own account is on the page too; this is This Mac's pending one.
-    const pending = await screen.findByRole('list', { name: 'Computers for Pending' });
+    const pending = await unfinishedProfile('Pending');
     const signIn = within(pending).getByRole('button', { name: 'Sign in' });
     await user.click(signIn);
     await waitFor(() => expect(screen.getAllByRole('status').map((node) => node.textContent).join(' ')).toMatch(/no runner is available|could not open/));
@@ -330,7 +339,7 @@ describe('capability: a session says which account it is on', () => {
         onReload={() => {}}
       />
     );
-    const pending = await screen.findByRole('list', { name: 'Computers for Pending' });
+    const pending = await unfinishedProfile('Pending');
     const signIn = within(pending).getByRole('button', { name: 'Sign in' });
     await user.click(signIn);
     await user.click(signIn);

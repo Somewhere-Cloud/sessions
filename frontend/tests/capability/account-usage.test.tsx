@@ -89,10 +89,11 @@ describe('capability: one account, one allowance, on every computer it is signed
     expect(within(usage).getByText(/Read 1 min ago on Beta/)).toBeVisible();
     expect(within(usage).getByText(/55% used · resets /)).toBeVisible();
     // Beta's copy has no nickname of its own and is not renamed by the merge.
+    for (const summary of within(computers).getAllByText('Manage sign-in')) await userEvent.click(summary);
     expect(within(computers).getAllByRole('button', { name: 'Rename' })).toHaveLength(2);
   });
 
-  it('keeps email-only accounts apart and says why', async () => {
+  it('groups verified email visually but keeps allowance readings separate', async () => {
     const machines = fleet();
     // The latest observation must still verify this identity. A signed-out
     // reading intentionally supersedes the older email instead of matching it.
@@ -101,10 +102,11 @@ describe('capability: one account, one allowance, on every computer it is signed
       'codex/mail': reading(10, Date.now())
     };
     const { list } = await openAccounts(machines);
-    await screen.findByText('Beta personal', { selector: 'strong' });
+    await waitFor(() => expect(within(screen.getByRole('list', { name: 'Computers for Personal' })).getByText('Beta')).toBeVisible());
     const personal = rowFor(list, 'Personal');
-    expect(within(personal).getByText(/same email is also listed on .*Beta.*cannot confirm it is the same workspace/)).toBeVisible();
-    expect(within(screen.getByRole('list', { name: 'Computers for Personal' })).queryByText('Beta')).not.toBeInTheDocument();
+    expect(within(personal).getByText(/Usage readings remain separate/)).toBeVisible();
+    await userEvent.click(within(personal).getByText('Usage by computer'));
+    expect(within(personal).getAllByRole('meter').map((meter) => meter.getAttribute('aria-valuenow'))).toEqual(['10', '40', '70']);
   });
 
   it('keeps a failed read visible as partial, stale coverage — not signed out, not zero', async () => {
@@ -115,9 +117,10 @@ describe('capability: one account, one allowance, on every computer it is signed
     expect(within(usage).getByText(/Last known · Read 3 h ago on Beta · Codex did not start/)).toBeVisible();
     expect(within(other).queryByText('Signed out')).not.toBeInTheDocument();
     // A provider that reports no sign-in says so, and shows no usage.
-    const personal = rowFor(list, 'Personal');
+    await userEvent.click(screen.getByText(/Unfinished sign-ins/, { selector: 'summary' }));
+    const personal = screen.getByRole('list', { name: 'Unfinished sign-ins' });
     expect(within(personal).getByText(/^Signed out, checked/)).toBeVisible();
-    expect(within(personal).getByText(/Signed out, so there is no usage to show/)).toBeVisible();
+    await userEvent.click(within(personal).getByText('Manage sign-in'));
     expect(within(personal).getByRole('button', { name: 'Sign in' })).toBeEnabled();
     expect(within(personal).queryByRole('meter')).not.toBeInTheDocument();
   });

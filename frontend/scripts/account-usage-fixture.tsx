@@ -20,6 +20,8 @@ const machines: FakeMachine[] = [
   {
     id: 'local', name: 'This Mac', host: 'localhost', port: 8787, isDefault: true, sessions: [],
     profiles: [
+      { tool: 'claude', name: 'unfinished-one', signed_in: false },
+      { tool: 'claude', name: 'unfinished-two', signed_in: false },
       { tool: 'codex', name: 'team', label: 'Team plan', signed_in: true, identity: team(now - HOUR), last_used: now - HOUR },
       { tool: 'claude', name: 'max', label: 'Claude Max', signed_in: true, identity: { email: 'me@example.test', plan: 'max', checked_at: now - 3 * HOUR } },
       { tool: 'codex', name: 'personal', label: 'Personal', signed_in: true, identity: { email: 'me@example.test', plan: 'plus', checked_at: now - HOUR } }
@@ -32,6 +34,8 @@ const machines: FakeMachine[] = [
   {
     id: 'mini', name: 'Mac mini', host: 'mini.test', port: 8787, sessions: [],
     profiles: [
+      { tool: 'claude', name: 'max-remote', signed_in: true, identity: { email: 'me@example.test', plan: 'max', checked_at: now - HOUR } },
+      { tool: 'claude', name: 'work', signed_in: true, identity: { email: 'me@example.test', organization: 'Work', checked_at: now - HOUR } },
       { tool: 'codex', name: 'team', signed_in: true, identity: team(now - 2 * HOUR) },
       { tool: 'codex', name: 'side', label: 'Side project', signed_in: true, identity: { email: 'me@example.test', plan: 'plus', checked_at: now - HOUR } }
     ],

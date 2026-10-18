@@ -15,9 +15,9 @@ import { ProviderMark } from './ProviderBadge';
 // sign-in: adding the account to another computer runs the provider's own
 // sign-in there, and no credential ever moves between computers.
 //
-// Two computers' homes are one row only when the provider reported the same
-// account ID for both. No supported provider reports one yet, so today each
-// computer's home is its own row; a matching email is mentioned, not merged.
+// Verified identities group computers visually; only a shared provider account
+// ID permits combining allowance readings. Unidentified homes stay recoverable
+// under Unfinished sign-ins, never guessed to belong to a known account.
 //
 // One flow at a time: the add form and the sign-in card never share the page,
 // so a finished sign-in is not left above a new, unrelated form.
@@ -69,7 +69,9 @@ export function AccountsPanel({ profiles, machineName, serverId, onReload }: Pro
   const [editBusy, setEditBusy] = useState(false);
   const signInPending = login.signingInFor !== null && loginPending(login.operation);
   const busy = login.busy || signInPending || editBusy;
-  const groups = rollUpAccounts(fleet.machines);
+  const allGroups = rollUpAccounts(fleet.machines);
+  const groups = allGroups.filter((group) => group.identity);
+  const unfinished = allGroups.filter((group) => !group.identity);
   const nameOf = (id: string): string => fleet.machines.find((machine) => machine.serverId === id)?.machineName ?? machineName;
   const edits = accountEdits(setEditBusy, setNotice, fleet.reloadComputer);
 
@@ -102,7 +104,7 @@ export function AccountsPanel({ profiles, machineName, serverId, onReload }: Pro
         {groups.length === 0 ? (
           <p className="accounts-empty">
             {fleet.machines.some((machine) => machine.profiles === null && !machine.profilesError)
-              ? 'Reading accounts…' : 'No second account yet.'}
+              ? 'Reading accounts…' : 'No verified accounts in this list yet.'}
           </p>
         ) : (
           <ul className="accounts-list" aria-label="Accounts">
@@ -120,6 +122,18 @@ export function AccountsPanel({ profiles, machineName, serverId, onReload }: Pro
             ))}
           </ul>
         )}
+        {unfinished.length > 0 ? (
+          <details className="accounts-unfinished">
+            <summary>Unfinished sign-ins <span>{unfinished.length}</span></summary>
+            <p>These profiles have no confirmed identity. Finish or check a sign-in to see which account it belongs to.</p>
+            <ul className="accounts-placements" aria-label="Unfinished sign-ins">
+              {unfinished.flatMap((group) => group.placements.map((placement) => (
+                <AccountPlacementRow key={group.key} placement={placement} title={groupTitle(group)} busy={busy}
+                  onSignIn={signIn} onRename={edits.rename} onForget={(item) => void edits.forget(item, groupTitle(group))} unfinished />
+              )))}
+            </ul>
+          </details>
+        ) : null}
         {!signInPending ? (
           <button type="button" className="btn btn-secondary accounts-add-button" aria-label="Add account" disabled={adding} onClick={startAdding}><span aria-hidden="true">+</span> Add account</button>
         ) : null}
@@ -222,7 +236,8 @@ function AccountGroupRow(
   const details = [
     providerName(group.tool),
     nickname && group.identity?.email ? group.identity.email : null,
-    group.identity?.plan ? `${group.identity.plan} plan` : null
+    group.identity?.plan ? `${group.identity.plan} plan` : null,
+    group.identity?.organization
   ].filter(Boolean).join(' · ');
   return (
     <li className="accounts-row accounts-group">
@@ -234,7 +249,7 @@ function AccountGroupRow(
       </div>
       <div className="accounts-usage-area"><AccountUsageSummary group={group} label={title} /></div>
       <div className="accounts-computers">
-        <span className="accounts-computers-heading">Connected on</span>
+        <span className="accounts-computers-heading">Computers</span>
         <ul className="accounts-placements" aria-label={`Computers for ${title}`}>
           {group.placements.map((placement) => (
             <AccountPlacementRow
@@ -258,10 +273,10 @@ function AccountMatchNote({ group }: { group: AccountGroup }): JSX.Element | nul
   if (group.matchedByProvider && group.placements.length > 1) {
     return <span className="accounts-activity">One allowance, signed in on {group.placements.length} computers.</span>;
   }
-  if (!group.matchedByProvider && group.sameEmailOn.length > 0) {
+  if (!group.matchedByProvider && group.placements.length > 1) {
     return (
       <span className="accounts-activity" title="The provider did not report an account ID, and one email can belong to several workspaces or organizations with separate allowances.">
-        The same email is also listed on {group.sameEmailOn.join(', ')}. Sessions cannot confirm it is the same workspace, so it is shown separately.
+        Sign-ins grouped by verified email and workspace. Usage readings remain separate.
       </span>
     );
   }

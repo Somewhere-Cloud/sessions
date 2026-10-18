@@ -38,7 +38,16 @@ try {
     const rows = await page.$$eval('.accounts-group > .accounts-identity > strong', (nodes) => nodes.map((node) => node.textContent));
     // One Team plan row for both computers; email-only accounts stay apart.
     assert.deepEqual(rows.filter((title) => title === 'Team plan'), ['Team plan']);
-    assert.ok(rows.includes('Personal') && rows.includes('Side project'), `rows: ${rows}`);
+    assert.ok(!rows.includes('Personal') && rows.includes('Side project'), `rows: ${rows}`);
+    assert.equal(rows.filter((title) => title === 'Claude Max').length, 1);
+    assert.equal(await page.$$eval('[aria-label="Computers for Claude Max"] > li', (nodes) => nodes.length), 2);
+    assert.ok(await page.$eval('.accounts-list', (el) => el.textContent.includes('Work')), 'known workspace stays separate');
+    assert.equal(await page.$eval('.accounts-unfinished', (el) => el.open), false);
+    assert.equal(await page.$$eval('[aria-label="Unfinished sign-ins"] > li', (nodes) => nodes.length), 3);
+    await page.click('.accounts-unfinished > summary');
+    await page.click('.accounts-unfinished .accounts-placement-details > summary');
+    assert.ok(await page.$eval('.accounts-unfinished button', (el) => el.getBoundingClientRect().height > 0), 'recovery controls reachable');
+    await page.click('.accounts-unfinished > summary');
     const meters = await page.$$eval('[aria-label="Usage for Team plan"] [role="meter"]', (nodes) => nodes.map((node) => node.getAttribute('aria-valuenow')));
     assert.deepEqual(meters, ['93', '41', '5'], 'the fresher Mac mini reading, every limit separately');
     // The meter's fill is visible against its track in both themes.
@@ -53,7 +62,10 @@ try {
     });
     assert.ok(fill >= 1.5, `meter fill contrast ${fill.toFixed(2)}:1 in ${theme} mode`);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `no overflow at ${width}px in ${theme}`);
-    if (process.env.ACCOUNT_SCREENSHOT_DIR) await page.screenshot({ path: join(process.env.ACCOUNT_SCREENSHOT_DIR, `account-usage-${theme}-${width}.png`), fullPage: true });
+    if (process.env.ACCOUNT_SCREENSHOT_DIR) {
+      await page.evaluate(() => { for (const el of document.querySelectorAll('*')) if (el.scrollTop) el.scrollTop = 0; });
+      await page.screenshot({ path: join(process.env.ACCOUNT_SCREENSHOT_DIR, `account-usage-${theme}-${width}.png`), fullPage: true });
+    }
   }
   assert.deepEqual(errors, []);
   console.log('account usage: one row per provable account, fresher reading, separate limits, no overflow in dark and light at desktop and 375px');

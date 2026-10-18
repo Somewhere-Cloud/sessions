@@ -1,5 +1,5 @@
 import type { AccountUsageBucket, AccountUsageWindow } from '../api/sessionsd';
-import type { AccountGroup, AccountPlacement } from '../lib/accountRollup';
+import { freshestReading, type AccountGroup, type AccountPlacement } from '../lib/accountRollup';
 
 // An account's allowance as its provider last reported it. Each limit is its
 // own meter; nothing is added up. The reading says when and where it was taken,
@@ -77,6 +77,16 @@ function missingReason(placements: AccountPlacement[], tool: 'claude' | 'codex')
 
 /** Usage for one account row, taken from its freshest reading. */
 export function AccountUsageSummary({ group, label }: { group: AccountGroup; label: string }): JSX.Element {
+  if (!group.matchedByProvider && group.placements.length > 1) {
+    return <details className="account-usage-readings">
+      <summary>Usage by computer</summary>
+      {group.placements.map((placement) => <div key={`${placement.serverId}:${placement.profile.name}`}>
+        <strong>{placement.machineName} · {placement.profile.label || placement.profile.name}</strong>
+        <AccountUsageSummary label={`${label} on ${placement.machineName}`} group={{ ...group,
+          placements: [placement], reading: freshestReading([placement]) }} />
+      </div>)}
+    </details>;
+  }
   const reading = group.reading;
   if (!reading) {
     return <p className="account-usage-missing">{missingReason(group.placements, group.tool)}</p>;

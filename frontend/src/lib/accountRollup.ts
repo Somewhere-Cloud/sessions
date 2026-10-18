@@ -4,15 +4,12 @@ import type { AccountIdentity, AccountProfile, AccountUsage } from '../api/sessi
 //
 // A subscription's allowance belongs to the provider account, not to the
 // computer, so the Accounts page leads with accounts. What makes two computers'
-// homes "the same account" is the provider's own stable account ID. An email is
-// not enough: one person can belong to several ChatGPT workspaces or Claude
-// organizations under one email, each with its own allowance. Homes without a
-// shared provider ID therefore stay separate rows, and a matching email is only
-// mentioned, never merged. No supported provider reports such an ID today, so
-// until a verified source exists every computer's home is its own row.
+// homes share an allowance is the provider's own stable account ID. Verified
+// email and organization may group homes visually, but their usage readings
+// remain independent. Missing organization is not evidence of a known one.
 //
-// Usage is never added across computers. Every computer reads the same
-// provider allowance, so the freshest reading wins and the others are coverage.
+// Usage is never added across computers. Only a shared provider account ID
+// permits choosing the freshest reading as a shared allowance.
 
 export interface MachineAccounts {
   serverId: string;
@@ -50,8 +47,6 @@ export interface AccountGroup {
   placements: AccountPlacement[];
   /** The freshest reading of this allowance, from whichever computer read it. */
   reading?: AccountReading;
-  /** Computers holding an unmatched account with the same email. */
-  sameEmailOn: string[];
 }
 
 /**
@@ -183,8 +178,12 @@ function readingBelongs(placement: AccountPlacement, usage: AccountUsage): boole
 }
 
 function groupKey(placement: AccountPlacement): string {
-  const accountId = placementIdentity(placement)?.account_id?.trim();
+  const identity = placementIdentity(placement);
+  const accountId = identity?.account_id?.trim();
   if (accountId) return `${placement.profile.tool}:account:${accountId}`;
+  if (identity?.email.trim()) return `${placement.profile.tool}:identity:${JSON.stringify([
+    identity.email.trim().toLowerCase(), identity.organization?.trim() || null
+  ])}`;
   return `${placement.profile.tool}:home:${placement.serverId}:${placement.profile.name}`;
 }
 
@@ -226,7 +225,7 @@ function freshestIdentity(placements: AccountPlacement[]): AccountIdentity | und
   return best;
 }
 
-/** Group every computer's accounts into one row per provable account. */
+/** Group verified identities visually without treating email as allowance identity. */
 export function rollUpAccounts(machines: MachineAccounts[]): AccountGroup[] {
   const groups = new Map<string, AccountGroup>();
   for (const machine of machines) {
@@ -234,7 +233,7 @@ export function rollUpAccounts(machines: MachineAccounts[]): AccountGroup[] {
       const key = groupKey(placement);
       const group = groups.get(key) ?? {
         key, tool: placement.profile.tool, matchedByProvider: key.includes(':account:'),
-        placements: [], sameEmailOn: []
+        placements: []
       };
       group.placements.push(placement);
       groups.set(key, group);
@@ -243,14 +242,8 @@ export function rollUpAccounts(machines: MachineAccounts[]): AccountGroup[] {
   const all = [...groups.values()];
   for (const group of all) {
     group.identity = freshestIdentity(group.placements);
-    group.reading = freshestReading(group.placements);
-  }
-  for (const group of all) {
-    const email = group.identity?.email?.toLowerCase();
-    if (!email) continue;
-    group.sameEmailOn = [...new Set(all
-      .filter((other) => other !== group && other.tool === group.tool && other.identity?.email?.toLowerCase() === email)
-      .flatMap((other) => other.placements.map((placement) => placement.machineName)))];
+    group.reading = group.matchedByProvider || group.placements.length === 1
+      ? freshestReading(group.placements) : undefined;
   }
   // Computer order, then each computer's own order: a rename never moves a row.
   return all;

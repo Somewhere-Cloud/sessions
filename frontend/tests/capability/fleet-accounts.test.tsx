@@ -146,13 +146,13 @@ describe('capability: Accounts manages sign-ins on any computer', () => {
         onReload={() => {}}
       />
     );
-    expect(screen.getByText('Work — team plan', { selector: 'strong' })).toBeVisible();
-    const shared = await screen.findByRole('list', { name: 'Computers for Shared build box' });
+    await userEvent.click(screen.getByText(/Unfinished sign-ins/, { selector: 'summary' }));
+    const shared = (await screen.findByText('Beta · Claude · Shared build box')).closest('li')!;
     // Beta's account is Beta's: it is not shown as if Alpha had it.
-    expect(within(shared).getByText('Beta')).toBeVisible();
+    expect(within(shared).getByText('Beta · Claude · Shared build box')).toBeVisible();
     expect(within(shared).queryByText('Alpha')).not.toBeInTheDocument();
-    const work = screen.getByRole('list', { name: 'Computers for Work — team plan' });
-    expect(within(work).getByText('Alpha')).toBeVisible();
+    const work = screen.getByText('Alpha · Claude · Work — team plan').closest('li')!;
+    expect(within(work).getByText('Alpha · Claude · Work — team plan')).toBeVisible();
     expect(within(work).queryByText('Beta')).not.toBeInTheDocument();
   }, 20_000);
 
@@ -163,7 +163,7 @@ describe('capability: Accounts manages sign-ins on any computer', () => {
     const user = userEvent.setup();
     render(<AccountsPanel profiles={[]} machineName="Alpha" onReload={() => {}} />);
 
-    await screen.findByRole('list', { name: 'Computers for Shared build box' });
+    await screen.findByText('Beta · Claude · Shared build box');
     await user.click(screen.getByRole('button', { name: 'Add account' }));
     const picker = screen.getByRole('dialog', { name: 'Add account' });
     await user.click(within(picker).getByRole('button', { name: 'Beta' }));
@@ -180,6 +180,7 @@ describe('capability: Accounts manages sign-ins on any computer', () => {
 
   it('adds an existing account to another computer through that computer’s own sign-in', async () => {
     const machines = fleet();
+    machines[0]!.profiles![0]!.identity = { email: 'work@example.test', checked_at: Date.now() };
     const daemon = installFakeDaemon(machines);
     useFakeMachines(machines, 'alpha');
     const user = userEvent.setup();

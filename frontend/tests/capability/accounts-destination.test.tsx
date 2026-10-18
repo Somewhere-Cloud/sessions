@@ -35,6 +35,8 @@ async function openAccounts(fleet = machines()) {
   useFakeMachines(fleet, 'local');
   render(<AccountsView hostName="This Mac" serverId="local" />);
   const list = await screen.findByRole('list', { name: 'Accounts' });
+  await userEvent.click(screen.getByText(/Unfinished sign-ins/, { selector: 'summary' }));
+  for (const summary of screen.getAllByText('Manage sign-in')) await userEvent.click(summary);
   return { daemon, list, user: userEvent.setup() };
 }
 
@@ -84,7 +86,7 @@ describe('capability: an account row says who it is once, and only what is known
 
   it('does not treat a login file as a verified account', async () => {
     const { list } = await openAccounts();
-    const file = row(list, 'Claude account');
+    const file = screen.getByRole('list', { name: 'Unfinished sign-ins' });
     expect(within(file).getByText('Identity not checked')).toBeInTheDocument();
     expect(within(file).queryByText(/Verified|Ready|Signed in/)).not.toBeInTheDocument();
     expect(within(file).getByRole('button', { name: 'Sign in' })).toBeEnabled();
@@ -167,12 +169,12 @@ describe('capability: adding an account is one flow at a time', () => {
   });
 
   it('returns focus to + on Escape, then lets a row sign-in start', async () => {
-    const { list, user } = await openAccounts();
+    const { user } = await openAccounts();
     await user.click(screen.getByRole('button', { name: 'Add account' }));
     expect(screen.getByRole('dialog', { name: 'Add account' })).toBeInTheDocument();
     await user.keyboard('{Escape}');
     expect(screen.getByRole('button', { name: 'Add account' })).toHaveFocus();
-    await user.click(within(row(list, 'Claude account')).getByRole('button', { name: 'Sign in' }));
+    await user.click(within(screen.getByRole('list', { name: 'Unfinished sign-ins' })).getByRole('button', { name: 'Sign in' }));
     await screen.findByRole('region', { name: 'Sign in to account' });
     expect(screen.queryByRole('dialog', { name: 'Add account' })).not.toBeInTheDocument();
   });

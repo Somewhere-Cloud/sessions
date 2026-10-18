@@ -64,6 +64,7 @@ try {
     await click('Done');
     assert.equal(await page.$('.accounts-signing-in'), null);
     // Rename in place: the daemon keeps the nickname, the row shows it once.
+    await page.click('.accounts-placement-details > summary');
     await click('Rename');
     await page.waitForSelector('.accounts-rename input');
     await page.$eval('.accounts-rename input', (input) => input.select());
