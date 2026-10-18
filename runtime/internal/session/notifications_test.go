@@ -95,7 +95,7 @@ func TestStructuredActivityTickCannotReplaceOrderedLifecycleState(t *testing.T) 
 				stale := !working
 				runtime.mu.Lock()
 				runtime.structuredLifecycleWorking = &stale
-				runtime.turn.resultNotified = !working
+				runtime.turn.resultSeen = !working
 				runtime.turn.observed = true
 				runtime.mu.Unlock()
 				runtime.tick()
@@ -141,8 +141,8 @@ func TestProviderFaultNotificationIsOncePerEpisode(t *testing.T) {
 	manager.mu.Lock()
 	runtime := manager.runtimes[created.ID]
 	manager.mu.Unlock()
-	runtime.notifyDone()
-	runtime.notifyDone()
+	runtime.notifyDone("")
+	runtime.notifyDone("")
 	first := <-notifications
 	if first.Title != "🟠 review — Codex is unavailable" || first.Body != fault.Detail {
 		t.Fatalf("fault notification = %#v", first)
@@ -153,14 +153,14 @@ func TestProviderFaultNotificationIsOncePerEpisode(t *testing.T) {
 	case <-time.After(20 * time.Millisecond):
 	}
 	current.ClearProviderFault()
-	runtime.notifyDone()
+	runtime.notifyDone("")
 	select {
 	case <-notifications:
 	case <-time.After(time.Second):
 		t.Fatal("successful turn did not reset the notification episode")
 	}
 	current.SetProviderFault("codex", fault, time.Now().UnixMilli())
-	runtime.notifyDone()
+	runtime.notifyDone("")
 	select {
 	case next := <-notifications:
 		if next.Title != first.Title {
@@ -196,7 +196,7 @@ func TestProviderRetryNotifiesOnlyAfterExhaustion(t *testing.T) {
 	manager.mu.Lock()
 	runtime := manager.runtimes[created.ID]
 	manager.mu.Unlock()
-	runtime.notifyDone()
+	runtime.notifyDone("")
 	select {
 	case payload := <-notifications:
 		t.Fatalf("scheduled retry notified early: %#v", payload)
@@ -207,7 +207,7 @@ func TestProviderRetryNotifiesOnlyAfterExhaustion(t *testing.T) {
 	})
 	runner.SetRetry(nil)
 	awaitCondition(t, func() bool { return current.Info().Retry == nil })
-	runtime.notifyDone()
+	runtime.notifyDone("")
 	select {
 	case payload := <-notifications:
 		if payload.Title != "🔴 review — Codex stayed unavailable for 13 minutes" {

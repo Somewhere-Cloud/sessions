@@ -16,10 +16,12 @@ type turnBookkeeping struct {
 	// faultAtStart is the provider fault timestamp current at the start, so
 	// a completed turn can tell a fault it raised from one it inherited.
 	faultAtStart int64
-	// resultNotified records that the provider's structured result carries
-	// this turn's notification, so its idle edge sends no done or waiting
-	// notice of its own.
-	resultNotified bool
+	// resultSeen records that a provider's structured result arrived since
+	// the last observed start. That result carries the turn's notification,
+	// so the idle edge sends no done or waiting notice of its own, and a
+	// repeated result in the same turn sends nothing. Only the next start
+	// clears it: without event identity, "once" means once per observed turn.
+	resultSeen bool
 	// terminalDone records that the Codex rollout reported the turn complete,
 	// which is authoritative over the rendered screen.
 	terminalDone bool
@@ -47,11 +49,11 @@ type workingSample struct {
 // workingTransition is the immutable result of one sample. Only an ended edge
 // carries the closed turn's facts.
 type workingTransition struct {
-	edge           workingEdge
-	duration       time.Duration
-	faultAtStart   int64
-	resultNotified bool
-	terminalDone   bool
+	edge         workingEdge
+	duration     time.Duration
+	faultAtStart int64
+	resultSeen   bool
+	terminalDone bool
 }
 
 // reduceWorking applies one sample to the bookkeeping. It is deterministic:
@@ -69,7 +71,7 @@ func reduceWorking(book turnBookkeeping, sample workingSample) (turnBookkeeping,
 	if !sample.previous && sample.requested {
 		book.startedAt = sample.now
 		book.faultAtStart = sample.failureAt
-		book.resultNotified = false
+		book.resultSeen = false
 		book.terminalDone = false
 		result.edge = edgeStarted
 	}
@@ -81,17 +83,16 @@ func reduceWorking(book turnBookkeeping, sample workingSample) (turnBookkeeping,
 		return book, result
 	}
 	result = workingTransition{
-		edge:           edgeEnded,
-		faultAtStart:   book.faultAtStart,
-		resultNotified: book.resultNotified,
-		terminalDone:   book.terminalDone,
+		edge:         edgeEnded,
+		faultAtStart: book.faultAtStart,
+		resultSeen:   book.resultSeen,
+		terminalDone: book.terminalDone,
 	}
 	if !book.startedAt.IsZero() {
 		result.duration = max(sample.now.Sub(book.startedAt), 0)
 	}
 	book.startedAt = time.Time{}
 	book.faultAtStart = 0
-	book.resultNotified = false
 	book.terminalDone = false
 	return book, result
 }
@@ -107,16 +108,16 @@ const (
 
 // idleNotice chooses the notification for a published idle record. A current
 // provider fault is reported unless the runner has a retry scheduled; a
-// structured result that already notified suppresses the done and waiting
-// notices, but never the fault.
-func idleNotice(outcome IdleOutcome, fault, retrying, resultNotified bool) idleNoticeKind {
+// structured result, which carries its own notification, suppresses the done
+// and waiting notices, but never the fault.
+func idleNotice(outcome IdleOutcome, fault, retrying, resultSeen bool) idleNoticeKind {
 	if outcome == IdleError && fault {
 		if retrying {
 			return noticeNone
 		}
 		return noticeFault
 	}
-	if resultNotified {
+	if resultSeen {
 		return noticeNone
 	}
 	if outcome == IdleDone {

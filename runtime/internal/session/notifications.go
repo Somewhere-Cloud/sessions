@@ -53,7 +53,10 @@ func (r *runtimeSession) markTerminalTurnDone() {
 	r.mu.Unlock()
 }
 
-func (r *runtimeSession) notifyDone() {
+// notifyDone reports a turn that ended without failing. summary is that
+// turn's own summary; an empty one reads "finished" rather than borrowing an
+// earlier turn's text.
+func (r *runtimeSession) notifyDone(summary string) {
 	info := r.session.Info()
 	if info.Retry != nil {
 		return
@@ -65,10 +68,7 @@ func (r *runtimeSession) notifyDone() {
 	r.mu.Lock()
 	r.faultNotified = false
 	r.mu.Unlock()
-	body := info.LastSummary
-	if body == "" {
-		body = FinalAssistantSummary(r.session.ClaudeEventLog())
-	}
+	body := summary
 	if body == "" {
 		body = "finished"
 	}
@@ -76,6 +76,23 @@ func (r *runtimeSession) notifyDone() {
 		Title: "🟢 " + sessionDisplayLabel(info) + " — done",
 		Body:  body,
 		Data:  map[string]any{"sessionId": info.ID, "notification": state.NotifyDone},
+	})
+}
+
+// notifyFailedTurn reports a turn the provider ended as failed without a
+// classified provider fault, in the same words as the waiting reminder for a
+// failed turn.
+func (r *runtimeSession) notifyFailedTurn(info state.SessionInfo, line string) {
+	body := line
+	if body == "" {
+		body = "provider turn failed"
+	}
+	r.manager.queueSessionNotification(info.ID, state.NotifyWaiting, PushPayload{
+		Title: "🔴 " + sessionDisplayLabel(info) + " — failed",
+		Body:  body,
+		Data: map[string]any{
+			"sessionId": info.ID, "notification": state.NotifyWaiting, "idleReason": state.IdleReasonFailed,
+		},
 	})
 }
 
@@ -157,7 +174,9 @@ func (r *runtimeSession) cancelWaitingLocked() {
 	}
 }
 
-func (r *runtimeSession) scheduleWaiting() {
+// scheduleWaiting arms the waiting reminder for the turn that just ended;
+// summary is that turn's own summary.
+func (r *runtimeSession) scheduleWaiting(summary string) {
 	info := r.session.Info()
 	if info.Exited || info.Working {
 		return
@@ -170,14 +189,14 @@ func (r *runtimeSession) scheduleWaiting() {
 	r.cancelWaitingLocked()
 	generation := r.waitingGeneration
 	r.waitingTimer = time.AfterFunc(r.manager.options.NotifyWaitingDelay, func() {
-		r.fireWaiting(generation)
+		r.fireWaiting(generation, summary)
 	})
 	r.mu.Unlock()
 }
 
 // fireWaiting runs in the transition sequence: a start edge either precedes
 // it and invalidated its generation, or follows the reminder it sent.
-func (r *runtimeSession) fireWaiting(generation uint64) {
+func (r *runtimeSession) fireWaiting(generation uint64, summary string) {
 	r.transitionMu.Lock()
 	defer r.transitionMu.Unlock()
 	r.mu.Lock()
@@ -192,11 +211,8 @@ func (r *runtimeSession) fireWaiting(generation uint64) {
 	if info.Exited || info.Working {
 		return
 	}
-	body := info.LastSummary
-	if body == "" {
-		body = FinalAssistantSummary(r.session.ClaudeEventLog())
-	}
-	if body == "" {
+	body := summary
+	if body == "" && !providerEventRuntime(info) {
 		if snapshot, _, err := r.session.Snapshot(r.manager.ctx, 0); err == nil {
 			body = mirrorTailSummary(snapshot)
 		}
@@ -218,7 +234,7 @@ func (r *runtimeSession) fireWaiting(generation uint64) {
 		Body:  body,
 		Data: map[string]any{
 			"sessionId": info.ID, "notification": state.NotifyWaiting,
-			"idleReason": info.IdleReason, "summary": info.LastSummary,
+			"idleReason": info.IdleReason, "summary": summary,
 		},
 	})
 }

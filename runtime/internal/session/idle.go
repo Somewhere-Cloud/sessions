@@ -45,11 +45,56 @@ func inspectIdle(session *state.Session) (IdleClassification, string, string) {
 	if !authoritative {
 		classification = ClassifySnapshotFor(providerForSession(info), snapshot)
 	}
-	summary := FinalAssistantSummary(events)
-	if summary == "" {
+	summary := FinalAssistantSummary(currentTurnEvents(events))
+	if summary == "" && !providerEventRuntime(info) {
+		// A structured runtime's screen is a rendering of the same events, so
+		// its tail is the turn's prompt or an earlier turn, not a summary.
 		summary = mirrorTailSummary(snapshot)
 	}
 	return classification, summary, snapshot
+}
+
+// currentTurnEvents returns the events of the most recent turn: those after
+// the last record that opens one, which is a user message other than a tool
+// result, or a provider turn_started record. A log with no opener is all one
+// turn as far as this daemon observed it. Summaries and questions read only
+// this, so a turn with no text of its own does not borrow an earlier turn's.
+func currentTurnEvents(events []json.RawMessage) []json.RawMessage {
+	for index := len(events) - 1; index >= 0; index-- {
+		if opensTurn(events[index]) {
+			return events[index+1:]
+		}
+	}
+	return events
+}
+
+func opensTurn(raw json.RawMessage) bool {
+	var event struct {
+		Type    string `json:"type"`
+		Subtype string `json:"subtype"`
+		Message struct {
+			Content any `json:"content"`
+		} `json:"message"`
+	}
+	if json.Unmarshal(raw, &event) != nil {
+		return false
+	}
+	if event.Subtype == "turn_started" {
+		return event.Type == "claude" || event.Type == "codex"
+	}
+	if event.Type != "user" {
+		return false
+	}
+	blocks, ok := event.Message.Content.([]any)
+	if !ok {
+		return true
+	}
+	for _, item := range blocks {
+		if block, ok := item.(map[string]any); ok && block["type"] == "tool_result" {
+			return false
+		}
+	}
+	return true
 }
 
 func structuredIdleClassification(kind string, events []json.RawMessage) (IdleClassification, bool) {
@@ -80,7 +125,7 @@ func structuredIdleClassification(kind string, events []json.RawMessage) (IdleCl
 				continue
 			}
 			if strings.EqualFold(event.Status, "completed") {
-				if question, asked := AssistantQuestion(events[:index+1]); asked {
+				if question, asked := AssistantQuestion(currentTurnEvents(events[:index+1])); asked {
 					return IdleClassification{Outcome: IdleBlocked, Line: question}, true
 				}
 				return IdleClassification{Outcome: IdleDone}, true
@@ -100,7 +145,7 @@ func structuredIdleClassification(kind string, events []json.RawMessage) (IdleCl
 				continue
 			}
 			if !event.IsError && strings.EqualFold(event.Subtype, "success") {
-				if question, asked := AssistantQuestion(events[:index+1]); asked {
+				if question, asked := AssistantQuestion(currentTurnEvents(events[:index+1])); asked {
 					return IdleClassification{Outcome: IdleBlocked, Line: question}, true
 				}
 				return IdleClassification{Outcome: IdleDone}, true
@@ -164,7 +209,15 @@ var preTurnInspectInterval = 500 * time.Millisecond
 // anything else would misstate a lifecycle that has not begun. When the
 // control is answered and the screen no longer shows it, the session returns
 // to never-started so the composer opens again.
+//
+// It runs in the transition sequence, so a dialog read before a start edge or
+// a message is never published after it.
 func (r *runtimeSession) inspectPreTurn(recentBytes int) {
+	r.transitionMu.Lock()
+	defer r.transitionMu.Unlock()
+	if r.isStopped() {
+		return
+	}
 	info := r.session.Info()
 	if info.Exited || info.Working || !supportsTurnLifecycle(info) ||
 		info.Kind == state.KindClaudeStructured || info.Kind == state.KindCodexAppServer {
@@ -238,7 +291,7 @@ func classifyEndedTurn(session *state.Session, transition workingTransition) idl
 		}
 		return idleOutcome{
 			classification: IdleClassification{Outcome: IdleDone},
-			summary:        FinalAssistantSummary(session.ClaudeEventLog()),
+			summary:        FinalAssistantSummary(currentTurnEvents(session.ClaudeEventLog())),
 			duration:       transition.duration,
 		}
 	}

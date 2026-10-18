@@ -80,7 +80,7 @@ func TestStoppedRuntimeHasNoEffects(t *testing.T) {
 	session.SetWorking(false)
 	session.SetProviderFault("codex", providerfault.Fault{Kind: providerfault.KindAuth, Detail: "Codex is not logged in"}, time.Now().UnixMilli())
 	runtime.publishObservedProviderFault()
-	runtime.fireWaiting(generation)
+	runtime.fireWaiting(generation, "")
 	h.assertQuiet(t, 0, 0)
 	if got := session.Info(); got.IdleReason != "" {
 		t.Fatalf("stopped runtime published idle %q", got.IdleReason)
@@ -96,17 +96,17 @@ func TestWaitingReminderFromAnEarlierGenerationIsDropped(t *testing.T) {
 		return runtime.waitingGeneration
 	}
 	session.SetIdleResult(state.IdleReasonNeedsInput, "Continue? [y/N]", "", time.Now().UnixMilli())
-	runtime.scheduleWaiting()
+	runtime.scheduleWaiting("")
 	stale := generation()
 	runtime.setWorking(true)
-	runtime.fireWaiting(stale)
+	runtime.fireWaiting(stale, "")
 	h.assertQuiet(t, 0, 0)
 
 	runtime.setWorking(false)
 	h.assertQuiet(t, 1, 1)
 	session.SetIdleResult(state.IdleReasonNeedsInput, "Continue? [y/N]", "", time.Now().UnixMilli())
-	runtime.scheduleWaiting()
-	runtime.fireWaiting(generation())
+	runtime.scheduleWaiting("")
+	runtime.fireWaiting(generation(), "")
 	h.assertQuiet(t, 2, 1)
 	if push := h.log.pushAt(1); push.payload.Title != "🟡 reminder — needs you" || push.payload.Body != "Continue? [y/N]" {
 		t.Fatalf("waiting push = %#v", push)
@@ -141,7 +141,7 @@ func TestConcurrentTransitionsApplyInOrder(t *testing.T) {
 						runtime.mu.Lock()
 						generation := runtime.waitingGeneration
 						runtime.mu.Unlock()
-						runtime.fireWaiting(generation)
+						runtime.fireWaiting(generation, "")
 					}
 				}
 			}(int64(round*10 + worker))

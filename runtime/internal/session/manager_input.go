@@ -337,6 +337,15 @@ func normalizedTerminalPrompt(value string) string {
 }
 
 func (m *Manager) clearIdleAfterInput(id string) {
+	// The clear is sequenced with the runtime's transitions, so an idle or
+	// pre-turn outcome read before this input cannot be published after it.
+	m.mu.Lock()
+	runtime := m.runtimes[id]
+	m.mu.Unlock()
+	if runtime != nil {
+		runtime.transitionMu.Lock()
+		defer runtime.transitionMu.Unlock()
+	}
 	// Input never answers a Rich approval; only the approve route does. While
 	// one is open the lane still needs that answer, whatever else was sent.
 	if current, ok := m.registry.Get(id); ok && current.Info().PendingApproval == nil {

@@ -47,7 +47,7 @@ func TestReduceWorkingTransitionTable(t *testing.T) {
 		},
 		{
 			name: "start clears the previous turn's markers",
-			book: turnBookkeeping{observed: true, resultNotified: true, terminalDone: true},
+			book: turnBookkeeping{observed: true, resultSeen: true, terminalDone: true},
 			sample: workingSample{
 				requested: true, failureAt: 7, now: start,
 			},
@@ -55,15 +55,17 @@ func TestReduceWorkingTransitionTable(t *testing.T) {
 			want:     workingTransition{edge: edgeStarted},
 		},
 		{
-			name: "end carries the closed turn and resets",
+			name: "end carries the closed turn and resets all but the seen result",
 			book: turnBookkeeping{
-				observed: true, startedAt: start, faultAtStart: 7, resultNotified: true, terminalDone: true,
+				observed: true, startedAt: start, faultAtStart: 7, resultSeen: true, terminalDone: true,
 			},
-			sample:   workingSample{previous: true, now: later},
-			wantBook: observed,
+			sample: workingSample{previous: true, now: later},
+			// The result stays seen until the next start, so a repeated
+			// result in the same turn does not notify again.
+			wantBook: turnBookkeeping{observed: true, resultSeen: true},
 			want: workingTransition{
 				edge: edgeEnded, duration: 1500 * time.Millisecond, faultAtStart: 7,
-				resultNotified: true, terminalDone: true,
+				resultSeen: true, terminalDone: true,
 			},
 		},
 		{
@@ -112,25 +114,25 @@ func TestReduceWorkingTransitionTable(t *testing.T) {
 
 func TestIdleNoticeTable(t *testing.T) {
 	tests := []struct {
-		name                            string
-		outcome                         IdleOutcome
-		fault, retrying, resultNotified bool
-		want                            idleNoticeKind
+		name                        string
+		outcome                     IdleOutcome
+		fault, retrying, resultSeen bool
+		want                        idleNoticeKind
 	}{
 		{name: "done notifies done", outcome: IdleDone, want: noticeDone},
 		{name: "blocked schedules waiting", outcome: IdleBlocked, want: noticeWaiting},
 		{name: "unproven error schedules waiting", outcome: IdleError, want: noticeWaiting},
 		{name: "provider fault notifies the fault", outcome: IdleError, fault: true, want: noticeFault},
 		{name: "scheduled retry holds the fault", outcome: IdleError, fault: true, retrying: true, want: noticeNone},
-		{name: "result already notified done", outcome: IdleDone, resultNotified: true, want: noticeNone},
-		{name: "result already notified waiting", outcome: IdleBlocked, resultNotified: true, want: noticeNone},
-		{name: "result never hides a fault", outcome: IdleError, fault: true, resultNotified: true, want: noticeFault},
-		{name: "result suppresses an unproven error", outcome: IdleError, resultNotified: true, want: noticeNone},
+		{name: "result carries done", outcome: IdleDone, resultSeen: true, want: noticeNone},
+		{name: "result carries waiting", outcome: IdleBlocked, resultSeen: true, want: noticeNone},
+		{name: "result never hides a fault", outcome: IdleError, fault: true, resultSeen: true, want: noticeFault},
+		{name: "result suppresses an unproven error", outcome: IdleError, resultSeen: true, want: noticeNone},
 		{name: "a stale fault does not turn done into a fault", outcome: IdleDone, fault: true, want: noticeDone},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if got := idleNotice(test.outcome, test.fault, test.retrying, test.resultNotified); got != test.want {
+			if got := idleNotice(test.outcome, test.fault, test.retrying, test.resultSeen); got != test.want {
 				t.Fatalf("idleNotice = %d, want %d", got, test.want)
 			}
 		})

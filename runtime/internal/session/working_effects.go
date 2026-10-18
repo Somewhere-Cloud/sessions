@@ -67,17 +67,20 @@ func (r *runtimeSession) observeRolloutEdge(working bool, at int64) {
 
 // observeStructuredEvent applies a structured provider event that completes a
 // turn, carries a lifecycle value, or both. The result's notification follows
-// the idle record it describes, and a result with no observed working edge
-// still notifies once.
+// the idle record it describes, and states that record's outcome. A result
+// with no observed working edge still notifies; a repeated result before the
+// next observed start does not.
 func (r *runtimeSession) observeStructuredEvent(completed, lifecycle, working bool) {
 	r.transitionMu.Lock()
 	defer r.transitionMu.Unlock()
 	if r.isStopped() {
 		return
 	}
+	repeated := false
 	r.mu.Lock()
 	if completed {
-		r.turn.resultNotified = true
+		repeated = r.turn.resultSeen
+		r.turn.resultSeen = true
 		r.cancelWaitingLocked()
 	}
 	if lifecycle {
@@ -85,13 +88,14 @@ func (r *runtimeSession) observeStructuredEvent(completed, lifecycle, working bo
 		r.structuredLifecycleWorking = &value
 	}
 	r.mu.Unlock()
+	var record *idleRecord
 	if lifecycle {
 		if transition, ok := r.applyWorking(working); ok {
-			r.deliverTransition(transition)
+			record = r.deliverTransition(transition)
 		}
 	}
-	if completed {
-		r.notifyDone()
+	if completed && !repeated {
+		r.notifyResult(record)
 	}
 }
 
@@ -156,9 +160,9 @@ func (r *runtimeSession) applyWorking(next bool) (workingTransition, bool) {
 	return transition, true
 }
 
-// deliverTransition performs one edge's effects in order. The caller holds
-// transitionMu.
-func (r *runtimeSession) deliverTransition(transition workingTransition) {
+// deliverTransition performs one edge's effects in order and returns the idle
+// record an ended turn published. The caller holds transitionMu.
+func (r *runtimeSession) deliverTransition(transition workingTransition) *idleRecord {
 	switch transition.edge {
 	case edgeStarted:
 		r.manager.removeIdleSentinel(r.session.Info().ID)
@@ -166,26 +170,58 @@ func (r *runtimeSession) deliverTransition(transition workingTransition) {
 		// An exit published after the sample makes the idle result
 		// unpublishable; its hooks and pushes would describe nothing.
 		if r.session.Info().Exited {
-			return
+			return nil
 		}
 		outcome := classifyEndedTurn(r.session, transition)
 		record := r.manager.applyIdle(r.session, outcome)
 		r.manager.deliverIdle(record)
-		r.notifyIdle(record, transition.resultNotified)
+		r.notifyIdle(record, transition.resultSeen)
+		return &record
 	}
+	return nil
 }
 
 // notifyIdle sends the one notification an ended turn's published record
 // calls for, or schedules the waiting reminder.
-func (r *runtimeSession) notifyIdle(record idleRecord, resultNotified bool) {
+func (r *runtimeSession) notifyIdle(record idleRecord, resultSeen bool) {
 	fault, faulted := r.session.ProviderFault()
 	info := r.session.Info()
-	switch idleNotice(record.classification.Outcome, faulted, info.Retry != nil, resultNotified) {
+	switch idleNotice(record.classification.Outcome, faulted, info.Retry != nil, resultSeen) {
 	case noticeFault:
 		r.notifyProviderFault(info, fault)
 	case noticeDone:
-		r.notifyDone()
+		r.notifyDone(record.summary)
 	case noticeWaiting:
-		r.scheduleWaiting()
+		r.scheduleWaiting(record.summary)
 	}
+}
+
+// notifyResult sends a structured result's notification. It states the
+// outcome of the idle record the result published, or, for a result with no
+// observed working edge, the result's own classification; a failed result is
+// never reported as done. A scheduled retry holds every notice, and a provider
+// fault is reported once per episode.
+func (r *runtimeSession) notifyResult(record *idleRecord) {
+	var classification IdleClassification
+	summary := ""
+	if record != nil {
+		classification, summary = record.classification, record.summary
+	} else {
+		events := r.session.ClaudeEventLog()
+		classification, _ = structuredIdleClassification(r.session.Info().Kind, events)
+		summary = FinalAssistantSummary(currentTurnEvents(events))
+	}
+	if classification.Outcome != IdleError {
+		r.notifyDone(summary)
+		return
+	}
+	info := r.session.Info()
+	if info.Retry != nil {
+		return
+	}
+	if fault, ok := r.session.ProviderFault(); ok {
+		r.notifyProviderFault(info, fault)
+		return
+	}
+	r.notifyFailedTurn(info, classification.Line)
 }

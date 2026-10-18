@@ -699,7 +699,16 @@ delivered to the idle sentinel, the lane and global `onIdle` hooks
 runtime applies its samples, structured results, rollout edges, independent
 provider faults, and waiting reminders one at a time with their effects, and
 none after it stops (`runtime/internal/session/working_effects.go`).
-Reconnect replay and HELLO only bootstrap state; they publish no effects. Creation and user-kill intent are
+Pre-turn dialog inspection and the idle clear that follows input are sequenced
+with those transitions. A structured result notifies once per observed turn,
+in the words of its outcome (a failed result is never "done"); a repeated
+result before the next observed start is not notified again, which is per
+turn rather than globally exactly-once because results carry no identity.
+Summaries in notifications and hooks come from the ended turn's own records
+only. Reconnect replay and HELLO only bootstrap state; they publish no effects.
+A turn adopted at attach that ends before this daemon observes a start is the
+runtime's first sample, which only initializes: its result notifies, but no
+idle record, hook, or sentinel is published for it. Creation and user-kill intent are
 recorded before the corresponding process action. Its daily activity projection
 selects sessions and lanes active in a local day, carries hierarchy/tags/outcome,
 and uses only final structured assistant summaries for the local journal

@@ -73,6 +73,11 @@ func (m *Manager) manage(session *state.Session) *runtimeSession {
 				working = false
 			}
 			runtime.structuredLifecycleWorking = &working
+			// Bootstrap only: no runtime sample, edge or effect. If this
+			// adopted turn ends before a start is observed here, that end is
+			// the runtime's first sample, which only initializes
+			// (working_transition.go): the result notifies, but no idle
+			// record, hook or sentinel is published for the adopted turn.
 			session.SetWorking(working)
 		} else if runtime.structuredLifecycleWorking != nil {
 			session.SetWorking(*runtime.structuredLifecycleWorking)
