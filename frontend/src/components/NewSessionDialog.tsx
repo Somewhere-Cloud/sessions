@@ -258,7 +258,7 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
   const [profiles, setProfiles] = useState<AccountProfile[]>([]);
   const [profileChoice, setProfileChoice] = useState(() => inheritedProfile(parentSession, tool));
   // A delegate starts on its manager's account; anyone else starts on the one
-  // this project used last on this computer.
+  // selected as this computer's preferred account.
   const [accountTouched, setAccountTouched] = useState(false);
   const [busy, setBusy] = useState(false);
   // State disables the button on the next render; this ref closes the smaller
@@ -345,14 +345,14 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
   }, [inheritedProfileChoice, parentSessionId]);
 
   // A delegate keeps its manager's account unless someone changes it. Everyone
-  // else starts on the account this project used last on this computer, so a
-  // second subscription stops being a per-session decision.
+  // else starts on this computer's preferred account; older daemons fall back
+  // to the project's last choice.
   useEffect(() => {
     if (accountTouched || parentSession || !profileTool) return;
     const remembered = rememberedAccount(machineId, profileTool, cwd.trim());
-    if (!remembered) return;
-    if (!profiles.some((profile) => profile.tool === profileTool && profile.name === remembered)) return;
-    setProfileChoice(remembered);
+    const preferred = profiles.find((profile) => profile.tool === profileTool && profile.preferred);
+    if (preferred) { setProfileChoice(preferred.name); return; }
+    if (remembered && profiles.some((profile) => profile.tool === profileTool && profile.name === remembered)) setProfileChoice(remembered);
   }, [accountTouched, parentSession, profileTool, machineId, cwd, profiles]);
 
   const openSessionWorkspaces = useMemo<DirectoryCandidate[]>(() => {

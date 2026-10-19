@@ -24,6 +24,10 @@ type accountService interface {
 }
 
 func (s *Server) handleProfilesRoute(response http.ResponseWriter, request *http.Request, corsOrigin string) bool {
+	if request.URL.Path == "/api/account-default" {
+		s.handleAccountPreference(response, request, corsOrigin)
+		return true
+	}
 	if s.handleAccountLoginRoute(response, request, corsOrigin) {
 		return true
 	}

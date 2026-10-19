@@ -28,6 +28,20 @@ func (m *Manager) resolveRequestedProfile(ctx context.Context, request state.Cre
 			return request, err
 		}
 		request.Profile = inherited
+		if request.CreatorSessionID == "" && request.ConfigDir == "" && request.ConversationID == "" && request.Continuation == nil {
+			tool, supported := state.ProfileToolName(state.CommandTool(request.Cmd))
+			if supported {
+				request.Profile, err = m.preferredAccount(tool)
+				if err != nil {
+					return request, err
+				}
+				if request.Profile != "" {
+					if err := m.checkPreferredAccount(tool, request.Profile); err != nil {
+						return request, err
+					}
+				}
+			}
+		}
 	}
 	if request.Profile == "" {
 		return request, nil

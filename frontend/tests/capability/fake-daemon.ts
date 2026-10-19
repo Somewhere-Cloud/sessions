@@ -111,6 +111,7 @@ export interface FakeMachine {
 
 /** One second subscription on a machine: a provider home with a name. */
 export interface FakeAccount {
+  preferred?: boolean;
   default_profile?: boolean;
   identity?: AccountLogin['identity'];
   tool: 'claude' | 'codex';
@@ -684,6 +685,13 @@ export function installFakeDaemon(machines: FakeMachine[]): FakeDaemon {
           signed_in: false, sessions: [], last_used: 0, ...account
         }))
       });
+    }
+    if (path === '/api/account-default' && method === 'PUT') {
+      const request = body as { tool: string; name: string };
+      for (const profile of machine.profiles ?? []) {
+        if (profile.tool === request.tool) profile.preferred = profile.name === request.name;
+      }
+      return jsonResponse({ tool: request.tool, name: request.name });
     }
     if (path === '/api/profiles' && method === 'POST') {
       // Registering an account is a home and a label. The provider writes its

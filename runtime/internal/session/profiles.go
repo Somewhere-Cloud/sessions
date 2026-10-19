@@ -18,6 +18,7 @@ type ProfileSession struct {
 }
 
 type ProfileStatus struct {
+	Preferred      bool `json:"preferred,omitempty"`
 	DefaultProfile bool `json:"default_profile,omitempty"`
 	// Identity is what the provider reported at the most recent check, present
 	// only while that check verified it. LastCheck says what the most recent
@@ -93,6 +94,13 @@ func (m *Manager) Profiles(ctx context.Context) ([]ProfileStatus, error) {
 	profiles := m.defaultProfiles(ctx)
 	root := filepath.Join(m.config.UserStateRoot, "profiles")
 	for _, tool := range []string{"claude", "codex"} {
+		preferred, preferenceErr := m.preferredAccount(tool)
+		if preferenceErr != nil {
+			return nil, preferenceErr
+		}
+		if profile := profiles[tool+"\x00"]; profile != nil {
+			profile.Preferred = preferred == ""
+		}
 		entries, err := os.ReadDir(filepath.Join(root, tool))
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			return nil, fmt.Errorf("list %s profiles: %w", tool, err)
@@ -114,7 +122,7 @@ func (m *Manager) Profiles(ctx context.Context) ([]ProfileStatus, error) {
 			}
 			key := tool + "\x00" + entry.Name()
 			profiles[key] = &ProfileStatus{
-				Tool: tool, Name: entry.Name(), Path: path, Label: sidecar.Label,
+				Tool: tool, Name: entry.Name(), Path: path, Label: sidecar.Label, Preferred: entry.Name() == preferred,
 				SignedIn: profileSignedIn(path, tool),
 				Sessions: make([]ProfileSession, 0), LastUsed: lastUsed,
 			}
@@ -151,6 +159,10 @@ func (m *Manager) Profiles(ctx context.Context) ([]ProfileStatus, error) {
 			profile.Sessions = append(profile.Sessions, ProfileSession{ID: info.ID, Name: info.Name})
 		}
 	}
+	return sortedProfiles(profiles), nil
+}
+
+func sortedProfiles(profiles map[string]*ProfileStatus) []ProfileStatus {
 	result := make([]ProfileStatus, 0, len(profiles))
 	for _, profile := range profiles {
 		sort.Slice(profile.Sessions, func(i, j int) bool { return profile.Sessions[i].ID < profile.Sessions[j].ID })
@@ -162,5 +174,5 @@ func (m *Manager) Profiles(ctx context.Context) ([]ProfileStatus, error) {
 		}
 		return result[i].Name < result[j].Name
 	})
-	return result, nil
+	return result
 }

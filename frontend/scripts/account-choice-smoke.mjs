@@ -27,8 +27,8 @@ try {
   assert.deepEqual(accountRequestFields('work', true), { profile: 'work' },
     'a named account wins for a delegate');
   assert.deepEqual(accountRequestFields('work', false), { profile: 'work' });
-  assert.deepEqual(accountRequestFields('', false), {},
-    'a top-level session leaves the account out, as before');
+  assert.deepEqual(accountRequestFields('', false), { defaultProfile: true },
+    'an explicit CLI login overrides the machine preference too');
   assert.equal(JSON.stringify({ cmd: 'claude', ...accountRequestFields('', true) }),
     '{"cmd":"claude","defaultProfile":true}');
 

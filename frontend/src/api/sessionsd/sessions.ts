@@ -580,6 +580,7 @@ export interface AccountCheck {
 }
 
 export interface AccountProfile {
+	preferred?: boolean;
 	/** Empty name selects the existing provider CLI login, not a named home. */
 	default_profile?: boolean;
   /** Present only while the most recent check verified it. */
@@ -674,6 +675,14 @@ export async function renameAccount(
   );
   const body = await json<{ profile: AccountProfile }>(r);
   return body.profile;
+}
+
+export async function setDefaultAccount(tool: 'claude' | 'codex', name: string, serverId?: string): Promise<void> {
+  const server = requestedServer(serverId);
+  const response = await serverFetch(server, `${httpBaseForServer(server)}/api/account-default`, {
+    method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ tool, name })
+  });
+  await json(response);
 }
 
 /**

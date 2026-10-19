@@ -213,7 +213,7 @@ Examples:
 
 ```text
 Usage:
-  sessions accounts [list | usage [<name>] [--tool claude|codex] [--refresh] | add [name] --tool claude|codex [--label TEXT] [--machine NAME] | login <name> --tool claude|codex | login-status <id> | login-code <id> | login-cancel <id> | rename <name> --tool claude|codex --label TEXT | forget <name> --tool claude|codex]
+  sessions accounts [list | default <name> --tool claude|codex | default --cli-default --tool claude|codex | usage [<name>] [--tool claude|codex] [--refresh] | add [name] --tool claude|codex [--label TEXT] [--machine NAME] | login <name> --tool claude|codex | login-status <id> | login-code <id> | login-cancel <id> | rename <name> --tool claude|codex --label TEXT | forget <name> --tool claude|codex]
 
 list and add second Claude or ChatGPT accounts
 

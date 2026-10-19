@@ -501,7 +501,10 @@ func TestClaudeStructuredHistoryLifecycleMetadataLedgerAndAuth(t *testing.T) {
 func blockIdlePushState(t *testing.T, root string) string {
 	t.Helper()
 	path := filepath.Join(root, "push-disabled")
-	if err := os.WriteFile(path, []byte("disabled"), 0o600); err != nil {
+	if err := os.MkdirAll(filepath.Join(path, "vapid.json"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(path, "idle"), []byte("disabled"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	return path

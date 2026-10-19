@@ -67,12 +67,12 @@ export function accountNeedsLogin(profiles: AccountProfile[], provider: AccountP
 /**
  * The account part of a create request. sessionsd starts a same-provider
  * delegate on its manager's account when no account is named, so a delegate
- * whose Default was chosen must say so; anyone else gets the default by
- * leaving the account out.
+ * whose CLI default was chosen must say so. Explicit empty selections also
+ * bypass the machine's preferred named account for independent sessions.
  */
 export function accountRequestFields(
-  selectedProfile: string, delegate: boolean
+  selectedProfile: string, _delegate: boolean
 ): { profile?: string; defaultProfile?: true } {
   if (selectedProfile) return { profile: selectedProfile };
-  return delegate ? { defaultProfile: true } : {};
+  return { defaultProfile: true };
 }

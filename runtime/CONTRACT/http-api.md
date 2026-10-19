@@ -991,6 +991,18 @@ not be covered. Sessions neither blocks nor resets these checkouts.
 
 ### `GET /api/profiles`
 
+`preferred: true` marks the provider home chosen for new independent sessions
+on this machine. `PUT /api/account-default` accepts `{"tool":"claude"|"codex",
+"name":"<registered profile>"}`; empty name chooses the normal CLI login.
+This local/paired-client operation saves only a Sessions preference, never
+credentials. It does not switch existing lanes. Unspecified independent
+creates use the preference, explicit profile/`defaultProfile` wins, and
+delegates retain their parent's account. Replay of a recorded creation never
+re-resolves the preference. An unavailable selected home produces an error,
+not fallback to another subscription. `sessions accounts default` exposes the
+same operation; profile-list JSON exposes the selection. Registration does not
+prove authentication; a selected account may still need its provider sign-in.
+
 Existing default provider homes are also included with `name: ""` and
 `default_profile: true`. They are not registered profiles and cannot be renamed
 or removed through profile actions. Selecting the empty name uses the CLI login;

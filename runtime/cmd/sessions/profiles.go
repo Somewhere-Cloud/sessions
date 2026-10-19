@@ -27,6 +27,7 @@ type profileCheck struct {
 }
 
 type profileStatus struct {
+	Preferred        bool             `json:"preferred,omitempty"`
 	DefaultProfile   bool             `json:"default_profile,omitempty"`
 	Identity         *profileIdentity `json:"identity,omitempty"`
 	LastCheck        *profileCheck    `json:"last_check,omitempty"`
@@ -47,6 +48,8 @@ func (a *app) cmdAccounts(args []string) error {
 		return a.cmdProfiles(nil)
 	}
 	switch args[0] {
+	case "default":
+		return a.cmdAccountDefault(args[1:])
 	case "login", "login-status", "login-cancel", "login-code":
 		return a.cmdAccountLogin(args[0], args[1:])
 	case "add":
@@ -237,6 +240,9 @@ func (a *app) cmdProfiles(args []string) error {
 		name := profile.Name
 		if profile.DefaultProfile {
 			name = "(CLI default)"
+		}
+		if profile.Preferred {
+			name += " *"
 		}
 		rows = append(rows, []string{profile.Tool, name, label, signedIn, using, lastUsed, profile.Path})
 	}

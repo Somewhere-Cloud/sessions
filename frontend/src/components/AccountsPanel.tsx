@@ -117,6 +117,7 @@ export function AccountsPanel({ profiles, machineName, serverId, onReload }: Pro
                 busy={busy}
                 onSignIn={signIn}
                 onRename={edits.rename}
+                onDefaultChanged={fleet.reloadComputer}
                 onForget={(placement) => void edits.forget(placement, groupTitle(group))}
                 onAddOn={(machine) => addOn(group, machine)}
               />
@@ -130,6 +131,7 @@ export function AccountsPanel({ profiles, machineName, serverId, onReload }: Pro
             <ul className="accounts-placements" aria-label="Unfinished sign-ins">
               {unfinished.flatMap((group) => group.placements.map((placement) => (
                 <AccountPlacementRow key={group.key} placement={placement} title={groupTitle(group)} busy={busy}
+                  onDefaultChanged={fleet.reloadComputer}
                   onSignIn={signIn} onRename={edits.rename} onForget={(item) => void edits.forget(item, groupTitle(group))} unfinished />
               )))}
             </ul>
@@ -220,7 +222,7 @@ function AccountsIntroduction(): JSX.Element {
 const providerName = (tool: 'claude' | 'codex'): string => tool === 'codex' ? 'ChatGPT' : 'Claude';
 
 function AccountGroupRow(
-  { group, addable, busy, onSignIn, onRename, onForget, onAddOn }: {
+  { group, addable, busy, onSignIn, onRename, onForget, onAddOn, onDefaultChanged }: {
     group: AccountGroup;
     addable: MachineAccounts[];
     busy: boolean;
@@ -228,6 +230,7 @@ function AccountGroupRow(
     onRename: (placement: AccountPlacement, label: string) => Promise<string | null>;
     onForget: (placement: AccountPlacement) => void;
     onAddOn: (machine: MachineAccounts) => void;
+    onDefaultChanged: (id: string) => Promise<void>;
   }
 ): JSX.Element {
   const title = groupTitle(group);
@@ -260,6 +263,7 @@ function AccountGroupRow(
               busy={busy}
               onSignIn={onSignIn}
               onRename={onRename}
+              onDefaultChanged={onDefaultChanged}
               onForget={onForget}
             />
           ))}

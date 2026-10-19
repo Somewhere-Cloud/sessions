@@ -1,12 +1,13 @@
 import { useId, useState, type FormEvent } from 'react';
 import { placementCheck, type AccountPlacement, type MachineAccounts, type PlacementCheck } from '../lib/accountRollup';
 import { relativeTime } from './AccountUsageSummary';
+import { setDefaultAccount } from '../api/sessionsd';
 
 // The per-computer parts of an account row: where it is signed in, what that
 // computer last confirmed, and the actions that belong to that computer's copy.
 
 export function AccountPlacementRow(
-  { placement, title, busy, onSignIn, onRename, onForget, unfinished = false }: {
+  { placement, title, busy, onSignIn, onRename, onForget, onDefaultChanged, unfinished = false }: {
     placement: AccountPlacement;
     title: string;
     busy: boolean;
@@ -14,11 +15,13 @@ export function AccountPlacementRow(
     onRename: (placement: AccountPlacement, label: string) => Promise<string | null>;
     onForget: (placement: AccountPlacement) => void;
     unfinished?: boolean;
+    onDefaultChanged?: (id: string) => Promise<void>;
   }
 ): JSX.Element {
   const labelId = useId();
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [savingDefault, setSavingDefault] = useState(false);
   const account = placement.profile;
   const ownName = account.label?.trim();
   const check = placementCheck(placement);
@@ -35,6 +38,16 @@ export function AccountPlacementRow(
         <span id={labelId} className="accounts-placement-name">{placement.machineName}{account.default_profile ? ' · CLI default' : ''}{unfinished ? ` · ${account.tool === 'claude' ? 'Claude' : 'ChatGPT'} · ${account.label || account.name}` : ''}</span>
         <PlacementStatus check={check} signedIn={account.signed_in} />
       </div>
+      {onDefaultChanged ? <button type="button" className="btn btn-ghost" disabled={busy || savingDefault || account.preferred}
+        onClick={async () => {
+          setSavingDefault(true); setError(null);
+          try {
+            await setDefaultAccount(account.tool, account.name, placement.serverId || undefined);
+            await onDefaultChanged(placement.serverId);
+          } catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not save default account.'); }
+          finally { setSavingDefault(false); }
+        }}>{account.preferred ? 'Default for new sessions' : savingDefault ? 'Saving…' : 'Make default'}</button> : null}
+      {error && !editing ? <span className="accounts-row-error" role="alert">{error}</span> : null}
       <details className="accounts-placement-details">
       <summary aria-label={`Manage ${title} on ${placement.machineName}`}>Manage sign-in</summary>
       {editing ? (
