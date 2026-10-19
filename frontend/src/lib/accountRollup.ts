@@ -254,7 +254,7 @@ const providerName = (tool: 'claude' | 'codex'): string => tool === 'codex' ? 'C
 /** A row leads with the owner's nickname, then the currently verified email. */
 export function groupTitle(group: AccountGroup): string {
   const nickname = group.placements.map((placement) => placement.profile.label?.trim()).find(Boolean);
-  return nickname || group.identity?.email || `${providerName(group.tool)} account`;
+  return nickname || group.identity?.email || `${providerName(group.tool)} ${group.placements.some((p) => p.profile.default_profile) ? 'CLI default' : 'account'}`;
 }
 
 /**

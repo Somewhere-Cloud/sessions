@@ -58,9 +58,9 @@ export function CollaboratorContext({ value, source, disabled }: {
       {value.error ? <p role="alert">{value.error}</p> : null}
     </> : null}
     <details><summary>Account</summary><label>Run this agent with<select aria-label="Destination account" value={value.profile} disabled={disabled} onChange={(event) => value.setProfile(event.target.value)}>
-      <option value="">Machine default account</option>
+      <option value="">{value.profiles.find((p) => p.default_profile) ? accountLabel(value.profiles.find((p) => p.default_profile)!) : 'CLI default'}</option>
       {value.profile && !value.profiles.some((p) => p.name === value.profile) ? <option value={value.profile}>{value.profile}</option> : null}
-      {value.profiles.map((p) => <option key={p.name} value={p.name}>{accountLabel(p)}{p.signed_in ? '' : ' · needs sign-in'}</option>)}
+      {value.profiles.filter((p) => !p.default_profile).map((p) => <option key={p.name} value={p.name}>{accountLabel(p)}{p.identity || p.signed_in ? '' : ' · needs sign-in'}</option>)}
     </select></label>{value.profileError ? <p role="alert">{value.profileError}</p> : null}<small>Uses an existing account on this computer. Settings › Accounts adds one.</small></details>
   </div>;
 }

@@ -3,7 +3,9 @@ package session
 import (
 	"context"
 	"errors"
+	"os"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/somewhere-tech/sessions/runtime/internal/agentcall"
@@ -15,23 +17,67 @@ import (
 // ChatGPT account. Claude usage is not connected in Sessions yet; Sessions does
 // not scrape it from Claude's files, endpoints or status line in the meantime.
 func readProviderUsage(ctx context.Context, tool, home string) AccountUsage {
-	if tool != "codex" {
-		return AccountUsage{
-			State:   AccountUsageUnsupported,
-			Message: "Claude usage is not connected in Sessions yet. Check Claude for your current limits.",
+	return readProviderUsageWithEnv(ctx, tool, home, accountLoginEnvironment(tool, home))
+}
+
+// A default login must not acquire a synthetic config override: Claude may
+// use a different credential-store namespace even when the paths are equal.
+func readDefaultProviderUsage(ctx context.Context, tool, home string) AccountUsage {
+	env := accountLoginEnvironment(tool, home)
+	key := "CLAUDE_CONFIG_DIR"
+	if tool == "codex" {
+		key = "CODEX_HOME"
+	}
+	if os.Getenv(key) == "" {
+		filtered := env[:0]
+		for _, entry := range env {
+			if !strings.HasPrefix(entry, key+"=") {
+				filtered = append(filtered, entry)
+			}
 		}
+		env = filtered
+	}
+	return readProviderUsageWithEnv(ctx, tool, home, env)
+}
+
+func readProviderUsageWithEnv(ctx context.Context, tool, home string, env []string) AccountUsage {
+	if tool != "codex" {
+		return readClaudeAccountStatusWithEnv(ctx, home, env)
 	}
 	executable, err := agentcall.Executable("codex")
 	if err != nil {
 		return AccountUsage{State: AccountUsageUnavailable, Message: "Codex is not installed on this computer; install it to read this account's usage."}
 	}
 	// The same private environment sign-in uses: this home, nothing ambient.
-	client, err := codexapp.NewAccountClient(ctx, executable, accountLoginEnvironment("codex", home), home)
+	client, err := codexapp.NewAccountClient(ctx, executable, env, home)
 	if err != nil {
 		return AccountUsage{State: AccountUsageUnavailable, Message: usageFailure(ctx, "Codex did not start")}
 	}
 	defer client.Close()
 	return readCodexUsage(ctx, client)
+}
+
+// Identity and usage are separate facts: Claude exposes auth status without a
+// model turn, but no supported allowance reading. Never infer logout from a
+// missing credentials file (the provider may use the OS credential store).
+func readClaudeAccountStatusWithEnv(ctx context.Context, home string, env []string) AccountUsage {
+	result := AccountUsage{State: AccountUsageUnsupported,
+		Message: "Claude usage is not connected in Sessions yet. Check Claude for your current limits."}
+	executable, err := agentcall.Executable("claude")
+	if err != nil {
+		result.State, result.Message = AccountUsageUnavailable, "Claude is not installed or could not be located on this computer."
+		return result
+	}
+	identity, err := readClaudeIdentity(ctx, executable, home, env)
+	result.CheckedAt = time.Now().UnixMilli()
+	if err != nil {
+		result.State, result.Message = AccountUsageUnavailable, "Claude could not confirm this sign-in. Refresh to check again; this does not mean signed out."
+	} else if identity == nil {
+		result.State, result.Message = AccountUsageSignedOut, "Claude reported no subscription sign-in in this provider home."
+	} else {
+		result.Identity = identity
+	}
+	return result
 }
 
 // codexUsageClient is the part of the app-server a usage read needs.

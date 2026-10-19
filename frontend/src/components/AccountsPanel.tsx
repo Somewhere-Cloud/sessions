@@ -70,8 +70,9 @@ export function AccountsPanel({ profiles, machineName, serverId, onReload }: Pro
   const signInPending = login.signingInFor !== null && loginPending(login.operation);
   const busy = login.busy || signInPending || editBusy;
   const allGroups = rollUpAccounts(fleet.machines);
-  const groups = allGroups.filter((group) => group.identity);
-  const unfinished = allGroups.filter((group) => !group.identity);
+  const isVisible = (group: AccountGroup): boolean => Boolean(group.identity || group.placements.some((p) => p.profile.default_profile));
+  const groups = allGroups.filter(isVisible);
+  const unfinished = allGroups.filter((group) => !isVisible(group));
   const nameOf = (id: string): string => fleet.machines.find((machine) => machine.serverId === id)?.machineName ?? machineName;
   const edits = accountEdits(setEditBusy, setNotice, fleet.reloadComputer);
 

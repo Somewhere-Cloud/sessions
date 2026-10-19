@@ -197,11 +197,11 @@ function AccountChoice(
       <span>Account</span>
       <span className="launcher-intent-control is-account" title={title}>
         <select value={value} onChange={(event) => onChange(event.currentTarget.value)} aria-label="Account" disabled={disabled}>
-          <option value="">Default</option>
+          <option value="">{profiles.find((profile) => profile.default_profile) ? accountLabel(profiles.find((profile) => profile.default_profile)!) : 'CLI default'}</option>
           {unlisted ? (
             <option value={selected}>{selected}{inherited === selected ? ' · from this session' : ''}</option>
           ) : null}
-          {profiles.map((profile) => (
+          {profiles.filter((profile) => !profile.default_profile).map((profile) => (
             <option key={`${profile.tool}:${profile.name}`} value={profile.name}>
               {accountLabel(profile)}{profile.name === inherited ? ' · from this session' : ''}{profile.identity || profile.signed_in ? '' : ' · needs sign-in'}
             </option>

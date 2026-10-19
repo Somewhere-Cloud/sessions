@@ -27,6 +27,7 @@ type profileCheck struct {
 }
 
 type profileStatus struct {
+	DefaultProfile   bool             `json:"default_profile,omitempty"`
 	Identity         *profileIdentity `json:"identity,omitempty"`
 	LastCheck        *profileCheck    `json:"last_check,omitempty"`
 	PreviousIdentity *profileIdentity `json:"previous_identity,omitempty"`
@@ -220,6 +221,9 @@ func (a *app) cmdProfiles(args []string) error {
 			lastUsed = a.ageOf(profile.LastUsed)
 		}
 		label := profile.Label
+		if label == "" && profile.Identity != nil {
+			label = profile.Identity.Email
+		}
 		if label == "" {
 			label = "-"
 		}
@@ -230,7 +234,11 @@ func (a *app) cmdProfiles(args []string) error {
 		if profile.SignedIn {
 			signedIn = "present"
 		}
-		rows = append(rows, []string{profile.Tool, profile.Name, label, signedIn, using, lastUsed, profile.Path})
+		name := profile.Name
+		if profile.DefaultProfile {
+			name = "(CLI default)"
+		}
+		rows = append(rows, []string{profile.Tool, name, label, signedIn, using, lastUsed, profile.Path})
 	}
 	if err := writePaddedRows(a.stdout, rows); err != nil {
 		return err

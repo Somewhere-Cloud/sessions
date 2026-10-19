@@ -991,6 +991,16 @@ not be covered. Sessions neither blocks nor resets these checkouts.
 
 ### `GET /api/profiles`
 
+Existing default provider homes are also included with `name: ""` and
+`default_profile: true`. They are not registered profiles and cannot be renamed
+or removed through profile actions. Selecting the empty name uses the CLI login;
+delegated creates explicitly send `defaultProfile: true` to override inheritance.
+Default identity discovery shares the bounded account-reading cache and waits at
+most two seconds; a pending or failed check is not evidence of a logout.
+Usage refresh checks Claude identity with `claude auth status --json` without
+starting a login or model turn. Claude allowance remains unsupported even when
+identity is verified. No credentials are copied or parsed by Sessions.
+
 Auth required. A profile is one account: a separate provider home with its own
 login and history. Returns them by tool and name, with their path, the label
 their owner gave them, whether the provider has written its login state there,

@@ -48,6 +48,20 @@ async function unfinishedProfile(label: string): Promise<HTMLElement> {
 }
 
 describe('capability: accounts are a first-class choice', () => {
+  it('shows the CLI identity and offers exactly one explicit default choice', async () => {
+    const machines = fleet();
+    machines[0]!.profiles!.push({ tool: 'claude', name: '', default_profile: true,
+      signed_in: false, identity: { email: 'cli@example.test', checked_at: Date.now() } });
+    installFakeDaemon(machines);
+    useFakeMachines(machines, 'local');
+    const account = await openLauncher();
+    await waitFor(() => expect(within(account).getByRole('option', { name: 'cli@example.test · CLI default' })).toBeInTheDocument());
+    expect([...account.options].filter((option) => option.value === '')).toHaveLength(1);
+    await userEvent.selectOptions(account, 'work');
+    await userEvent.selectOptions(account, '');
+    expect(account).toHaveValue('');
+  });
+
   it('offers the accounts on the selected computer beside Agent and Computer', async () => {
     const machines = fleet();
     installFakeDaemon(machines);
@@ -61,7 +75,7 @@ describe('capability: accounts are a first-class choice', () => {
     await waitFor(() => expect(within(account).getByRole('option', { name: /Work — team plan/ })).toBeInTheDocument());
     // The label the person typed, not the folder name behind it.
     expect(within(account).getByRole('option', { name: /Personal/ })).toBeInTheDocument();
-    expect(within(account).getByRole('option', { name: 'Default' })).toBeInTheDocument();
+    expect(within(account).getByRole('option', { name: 'CLI default' })).toBeInTheDocument();
     expect(within(account).getByRole('option', { name: /Add an account/ })).toBeInTheDocument();
     // Claude's accounts, because the agent is Claude. Codex's are not offered.
     expect(within(account).queryByRole('option', { name: /Work ChatGPT/ })).not.toBeInTheDocument();

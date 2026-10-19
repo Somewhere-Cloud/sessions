@@ -18,13 +18,16 @@ const (
 )
 
 type Config struct {
-	Host         string
-	Port         int
-	DefaultShell string
-	DefaultCwd   string
-	DefaultCols  int
-	DefaultRows  int
-	StateRoot    string
+	// DefaultProviderHomes are the provider homes used without a named profile.
+	// Captured at startup so account inventory and launches share the host context.
+	DefaultProviderHomes map[string]string
+	Host                 string
+	Port                 int
+	DefaultShell         string
+	DefaultCwd           string
+	DefaultCols          int
+	DefaultRows          int
+	StateRoot            string
 	// UserStateRoot is always the platform user state root
 	// (~/.local/state/sessions on Unix, %LOCALAPPDATA%\Sessions\state on
 	// Windows). Unlike the runner directory, idle and push state do not follow
@@ -72,6 +75,10 @@ func ConfigFromEnv() (Config, error) {
 	}
 
 	return Config{
+		DefaultProviderHomes: map[string]string{
+			"claude": getenv("CLAUDE_CONFIG_DIR", filepath.Join(home, ".claude")),
+			"codex":  getenv("CODEX_HOME", filepath.Join(home, ".codex")),
+		},
 		Host:               host,
 		Port:               port,
 		DefaultShell:       getenv("SHELL", defaultShell()),

@@ -18,6 +18,7 @@ type ProfileSession struct {
 }
 
 type ProfileStatus struct {
+	DefaultProfile bool `json:"default_profile,omitempty"`
 	// Identity is what the provider reported at the most recent check, present
 	// only while that check verified it. LastCheck says what the most recent
 	// check established; PreviousIdentity is an earlier verified identity a
@@ -89,7 +90,7 @@ func (m *Manager) Profiles(ctx context.Context) ([]ProfileStatus, error) {
 	if m.config.UserStateRoot == "" {
 		return nil, errors.New("profile listing requires a configured Sessions user state root")
 	}
-	profiles := make(map[string]*ProfileStatus)
+	profiles := m.defaultProfiles(ctx)
 	root := filepath.Join(m.config.UserStateRoot, "profiles")
 	for _, tool := range []string{"claude", "codex"} {
 		entries, err := os.ReadDir(filepath.Join(root, tool))
@@ -126,7 +127,7 @@ func (m *Manager) Profiles(ctx context.Context) ([]ProfileStatus, error) {
 	}
 	for _, lane := range states {
 		tool, supported := state.ProfileToolName(state.SessionTool(lane.Tool))
-		if !supported || lane.Profile == "" {
+		if !supported {
 			continue
 		}
 		key := tool + "\x00" + lane.Profile
@@ -139,7 +140,7 @@ func (m *Manager) Profiles(ctx context.Context) ([]ProfileStatus, error) {
 		}
 	}
 	for _, info := range m.registry.List(false) {
-		if info.Profile == "" || info.Exited {
+		if info.Exited {
 			continue
 		}
 		tool, supported := state.ProfileToolName(info.Tool)

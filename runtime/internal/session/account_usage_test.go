@@ -289,6 +289,7 @@ func TestAccountUsageInvalidationFencesAnEarlierRead(t *testing.T) {
 }
 
 func TestAccountUsageListsOnlyRegisteredAccounts(t *testing.T) {
+	installAccountPathFixture(t, "claude", "#!/bin/sh\nprintf '%s' '{\"loggedIn\":true,\"authMethod\":\"claude.ai\",\"email\":\"test@example.test\"}'\n")
 	manager, _ := usageManager(t, func(ctx context.Context, tool, home string) AccountUsage {
 		return readProviderUsage(ctx, tool, home)
 	})
@@ -306,7 +307,7 @@ func TestAccountUsageListsOnlyRegisteredAccounts(t *testing.T) {
 		t.Fatalf("usage = %#v, %v; want only the listed Claude account", usage, err)
 	}
 	// Claude usage is not connected yet, and the answer says so plainly.
-	if usage[0].State != AccountUsageUnsupported || usage[0].CheckedAt != 0 || !strings.Contains(usage[0].Message, "not connected in Sessions yet") {
+	if usage[0].State != AccountUsageUnsupported || usage[0].Identity == nil || !strings.Contains(usage[0].Message, "not connected in Sessions yet") {
 		t.Fatalf("claude usage = %#v", usage[0])
 	}
 	if _, err := manager.AccountUsage(context.Background(), "codex", "gone", false); err == nil || !strings.Contains(err.Error(), "sessions accounts") {

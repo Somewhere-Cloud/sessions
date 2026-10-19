@@ -580,6 +580,8 @@ export interface AccountCheck {
 }
 
 export interface AccountProfile {
+	/** Empty name selects the existing provider CLI login, not a named home. */
+	default_profile?: boolean;
   /** Present only while the most recent check verified it. */
   identity?: AccountIdentity;
   /** Absent from older Sessions, whose `identity` is the last check's. */

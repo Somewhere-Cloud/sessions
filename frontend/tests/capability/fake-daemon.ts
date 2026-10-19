@@ -111,6 +111,7 @@ export interface FakeMachine {
 
 /** One second subscription on a machine: a provider home with a name. */
 export interface FakeAccount {
+  default_profile?: boolean;
   identity?: AccountLogin['identity'];
   tool: 'claude' | 'codex';
   name: string;

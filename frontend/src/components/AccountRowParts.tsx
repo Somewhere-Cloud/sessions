@@ -32,7 +32,7 @@ export function AccountPlacementRow(
   return (
     <li className="accounts-placement">
       <div className="accounts-placement-head">
-        <span id={labelId} className="accounts-placement-name">{placement.machineName}{unfinished ? ` · ${account.tool === 'claude' ? 'Claude' : 'ChatGPT'} · ${account.label || account.name}` : ''}</span>
+        <span id={labelId} className="accounts-placement-name">{placement.machineName}{account.default_profile ? ' · CLI default' : ''}{unfinished ? ` · ${account.tool === 'claude' ? 'Claude' : 'ChatGPT'} · ${account.label || account.name}` : ''}</span>
         <PlacementStatus check={check} signedIn={account.signed_in} />
       </div>
       <details className="accounts-placement-details">
@@ -53,7 +53,8 @@ export function AccountPlacementRow(
       ) : null}
       {activity ? <span className="accounts-activity">{activity}</span> : null}
       {error ? <span className="accounts-row-error" role="alert">{error}</span> : null}
-      {!editing ? (
+      {account.default_profile ? <p className="field-help">This is the existing {account.tool === 'claude' ? 'Claude' : 'Codex'} CLI login on {placement.machineName}. Choose “CLI default” when starting a session. Refresh accounts to check its identity; changing it in the provider CLI does not switch existing sessions.</p> : null}
+      {!editing && !account.default_profile ? (
         <div className="accounts-actions" role="group" aria-labelledby={labelId}>
           <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => onSignIn(placement)}>
             {check.kind === 'signed_in' || check.kind === 'verified' || check.kind === 'failed' ? 'Check account' : 'Sign in'}

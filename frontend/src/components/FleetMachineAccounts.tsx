@@ -31,6 +31,7 @@ export function accountsMissingOn(
   for (const [otherId, profiles] of Object.entries(accounts)) {
     if (otherId === serverId) continue;
     for (const account of profiles) {
+      if (account.default_profile) continue;
       const key = `${account.tool}/${account.name}`;
       if (here.has(key)) continue;
       const existing = missing.get(key);

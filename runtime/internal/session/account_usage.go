@@ -240,7 +240,9 @@ func (c *accountUsageCache) fetch(parent context.Context, entry *accountUsageEnt
 	select {
 	case c.slots <- struct{}{}:
 		reader := c.reader
-		if reader == nil {
+		if reader == nil && profile.DefaultProfile {
+			reader = readDefaultProviderUsage
+		} else if reader == nil {
 			reader = readProviderUsage
 		}
 		result = reader(ctx, profile.Tool, profile.Path)

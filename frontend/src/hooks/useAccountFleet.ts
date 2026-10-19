@@ -111,6 +111,7 @@ export function useAccountFleet({ homeId, homeName, homeProfiles, onHomeReload }
       await Promise.all(computers.map(async (computer) => {
         if (state[computer.id]?.profilesError) await readProfiles(computer.id);
         await readUsage(computer.id, true);
+        await readProfiles(computer.id);
       }));
     } finally {
       if (alive.current) setRefreshing(false);
