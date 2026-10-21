@@ -662,6 +662,9 @@ Values: `capabilities.runtime` is `claude-structured`, `codex-app-server`,
   progress either. A PTY Claude screen that still shows Claude's working
   indicator keeps the flag through silence rather than being read as
   finished; only a repaint without the indicator ends it.
+  Retry metadata alone never makes this value true or supplies classifier
+  evidence. A retained retry record is separate from current activity; the
+  observation value must agree with the session's `working` field.
 - `turn` holds only observed boundaries. `started_by:"sessions-dispatch"` is
   Sessions' own record that it dispatched a turn, not provider evidence.
   `provider_confirmed_at` is set only by the provider's own first record of the

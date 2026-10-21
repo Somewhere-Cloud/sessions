@@ -14,7 +14,7 @@ func (s *Session) observationsLocked(info SessionInfo) *Observations {
 	// No classifier has set the working flag yet: its evidence is unknown,
 	// so the block is null rather than a "false" with an unknown source.
 	if source := s.workingSourceLocked(info, capabilities); source != WorkingFromUnknown {
-		observations.Working = &ObservedWorking{Value: info.Working || info.Retry != nil, Source: source}
+		observations.Working = &ObservedWorking{Value: info.Working, Source: source}
 	}
 	observations.Runner.AdoptedAt = optionalMillis(s.observed.adoptedAt)
 	observations.Approval = approvalObservation(info, capabilities)
@@ -43,8 +43,6 @@ func (s *Session) observationsLocked(info SessionInfo) *Observations {
 // whatever the runtime manager last classified it with.
 func (s *Session) workingSourceLocked(info SessionInfo, capabilities ObservedCapabilities) string {
 	switch {
-	case info.Retry != nil:
-		return WorkingFromProviderRetry
 	case capabilities.TurnBoundaries == ObservedProviderStream:
 		return WorkingFromProviderStream
 	case s.observed.workingSource != "":
