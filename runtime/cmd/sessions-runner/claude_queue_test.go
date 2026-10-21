@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -558,5 +559,77 @@ func TestClaudeAnsweredTurnThenProcessErrorNeverReplaysAnsweredInput(t *testing.
 				t.Fatalf("provider calls = %q; the answered message must run exactly once", data)
 			}
 		})
+	}
+}
+
+// A queued message whose turn failed or was interrupted stays dispatched and
+// is never sent again. Once a later turn replaces it, it is only a receipt:
+// counting it as pending let 32 unresolved turns refuse every later message
+// on an idle runner with nothing saved.
+func TestClaudeQueueUnresolvedTurnsDoNotExhaustCapacity(t *testing.T) {
+	r, logPath := newClaudeQueueFixture(t)
+	r.active = false
+	for index := range claudeQueueLimit + 2 {
+		id := fmt.Sprintf("fail-%02d", index)
+		if result := r.submitMessage(proto.MessageControl{OperationID: id, Text: "fail"}); !result.Accepted {
+			t.Fatalf("message %d refused with nothing saved: %+v", index, result)
+		}
+		waitClaudeQueue(t, r, func(queue claudeMessageQueue) bool {
+			r.mu.Lock()
+			defer r.mu.Unlock()
+			return !r.active && queue.Paused
+		})
+	}
+	if result := r.submitMessage(proto.MessageControl{OperationID: "fresh", Text: "fresh"}); !result.Accepted || result.Boundary != "runner" {
+		t.Fatalf("idle runner refused a new message: %+v", result)
+	}
+	waitClaudeQueue(t, r, func(queue claudeMessageQueue) bool {
+		for _, item := range queue.Items {
+			if item.ID == "fresh" {
+				return item.Phase == "done"
+			}
+		}
+		return false
+	})
+	data, _ := os.ReadFile(logPath)
+	if got := strings.Count(string(data), "fail\n"); got != claudeQueueLimit+2 {
+		t.Fatalf("an unresolved message was sent again: %d provider calls for %d messages", got, claudeQueueLimit+2)
+	}
+}
+
+// The entry whose failed input Retry would run again is still pending work:
+// it counts toward the limits and is never trimmed as a receipt.
+func TestClaudeQueueCurrentDispatchedEntryStaysPending(t *testing.T) {
+	r, _ := newClaudeQueueFixture(t)
+	r.queueCurrent = "current"
+	r.queue = claudeMessageQueue{Version: 1, Paused: true}
+	r.queue.Items = append(r.queue.Items, claudeQueuedMessage{ID: "current", Text: "retained", Hash: claudeMessageHash("retained"), Phase: "dispatched", Boundary: "runner"})
+	for index := range claudeQueueReceiptLimit + 10 {
+		text := fmt.Sprintf("settled-%d", index)
+		r.queue.Items = append(r.queue.Items, claudeQueuedMessage{ID: text, Text: text, Hash: claudeMessageHash(text), Phase: "dispatched", Boundary: "runner"})
+	}
+	for index := range claudeQueueLimit - 1 {
+		text := fmt.Sprintf("queued-%d", index)
+		r.queue.Items = append(r.queue.Items, claudeQueuedMessage{ID: text, Text: text, Hash: claudeMessageHash(text), Phase: "queued", Boundary: "queue"})
+	}
+	if _, err := r.queueWith(claudeQueuedMessage{ID: "overflow", Text: "overflow", Phase: "queued"}); !errors.Is(err, errClaudeQueueFull) {
+		t.Fatalf("current dispatched entry did not count as pending: %v", err)
+	}
+	r.queueCurrent = ""
+	next, err := r.queueWith(claudeQueuedMessage{ID: "next", Text: "next", Hash: claudeMessageHash("next"), Phase: "queued"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	queued, settled := 0, 0
+	for _, item := range next.Items {
+		switch item.Phase {
+		case "queued":
+			queued++
+		case "dispatched":
+			settled++
+		}
+	}
+	if queued != claudeQueueLimit || settled != claudeQueueReceiptLimit || next.Items[len(next.Items)-1].ID != "next" {
+		t.Fatalf("queued=%d settled receipts=%d, want every saved message and %d receipts", queued, settled, claudeQueueReceiptLimit)
 	}
 }

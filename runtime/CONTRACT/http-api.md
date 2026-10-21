@@ -2125,7 +2125,12 @@ no failed turn, a working session with a failed turn, an ended session, an older
 runner that cannot accept
 retry controls, or a Claude runner that answers that it has nothing to retry or
 continue (including one still holding a turn whose provider has not exited)
-returns `409 {"error":"<sentence explaining why>"}`. With no failure on record,
+returns `409 {"error":"<sentence explaining why>"}`. A Claude runner's refusal
+keeps the runner's own words and adds the next safe step read from that answer
+alone, never from its version: wait or interrupt while its turn is open; read the
+conversation when nothing undispatched is saved; or, for an answer that does not
+mention saved messages, that this runner cannot continue them. The daemon starts,
+restarts, resends, and marks read nothing on a refusal. With no failure on record,
 the daemon's `working` flag does not refuse a Claude continuation: that flag is
 inferred from history, and only the runner knows whether its turn is open.
 Unknown session is 404. Other runner-control failures are 502.

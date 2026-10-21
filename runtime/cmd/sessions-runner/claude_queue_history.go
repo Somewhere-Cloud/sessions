@@ -16,17 +16,37 @@ func claudeMessageHash(text string) string {
 	return hex.EncodeToString(hash[:])
 }
 
-func trimClaudeQueueReceipts(items []claudeQueuedMessage) []claudeQueuedMessage {
-	completed := 0
+// claudeQueueReceiptLimit bounds each kind of entry the queue keeps only as a
+// receipt: answered (done) entries, and dispatched entries whose turn ended
+// without an answer. Neither is ever sent again, so neither is pending work.
+const claudeQueueReceiptLimit = 64
+
+// queueReceiptOnly reports whether an entry is kept only as a receipt. A
+// dispatched entry is pending only while it is current: its turn is running,
+// or its failed input is still retained for Retry. Once a later turn replaces
+// it, or a runner restart leaves it unknown, it cannot run again, and counting
+// it against the queue limits would let interruptions fill the queue for good.
+func queueReceiptOnly(item claudeQueuedMessage, current string) bool {
+	return item.Phase == "done" || (item.Phase == "dispatched" && item.ID != current)
+}
+
+func trimClaudeQueueReceipts(items []claudeQueuedMessage, current string) []claudeQueuedMessage {
+	completed, settled := 0, 0
 	for _, item := range items {
 		if item.Phase == "done" {
 			completed++
+		} else if queueReceiptOnly(item, current) {
+			settled++
 		}
 	}
 	kept := make([]claudeQueuedMessage, 0, len(items))
 	for _, item := range items {
-		if item.Phase == "done" && completed > 64 {
+		if item.Phase == "done" && completed > claudeQueueReceiptLimit {
 			completed--
+			continue
+		}
+		if item.Phase == "dispatched" && queueReceiptOnly(item, current) && settled > claudeQueueReceiptLimit {
+			settled--
 			continue
 		}
 		kept = append(kept, item)
@@ -52,27 +72,20 @@ func (r *claudeStructuredRunner) queuedReceipt(control proto.MessageControl, res
 	return *result, false
 }
 
+var errClaudeQueueFull = errors.New("Claude's saved message queue is full (32 messages / 1 MiB not yet dispatched)")
+
 func (r *claudeStructuredRunner) queueWith(item claudeQueuedMessage) (claudeMessageQueue, error) {
-	items := make([]claudeQueuedMessage, 0, len(r.queue.Items)+1)
-	pending, bytes, completed := 0, len(item.Text), 0
+	pending, bytes := 0, len(item.Text)
 	for _, existing := range r.queue.Items {
-		if existing.Phase == "done" {
-			completed++
-		} else {
+		if !queueReceiptOnly(existing, r.queueCurrent) {
 			pending++
 			bytes += len(existing.Text)
 		}
 	}
 	if pending >= claudeQueueLimit || bytes > claudeQueueBytes {
-		return claudeMessageQueue{}, errors.New("the saved message queue is full (32 messages / 1 MiB)")
+		return claudeMessageQueue{}, errClaudeQueueFull
 	}
-	for _, existing := range r.queue.Items {
-		if existing.Phase == "done" && completed > 64 {
-			completed--
-			continue
-		}
-		items = append(items, existing)
-	}
+	items := trimClaudeQueueReceipts(r.queue.Items, r.queueCurrent)
 	return claudeMessageQueue{Version: 1, Paused: r.queue.Paused, Items: append(items, item)}, nil
 }
 

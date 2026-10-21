@@ -211,7 +211,11 @@ This directory follows an explicit `SESSIONS_STATE_DIR` as described above.
 Go structured-Claude runners own this additive mode-0600 sidecar. Version 1
 contains a paused flag and entries with operation ID, content hash, acceptance
 boundary, timestamp, and `queued`, `dispatched`, or `done` phase. Pending message
-text is local private data, bounded to 32 messages / 1 MiB. Completed entries
+text is local private data, bounded to 32 messages / 1 MiB not yet dispatched.
+A dispatched entry counts toward that bound only while it is current: its turn
+is running, or its failed input is retained for Retry. Once a later turn replaces
+it, or a runner restart leaves it unknown, it is a receipt that is never sent
+again, and at most 64 such dispatched receipts are retained. Completed entries
 drop text and retain at most 64 recent receipts. The runner syncs the temporary
 file and atomically renames it before acknowledging or claiming a message.
 

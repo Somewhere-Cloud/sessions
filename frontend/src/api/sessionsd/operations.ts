@@ -1,7 +1,7 @@
 import type { ClaudeSessionEvent, CreateSessionRequest, DirectoryCandidate, ProviderFailureKind, ProviderRetry, SessionInfo } from '../../types';
 import { getActiveServer, type ServerConfig } from '../../lib/servers';
 import { randomUUID } from '../../lib/uuid';
-import { MessageDeliveryError } from '../../lib/messageDelivery';
+import { MessageDeliveryError, type MessageSubmission } from '../../lib/messageDelivery';
 import {
   AuthError,
   apiFetch,
@@ -715,10 +715,17 @@ async function readDeliveryResponse(response: Response): Promise<MessageDelivery
   throw new Error(`sessionsd ${response.status}: ${detail || response.statusText}`);
 }
 
+// A queue receipt keeps the runner's reason: a paused queue is what the
+// composer must say, not that the message runs after the current turn.
+function queuedSubmission(receipt: MessageDeliveryReceipt | { ok: true }): MessageSubmission {
+  if (!('acceptance' in receipt) || receipt.acceptance !== 'queue') return undefined;
+  return receipt.reason ? { queued: true, reason: receipt.reason } : { queued: true };
+}
+
 // fromSessionId records another lane as the author of the message, the way
 // `sessions send --from` does, so a hand-back reads in the manager's history
 // as coming from the lane rather than from the person.
-export async function submitMessage(sessionId: string, data: string, serverId?: string, fromSessionId?: string, mode?: 'steer', knownOperationId?: string): Promise<void | { queued: true }> {
+export async function submitMessage(sessionId: string, data: string, serverId?: string, fromSessionId?: string, mode?: 'steer', knownOperationId?: string): Promise<MessageSubmission> {
   const server = requestedServer(serverId);
   // A caller that recorded the id beforehand (a session's first request) makes
   // a retry of this exact message read its receipt instead of sending twice.
@@ -744,7 +751,7 @@ export async function submitMessage(sessionId: string, data: string, serverId?: 
         `${httpBaseForServer(server)}/api/message-deliveries/${encodeURIComponent(operationId)}`
       );
       const recovered = await readDeliveryResponse(receiptResponse);
-      if ('ok' in recovered || recovered.status === 'accepted') return 'acceptance' in recovered && recovered.acceptance === 'queue' ? { queued: true } : undefined;
+      if ('ok' in recovered || recovered.status === 'accepted') return queuedSubmission(recovered);
       throw deliveryError(recovered);
     } catch (receiptError) {
       if (receiptError instanceof AuthError) throw receiptError;
@@ -752,7 +759,7 @@ export async function submitMessage(sessionId: string, data: string, serverId?: 
       throw new MessageDeliveryError('The connection changed while sending. Sessions could not confirm delivery, so it did not retry. Check the conversation before sending again.', 'unknown', operationId);
     }
   }
-  if ('ok' in receipt || receipt.status === 'accepted') return 'acceptance' in receipt && receipt.acceptance === 'queue' ? { queued: true } : undefined;
+  if ('ok' in receipt || receipt.status === 'accepted') return queuedSubmission(receipt);
   throw deliveryError(receipt);
 }
 

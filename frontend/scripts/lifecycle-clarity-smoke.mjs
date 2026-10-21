@@ -202,7 +202,8 @@ assert.match(grid, /<CopyButton getText=\{m\.content\} iconOnly/);
 assert.match(input, /<ComposerModelControl/);
 assert.match(input, /Remote Control needs a Terminal session/);
 assert.match(input, /This command was not sent as a chat message/);
-assert.match(input, /Saved for next turn/);
+assert.match(input, /\.\.\.queuedComposerNotice\(submission\.reason\)/, 'The saved-message notice must come from the runner receipt, not a fixed claim');
+assert.doesNotMatch(input, /current turn succeeds|current work continues/);
 assert.doesNotMatch(input, /if \(richSession && providerWorking && provider !== 'codex'\)/);
 assert.match(input, /reason instanceof MessageDeliveryError && reason.deliveryStatus !== 'not-delivered'[\s\S]*delivery\.remember\(reason/,
   'An uncertain receipt must not claim the message was definitely not sent');
@@ -421,6 +422,24 @@ try {
   assert.equal(sessionModeGlyph(terminal), '▮');
   assert.equal(sessionModeName(terminal), 'Claude interactive — Conversation + Terminal');
   assert.equal(sessionModeName(remote), 'Claude Remote Control — Conversation + Terminal');
+  // Saved is not dispatched and dispatched is not read. The runner's reason
+  // (a paused queue) is the status; without one, nothing assumes a turn is
+  // running or will succeed.
+  const deliveryOutput = join(scratch, 'message-delivery.mjs');
+  await build({ entryPoints: ['src/lib/messageDelivery.ts'], bundle: true, format: 'esm', outfile: deliveryOutput, platform: 'node', target: 'node20', logLevel: 'silent' });
+  const { queuedComposerNotice } = await import(`${pathToFileURL(deliveryOutput).href}?v=${Date.now()}`);
+  const paused = 'Saved for the next turn, but the queue is paused. Resolve the failed turn or inspect the conversation and use Retry; do not resend this message.';
+  const pausedNotice = queuedComposerNotice(paused);
+  assert.equal(pausedNotice.title, 'Saved for next turn');
+  assert.ok(pausedNotice.detail.includes(paused), 'a paused queue must be reported as paused');
+  assert.ok(!pausedNotice.detail.includes('ends successfully'), 'a paused queue is not waiting for a turn to succeed');
+  const plain = queuedComposerNotice();
+  assert.match(plain.detail, /has not been dispatched to Claude yet/);
+  assert.match(plain.detail, /Continue saved messages/);
+  assert.match(plain.detail, /Do not send it again\./);
+  for (const notice of [pausedNotice, plain, queuedComposerNotice('   ')]) {
+    assert.doesNotMatch(notice.detail, /will read|has read|current turn/i);
+  }
 } finally {
   await rm(scratch, { recursive: true, force: true });
 }

@@ -139,7 +139,8 @@ func TestProviderRetryAsksClaudeRunnerToContinueSavedMessages(t *testing.T) {
 	current, _ := daemon.registry.Get(claude.ID)
 	current.SetWorking(true)
 	runner.RefuseRetry("Claude turn is active")
-	if code, message := retry(claude.ID); code != http.StatusConflict || !strings.Contains(message, "Claude turn is active") {
+	if code, message := retry(claude.ID); code != http.StatusConflict || !strings.Contains(message, "Claude turn is active") ||
+		!strings.Contains(message, "Wait for it to finish, or interrupt it, then use Retry again") {
 		t.Fatalf("working continuation = %d %q", code, message)
 	}
 	if runs, _ := runner.RetryControls(); runs != 2 {
@@ -148,13 +149,23 @@ func TestProviderRetryAsksClaudeRunnerToContinueSavedMessages(t *testing.T) {
 	current.SetWorking(false)
 
 	// The runner's own refusal, including an older runner's from before the
-	// queue existed, is a known outcome: 409 with its reason, not a 502.
-	for _, reason := range []string{"no failed turn or saved next-turn message to retry", "the runner has no failed turn to retry"} {
+	// queue existed, is a known outcome: 409 with its reason, not a 502. Each
+	// says the next safe step from the runner's answer alone, and none of them
+	// restarts, resends, or marks anything read.
+	for reason, advice := range map[string]string{
+		"no failed turn or saved next-turn message to retry": "Messages it already dispatched are never sent again",
+		"the runner has no failed turn to retry":             "this runner cannot continue saved messages",
+	} {
 		runner.RefuseRetry(reason)
 		code, message := retry(claude.ID)
-		if code != http.StatusConflict || !strings.Contains(message, reason) || !strings.Contains(message, "Nothing was resent") {
+		if code != http.StatusConflict || !strings.Contains(message, reason) || !strings.Contains(message, "Nothing was resent") ||
+			!strings.Contains(message, advice) || strings.Contains(message, "restart") {
 			t.Fatalf("runner refusal %q = %d %q", reason, code, message)
 		}
+	}
+	runs, _ := runner.RetryControls()
+	if runs != 4 {
+		t.Fatalf("runner controls = %d, want one per Retry and nothing sent on its own", runs)
 	}
 
 	// A refusal while a failure is on record keeps the failed-turn wording.

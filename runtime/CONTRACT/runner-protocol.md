@@ -231,7 +231,8 @@ id and reports `accepted`, `boundary`, and an optional `error`.
 `boundary:"runner"` means the runner accepted a new turn, not that the provider
 has answered. `boundary:"queue"` means a structured Claude runner saved the
 message in its bounded next-turn queue (32 pending messages / 1 MiB), not that
-Claude has read it. The queue is committed before acknowledgment and dispatched
+Claude has read it. Pending means not yet dispatched, or the current dispatched
+entry; a dispatched entry whose turn a later turn replaced is only a receipt. The queue is committed before acknowledgment and dispatched
 in order after successful turns. Failure or interruption pauses it; retrying
 the failed turn successfully continues it, and with no failed turn retained
 Retry continues the entries not yet dispatched. A pause that holds no such entry

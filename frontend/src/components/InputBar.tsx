@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ClipboardEvent, type DragEvent, type 
 import { uploadFile } from '../api/sessionsd';
 import type { SessionTool } from '../types';
 import { ComposerModelControl } from './ComposerModelControl';
-import { MessageDeliveryError, type MessageSubmission } from '../lib/messageDelivery';
+import { MessageDeliveryError, queuedComposerNotice, type MessageSubmission } from '../lib/messageDelivery';
 import { useDurableDraft } from '../hooks/useDurableDraft';
 import { useDeliveryReview } from '../hooks/useDeliveryReview';
 import { DeliveryReviews } from './MessageDeliveryStatus';
@@ -68,7 +68,7 @@ function SendControls({ disabled, submitting, feedback, steer, queue, submit }: 
 }): JSX.Element {
   return <button type="button" className={`btn btn-primary input-send${steer ? ' is-steering' : ''}${feedback === 'sent' ? ' is-sent' : ''}`}
     onClick={() => void submit(steer)} disabled={disabled || submitting} aria-label={steer ? 'Send follow-up' : 'Send'}
-    title={submitting ? 'Sending…' : steer ? 'Send a new follow-up to the active turn (Enter)' : queue ? 'Save for next turn (Enter) — current work continues' : 'Send (Enter)'}>
+    title={submitting ? 'Sending…' : steer ? 'Send a new follow-up to the active turn (Enter)' : queue ? "Save for Claude's next turn (Enter). Its runner dispatches saved messages in order; nothing is sent now" : 'Send (Enter)'}>
     {steer ? 'Send follow-up' : <span aria-hidden>↑</span>}
   </button>;
 }
@@ -232,17 +232,17 @@ export function InputBar({
     // Capture before IO: provider history can arrive before the HTTP receipt.
     const baseline = submittedText ? onSubmitting?.(submittedText) : undefined;
     try {
-      let queued = submittedToActiveCodex;
+      let submission: MessageSubmission = undefined;
       if (submittedText) {
         // The daemon acknowledges whole-message control or legacy paste/Enter.
         if (steer && steerMessage) await steerMessage(submittedText);
-        else queued = (await submitMessage('\x1b[200~' + submittedText + '\x1b[201~'))?.queued ?? queued;
+        else submission = await submitMessage('\x1b[200~' + submittedText + '\x1b[201~');
       } else {
         // Empty buffer — just an Enter, e.g. to accept a y/n prompt.
         await send('\r');
       }
-      if (submittedText && onSubmitted) onSubmitted(submittedText, queued, baseline);
-      if (queued && provider !== 'codex') setComposerNotice({ tone: 'info', title: 'Saved for next turn', detail: 'Claude will read this after the current turn succeeds. If it fails, the saved queue pauses for recovery. Do not send it again.' });
+      if (submittedText && onSubmitted) onSubmitted(submittedText, submittedToActiveCodex || Boolean(submission?.queued), baseline);
+      if (submission?.queued && provider !== 'codex') setComposerNotice({ tone: 'info', ...queuedComposerNotice(submission.reason) });
       clearAcknowledged(submittedText, submittedDraftKey);
       restoredDraftRef.current = null;
       setFeedback('sent');

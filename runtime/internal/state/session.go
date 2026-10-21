@@ -649,6 +649,9 @@ func (s *Session) RetryProvider(ctx context.Context) error {
 	err = controller.Retry(ctx)
 	var refusal proto.RetryRefusal
 	if err != nil && !failureRecorded && errors.As(err, &refusal) {
+		if advice := continueRefusalAdvice(refusal.Reason); advice != "" {
+			return fmt.Errorf("%w: %s. Nothing was resent. %s", ErrNothingToContinue, refusal.Reason, advice)
+		}
 		return fmt.Errorf("%w: %s. Nothing was resent", ErrNothingToContinue, refusal.Reason)
 	}
 	if err != nil {

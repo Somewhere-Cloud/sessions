@@ -134,6 +134,10 @@ func (r *claudeStructuredRunner) admitClaudeMessage(control proto.MessageControl
 	if err == nil {
 		err = writeClaudeQueue(r.paths.MessageQueue, next)
 	}
+	if errors.Is(err, errClaudeQueueFull) {
+		result.Error = "Message was not queued: " + err.Error() + ". Keep your draft and send it again after saved messages are dispatched."
+		return result
+	}
 	if err != nil {
 		result.Error = "Message was not queued: " + err.Error() + ". Keep your draft and try again after fixing storage."
 		return result
@@ -245,7 +249,7 @@ func (r *claudeStructuredRunner) settleClaudeTurn(id string, outcome claudeTurnO
 			next.Items[index].Phase, next.Items[index].Text = "done", ""
 		}
 	}
-	next.Items = trimClaudeQueueReceipts(next.Items)
+	next.Items = trimClaudeQueueReceipts(next.Items, r.queueCurrent)
 	if len(next.Items) > 0 {
 		if err := writeClaudeQueue(r.paths.MessageQueue, next); err != nil {
 			r.queue.Paused = true
