@@ -345,7 +345,7 @@ func (r *Registry) CreateWithLifecycle(
 			ID:               id,
 			ProgramArguments: programArguments,
 			Env:              launchRequest.Env,
-			Cwd:              cwd,
+			Cwd:              r.config.RunnerStateDir,
 			LogPath:          filepath.Join(r.config.RunnerStateDir, id+".log"),
 			KeepAlivePath:    paths.KeepAlive,
 		}); err != nil {

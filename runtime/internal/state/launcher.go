@@ -48,7 +48,9 @@ func (l *LaunchdLauncher) Prepare(request proto.LaunchRequest) error {
 		ID:               request.Info.ID,
 		ProgramArguments: l.ProgramArguments(request),
 		Env:              request.Env,
-		Cwd:              request.Info.Cwd,
+		// The control process must start even if macOS blocks workspace access.
+		// Provider children still use RUNNER_CWD, not this launchd directory.
+		Cwd:              l.config.RunnerStateDir,
 		LogPath:          filepath.Join(l.config.RunnerStateDir, request.Info.ID+".log"),
 		KeepAlivePath:    paths.KeepAlive,
 		AppBundleID:      nativeRunnerAppAssociation(l.config),

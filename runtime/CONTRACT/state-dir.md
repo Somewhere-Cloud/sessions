@@ -484,7 +484,7 @@ argument and environment pair, is:
     <string>value</string>
   </dict>
   <key>WorkingDirectory</key>
-  <string><session cwd></string>
+  <string><runner state directory></string>
   <key>RunAtLoad</key>
   <false/>
   <key>KeepAlive</key>
@@ -508,6 +508,11 @@ argument and environment pair, is:
 Comments explaining KeepAlive and ProcessType are also emitted in the actual
 file, but have no plist semantics. Environment entries are sorted by key. XML
 escaping replaces `&`, `<`, and `>` in text values.
+
+New runner hosts start in their state directory so a blocked workspace does
+not stall Go startup before the control socket can open. `RUNNER_CWD` retains
+the session workspace and provider children still execute there. Existing jobs
+are not rewritten by this change; workspace access is not a permission grant.
 
 On macOS, newly prepared app-managed jobs additionally include
 `AssociatedBundleIdentifiers: ["tech.somewhere.sessions"]`. The native managed

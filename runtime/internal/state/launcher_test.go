@@ -47,7 +47,7 @@ func TestLaunchdPrepareWritesBootScopedRestartContract(t *testing.T) {
 		LaunchAgentsDir: filepath.Join(root, "agents"),
 	}
 	id := "11111111-2222-4333-8444-555555555555"
-	env := map[string]string{"RUNNER_ID": id}
+	env := map[string]string{"RUNNER_ID": id, "RUNNER_CWD": root}
 	launcher := NewLaunchdLauncher(config)
 	if err := launcher.Prepare(proto.LaunchRequest{
 		Info: proto.RunnerInfo{ID: id, Cwd: root}, Env: env,
@@ -67,6 +67,8 @@ func TestLaunchdPrepareWritesBootScopedRestartContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
+		"<key>WorkingDirectory</key>\n  <string>" + config.RunnerStateDir + "</string>",
+		"<key>RUNNER_CWD</key>\n    <string>" + root + "</string>",
 		"<key>RunAtLoad</key>\n  <false/>", "<key>PathState</key>",
 		paths.KeepAlive, "<key>RUNNER_RESTART_POLICY</key>", "<string>boot-scoped</string>",
 	} {
