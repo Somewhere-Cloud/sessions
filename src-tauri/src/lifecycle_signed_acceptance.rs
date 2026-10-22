@@ -334,7 +334,11 @@ impl SignedFixture {
         }
         verify_binary(
             &self.config,
-            &stable_runner_path(&self.config),
+            &self
+                .config
+                .managed_root
+                .join(&old.manifest.runtime_version)
+                .join("sessions-runner"),
             &old.manifest.binaries["sessions-runner"],
         )?;
         self.communicate("SIGNED_RUNTIME_AFTER_ROLLBACK")?;
@@ -364,8 +368,12 @@ impl SignedFixture {
         )?;
         verify_binary(
             &self.config,
-            &stable_runner_path(&self.config),
-            &new.manifest.binaries["sessions-runner"],
+            &self
+                .config
+                .managed_root
+                .join(&old.manifest.runtime_version)
+                .join("sessions-runner"),
+            &old.manifest.binaries["sessions-runner"],
         )?;
         self.communicate("SIGNED_RUNTIME_AFTER_UPDATE")?;
         report["checks"]["successful_update"] = json!({"runtime_version": updated.1, "daemon_version": new.version,

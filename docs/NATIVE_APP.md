@@ -72,12 +72,13 @@ inherently visual or an OS-owned prompt.
 
 Runtime binaries are staged as immutable versioned bytes with a manifest, and
 the managed daemon runs from its versioned copy. The daemon may advance while
-compatible existing runners keep running. On macOS, runner jobs launch one
-stable `sessions-runner` path, which an update replaces with the new runner
-once the updated daemon is ready. A runner already running keeps the process
-image it started with, but macOS may then report that its code no longer
-matches the file on disk, and any later launch, wake, or crash restart from
-that path uses the bytes currently there. A package update must re-adopt every
+compatible existing runners keep running. On macOS, new runner jobs launch the
+`sessions-runner` in the daemon's immutable version directory. Updates leave
+previous version directories and the legacy unversioned executable untouched:
+replacing executable bytes underneath a live process can invalidate macOS
+signing attribution even when its PID survives. Existing jobs retain their
+recorded executable path; changing future launch paths does not repair a
+previously affected process or grant OS permissions. A package update must re-adopt every
 baseline session that remains live. A session that exits during the readiness
 check, or whose user-end boundary is already recorded, satisfies that
 baseline; one that disappears or remains unreachable without either fact makes

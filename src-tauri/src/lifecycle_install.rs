@@ -57,16 +57,9 @@ enum SessionReadiness {
 fn install_runtime(config: &RuntimeConfig) -> LifecycleResult<(InstallOutcome, String)> {
     validate_config(config)?;
     let installed = stage_runtime(config)?;
-    // launchd receives one stable runner path for the lifetime of the app.
-    // Existing runner processes keep their already-open executable when this
-    // file is atomically replaced; macOS then reports their code no longer
-    // matches the file on disk. A stable path does not make process-lifetime
-    // privacy grants, such as access to other apps' data, carry over to a new
-    // runner.
-    let stable_runner = stable_runner_path(config);
-    if !runner_is_usable(config, &stable_runner) {
-        activate_stable_runner(config, &installed)?;
-    }
+    // Launch future runners from the verified immutable runtime directory.
+    // Never replace the legacy stable executable: a surviving process can
+    // lose macOS signing attribution when its on-disk executable changes.
     let plist = daemon_plist(config, &installed.directory);
     let previous_plist = match fs::read(&config.plist_path) {
         Ok(bytes) => Some(bytes),
@@ -111,90 +104,12 @@ fn install_runtime(config: &RuntimeConfig) -> LifecycleResult<(InstallOutcome, S
         InstallOutcome::Installed
     };
 
-    // Defer the normal version swap until the daemon update is known healthy.
-    // If rollback was needed, the previously active runner therefore remains
-    // paired with the restored daemon. Replacement is atomic and never stops
-    // a runner that is already serving a live session.
-    activate_stable_runner(config, &installed)?;
-
     if let Err(error) = install_cli_link(config, &installed.directory) {
         // CLI discoverability is useful but must never turn a healthy daemon
         // update into a rollback or put live sessions at risk.
         eprintln!("Sessions CLI PATH integration: {error}");
     }
     Ok((outcome, installed.manifest.runtime_version))
-}
-
-fn stable_runner_path(config: &RuntimeConfig) -> PathBuf {
-    config.managed_root.join("sessions-runner")
-}
-
-fn runner_is_usable(config: &RuntimeConfig, path: &Path) -> bool {
-    let Ok(metadata) = fs::symlink_metadata(path) else {
-        return false;
-    };
-    if !metadata.file_type().is_file() {
-        return false;
-    }
-    !config.verify_signatures
-        || run_checked_path(&config.codesign, &["--verify", "--strict"], path).is_ok()
-}
-
-fn activate_stable_runner(
-    config: &RuntimeConfig,
-    installed: &InstalledRuntime,
-) -> LifecycleResult<PathBuf> {
-    let source = installed.directory.join("sessions-runner");
-    let destination = stable_runner_path(config);
-    let expected_digest = installed
-        .manifest
-        .binaries
-        .get("sessions-runner")
-        .ok_or_else(|| "bundled runtime manifest is missing sessions-runner".to_string())?;
-    if runner_is_usable(config, &destination)
-        && verify_binary(config, &destination, expected_digest).is_ok()
-    {
-        return Ok(destination);
-    }
-
-    fs::create_dir_all(&config.managed_root).map_err(|error| {
-        format!(
-            "create Sessions runtime root {}: {error}",
-            config.managed_root.display()
-        )
-    })?;
-    set_directory_mode(&config.managed_root, 0o700)?;
-    let temporary = config.managed_root.join(format!(
-        ".sessions-runner-{}-{}",
-        std::process::id(),
-        unique_suffix()
-    ));
-    let activated = (|| -> LifecycleResult<()> {
-        fs::copy(&source, &temporary).map_err(|error| {
-            format!(
-                "stage stable Sessions runner {} from {}: {error}",
-                temporary.display(),
-                source.display()
-            )
-        })?;
-        set_file_mode(&temporary, 0o755)?;
-        fs::File::open(&temporary)
-            .and_then(|file| file.sync_all())
-            .map_err(|error| format!("sync stable Sessions runner: {error}"))?;
-        verify_binary(config, &temporary, expected_digest)?;
-        fs::rename(&temporary, &destination).map_err(|error| {
-            format!(
-                "activate stable Sessions runner {}: {error}",
-                destination.display()
-            )
-        })?;
-        verify_binary(config, &destination, expected_digest)
-    })();
-    if activated.is_err() {
-        let _ = fs::remove_file(&temporary);
-    }
-    activated?;
-    Ok(destination)
 }
 
 #[cfg(unix)]

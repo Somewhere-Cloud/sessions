@@ -403,7 +403,7 @@ mod tests {
         assert!(plist.contains("/tmp/Sessions &amp; tests/runtime/v1/sessionsd"));
         assert!(plist.contains("SESSIONS_RUNNER"));
         assert!(plist.contains(
-            "/tmp/Sessions &amp; tests/Application Support/Sessions/runtime/sessions-runner"
+            "/tmp/Sessions &amp; tests/runtime/v1/sessions-runner"
         ));
         assert!(plist.contains("<key>KeepAlive</key>"));
         assert!(plist.contains("<key>AssociatedBundleIdentifiers</key>"));
@@ -412,7 +412,7 @@ mod tests {
 
     #[cfg(target_os = "macos")]
     #[test]
-    fn stable_runner_is_atomically_replaced_without_changing_its_path() {
+    fn runtime_update_preserves_previous_runner_executable_and_legacy_path() {
         let root = env::temp_dir().join(format!(
             "sessions-stable-runner-test-{}-{}",
             std::process::id(),
@@ -423,8 +423,10 @@ mod tests {
 
         write_fixture_runtime(&config, "v1", None);
         let v1 = stage_runtime(&config).unwrap();
-        let stable = activate_stable_runner(&config, &v1).unwrap();
-        assert_eq!(stable, config.managed_root.join("sessions-runner"));
+        let stable = v1.directory.join("sessions-runner");
+        let legacy = config.managed_root.join("sessions-runner");
+        fs::copy(&stable, &legacy).unwrap();
+        let legacy_bytes = fs::read(&legacy).unwrap();
         let first_digest = command_text_path(&config.shasum, &["-a", "256"], &stable).unwrap();
 
         let replacement = root.join("replacement-runner");
@@ -455,9 +457,16 @@ mod tests {
         )
         .unwrap();
         let v2 = stage_runtime(&config).unwrap();
-        assert_eq!(activate_stable_runner(&config, &v2).unwrap(), stable);
-        let second_digest = command_text_path(&config.shasum, &["-a", "256"], &stable).unwrap();
+        let next = v2.directory.join("sessions-runner");
+        assert_ne!(next, stable);
+        assert!(daemon_plist(&config, &v2.directory).contains(&xml_escape(&next.display().to_string())));
+        let second_digest = command_text_path(&config.shasum, &["-a", "256"], &next).unwrap();
         assert_ne!(first_digest, second_digest);
+        assert_eq!(command_text_path(&config.shasum, &["-a", "256"], &stable).unwrap(), first_digest);
+        assert_eq!(fs::read(&legacy).unwrap(), legacy_bytes);
+        // Re-staging is verification only, never an overwrite of executable
+        // bytes which a live process may still use.
+        assert_eq!(stage_runtime(&config).unwrap().directory, v2.directory);
         fs::remove_dir_all(&root).unwrap();
     }
 
@@ -560,6 +569,8 @@ mod tests {
         let first = install_runtime(&config).unwrap();
         assert_eq!(first.0, InstallOutcome::Installed);
         assert!(health_once(&config).is_ok());
+        let legacy_runner = config.managed_root.join("sessions-runner");
+        fs::write(&legacy_runner, b"legacy executable must remain untouched").unwrap();
 
         let current = install_runtime(&config).unwrap();
         assert_eq!(current.0, InstallOutcome::Current);
@@ -568,6 +579,8 @@ mod tests {
         let updated = install_runtime(&config).unwrap();
         assert_eq!(updated.0, InstallOutcome::Updated { preserved: 2 });
         assert!(health_once(&config).is_ok());
+        assert_eq!(fs::read(&legacy_runner).unwrap(), b"legacy executable must remain untouched");
+        assert!(fs::read_to_string(&config.plist_path).unwrap().contains("/v2/sessions-runner"));
 
         let moved_port_probe = TcpListener::bind("127.0.0.1:0").unwrap();
         let moved_port = moved_port_probe.local_addr().unwrap().port();
@@ -599,6 +612,8 @@ mod tests {
         assert!(health_once(&config).is_ok());
         let plist = fs::read_to_string(&config.plist_path).unwrap();
         assert!(plist.contains("/v2/sessionsd"), "{plist}");
+        assert!(plist.contains("/v2/sessions-runner"), "{plist}");
+        assert_eq!(fs::read(&legacy_runner).unwrap(), b"legacy executable must remain untouched");
 
         bootout_if_loaded(&config).unwrap();
         guard.target.clear();

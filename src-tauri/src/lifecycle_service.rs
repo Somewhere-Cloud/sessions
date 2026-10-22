@@ -10,7 +10,7 @@ fn daemon_plist(config: &RuntimeConfig, runtime_dir: &Path) -> String {
         ("SESSIONS_PORT".to_string(), config.port.to_string()),
         (
             "SESSIONS_RUNNER".to_string(),
-            stable_runner_path(config).display().to_string(),
+            runtime_dir.join("sessions-runner").display().to_string(),
         ),
     ];
     environment.extend(config.environment.clone());

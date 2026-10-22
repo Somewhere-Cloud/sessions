@@ -6,17 +6,16 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-// The Windows counterpart to lifecycle.rs's stable_runner_path /
-// activate_stable_runner.
+// Windows-specific stable runner activation. macOS instead retains immutable
+// versioned executable paths to preserve signing attribution for live runners.
 //
 // The supervisor definition in HKCU\...\Run carries the runner path the daemon
 // hands to every new session (SESSIONS_RUNNER). Pointing it at the versioned
 // directory of the moment means that the moment an update stages a new runtime
 // and the old versioned directory is cleaned up, a live runner is executing a
 // file at a path that no longer exists, and the daemon is being told to launch
-// replacements from a path that is about to disappear. macOS avoids this by
-// pinning one path and swapping the bytes underneath it; Windows needs the same
-// indirection for the same reason.
+// replacements from a path that is about to disappear. Windows uses the
+// indirection below together with retained copies of executing images.
 //
 // What differs is how the swap is performed. Windows will not let anyone
 // replace or delete an executable image that a process is currently running,
