@@ -5,6 +5,51 @@ import (
 	"testing"
 )
 
+func TestBindingQueriesAdvanceProjectionAndObserveOtherWriters(t *testing.T) {
+	ctx := context.Background()
+	store := openTestStore(t, Options{})
+	other := openTestStore(t, Options{Path: store.Path()})
+	provider := "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
+	if err := other.Boundaries().RecordCreated(ctx, Created{
+		Meta: Meta{LaneID: "lane"}, Name: "original", Tool: "claude-code", Cwd: "/tmp",
+		ResumeArgv: []string{"claude", "--resume", provider}, LaneUUID: "lane", ProviderUUID: provider,
+		CreatorKind: CreatorExternal, CreatorID: "binding-test",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := other.Observations().RecordRunnerReady(ctx, Observation{Meta: Meta{LaneID: "lane"}}); err != nil {
+		t.Fatal(err)
+	}
+	binding, err := store.LiveBindingFor(ctx, provider)
+	if err != nil || binding == nil || binding.Name != "original" {
+		t.Fatalf("binding=%+v err=%v", binding, err)
+	}
+	first := store.projection.seq
+	if first == 0 {
+		t.Fatal("binding lookup reread the full ledger instead of advancing the incremental projection")
+	}
+	if err := other.Observations().RecordRenamed(ctx, Rename{Meta: Meta{LaneID: "lane"}, Name: "updated"}); err != nil {
+		t.Fatal(err)
+	}
+	binding, err = store.LiveBindingFor(ctx, provider)
+	if err != nil || binding == nil || binding.Name != "updated" || store.projection.seq <= first {
+		t.Fatalf("external commit missed: binding=%+v err=%v", binding, err)
+	}
+	if err := other.Migrations().RecordMovedTo(ctx, MovedTo{
+		Meta: Meta{LaneID: "lane"}, TargetEndpoint: "other-host", NewLaneID: "remote-lane",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	moved, err := store.MovedBinding(ctx, provider)
+	if err != nil || moved == nil || moved.Machine != "other-host" {
+		t.Fatalf("external move missed: moved=%+v err=%v", moved, err)
+	}
+	mark, err := store.HighWaterMark(ctx)
+	if err != nil || store.projection.seq != mark {
+		t.Fatalf("projection=%d ledger=%d err=%v", store.projection.seq, mark, err)
+	}
+}
+
 func TestLiveAndMovedBindingQueriesFoldLifecycleAndRebindFacts(t *testing.T) {
 	store := openTestStore(t, Options{})
 	ctx := context.Background()

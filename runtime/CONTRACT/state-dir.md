@@ -7,6 +7,14 @@ root.
 
 ## Default layout
 
+Restart operation receipts under `restarts/<operation-id>.json` retain the
+latest returned outcome in optional `lastAttempt` and its recording time in
+`lastAttemptAtMs`. This includes failed attempts after source termination;
+`sourceEnded` alone does not establish that a successor started. Older receipts
+without these fields remain readable and mean no outcome was retained. Retrying
+keeps the original operation identity and replaces only the latest attempt
+evidence, not the source or requested restart choices.
+
 Continuation sidecars for authored conversation copies retain schema 1.
 Reviewed-briefing sidecars use schema 2, with `briefingOnly: true`, one reviewed
 user message, optional `destinationProfile` (empty means default), and optional

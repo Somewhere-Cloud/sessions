@@ -26,12 +26,14 @@ type restartRequest struct {
 }
 
 type restartReceipt struct {
-	Request     restartRequest    `json:"request"`
-	Source      state.SessionInfo `json:"source"`
-	Adoption    recovery.Adoption `json:"adoption"`
-	RuntimeMode string            `json:"runtimeMode"`
-	OperationID string            `json:"operationId"`
-	SourceEnded bool              `json:"sourceEnded"`
+	Request         restartRequest    `json:"request"`
+	Source          state.SessionInfo `json:"source"`
+	Adoption        recovery.Adoption `json:"adoption"`
+	RuntimeMode     string            `json:"runtimeMode"`
+	OperationID     string            `json:"operationId"`
+	SourceEnded     bool              `json:"sourceEnded"`
+	LastAttempt     *restartResult    `json:"lastAttempt,omitempty"`
+	LastAttemptAtMS int64             `json:"lastAttemptAtMs,omitempty"`
 }
 
 type restartResult struct {
@@ -208,8 +210,17 @@ func writeRestartReceipt(path string, receipt restartReceipt) error {
 	return os.Rename(file.Name(), path)
 }
 
-func (s *Server) performRestart(ctx context.Context, receipt restartReceipt, end state.EndSessionRequest) restartResult {
-	result := restartResult{SourceSessionID: receipt.Source.ID, OperationID: receipt.OperationID, SourceEnded: receipt.SourceEnded}
+func (s *Server) performRestart(ctx context.Context, receipt restartReceipt, end state.EndSessionRequest) (result restartResult) {
+	result = restartResult{SourceSessionID: receipt.Source.ID, OperationID: receipt.OperationID, SourceEnded: receipt.SourceEnded}
+	defer func() {
+		receipt.LastAttempt = &result
+		receipt.LastAttemptAtMS = time.Now().UnixMilli()
+		if err := writeRestartReceipt(s.restartReceiptPath(receipt.OperationID), receipt); err != nil {
+			result.OK = false
+			result.Partial = true
+			result.Error += fmt.Sprintf("; could not save restart outcome; inspect operation %s before retrying: %v", receipt.OperationID, err)
+		}
+	}()
 	store, err := ledger.Open(ctx, ledger.Options{})
 	if err != nil {
 		result.Error = "ledger is unavailable; no runtime was ended or started by this attempt: " + err.Error()

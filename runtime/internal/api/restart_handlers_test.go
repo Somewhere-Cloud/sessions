@@ -157,6 +157,18 @@ func TestRestartLaunchFailureIsRecoverableWithoutDuplicate(t *testing.T) {
 	if status != 202 || !first.SourceEnded || first.OK || !strings.Contains(first.Error, "fixture launch failure") {
 		t.Fatalf("failure=%d %+v", status, first)
 	}
+	encoded, err := os.ReadFile(filepath.Join(daemon.config.StateRoot, "restarts", first.OperationID+".json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var receipt restartReceipt
+	if err := json.Unmarshal(encoded, &receipt); err != nil {
+		t.Fatal(err)
+	}
+	if receipt.LastAttempt == nil || receipt.LastAttempt.Error != first.Error ||
+		receipt.LastAttempt.LaneID != first.LaneID || !receipt.SourceEnded || receipt.LastAttemptAtMS == 0 {
+		t.Fatalf("restart failure evidence was not retained: %+v", receipt)
+	}
 	daemon.launcher.Err = nil
 	_, again := postRestart(t, daemon, request)
 	if again.OK || first.LaneID == "" || again.LaneID != first.LaneID || len(daemon.launcher.Launches) != 1 {

@@ -29,11 +29,10 @@ func (s *Store) LiveBindingFor(ctx context.Context, providerUUID string) (*LiveB
 	if !providerargs.IsConversationUUID(providerUUID) {
 		return nil, fmt.Errorf("live binding: invalid provider UUID %q", providerUUID)
 	}
-	events, err := s.Events(ctx, "")
+	states, err := s.CurrentStates(ctx)
 	if err != nil {
 		return nil, err
 	}
-	states := Fold(events)
 	byID := make(map[string]LaneState, len(states))
 	for _, state := range states {
 		byID[state.LaneID] = state
@@ -71,11 +70,10 @@ func (s *Store) MovedBinding(ctx context.Context, providerUUID string) (*MovedCo
 	if !providerargs.IsConversationUUID(providerUUID) {
 		return nil, fmt.Errorf("moved binding: invalid provider UUID %q", providerUUID)
 	}
-	events, err := s.Events(ctx, "")
+	states, err := s.CurrentStates(ctx)
 	if err != nil {
 		return nil, err
 	}
-	states := Fold(events)
 	byID := make(map[string]LaneState, len(states))
 	for _, state := range states {
 		byID[state.LaneID] = state
