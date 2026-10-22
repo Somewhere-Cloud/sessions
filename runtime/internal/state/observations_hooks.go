@@ -3,6 +3,8 @@ package state
 import (
 	"runtime"
 	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/somewhere-tech/sessions/runtime/internal/claudehooks"
 	"github.com/somewhere-tech/sessions/runtime/internal/providerargs"
@@ -57,27 +59,36 @@ type ObservedHookEvent struct {
 }
 
 // ObservedHookRejections counts sink records that were read and not applied.
+// UnconfirmedConversation counts valid records from this launch, held and not
+// applied, whose conversation neither argv nor any SessionStart read so far
+// names. They are applied if such a SessionStart is read later.
 type ObservedHookRejections struct {
-	ForeignLaunch       int `json:"foreign_launch"`
-	ForeignConversation int `json:"foreign_conversation"`
-	Malformed           int `json:"malformed"`
+	ForeignLaunch           int `json:"foreign_launch"`
+	UnconfirmedConversation int `json:"unconfirmed_conversation"`
+	Malformed               int `json:"malformed"`
 }
 
+// maxHookPending bounds the records held for a conversation not yet confirmed.
+const maxHookPending = 256
+
 type hookTracker struct {
-	applicable   bool
-	launch       claudehooks.Launch
-	reason       string
-	expected     string
-	conversation string
-	receiving    bool
-	firstAt      int64
-	last         *ObservedHookEvent
-	events       map[string]ObservedHookEvent
-	tools        *observationTracker
-	ended        map[string]struct{}
-	endedOrder   []string
-	gaps         map[string]bool
-	rejected     ObservedHookRejections
+	applicable bool
+	launch     claudehooks.Launch
+	reason     string
+	expected   string
+	confirmed  map[string]struct{}
+	pending    []claudehooks.Record
+	current    *ObservedHookEvent
+	receiving  bool
+	firstAt    int64
+	last       *ObservedHookEvent
+	events     map[string]ObservedHookEvent
+	tools      *observationTracker
+	ended      map[string]struct{}
+	lastEndKey string
+	endedOrder []string
+	gaps       map[string]bool
+	rejected   ObservedHookRejections
 }
 
 // resolveHooks reads a launch's hook identity from its argv once, when the
@@ -153,36 +164,63 @@ func (h *hookTracker) observeLine(line []byte) {
 		h.rejected.Malformed++
 		return
 	}
-	if !h.bindConversation(record) {
-		h.rejected.ForeignConversation++
+	h.receiving = true
+	if record.Event == "SessionStart" {
+		h.confirm(record)
+	}
+	if !h.isConfirmed(record.ConversationID) {
+		h.hold(record)
 		return
 	}
 	h.apply(record)
 }
 
-// bindConversation accepts a record for the conversation this launch is in.
-// The first record binds it (and must match the conversation argv named, when
-// it named one); afterwards only Claude's own SessionStart from this launch
-// moves it, which is how /clear, a resume, or a fork inside the same process
-// appears.
-func (h *hookTracker) bindConversation(record claudehooks.Record) bool {
-	switch {
-	case record.ConversationID == h.conversation:
+// Hooks run as concurrent background processes, so neither the order of sink
+// lines nor observed times is the order Claude executed the hooks: a
+// SessionStart can be read after records of the conversation it starts, and
+// a late record of an earlier conversation can follow a /clear. Conversation
+// identity therefore never depends on read order. A conversation is confirmed
+// when argv named it or any SessionStart from this launch names it; a record
+// for any other conversation is held until such a SessionStart is read. The
+// launch id already ties every record to this Claude process.
+func (h *hookTracker) isConfirmed(conversation string) bool {
+	if conversation == h.expected {
 		return true
-	case record.Event == "SessionStart":
-		h.conversation = record.ConversationID
-		return true
-	case h.conversation == "" && (h.expected == "" || h.expected == record.ConversationID):
-		h.conversation = record.ConversationID
-		return true
-	default:
-		return false
 	}
+	_, ok := h.confirmed[conversation]
+	return ok
+}
+
+func (h *hookTracker) confirm(record claudehooks.Record) {
+	if h.confirmed == nil {
+		h.confirmed = make(map[string]struct{})
+	}
+	h.confirmed[record.ConversationID] = struct{}{}
+	held := h.pending[:0]
+	var ready []claudehooks.Record
+	for _, candidate := range h.pending {
+		if candidate.ConversationID == record.ConversationID {
+			ready = append(ready, candidate)
+		} else {
+			held = append(held, candidate)
+		}
+	}
+	h.pending = held
+	for _, candidate := range ready {
+		h.apply(candidate)
+	}
+}
+
+func (h *hookTracker) hold(record claudehooks.Record) {
+	if len(h.pending) >= maxHookPending {
+		h.pending = h.pending[1:]
+		h.markGap("unconfirmed-records-dropped")
+	}
+	h.pending = append(h.pending, record)
 }
 
 func (h *hookTracker) apply(record claudehooks.Record) {
 	at := record.ObservedAt
-	h.receiving = true
 	if h.firstAt == 0 || at < h.firstAt {
 		h.firstAt = at
 	}
@@ -192,17 +230,22 @@ func (h *hookTracker) apply(record claudehooks.Record) {
 		AgentID: optionalString(record.AgentID), Detail: optionalString(record.Detail),
 		IsInterrupt: record.IsInterrupt, StopHookActive: record.StopHookActive,
 	}
-	// Hooks run concurrently and may append out of order: an older record
-	// never replaces a newer one of the same name.
-	if previous, seen := h.events[record.Event]; !seen || at >= previous.ObservedAt {
+	// Records arrive in any order, so "newest" is decided by observed time
+	// with a fixed tie-break, never by which line was read last. The result
+	// is the same for any read order of the same records.
+	if previous, seen := h.events[record.Event]; !seen || hookEventAfter(event, previous) {
 		if h.events == nil {
 			h.events = make(map[string]ObservedHookEvent)
 		}
 		h.events[record.Event] = event
 	}
-	if h.last == nil || at >= h.last.ObservedAt {
+	if h.last == nil || hookEventAfter(event, *h.last) {
 		copied := event
 		h.last = &copied
+	}
+	if record.Event == "SessionStart" && (h.current == nil || hookEventAfter(event, *h.current)) {
+		copied := event
+		h.current = &copied
 	}
 	h.applyTool(record, at)
 }
@@ -244,10 +287,15 @@ func (h *hookTracker) endTool(id string, at int64, status string) {
 	if h.tools == nil {
 		h.tools = &observationTracker{}
 	}
-	newest := at >= h.tools.lastToolEndedAt
+	// The newest end by observed time decides the last status; an equal time
+	// resolves by a fixed key, never by read order.
+	key := status + "\x00" + id
+	newest := at > h.tools.lastToolEndedAt || (at == h.tools.lastToolEndedAt && key > h.lastEndKey)
 	previousStatus := h.tools.lastToolEndStatus
 	h.tools.endTool(id, at, status)
-	if !newest {
+	if newest {
+		h.lastEndKey = key
+	} else {
 		h.tools.lastToolEndStatus = previousStatus
 	}
 	if h.ended == nil {
@@ -275,7 +323,11 @@ func (h *hookTracker) project() *ObservedHooks {
 	if h.receiving {
 		hooks.Coverage = HookCoverageReceiving
 	}
-	hooks.ConversationID = optionalString(h.conversation)
+	hooks.ConversationID = optionalString(h.expected)
+	if h.current != nil {
+		hooks.ConversationID = h.current.ConversationID
+	}
+	hooks.Rejected.UnconfirmedConversation = len(h.pending)
 	if h.last != nil {
 		copied := *h.last
 		hooks.LastEvent = &copied
@@ -296,4 +348,32 @@ func (h *hookTracker) project() *ObservedHooks {
 	tools.firstRecordAt = h.firstAt
 	hooks.Tools = tools.toolsProjection()
 	return hooks
+}
+
+// hookEventAfter orders two hook events by observed time, then by a fixed
+// key, so equal times resolve the same way whatever order they were read in.
+// Observed times are capture start times of concurrent processes: they order
+// facts only approximately and are not Claude's execution order.
+func hookEventAfter(a, b ObservedHookEvent) bool {
+	if a.ObservedAt != b.ObservedAt {
+		return a.ObservedAt > b.ObservedAt
+	}
+	return hookEventKey(a) > hookEventKey(b)
+}
+
+func hookEventKey(event ObservedHookEvent) string {
+	value := func(text *string) string {
+		if text == nil {
+			return ""
+		}
+		return *text
+	}
+	flag := func(set *bool) string {
+		if set == nil {
+			return ""
+		}
+		return strconv.FormatBool(*set)
+	}
+	return strings.Join([]string{event.Name, value(event.ConversationID), value(event.ToolUseID), value(event.Detail),
+		value(event.AgentID), flag(event.IsInterrupt), flag(event.StopHookActive)}, "\x00")
 }

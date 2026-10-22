@@ -507,5 +507,5 @@ export interface SessionHookObservations {
   events: Record<string, SessionHookEvent> | null;
   tools: SessionObservations['tools'];
   gaps: string[];
-  rejected: { foreign_launch: number; foreign_conversation: number; malformed: number };
+  rejected: { foreign_launch: number; unconfirmed_conversation: number; malformed: number };
 }

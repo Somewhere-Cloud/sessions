@@ -31,9 +31,9 @@ const Subcommand = "claude-hook"
 const SinkSuffix = ".hooks.jsonl"
 
 // Events are the Claude hook events Sessions observes. SessionStart is
-// included because it is the first proof that this launch's hooks run at all,
-// and the only record that rebinds the conversation id (after /clear, a
-// resume, or a fork inside the same process).
+// included because it is the only record that confirms a conversation this
+// launch moved to (after /clear, a resume, or a fork inside the same process).
+// Its position among other records means nothing: hooks run concurrently.
 var Events = []string{
 	"SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure",
 	"PermissionRequest", "PermissionDenied", "Notification", "Stop", "StopFailure", "SessionEnd",
@@ -172,14 +172,43 @@ func addHooks(settings map[string]any, command string) error {
 	return nil
 }
 
+// withoutManagedGroups removes only Sessions' own capture entries. Every other
+// entry is kept, in its group and in order, with the group's matcher and any
+// other group fields; a group is dropped only when Sessions' entries were all
+// it held. A value Sessions does not recognize is kept untouched.
 func withoutManagedGroups(groups []any) []any {
 	kept := make([]any, 0, len(groups)+1)
 	for _, group := range groups {
-		if _, managed := managedLaunchInGroup(group); !managed {
+		object, isObject := group.(map[string]any)
+		entries, isList := object["hooks"].([]any)
+		if !isObject || !isList {
 			kept = append(kept, group)
+			continue
+		}
+		remaining := make([]any, 0, len(entries))
+		for _, entry := range entries {
+			if !managedEntry(entry) {
+				remaining = append(remaining, entry)
+			}
+		}
+		switch {
+		case len(remaining) == len(entries):
+			kept = append(kept, group)
+		case len(remaining) > 0:
+			copied := make(map[string]any, len(object))
+			for key, value := range object {
+				copied[key] = value
+			}
+			copied["hooks"] = remaining
+			kept = append(kept, copied)
 		}
 	}
 	return kept
+}
+
+func managedEntry(entry any) bool {
+	_, managed := managedLaunchInEntry(entry)
+	return managed
 }
 
 var managedCommand = regexp.MustCompile(`^'(?:[^']|'\\'')*' ` + Subcommand + ` --sink ('(?:[^']|'\\'')*') --launch ([0-9a-f]{32})$`)
@@ -188,11 +217,18 @@ func managedLaunchInGroup(group any) (Launch, bool) {
 	object, _ := group.(map[string]any)
 	entries, _ := object["hooks"].([]any)
 	for _, entry := range entries {
-		hook, _ := entry.(map[string]any)
-		command, _ := hook["command"].(string)
-		if match := managedCommand.FindStringSubmatch(command); match != nil {
-			return Launch{Sink: shellUnquote(match[1]), Launch: match[2]}, true
+		if launch, ok := managedLaunchInEntry(entry); ok {
+			return launch, true
 		}
+	}
+	return Launch{}, false
+}
+
+func managedLaunchInEntry(entry any) (Launch, bool) {
+	hook, _ := entry.(map[string]any)
+	command, _ := hook["command"].(string)
+	if match := managedCommand.FindStringSubmatch(command); match != nil {
+		return Launch{Sink: shellUnquote(match[1]), Launch: match[2]}, true
 	}
 	return Launch{}, false
 }

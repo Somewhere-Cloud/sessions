@@ -3,6 +3,7 @@ package state
 import (
 	"encoding/json"
 	"fmt"
+	"math/rand/v2"
 	"reflect"
 	"testing"
 
@@ -47,8 +48,8 @@ func TestHooksConfiguredIsNotReceiving(t *testing.T) {
 	}
 }
 
-// Records from another launch, another conversation, or that fail validation
-// are counted and change nothing.
+// Records from another launch, from a conversation nothing has confirmed, or
+// that fail validation are counted and change nothing.
 func TestHooksRejectForeignAndMalformedRecords(t *testing.T) {
 	session, launch, conversation := hookSession(t)
 	session.ObserveHookLine(hookLine(launch.Launch, "UserPromptSubmit", conversation, 100, ""))
@@ -59,7 +60,7 @@ func TestHooksRejectForeignAndMalformedRecords(t *testing.T) {
 	if hooks.Coverage != HookCoverageReceiving || hooks.LastEvent.Name != "UserPromptSubmit" || hooks.LastEvent.ObservedAt != 100 {
 		t.Fatalf("a rejected record changed the view: %+v", hooks.LastEvent)
 	}
-	if hooks.Rejected != (ObservedHookRejections{ForeignLaunch: 1, ForeignConversation: 1, Malformed: 1}) {
+	if hooks.Rejected != (ObservedHookRejections{ForeignLaunch: 1, UnconfirmedConversation: 1, Malformed: 1}) {
 		t.Fatalf("rejections = %+v", hooks.Rejected)
 	}
 	if len(hooks.Gaps) != 1 || hooks.Gaps[0] != claudehooks.GapMalformedLine || hooks.Tools.HistoryComplete {
@@ -67,19 +68,27 @@ func TestHooksRejectForeignAndMalformedRecords(t *testing.T) {
 	}
 }
 
-// Only Claude's own SessionStart from this launch moves the conversation, as
-// /clear does; afterwards the old conversation's records are foreign.
-func TestHooksSessionStartRebindsConversation(t *testing.T) {
+// A /clear inside the same process: the new conversation's records can be
+// read before its SessionStart and the old conversation's records after it.
+// Records of the unconfirmed conversation are held, then applied once its
+// SessionStart is read; the late old-conversation record still counts. The
+// current conversation is the newest SessionStart by observed time, not the
+// last one read.
+func TestHooksConversationChangeIsReadOrderIndependent(t *testing.T) {
 	session, launch, conversation := hookSession(t)
-	session.ObserveHookLine(hookLine(launch.Launch, "SessionStart", conversation, 100, `,"detail":"startup"`))
-	session.ObserveHookLine(hookLine(launch.Launch, "SessionStart", "cleared-conversation", 200, `,"detail":"clear"`))
-	session.ObserveHookLine(hookLine(launch.Launch, "Stop", conversation, 300, ""))
-	hooks := hooksOf(t, session)
-	if *hooks.ConversationID != "cleared-conversation" || hooks.Events["SessionStart"].Detail == nil || *hooks.Events["SessionStart"].Detail != "clear" {
-		t.Fatalf("conversation not rebound: %+v", hooks)
+	session.ObserveHookLine(hookLine(launch.Launch, "UserPromptSubmit", "cleared-conversation", 250, ""))
+	if hooks := hooksOf(t, session); hooks.LastEvent != nil || hooks.Rejected.UnconfirmedConversation != 1 {
+		t.Fatalf("an unconfirmed record was applied: %+v", hooks)
 	}
-	if _, stopped := hooks.Events["Stop"]; stopped || hooks.Rejected.ForeignConversation != 1 {
-		t.Fatalf("the old conversation's Stop was applied: %+v", hooks)
+	session.ObserveHookLine(hookLine(launch.Launch, "SessionStart", "cleared-conversation", 200, `,"detail":"clear"`))
+	session.ObserveHookLine(hookLine(launch.Launch, "Stop", conversation, 150, ""))
+	session.ObserveHookLine(hookLine(launch.Launch, "SessionStart", conversation, 100, `,"detail":"startup"`))
+	hooks := hooksOf(t, session)
+	if *hooks.ConversationID != "cleared-conversation" || *hooks.Events["SessionStart"].Detail != "clear" {
+		t.Fatalf("current conversation followed read order: %+v", hooks)
+	}
+	if hooks.Rejected.UnconfirmedConversation != 0 || hooks.LastEvent.Name != "UserPromptSubmit" || hooks.Events["Stop"].ObservedAt != 150 {
+		t.Fatalf("held or late records were lost: %+v", hooks)
 	}
 }
 
@@ -199,5 +208,50 @@ func TestHooksUnavailableForOlderLaunchesAndOtherRuntimes(t *testing.T) {
 	}
 	if RestoredObservations(SessionInfo{Tool: ToolClaude}).Hooks != nil {
 		t.Fatal("a restored record claims hook facts")
+	}
+}
+
+// The same records read in any order produce the same view: conversation,
+// newest events (including equal observed times), tools, and last end status.
+// Nothing is inferred from SessionStart's position, such as readiness.
+func TestHooksViewIsIndependentOfReadOrder(t *testing.T) {
+	_, launch, conversation := hookSession(t)
+	lines := [][]byte{
+		hookLine(launch.Launch, "SessionStart", conversation, 100, `,"detail":"startup"`),
+		hookLine(launch.Launch, "UserPromptSubmit", conversation, 110, ""),
+		hookLine(launch.Launch, "PreToolUse", conversation, 120, `,"tool_use_id":"toolu_a","tool_name":"Bash"`),
+		hookLine(launch.Launch, "PreToolUse", conversation, 120, `,"tool_use_id":"toolu_b","tool_name":"Read"`),
+		hookLine(launch.Launch, "PostToolUse", conversation, 130, `,"tool_use_id":"toolu_a"`),
+		hookLine(launch.Launch, "PostToolUseFailure", conversation, 130, `,"tool_use_id":"toolu_b"`),
+		hookLine(launch.Launch, "Notification", conversation, 140, `,"detail":"idle_prompt"`),
+		hookLine(launch.Launch, "Notification", conversation, 140, `,"detail":"permission_prompt"`),
+		hookLine(launch.Launch, "SessionStart", "c2", 150, `,"detail":"clear"`),
+		hookLine(launch.Launch, "UserPromptSubmit", "c2", 160, ""),
+		hookLine(launch.Launch, "Stop", "c2", 170, `,"stop_hook_active":false`),
+		hookLine(launch.Launch, "Stop", "c2", 170, `,"stop_hook_active":true`),
+	}
+	project := func(order []int) *ObservedHooks {
+		tracker := hookTracker{applicable: true, expected: conversation, launch: launch}
+		for _, index := range order {
+			tracker.observeLine(lines[index])
+		}
+		return tracker.project()
+	}
+	order := make([]int, len(lines))
+	for index := range order {
+		order[index] = index
+	}
+	want := project(order)
+	if *want.ConversationID != "c2" || want.Tools.OpenCount != 0 || *want.Tools.LastEndStatus != ToolEndResult {
+		t.Fatalf("baseline view: %+v", want)
+	}
+	random := rand.New(rand.NewPCG(1, 2))
+	for range 500 {
+		random.Shuffle(len(order), func(i, j int) { order[i], order[j] = order[j], order[i] })
+		if got := project(order); !reflect.DeepEqual(got, want) {
+			encodedWant, _ := json.Marshal(want)
+			encodedGot, _ := json.Marshal(got)
+			t.Fatalf("order %v changed the view:\nwant %s\ngot  %s", order, encodedWant, encodedGot)
+		}
 	}
 }

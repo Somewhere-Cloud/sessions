@@ -144,3 +144,45 @@ func TestInstallSkipsWhatItCannotExtend(t *testing.T) {
 		t.Fatalf("UnavailableReason = %q", reason)
 	}
 }
+
+// A user hook that shares a group with an older Sessions capture keeps its
+// place, its group's matcher and other fields, and its order; only the
+// Sessions entry is removed. A group that held only Sessions' entry is
+// dropped, and a group shape Sessions does not recognize is kept as is.
+func TestInstallKeepsUserEntriesInMixedGroups(t *testing.T) {
+	old := Command("/bin/runner", testLaunch())
+	user := `{"hooks":{"PreToolUse":[` +
+		`{"matcher":"Bash","note":"mine","hooks":[{"type":"command","command":"audit-a"},{"type":"command","command":` + quoteJSON(old) + `,"async":true},{"type":"command","command":"audit-b","timeout":3}]},` +
+		`{"hooks":[{"type":"command","command":` + quoteJSON(old) + `}]},` +
+		`"unrecognized"]}}`
+	next := Launch{Sink: "/tmp/next" + SinkSuffix, Launch: strings.Repeat("e", 32)}
+	installed, skipped := Install([]string{"--settings", user}, "/bin/runner", next)
+	if skipped != "" {
+		t.Fatalf("skipped: %s", skipped)
+	}
+	groups := decodeSettings(t, installed)["hooks"].(map[string]any)["PreToolUse"].([]any)
+	if len(groups) != 3 {
+		t.Fatalf("want user group, unrecognized value, new Sessions group; got %v", groups)
+	}
+	mixed := groups[0].(map[string]any)
+	entries := mixed["hooks"].([]any)
+	if mixed["matcher"] != "Bash" || mixed["note"] != "mine" || len(entries) != 2 ||
+		entries[0].(map[string]any)["command"] != "audit-a" || entries[1].(map[string]any)["command"] != "audit-b" ||
+		entries[1].(map[string]any)["timeout"] != float64(3) {
+		t.Fatalf("user group changed: %v", mixed)
+	}
+	if groups[1] != "unrecognized" {
+		t.Fatalf("unrecognized group value changed: %v", groups[1])
+	}
+	if launch, ok := managedLaunchInGroup(groups[2]); !ok || launch != next {
+		t.Fatalf("new Sessions group = %v", groups[2])
+	}
+	if strings.Contains(strings.Join(installed, " "), testLaunchID) {
+		t.Fatal("the older launch id survived")
+	}
+}
+
+func quoteJSON(value string) string {
+	encoded, _ := json.Marshal(value)
+	return string(encoded)
+}
