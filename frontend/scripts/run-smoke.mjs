@@ -34,6 +34,7 @@ const frontendDir = fileURLToPath(new URL('..', import.meta.url));
 const GATE = [
   'markdown',
   'native-credentials',
+  'native-runtime',
   'structured-events',
   'structured-view',
   'fleet-clarity',

@@ -12,6 +12,7 @@
     "check:bundle-size": "node scripts/check-bundle-size.mjs",
     "test:markdown": "node scripts/markdown-smoke.cjs",
     "test:native-credentials": "node scripts/native-credentials-smoke.mjs",
+    "test:native-runtime": "node scripts/native-runtime-smoke.mjs",
     "test:structured-events": "node scripts/structured-events-smoke.mjs",
     "test:structured-view": "node scripts/structured-view-smoke.mjs",
     "test:fleet-clarity": "node scripts/fleet-clarity-smoke.mjs",

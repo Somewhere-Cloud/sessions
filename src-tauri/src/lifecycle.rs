@@ -155,6 +155,34 @@ pub fn needs_background_reconcile(status: &RuntimeStatus) -> bool {
 }
 
 pub fn install_for_app(app: &AppHandle) -> RuntimeStatus {
+    let status = reconcile_for_app(app);
+    match app.path().app_log_dir() {
+        Ok(directory) => {
+            if let Err(error) = record_runtime_status(&directory, &status) {
+                eprintln!("Sessions could not save native installation status: {error}");
+            }
+        }
+        Err(error) => eprintln!("Sessions could not resolve native diagnostic directory: {error}"),
+    }
+    status
+}
+
+fn record_runtime_status(directory: &Path, status: &RuntimeStatus) -> LifecycleResult<()> {
+    fs::create_dir_all(directory).map_err(|error| error.to_string())?;
+    let payload = serde_json::json!({
+        "recordedAtUnixMs": SystemTime::now().duration_since(UNIX_EPOCH)
+            .unwrap_or_default().as_millis(),
+        "status": status,
+    });
+    let bytes = serde_json::to_vec_pretty(&payload).map_err(|error| error.to_string())?;
+    write_atomic(&directory.join("runtime-status.json"), &bytes, 0o600)?;
+    if status.state == "error" {
+        write_atomic(&directory.join("runtime-last-error.json"), &bytes, 0o600)?;
+    }
+    Ok(())
+}
+
+fn reconcile_for_app(app: &AppHandle) -> RuntimeStatus {
     if cfg!(debug_assertions) && cfg!(target_os = "macos") {
         return RuntimeStatus::informational(
             "development",

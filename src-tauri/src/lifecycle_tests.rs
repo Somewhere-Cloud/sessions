@@ -3,6 +3,22 @@ mod tests {
     use super::*;
 
     #[test]
+    fn installation_diagnostics_retain_error_after_healthy_rollback() {
+        let root = env::temp_dir().join(format!("sessions-native-diagnostic-{}", unique_suffix()));
+        let failed = RuntimeStatus::failed("update failed; old service restored".into());
+        record_runtime_status(&root, &failed).unwrap();
+        let error_bytes = fs::read(root.join("runtime-last-error.json")).unwrap();
+        let ready = RuntimeStatus::ready(InstallOutcome::Current, "old-version".into());
+        record_runtime_status(&root, &ready).unwrap();
+        assert_eq!(fs::read(root.join("runtime-last-error.json")).unwrap(), error_bytes);
+        let latest: serde_json::Value = serde_json::from_slice(
+            &fs::read(root.join("runtime-status.json")).unwrap()).unwrap();
+        assert_eq!(latest["status"]["state"], "ready");
+        assert_eq!(latest["status"]["runtimeVersion"], "old-version");
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn native_port_rejects_privileged_range() {
         assert!(validate_port(1023).is_err());
         assert!(validate_port(1024).is_ok());

@@ -32,6 +32,7 @@ import { SomewhereCard } from './SomewhereCard';
 import { useSessions } from '../store/sessions';
 import { FleetProviderUpdates } from './FleetProviderUpdates';
 import { NotificationDeliveryStatus } from './NotificationDeliveryStatus';
+import { NativeRuntimeStatusCard } from './NativeRuntimeStatusCard';
 
 const StorageView = lazy(() => import('./StorageView').then((module) => ({ default: module.StorageView })));
 
@@ -386,6 +387,7 @@ function GeneralSettings({ clientOnly = false, theme, onThemeChange, textSize, o
       <span className="settings-kicker">Sessions app</span>
       <h1>General</h1>
       <p>Choose how the operations inbox looks and behaves on {clientOnly ? 'this device' : 'this Mac'}.</p>
+      {!clientOnly && <NativeRuntimeStatusCard />}
       <div className="settings-card">
         <h2>View</h2>
         <p>Scale the complete interface, including navigation, conversations, settings, and controls.</p>
