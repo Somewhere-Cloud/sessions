@@ -2352,7 +2352,11 @@ choose permissions explicitly:
 `permissions` is `constrained` or `full` (YOLO). This changes only the
 replacement. `runtimeMode` is optional `rich` or `terminal`; omission retains the
 source's runtime. `remoteControl:true` requires Claude and existing user consent
-in Settings and selects Terminal. The recorded account profile, model, effort,
+in Settings and selects Terminal. Optional `claudeTransport: "sdk" | "print"`
+selects the structured Claude transport explicitly; it is rejected for Terminal
+or Codex before ending the source. Omission keeps the existing transport default.
+This choice is persisted in the restart receipt and must match on retry.
+The recorded account profile, model, effort,
 name, workspace and native provider conversation identity are retained. The
 profile uses its current sign-in, not necessarily the original account; a
 changed login may create a different Claude Remote Control link. The

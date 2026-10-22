@@ -147,7 +147,7 @@ Run `sessions help <command>` for one command or `sessions docs` for the complet
 
 ```text
 Usage:
-  sessions restart SESSION [--preview | --confirm EXACT-RUNTIME-ID --permissions constrained|full [--terminal|--structured] [--remote-control]]
+  sessions restart SESSION [--preview | --confirm EXACT-RUNTIME-ID --permissions constrained|full [--terminal|--structured] [--remote-control] [--claude-transport sdk|print]]
 
 end one runtime and reopen its exact conversation
 

@@ -12,11 +12,12 @@ func (a *app) cmdRestart(args []string) error {
 	remote := removeFirst(&args, "--remote-control")
 	terminal := removeFirst(&args, "--terminal")
 	structured := removeFirst(&args, "--structured")
+	transport, _ := pluck(&args, "--claude-transport")
 	if terminal && structured {
 		return fail(1, "--terminal and --structured cannot be combined")
 	}
 	if len(args) != 1 || !confirmed || !chosen {
-		return fail(1, "usage: sessions restart SESSION --confirm EXACT-RUNTIME-ID --permissions constrained|full [--terminal|--structured] [--remote-control]")
+		return fail(1, "usage: sessions restart SESSION --confirm EXACT-RUNTIME-ID --permissions constrained|full [--terminal|--structured] [--remote-control] [--claude-transport sdk|print]")
 	}
 	id := args[0]
 	var err error
@@ -48,6 +49,9 @@ func (a *app) cmdRestart(args []string) error {
 	}
 	if structured {
 		body["runtimeMode"] = "rich"
+	}
+	if transport != "" {
+		body["claudeTransport"] = transport
 	}
 	if err := a.postJSON("/api/recovery/restart", body, &result, 2); err != nil {
 		return err

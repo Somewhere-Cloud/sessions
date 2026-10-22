@@ -79,7 +79,7 @@ func postRestart(t *testing.T, daemon startDaemon, body restartRequest) (int, re
 func TestRestartRetainsConversationAndReplaysWithoutDuplicate(t *testing.T) {
 	daemon := restartTestDaemon(t)
 	source := restartTestSource(t, daemon)
-	request := restartRequest{SourceSessionID: source.ID, ConfirmSessionID: source.ID, Permissions: state.PermissionsFull}
+	request := restartRequest{SourceSessionID: source.ID, ConfirmSessionID: source.ID, Permissions: state.PermissionsFull, ClaudeTransport: "sdk"}
 	status, result := postRestart(t, daemon, request)
 	if status != 200 || !result.OK || !result.SourceEnded || result.LaneID == "" {
 		t.Fatalf("restart=%d %+v", status, result)
@@ -89,6 +89,9 @@ func TestRestartRetainsConversationAndReplaysWithoutDuplicate(t *testing.T) {
 		t.Fatal("replacement missing")
 	}
 	info := next.Info()
+	if got := daemon.launcher.Launches[1].Env["SESSIONS_CLAUDE_TRANSPORT"]; got != "sdk" {
+		t.Fatalf("transport=%q", got)
+	}
 	if info.Profile != source.Profile || info.ConfigDir != source.ConfigDir || info.Kind != source.Kind || info.Name != source.Name || info.Cwd != source.Cwd || info.ConversationID != source.ConversationID || info.Permissions != state.PermissionsFull {
 		t.Fatalf("settings changed: source=%+v next=%+v", source, info)
 	}
@@ -101,7 +104,7 @@ func TestRestartRetainsConversationAndReplaysWithoutDuplicate(t *testing.T) {
 	if !again.OK || again.LaneID != result.LaneID || len(daemon.launcher.Launches) != 2 {
 		t.Fatalf("retry=%+v launches=%d", again, len(daemon.launcher.Launches))
 	}
-	request.Permissions = state.PermissionsConstrained
+	request.ClaudeTransport = "print"
 	if status, _ := postRestart(t, daemon, request); status != 409 {
 		t.Fatalf("changed retry choices=%d", status)
 	}
@@ -122,6 +125,26 @@ func TestRestartPreflightKeepsSourceRunning(t *testing.T) {
 	session, _ := daemon.manager.Get(source.ID)
 	if session.HasExited() || len(daemon.launcher.Launches) != 1 {
 		t.Fatal("preflight ended source")
+	}
+}
+
+func TestRestartRejectsIncompatibleTransportBeforeEndingSource(t *testing.T) {
+	for _, mode := range []string{"terminal", "rich"} {
+		t.Run(mode, func(t *testing.T) {
+			daemon := restartTestDaemon(t)
+			source := restartTestSource(t, daemon)
+			transport := "sdk"
+			if mode == "rich" {
+				transport = "typo"
+			}
+			request := restartRequest{SourceSessionID: source.ID, ConfirmSessionID: source.ID,
+				Permissions: state.PermissionsFull, RuntimeMode: mode, ClaudeTransport: transport}
+			status, result := postRestart(t, daemon, request)
+			current, found := daemon.manager.Get(source.ID)
+			if status != 409 || result.SourceEnded || !found || current.HasExited() || len(daemon.launcher.Launches) != 1 {
+				t.Fatalf("invalid choice affected source: status=%d result=%+v", status, result)
+			}
+		})
 	}
 }
 

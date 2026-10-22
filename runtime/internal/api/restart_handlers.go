@@ -22,6 +22,7 @@ type restartRequest struct {
 	Permissions      string `json:"permissions"`
 	RemoteControl    bool   `json:"remoteControl"`
 	RuntimeMode      string `json:"runtimeMode,omitempty"`
+	ClaudeTransport  string `json:"claudeTransport,omitempty"`
 }
 
 type restartReceipt struct {
@@ -120,6 +121,9 @@ func (s *Server) prepareRestart(body restartRequest) (restartReceipt, error) {
 	adoption.Cwd = info.Cwd
 	mode, err := s.restartRuntimeMode(info, body.RemoteControl, body.RuntimeMode)
 	if err != nil {
+		return receipt, err
+	}
+	if _, err := recovery.ClaudeTransportEnvironment(string(info.Tool), mode, body.ClaudeTransport); err != nil {
 		return receipt, err
 	}
 	receipt = restartReceipt{Request: body, Source: info, Adoption: adoption, RuntimeMode: mode, OperationID: operation}
@@ -224,6 +228,7 @@ func (s *Server) performRestart(ctx context.Context, receipt restartReceipt, end
 	adopted, err := recovery.Adopt(ctx, receipt.Adoption, receipt.Source.Name, s.registry, store.Boundaries(), store.Observations(), recovery.AdoptOptions{
 		OperationID: receipt.OperationID, Source: adoptSourceFromSession(receipt.Source), Events: store,
 		RuntimeMode: receipt.RuntimeMode, Permissions: receipt.Request.Permissions, Claude: claude, Model: receipt.Source.Model, Effort: receipt.Source.Effort,
+		ClaudeTransport: receipt.Request.ClaudeTransport,
 	})
 	result.LaneID = adopted.LaneID
 	if err != nil {

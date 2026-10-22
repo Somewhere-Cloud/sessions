@@ -537,13 +537,14 @@ func isASCIILetter(value byte) bool {
 }
 
 type AdoptOptions struct {
-	OperationID string
-	Force       bool
-	Source      *AdoptSource
-	Events      AdoptionEventReader
-	RuntimeMode string
-	Claude      *state.ClaudeSessionOptions
-	Permissions string
+	OperationID     string
+	Force           bool
+	Source          *AdoptSource
+	Events          AdoptionEventReader
+	RuntimeMode     string
+	ClaudeTransport string
+	Claude          *state.ClaudeSessionOptions
+	Permissions     string
 	// PermissionArgs are exact provider permission flags to launch with, such
 	// as a constrained source's recorded Claude permission mode or Codex
 	// sandbox. The session boundary still resolves Permissions over them.
@@ -686,29 +687,22 @@ func Adopt(
 	// claude.ai, and mobile share one provider session. Codex keeps its
 	// structured app-server default. Rich remains an explicit automation
 	// choice for either provider.
-	switch selected.RuntimeMode {
-	case "":
-		if adoption.Tool == string(state.ToolCodex) {
-			kind = state.KindCodexAppServer
-		}
-	case "terminal":
-		kind = ""
-	case "rich":
-		if adoption.Tool == string(state.ToolCodex) {
-			kind = state.KindCodexAppServer
-		} else if adoption.Tool == string(state.ToolClaude) {
-			kind = state.KindClaudeStructured
-		}
-	default:
-		return AdoptResult{}, errors.New("runtime mode must be rich or terminal")
+	kind, err := adoptionRuntimeKind(adoption.Tool, selected.RuntimeMode)
+	if err != nil {
+		return AdoptResult{}, err
 	}
 	launchArgs, conversationID := adoptionLaunch(adoption, selected, kind)
+	transportEnv, err := ClaudeTransportEnvironment(adoption.Tool, selected.RuntimeMode, selected.ClaudeTransport)
+	if err != nil {
+		return AdoptResult{}, err
+	}
 	created, err := creator.Create(ctx, state.CreateSessionRequest{
 		Cmd: adoption.Cmd, Args: launchArgs, OperationID: selected.OperationID,
 		Cwd: adoption.Cwd, Name: name, Description: description, Tags: tags,
 		Profile: profile, ConfigDir: configDir, Kind: kind, ConversationID: conversationID,
 		DisplayParentSessionID: displayParent, Force: selected.Force,
 		Claude: selected.Claude, Permissions: selected.Permissions,
+		Env: transportEnv,
 	})
 	if err != nil {
 		return AdoptResult{}, err
@@ -720,6 +714,22 @@ func Adopt(
 	result.AlsoOpenIn = describeClaudeHolder(liveHolder)
 	result.Permissions = created.Permissions
 	return result, nil
+}
+
+func adoptionRuntimeKind(tool, mode string) (string, error) {
+	switch mode {
+	case "", "rich":
+		if tool == string(state.ToolCodex) {
+			return state.KindCodexAppServer, nil
+		}
+		if mode == "rich" && tool == string(state.ToolClaude) {
+			return state.KindClaudeStructured, nil
+		}
+	case "terminal":
+	default:
+		return "", errors.New("runtime mode must be rich or terminal")
+	}
+	return "", nil
 }
 
 // RepairAdopt finishes only missing post-launch ledger annotations for an

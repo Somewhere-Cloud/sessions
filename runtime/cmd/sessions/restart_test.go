@@ -36,11 +36,11 @@ func TestRestartCLIRequiresExactConfirmationAndReportsPartialJSON(t *testing.T) 
 	}
 	out.Reset()
 	errOut.Reset()
-	code = run([]string{"--host", server.URL, "--json", "restart", source, "--confirm", source, "--permissions", "full", "--remote-control", "--terminal"}, strings.NewReader(""), &out, &errOut)
+	code = run([]string{"--host", server.URL, "--json", "restart", source, "--confirm", source, "--permissions", "full", "--structured", "--claude-transport", "sdk"}, strings.NewReader(""), &out, &errOut)
 	if code != 2 || calls != 1 {
 		t.Fatalf("partial exit=%d calls=%d out=%s err=%s", code, calls, out.String(), errOut.String())
 	}
-	if posted["sourceSessionId"] != source || posted["confirmSessionId"] != source || posted["permissions"] != "full" || posted["remoteControl"] != true || posted["runtimeMode"] != "terminal" {
+	if posted["sourceSessionId"] != source || posted["confirmSessionId"] != source || posted["permissions"] != "full" || posted["remoteControl"] != false || posted["runtimeMode"] != "rich" || posted["claudeTransport"] != "sdk" {
 		t.Fatalf("posted=%+v", posted)
 	}
 	var result map[string]any
