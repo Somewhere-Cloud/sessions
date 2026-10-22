@@ -63,6 +63,9 @@ func (r *claudeStructuredRunner) loadMessageQueue() error {
 	}
 	if pending {
 		r.queue.Paused = true
+		if err := writeClaudeQueue(r.paths.MessageQueue, r.queue); err != nil {
+			return fmt.Errorf("persist recovered queue pause; saved messages were not dispatched: %w", err)
+		}
 		r.queueNotice("Saved next-turn messages are paused after runner restart. Check the conversation, then use Retry to continue only messages not yet dispatched. Dispatched messages will not be resent.")
 	}
 	return nil

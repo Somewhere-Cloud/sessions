@@ -26,11 +26,12 @@ type Options struct {
 }
 
 type TurnOptions struct {
-	CWD       string
-	SessionID string
-	Resume    bool
-	Model     string
-	ExtraArgs []string
+	OperationID string
+	CWD         string
+	SessionID   string
+	Resume      bool
+	Model       string
+	ExtraArgs   []string
 }
 
 type Client struct {

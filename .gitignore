@@ -58,3 +58,4 @@ runtime/dist-go/
 
 # Frontend build output embedded into sessionsd; produced by `npm run build`.
 /runtime/internal/webassets/dist/
+/runtime/internal/claudep/sdk-runtime/bridge.mjs

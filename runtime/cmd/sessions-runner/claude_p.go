@@ -29,7 +29,7 @@ type claudeStructuredRunner struct {
 	cfg       config
 	paths     state.Paths
 	createdAt int64
-	client    *claudep.Client
+	client    claudeTurnClient
 	logger    *log.Logger
 
 	sessionID    string
@@ -110,7 +110,7 @@ func (r *claudeStructuredRunner) start() error {
 			return fmt.Errorf("generate Claude session id: %w", err)
 		}
 	}
-	created, err := claudep.NewClient(claudep.Options{ClaudePath: r.cfg.cmd})
+	created, err := r.newClaudeClient()
 	if err != nil {
 		return err
 	}
@@ -568,7 +568,8 @@ func (r *claudeStructuredRunner) runTurn(text string, attempt int, recordUser bo
 		}
 	}
 	stream, err := r.client.SendTurn(turnCtx, text, claudep.TurnOptions{
-		CWD: cfg.cwd, SessionID: r.sessionID, Resume: resume,
+		OperationID: id,
+		CWD:         cfg.cwd, SessionID: r.sessionID, Resume: resume,
 		Model: providerargs.Value(cfg.args, providerargs.ModelFlags()...), ExtraArgs: cfg.args,
 	})
 	if err != nil {
@@ -623,7 +624,14 @@ func (r *claudeStructuredRunner) consumeTurn(
 		}
 		r.appendStructured(event.Raw)
 	}
-	_, err := stream.Result(turnCtx)
+	result, err := stream.Result(turnCtx)
+	if result.Interrupted {
+		if r.retry != nil {
+			r.retry.Interrupt()
+		}
+		r.recordTurnInterrupted()
+		return turnUnresolved
+	}
 	// Decide from the turn's own context, not from whichever of the stopped
 	// process and the cancellation Result happened to report first: an
 	// interruption must never become a failed turn that Retry runs again.
@@ -778,6 +786,7 @@ func (r *claudeStructuredRunner) shutdownForHostExit(permanent bool, code int) {
 func (r *claudeStructuredRunner) shutdownWithRestartPolicy(permanent bool, code int, preserveRestartPermit bool) {
 	r.shutdownOnce.Do(func() {
 		r.cancel()
+		closeClaudeClient(r.client)
 		r.retry.Close()
 		r.streamMu.Lock()
 		if r.listener != nil {

@@ -19,6 +19,22 @@ func evidenceRecords(t *testing.T, values ...map[string]any) []json.RawMessage {
 	return records
 }
 
+func TestClaudeSDKEvidenceDoesNotBorrowBackgroundActivity(t *testing.T) {
+	records := evidenceRecords(t,
+		map[string]any{"type": "user", "uuid": "sessions-message:op", "origin": "sessions", "timestamp": "2026-10-22T17:00:00Z"},
+		map[string]any{"type": "assistant", "transport": "agent-sdk", "source": "claude-p-stream-json", "observed_at": "2026-10-22T17:00:01Z"},
+		map[string]any{"type": "result", "transport": "agent-sdk", "sessions_operation_id": "older", "source": "claude-p-stream-json", "observed_at": "2026-10-22T17:00:02Z"},
+	)
+	if got := ObserveClaudeOperation(slices.Values(records), "op"); got.ProviderRecordObservedAt != nil || got.ProviderResult != nil {
+		t.Fatalf("borrowed background: %+v", got)
+	}
+	records = append(records, evidenceRecords(t, map[string]any{"type": "result", "transport": "agent-sdk", "sessions_operation_id": "op", "source": "claude-p-stream-json", "observed_at": "2026-10-22T17:00:03Z"})...)
+	got := ObserveClaudeOperation(slices.Values(records), "op")
+	if got.ProviderResult == nil || got.ProviderRecordObservedAt == nil || *got.ProviderRecordObservedAt != *recordMillis("2026-10-22T17:00:03Z") {
+		t.Fatalf("missing matched receipt: %+v", got)
+	}
+}
+
 func TestClaudeEvidenceSeparatesEnqueueDispatchAndProviderRecords(t *testing.T) {
 	const source = "claude-p-stream-json"
 	records := evidenceRecords(t,

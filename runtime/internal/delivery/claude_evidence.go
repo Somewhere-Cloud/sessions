@@ -54,6 +54,8 @@ func ObserveClaudeOperation(events iter.Seq[json.RawMessage], operationID string
 			Timestamp                                      string `json:"timestamp"`
 			ObservedAt                                     string `json:"observed_at"`
 			IsError                                        bool   `json:"is_error"`
+			Transport                                      string `json:"transport"`
+			SessionsOperationID                            string `json:"sessions_operation_id"`
 		}
 		if json.Unmarshal(raw, &record) != nil {
 			continue
@@ -74,6 +76,11 @@ func ObserveClaudeOperation(events iter.Seq[json.RawMessage], operationID string
 			break
 		}
 		if record.Origin == "sessions" || record.Type == "queue-operation" || record.Source != "claude-p-stream-json" {
+			continue
+		}
+		// Persistent SDK background events can interleave with foreground work.
+		// Proximity is not attribution: only UUID-correlated records count.
+		if record.Transport == "agent-sdk" && record.SessionsOperationID != operationID {
 			continue
 		}
 		observed := recordMillis(record.ObservedAt)

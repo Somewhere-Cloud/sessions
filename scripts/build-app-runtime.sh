@@ -166,6 +166,7 @@ build_one() {
 
 build_one sessions ""
 build_one sessionsd embedui
+bash "$repo_root/scripts/build-claude-sdk.sh"
 build_one sessions-runner ""
 
 # Derive the identity and render the manifest from the STAGED binaries, before

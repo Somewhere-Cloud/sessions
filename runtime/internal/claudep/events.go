@@ -21,11 +21,12 @@ type Event struct {
 // TurnResult is the authoritative completion extracted from Claude's result
 // record after the print-mode process exits.
 type TurnResult struct {
-	SessionID string          `json:"sessionId"`
-	Message   string          `json:"message"`
-	Usage     json.RawMessage `json:"usage,omitempty"`
-	Subtype   string          `json:"subtype,omitempty"`
-	IsError   bool            `json:"isError"`
+	SessionID   string          `json:"sessionId"`
+	Message     string          `json:"message"`
+	Usage       json.RawMessage `json:"usage,omitempty"`
+	Subtype     string          `json:"subtype,omitempty"`
+	IsError     bool            `json:"isError"`
+	Interrupted bool            `json:"interrupted,omitempty"`
 }
 
 // TurnStream delivers ordered normalized records and an independently
