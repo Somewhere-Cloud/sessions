@@ -104,6 +104,7 @@ func (m *Manager) manage(session *state.Session) *runtimeSession {
 		return writer.RecordAttached(context.Background(), ledger.Observation{Meta: ledger.Meta{LaneID: info.ID}})
 	})
 	if !m.options.DisableWatchers {
+		runtime.startHookFollower()
 		runtime.startWatcher(info)
 	}
 	if !m.startWorker(runtime.observe) {
@@ -384,6 +385,10 @@ func (r *runtimeSession) stop() {
 		}
 		watcher := r.watcher
 		r.watcher = nil
+		if r.hookDone != nil {
+			close(r.hookDone)
+			r.hookDone = nil
+		}
 		r.mu.Unlock()
 		r.transitionMu.Unlock()
 		if watcher != nil {

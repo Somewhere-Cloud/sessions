@@ -738,6 +738,67 @@ Values: `capabilities.runtime` is `claude-structured`, `codex-app-server`,
   Structured runtimes and shells have none.
 - Nothing here reports filesystem or source writes; terminal output is not a
   write record.
+- `capabilities.hooks` is `claude-command-hooks` when this launch of an
+  interactive Claude runtime was started with Sessions' observation hooks,
+  otherwise `none`. `hooks` is present only for `claude-pty` and is `null`
+  for every other runtime and for records restored from the ledger:
+
+  ```json
+  {"source":"claude-command-hooks","coverage":"receiving","unavailable_reason":null,
+   "conversation_id":"11111111-1111-4111-8111-111111111111",
+   "last_event":{"name":"Stop","observed_at":1760000009000,"conversation_id":"11111111-1111-4111-8111-111111111111",
+                 "tool_use_id":null,"tool_name":null,"agent_id":null,"detail":null,
+                 "is_interrupt":null,"stop_hook_active":false},
+   "events":{"Stop":{...},"PreToolUse":{...}},
+   "tools":{"open":[],"open_count":0,"last_started_at":1760000004000,"last_ended_at":1760000005000,
+            "last_end_status":"result","observed_since":1760000001000,"history_complete":true,"open_count_exact":true},
+   "gaps":[],"rejected":{"foreign_launch":0,"foreign_conversation":0,"malformed":0}}
+  ```
+
+  `coverage` is `unavailable` (with `unavailable_reason`: `not-installed-for-this-launch`
+  for a runner started before hooks existed, `bare-mode`,
+  `launch-settings-file`, `multiple-launch-settings`,
+  `hooks-disabled-by-launch-settings`, `unreadable-launch-settings`, or
+  `platform-unsupported` on Windows;
+  the other blocks are then `null`), `configured` (the launch has hooks and
+  no record from it has been read; this is not evidence the hooks run, and
+  user or managed policy such as `disableAllHooks` can stop them without
+  Sessions seeing it), or `receiving` (at least one valid record from this
+  launch was read). No coverage value claims every event was delivered.
+  Events observed are `SessionStart`, `UserPromptSubmit`, `PreToolUse`,
+  `PostToolUse`, `PostToolUseFailure`, `PermissionRequest`,
+  `PermissionDenied`, `Notification`, `Stop`, `StopFailure`, and
+  `SessionEnd`; `events` holds the newest of each name seen, `last_event` the
+  newest of all. Every `observed_at` is an observed time: the capture
+  command's clock on the session's machine when Claude ran the hook. Claude's
+  hook input has no event time, so none is reported, and these times are not
+  compared with `*_event_at`. `detail` is only an enumerated qualifier: the
+  `Notification` type, the `StopFailure` error type, the `SessionStart`
+  source, or the `SessionEnd` reason. Prompts, messages, tool input and
+  output, error text, and denial reasons are never recorded.
+
+  Hook facts are observation only and are kept apart from `turn`, `tools`,
+  and `working`: no hook ends a turn, sets the working flag, creates an
+  `approval`, or fires a notification, and transcript or terminal evidence
+  never overwrites a hook fact. `Stop` means Claude finished a response, not
+  that the task is complete; another hook can continue the turn
+  (`stop_hook_active`). A `Notification` of type `permission_prompt` is the
+  provider's report, not a Sessions-brokered approval, and other types are
+  not permission requests. A `UserPromptSubmit` does not prove that a
+  particular Sessions send was consumed; terminal input stays keystrokes.
+  Silence never means finished or blocked. `hooks.tools` pairs `PreToolUse`
+  with `PostToolUse` (`result`), `PostToolUseFailure` (`error`, or
+  `cancelled` when `is_interrupt`), and `PermissionDenied` (`cancelled`) by
+  `tool_use_id`; an end read before its start closes the call, and an older
+  record never replaces a newer one of the same name. `rejected` counts sink
+  records not applied: another launch's id, a conversation other than the one
+  this launch is in (only Claude's own `SessionStart` moves it, as after
+  `/clear`), or a record that failed validation. `gaps` lists permanent
+  coverage gaps (`malformed-record`, `oversized-input`, `malformed-input`,
+  `sink-full`, `sink-unreadable`, `tool-ends-forgotten`); any gap makes
+  `hooks.tools.history_complete` false. A daemon that re-adopts the runner
+  reads the sink from its start and rebuilds the same facts; doing so
+  replays no effect.
 
 ### `POST /api/sessions`
 

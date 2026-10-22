@@ -54,3 +54,33 @@ func TestStatusObservationSaysUnknownsAndFirstObservedTool(t *testing.T) {
 		t.Fatalf("the first observed tool was called the oldest:\n%s", text)
 	}
 }
+
+// Hook coverage is said as observed: unavailable with its reason, configured
+// without a record, or the newest event with its observed age and any gap.
+func TestStatusObservationHooks(t *testing.T) {
+	var out bytes.Buffer
+	a := &app{stdout: &out, now: func() time.Time { return time.UnixMilli(61_000) }}
+	reason, detail := "not-installed-for-this-launch", "permission_prompt"
+	for _, hooks := range []*state.ObservedHooks{
+		{Coverage: state.HookCoverageUnavailable, UnavailableReason: &reason},
+		{Coverage: state.HookCoverageConfigured},
+		{Coverage: state.HookCoverageReceiving, LastEvent: &state.ObservedHookEvent{Name: "Notification", ObservedAt: 1_000, Detail: &detail},
+			Tools: &state.ObservedTools{OpenCount: 2}, Gaps: []string{"sink-full"}},
+	} {
+		if err := a.writeStatusObservations(&state.Observations{Hooks: hooks}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	text := out.String()
+	for _, want := range []string{
+		"hooks    unavailable (not-installed-for-this-launch)",
+		"hooks    configured, no hook event received yet",
+		"hooks    last Notification observed 1m ago (permission_prompt)",
+		"hooks    2 tool call(s) started without a recorded end",
+		"hooks    incomplete: sink-full",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("missing %q in:\n%s", want, text)
+		}
+	}
+}

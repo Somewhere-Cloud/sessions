@@ -253,8 +253,8 @@ func main() {
 }
 
 func run() int {
-	if len(os.Args) > 1 && os.Args[1] == "approval-shim" {
-		return runApprovalShim(os.Args[2:])
+	if code, handled := runSubcommand(os.Args[1:]); handled {
+		return code
 	}
 	cfg, malformedArgs, err := configFromEnv()
 	if err != nil {

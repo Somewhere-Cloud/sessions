@@ -632,6 +632,7 @@ func (a *app) writeStatusObservations(observations *state.Observations) error {
 		}
 		lines = append(lines, line)
 	}
+	lines = append(lines, a.statusHookLines(observations.Hooks)...)
 	for _, observer := range observations.Observers {
 		if observer.State != state.ObserverFollowing {
 			lines = append(lines, fmt.Sprintf("observer %s %s: %s", observer.Name, observer.State, terminalSafe(observer.Detail)))
@@ -650,4 +651,31 @@ func orUnknown(value *string) string {
 		return "unknown"
 	}
 	return *value
+}
+
+// statusHookLines restates Claude's own hook events as observed: coverage,
+// the newest event with its observed age, and any gap. Coverage that is only
+// configured is said as such; it is not evidence that the hooks run.
+func (a *app) statusHookLines(hooks *state.ObservedHooks) []string {
+	if hooks == nil {
+		return nil
+	}
+	if hooks.Coverage == state.HookCoverageUnavailable {
+		return []string{"hooks    unavailable (" + orUnknown(hooks.UnavailableReason) + ")"}
+	}
+	line := "hooks    configured, no hook event received yet"
+	if last := hooks.LastEvent; last != nil {
+		line = fmt.Sprintf("hooks    last %s observed %s ago", terminalSafe(last.Name), a.ageOf(last.ObservedAt))
+		if last.Detail != nil {
+			line += " (" + terminalSafe(*last.Detail) + ")"
+		}
+	}
+	lines := []string{line}
+	if tools := hooks.Tools; tools != nil && tools.OpenCount > 0 {
+		lines = append(lines, fmt.Sprintf("hooks    %d tool call(s) started without a recorded end", tools.OpenCount))
+	}
+	if len(hooks.Gaps) > 0 {
+		lines = append(lines, "hooks    incomplete: "+terminalSafe(strings.Join(hooks.Gaps, ", ")))
+	}
+	return lines
 }

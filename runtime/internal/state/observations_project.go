@@ -1,6 +1,10 @@
 package state
 
-import "time"
+import (
+	"time"
+
+	"github.com/somewhere-tech/sessions/runtime/internal/claudehooks"
+)
 
 // observationsLocked projects the tracker and the session's own fields into
 // Observations. It is the one place the projection is built; every surface
@@ -34,6 +38,10 @@ func (s *Session) observationsLocked(info SessionInfo) *Observations {
 	}
 	if capabilities.ToolRecords != ObservedNone {
 		observations.Tools = s.observed.toolsProjection()
+	}
+	observations.Hooks = s.observed.hooks.project()
+	if observations.Hooks != nil && observations.Hooks.Coverage != HookCoverageUnavailable {
+		observations.Capabilities.Hooks = claudehooks.Source
 	}
 	return observations
 }

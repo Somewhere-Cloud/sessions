@@ -74,6 +74,17 @@ try {
   assert.equal(terminal, '');
   assert.equal(observationNote({ id: 'none' }, now), '');
 
+  // Claude hook facts are restated with observed times; configured coverage
+  // without records says so, and a gap is named. Stop is never "done".
+  const hookEvent = { name: 'Stop', observed_at: fiveHoursAgo, conversation_id: 'c', tool_use_id: null, tool_name: null, agent_id: null, detail: null, is_interrupt: null, stop_hook_active: false };
+  const hooks = (overrides) => ({ source: 'claude-command-hooks', coverage: 'receiving', unavailable_reason: null, conversation_id: 'c', last_event: hookEvent, events: { Stop: hookEvent }, tools: null, gaps: [], rejected: { foreign_launch: 0, foreign_conversation: 0, malformed: 0 }, ...overrides });
+  const hooked = observationNote(session({ hooks: hooks({}) }), now);
+  assert.match(hooked, /Last Claude hook Stop observed 2026-10-16 12:00:00 UTC \(5h 0m ago\)\./);
+  for (const guess of [/done/i, /finished/i, /complete/i, /blocked/i]) assert.doesNotMatch(hooked.slice(hooked.indexOf('Claude hook')), guess);
+  assert.match(observationNote(session({ hooks: hooks({ last_event: null, events: {}, coverage: 'configured' }) }), now), /Claude hooks configured; no hook event received yet\./);
+  assert.match(observationNote(session({ hooks: hooks({ gaps: ['sink-full'] }) }), now), /Hook history incomplete: sink-full\./);
+  assert.match(observationNote(session({ hooks: hooks({ coverage: 'unavailable', unavailable_reason: 'not-installed-for-this-launch', last_event: null, events: null }) }), now), /Claude hooks unavailable \(not-installed-for-this-launch\)\./);
+
   console.log('observations smoke: ok');
 } finally {
   await rm(scratch, { recursive: true, force: true });

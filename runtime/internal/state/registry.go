@@ -189,7 +189,7 @@ func (r *Registry) CreateWithLifecycle(
 		}
 	} else {
 		args = appendClaudeSessionID(cmd, args, id)
-		args = withToolDefaultArgs(cmd, args)
+		args = r.withClaudeHooks(cmd, id, withToolDefaultArgs(cmd, args))
 	}
 	profile := request.Profile
 	configDir := request.ConfigDir
