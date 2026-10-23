@@ -29,6 +29,7 @@ type hookFollower struct {
 	partial  []byte
 	skipping bool
 	failed   bool
+	identity os.FileInfo
 }
 
 func newHookFollower(session *state.Session) *hookFollower {
@@ -59,12 +60,13 @@ func (f *hookFollower) poll() {
 	if info.Size() >= claudehooks.MaxSinkBytes {
 		f.session.MarkHookGap(claudehooks.GapSinkFull)
 	}
-	if info.Size() < f.offset {
+	if info.Size() < f.offset || (f.identity != nil && !os.SameFile(f.identity, info)) {
 		// The sink shrank or was replaced; what was read stays observed and
 		// the history is no longer known to be whole.
 		f.session.MarkHookGap(claudehooks.GapSinkUnreadable)
 		f.offset, f.partial, f.skipping = 0, nil, false
 	}
+	f.identity = info
 	for f.offset < info.Size() {
 		chunk := make([]byte, min(hookReadChunk, info.Size()-f.offset))
 		read, err := file.ReadAt(chunk, f.offset)

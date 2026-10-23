@@ -115,6 +115,26 @@ func TestHookFollowerReportsFullSink(t *testing.T) {
 	}
 }
 
+func TestHookFollowerDetectsReplacementWithoutShrink(t *testing.T) {
+	for _, padding := range []string{"", "\n\n\n"} {
+		t.Run(strconv.Itoa(len(padding)), func(t *testing.T) {
+			follower, session, launch := followerFor(t)
+			writeSink(t, launch.Sink, validLine(launch, "Stop", 100)+"\n")
+			follower.poll()
+			replacement := launch.Sink + ".replacement"
+			writeSink(t, replacement, validLine(launch, "Stop", 200)+"\n"+padding)
+			if err := os.Rename(replacement, launch.Sink); err != nil {
+				t.Fatal(err)
+			}
+			follower.poll()
+			hooks := session.Info().Observations.Hooks
+			if hooks.Events["Stop"].ObservedAt != 200 || !contains(hooks.Gaps, claudehooks.GapSinkUnreadable) {
+				t.Fatalf("replacement skipped: events=%+v gaps=%v", hooks.Events, hooks.Gaps)
+			}
+		})
+	}
+}
+
 func writeSink(t *testing.T, path, data string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
