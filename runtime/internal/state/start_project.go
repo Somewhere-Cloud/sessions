@@ -160,6 +160,14 @@ func inspectPromptRecovery(info SessionInfo) *StartRecovery {
 
 func projectStartActivity(info SessionInfo, start *StartReceipt, deliveredAt int64) {
 	switch {
+	case info.Working && !info.Exited && unconfirmedStartDispatch(info):
+		start.Phase, start.EvidenceSource = StartPhaseCreated, "session"
+		if start.Prompt != nil {
+			start.Phase = StartPhasePromptDelivered
+		}
+		start.Evidence = "Sessions dispatched a turn; no provider record has confirmed it yet"
+		start.Recovery = &StartRecovery{Action: StartRecoveryInspect, Command: "sessions status " + info.ID,
+			Detail: "Inspect this turn's delivery and output. Do not resend the instruction while delivery remains unresolved."}
 	case info.Working && !info.Exited:
 		start.Phase, start.EvidenceSource = StartPhaseWorking, activitySource(info)
 		start.Evidence = "the provider reported an active turn"
@@ -185,6 +193,15 @@ func projectStartActivity(info SessionInfo, start *StartReceipt, deliveredAt int
 		start.Recovery = &StartRecovery{Action: StartRecoveryInspect, Command: "sessions status " + info.ID,
 			Detail: "The session's process ended before its work completed; inspect it before starting new work."}
 	}
+}
+
+func unconfirmedStartDispatch(info SessionInfo) bool {
+	if info.Observations == nil || info.Observations.Turn == nil {
+		return false
+	}
+	turn := info.Observations.Turn
+	return turn.Open != nil && *turn.Open && turn.StartedBy != nil &&
+		*turn.StartedBy == "sessions-dispatch" && turn.ProviderConfirmedAt == nil
 }
 
 func deliveredEvidence(start *StartReceipt) string {

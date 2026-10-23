@@ -10,6 +10,30 @@ const (
 	projectPromptOp = "5b000000-0000-4000-8000-000000000002"
 )
 
+func TestProjectStartDispatchDoesNotClaimProviderActivity(t *testing.T) {
+	open, source := true, "sessions-dispatch"
+	info := SessionInfo{Working: true, Kind: KindClaudeStructured,
+		Observations: &Observations{Turn: &ObservedTurn{Open: &open, StartedBy: &source}}}
+	for _, withPrompt := range []bool{false, true} {
+		start := StartReceipt{}
+		var prompt *StartPrompt
+		want := StartPhaseCreated
+		if withPrompt {
+			start.PromptOperationID = projectPromptOp
+			prompt = &StartPrompt{Status: StartPromptAccepted, Acceptance: "runner"}
+			want = StartPhasePromptDelivered
+		}
+		got := ProjectStart(info, start, prompt)
+		if got.Phase != want || got.EvidenceSource == "provider-events" || got.Recovery == nil {
+			t.Fatalf("unconfirmed dispatch claimed activity: %+v", got)
+		}
+	}
+	info.Observations.Turn.ProviderConfirmedAt = int64Pointer(2000)
+	if got := ProjectStart(info, StartReceipt{}, nil); got.Phase != StartPhaseWorking {
+		t.Fatalf("provider-confirmed turn not working: %+v", got)
+	}
+}
+
 func int64Pointer(value int64) *int64 { return &value }
 
 func projectStartCase(info SessionInfo, prompt *StartPrompt) StartReceipt {
