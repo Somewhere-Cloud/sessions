@@ -16,6 +16,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"io"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -117,6 +118,9 @@ func Install(args []string, runner string, launch Launch) ([]string, string) {
 		if err := decoder.Decode(&settings); err != nil || settings == nil {
 			return args, SkipUnreadableSetting
 		}
+		if err := decoder.Decode(new(any)); err != io.EOF {
+			return args, SkipUnreadableSetting
+		}
 		if disabled, _ := settings["disableAllHooks"].(bool); disabled {
 			return args, SkipHooksDisabled
 		}
@@ -130,6 +134,12 @@ func Install(args []string, runner string, launch Launch) ([]string, string) {
 	}
 	result := append([]string(nil), args...)
 	if len(positions) == 0 {
+		for index, argument := range args {
+			if argument == "--" {
+				result = append(result[:index], "--settings", encoded)
+				return append(result, args[index:]...), ""
+			}
+		}
 		return append(result, "--settings", encoded), ""
 	}
 	return positions[0].replace(result, encoded), ""

@@ -2,12 +2,50 @@ package claudehooks
 
 import (
 	"encoding/json"
+	"os/exec"
 	"slices"
 	"strings"
 	"testing"
 )
 
 const testLaunchID = "0123456789abcdef0123456789abcdef"
+
+func TestShellQuotePreservesApostrophe(t *testing.T) {
+	sh, err := exec.LookPath("sh")
+	if err != nil {
+		t.Skip("POSIX shell unavailable")
+	}
+	value := "/tmp/it's a path/runner"
+	output, err := exec.Command(sh, "-c", "printf '%s' "+shellQuote(value)).CombinedOutput()
+	if err != nil || string(output) != value {
+		t.Fatalf("shell quote changed path: %q, %v", output, err)
+	}
+}
+
+func TestInstallBeforeArgumentSeparator(t *testing.T) {
+	args := []string{"--model", "test", "--", "literal prompt", "--settings", "not settings"}
+	installed, skipped := Install(args, "/bin/runner", testLaunch())
+	if skipped != "" {
+		t.Fatal(skipped)
+	}
+	separator := slices.Index(installed, "--")
+	if separator < 0 || !slices.Equal(installed[separator:], args[2:]) {
+		t.Fatalf("changed literal arguments: %q", installed)
+	}
+	if launch, ok := FromArgs(installed); !ok || launch != testLaunch() {
+		t.Fatalf("hooks not installed before separator: %q", installed)
+	}
+}
+
+func TestInstallDoesNotRepairMalformedSettings(t *testing.T) {
+	for _, raw := range []string{`{} {"disableAllHooks":true}`, `{} trailing`} {
+		args := []string{"--settings", raw}
+		installed, skipped := Install(args, "/bin/runner", testLaunch())
+		if skipped != SkipUnreadableSetting || !slices.Equal(installed, args) {
+			t.Fatalf("rewrote invalid user settings: %q (%s)", installed, skipped)
+		}
+	}
+}
 
 func testLaunch() Launch {
 	return Launch{Sink: "/tmp/state dir/it's/abc" + SinkSuffix, Launch: testLaunchID}
