@@ -183,7 +183,10 @@ func (c *SDKClient) startLocked(options TurnOptions) error {
 		args = append(args, c.options.ModulePath)
 	}
 	command := exec.Command(c.options.NodePath, args...)
-	command.Dir, command.Env, command.Stderr = options.CWD, c.options.Env, os.Stderr
+	// Inherit the runner's control directory, not the provider workspace. The
+	// bridge must initialize even when workspace access is unavailable; the SDK
+	// still receives the exact workspace through sdkQueryOptions below.
+	command.Env, command.Stderr = c.options.Env, os.Stderr
 	input, err := command.StdinPipe()
 	if err != nil {
 		return err
