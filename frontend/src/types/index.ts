@@ -473,7 +473,7 @@ export type ClaudeSessionEvent = StructuredSessionEvent;
 /** Factual, runtime-aware observations (daemon contract version 1). Null means unknown or not observable for this runtime. */
 export interface SessionObservations {
   version: number;
-  capabilities: { runtime: string; turn_boundaries: string; tool_records: string; terminal_output: boolean; approvals?: string };
+  capabilities: { runtime: string; turn_boundaries: string; tool_records: string; terminal_output: boolean; approvals?: string; hooks?: string };
   runner: { state: string; since: number | null; exit_code: number | null; adopted_at?: number | null };
   working: { value: boolean; source: string } | null;
   turn: { open: boolean | null; started_at: number | null; started_by: string | null; provider_confirmed_at?: number | null; ended_at: number | null; ended_by: string | null } | null;
@@ -481,4 +481,31 @@ export interface SessionObservations {
   tools: { open_count: number; open_count_exact?: boolean; history_complete: boolean; last_started_at?: number | null; last_ended_at?: number | null; last_end_status?: string | null; observed_since?: number | null } | null;
   approval?: { pending: boolean; id: string | null; kind: string | null; requested_at: number | null } | null;
   observers: { name: string; state: string; detail?: string; since: number }[];
+  // Claude's own hook events for an interactive Claude launch. Times are
+  // observed times; Stop is a finished response, not a finished task.
+  hooks?: SessionHookObservations | null;
+}
+
+export interface SessionHookEvent {
+  name: string;
+  observed_at: number;
+  conversation_id: string | null;
+  tool_use_id: string | null;
+  tool_name: string | null;
+  agent_id: string | null;
+  detail: string | null;
+  is_interrupt: boolean | null;
+  stop_hook_active: boolean | null;
+}
+
+export interface SessionHookObservations {
+  source: string;
+  coverage: 'configured' | 'receiving' | 'unavailable';
+  unavailable_reason: string | null;
+  conversation_id: string | null;
+  last_event: SessionHookEvent | null;
+  events: Record<string, SessionHookEvent> | null;
+  tools: SessionObservations['tools'];
+  gaps: string[];
+  rejected: { foreign_launch: number; unconfirmed_conversation: number; malformed: number };
 }

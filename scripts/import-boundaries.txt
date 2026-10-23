@@ -27,6 +27,7 @@ cmd/sessions internal/verdict
 cmd/sessions internal/waitcond
 cmd/sessions internal/watch
 cmd/sessions-relay internal/relaycmd
+cmd/sessions-runner internal/claudehooks
 cmd/sessions-runner internal/claudep
 cmd/sessions-runner internal/codexapp
 cmd/sessions-runner internal/ipc
@@ -109,6 +110,7 @@ internal/search internal/state
 internal/session internal/agentcall
 internal/session internal/ansi
 internal/session internal/background
+internal/session internal/claudehooks
 internal/session internal/claudep
 internal/session internal/codexapp
 internal/session internal/ipc
@@ -126,6 +128,7 @@ internal/session internal/watch
 internal/smartsearch internal/agentcall
 internal/smartsearch internal/search
 internal/smartsearch internal/state
+internal/state internal/claudehooks
 internal/state internal/filelock
 internal/state internal/ipc
 internal/state internal/mirror

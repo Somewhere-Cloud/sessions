@@ -738,6 +738,86 @@ Values: `capabilities.runtime` is `claude-structured`, `codex-app-server`,
   Structured runtimes and shells have none.
 - Nothing here reports filesystem or source writes; terminal output is not a
   write record.
+- `capabilities.hooks` is `claude-command-hooks` when this launch of an
+  interactive Claude runtime was started with Sessions' observation hooks,
+  otherwise `none`. `hooks` is present only for `claude-pty` and is `null`
+  for every other runtime and for records restored from the ledger:
+
+  ```json
+  {"source":"claude-command-hooks","coverage":"receiving","unavailable_reason":null,
+   "conversation_id":"11111111-1111-4111-8111-111111111111",
+   "last_event":{"name":"Stop","observed_at":1760000009000,"conversation_id":"11111111-1111-4111-8111-111111111111",
+                 "tool_use_id":null,"tool_name":null,"agent_id":null,"detail":null,
+                 "is_interrupt":null,"stop_hook_active":false},
+   "events":{"Stop":{...},"PreToolUse":{...}},
+   "tools":{"open":[],"open_count":0,"last_started_at":1760000004000,"last_ended_at":1760000005000,
+            "last_end_status":"result","observed_since":1760000001000,"history_complete":true,"open_count_exact":true},
+   "gaps":[],"rejected":{"foreign_launch":0,"unconfirmed_conversation":0,"malformed":0}}
+  ```
+
+  `coverage` is `unavailable` (with `unavailable_reason`: `not-installed-for-this-launch`
+  for a runner started before hooks existed, `bare-mode`,
+  `launch-settings-file`, `multiple-launch-settings`,
+  `hooks-disabled-by-launch-settings`, `unreadable-launch-settings`, or
+  `platform-unsupported` on Windows;
+  the other blocks are then `null`), `configured` (the launch has hooks and
+  no record from it has been read; this is not evidence the hooks run, and
+  user or managed policy such as `disableAllHooks` can stop them without
+  Sessions seeing it), or `receiving` (at least one valid record from this
+  launch was read). No coverage value claims every event was delivered.
+  Events observed are `SessionStart`, `UserPromptSubmit`, `PreToolUse`,
+  `PostToolUse`, `PostToolUseFailure`, `PermissionRequest`,
+  `PermissionDenied`, `Notification`, `Stop`, `StopFailure`, and
+  `SessionEnd`; `events` holds the newest of each name seen, `last_event` the
+  newest of all. Every `observed_at` is an observed time: the capture
+  command's clock on the session's machine when Claude ran the hook. Claude's
+  hook input has no event time, so none is reported, and these times are not
+  compared with `*_event_at`. `detail` is only an enumerated qualifier: the
+  `Notification` type, the `StopFailure` error type, the `SessionStart`
+  source, or the `SessionEnd` reason. Prompts, messages, tool input and
+  output, error text, and denial reasons are never recorded.
+
+  Hook facts are observation only and are kept apart from `turn`, `tools`,
+  and `working`: no hook ends a turn, sets the working flag, creates an
+  `approval`, or fires a notification, and transcript or terminal evidence
+  never overwrites a hook fact. `Stop` means Claude finished a response, not
+  that the task is complete; another hook can continue the turn
+  (`stop_hook_active`). A `Notification` of type `permission_prompt` is the
+  provider's report, not a Sessions-brokered approval, and other types are
+  not permission requests. A `UserPromptSubmit` does not prove that a
+  particular Sessions send was consumed; terminal input stays keystrokes.
+  Silence never means finished or blocked. `hooks.tools` pairs `PreToolUse`
+  with `PostToolUse` (`result`), `PostToolUseFailure` (`error`, or
+  `cancelled` when `is_interrupt`), and `PermissionDenied` (`cancelled`) by
+  `tool_use_id`; an end read before its start closes the call.
+
+  Hooks run as concurrent background processes. Neither the order of sink
+  records nor their observed times is the order Claude executed the hooks:
+  a `SessionStart` can be read after later records of the conversation it
+  starts, a late record of an earlier conversation can follow a `/clear`, and
+  `observed_at` (each capture's start time) orders events only approximately.
+  The view is therefore built so that the same records produce the same view
+  in any read order: "newest" (`events`, `last_event`, `last_end_status`) is
+  decided by `observed_at` with a fixed tie-break, never by read position.
+  Nothing is inferred from a record's position, and the presence, absence, or
+  position of `SessionStart` says nothing about whether Claude is ready.
+
+  A record must carry this launch's id. Its conversation is confirmed when
+  argv named it or any `SessionStart` from this launch names it; a record for
+  an unconfirmed conversation is held, not applied, and is applied if such a
+  `SessionStart` is read later. `conversation_id` is the conversation of the
+  `SessionStart` with the newest `observed_at`, or the one argv named when
+  none has been read; a record of another confirmed conversation still
+  counts. `rejected` counts sink records not applied: `foreign_launch`
+  (another launch's id), `unconfirmed_conversation` (held records, at most
+  256; older ones beyond that are dropped and reported as a gap), and
+  `malformed` (failed validation). `gaps` lists permanent
+  coverage gaps (`malformed-record`, `oversized-input`, `malformed-input`,
+  `sink-full`, `sink-unreadable`, `tool-ends-forgotten`,
+  `unconfirmed-records-dropped`); any gap makes
+  `hooks.tools.history_complete` false. A daemon that re-adopts the runner
+  reads the sink from its start and rebuilds the same facts; doing so
+  replays no effect.
 
 ### `POST /api/sessions`
 

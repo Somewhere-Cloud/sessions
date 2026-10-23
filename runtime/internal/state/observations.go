@@ -51,6 +51,9 @@ type Observations struct {
 	Tools        *ObservedTools       `json:"tools"`
 	Approval     *ObservedApproval    `json:"approval"`
 	Observers    []ObserverHealth     `json:"observers"`
+	// Hooks is present for an interactive Claude runtime: what this launch's
+	// Claude hook events reported, or why it has none.
+	Hooks *ObservedHooks `json:"hooks"`
 }
 
 type ObservedCapabilities struct {
@@ -61,6 +64,9 @@ type ObservedCapabilities struct {
 	// Approvals is "runner-brokered" when the runner relays the provider's
 	// permission requests as records, otherwise "none".
 	Approvals string `json:"approvals"`
+	// Hooks is "claude-command-hooks" when this launch was started with
+	// Sessions' Claude observation hooks, otherwise "none".
+	Hooks string `json:"hooks"`
 }
 
 type ObservedRunner struct {
@@ -193,6 +199,9 @@ type observationTracker struct {
 	fromStart     bool
 	workingSource string
 	observers     map[string]ObserverHealth
+	// hooks holds what Claude's own hook events reported, apart from the
+	// transcript and terminal facts above.
+	hooks hookTracker
 }
 
 type turnTracker struct {
@@ -230,7 +239,7 @@ func RuntimeOf(info SessionInfo) string {
 // CapabilitiesOf is what the runtime can report. A PTY provider can still
 // report turns and tools from its transcript or rollout file.
 func CapabilitiesOf(runtime string) ObservedCapabilities {
-	capabilities := ObservedCapabilities{Runtime: runtime, TurnBoundaries: ObservedNone, ToolRecords: ObservedNone, TerminalOutput: true, Approvals: ObservedNone}
+	capabilities := ObservedCapabilities{Runtime: runtime, TurnBoundaries: ObservedNone, ToolRecords: ObservedNone, TerminalOutput: true, Approvals: ObservedNone, Hooks: ObservedNone}
 	switch runtime {
 	case "claude-structured", "codex-app-server":
 		capabilities.TurnBoundaries, capabilities.ToolRecords = ObservedProviderStream, ObservedProviderStream

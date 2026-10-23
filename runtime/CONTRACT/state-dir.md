@@ -49,6 +49,7 @@ for explicit lookups; neither changes the source provider history.
     ├── <session-id>.keepalive.json         # boot-scoped restart permit
     ├── <session-id>.restore-pending.json   # paused automatic restore reason
     ├── <session-id>.transcript.jsonl      # Go runtime only
+    ├── <session-id>.hooks.jsonl           # interactive Claude hook records
     └── <session-id>.transcript.meta.json  # Go runtime only
 
 ~/Library/LaunchAgents/
@@ -104,6 +105,21 @@ directory and answers
 `SESSIONS_STATE_DIR` outside its scratch `HOME` therefore cannot accept uploads.
 
 ## Files
+
+### `runners/<session-id>.hooks.jsonl`
+
+Present for an interactive Claude launch started with Sessions' observation
+hooks, once Claude has run one. The launch's argv carries a single
+`--settings` object whose hooks run `sessions-runner claude-hook --sink <this
+file> --launch <32 hex>` as async command hooks; Sessions never writes a
+Claude settings file. Each run appends one mode-0600 JSON line of at most 2048
+bytes: `v` (1), `launch`, `observed_at` (epoch ms, the capture's own clock),
+and optionally `event`, `session_id`, `tool_use_id`, `tool_name`, `agent_id`,
+`detail`, `is_interrupt`, `stop_hook_active`, and `gap` (`oversized-input` or
+`malformed-input`). No prompt, message, tool input or output, or error text is
+written. The capture refuses a symlink or a path not ending in `.hooks.jsonl`,
+and appends nothing once the file reaches 4 MiB. The daemon reads it from the
+start on every attach; it is evidence like `.events` and is not swept.
 
 ### `profiles/<tool>/<name>.account.json`
 

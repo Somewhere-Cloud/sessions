@@ -44,6 +44,15 @@ function toolsNote(tools: NonNullable<SessionObservations['tools']>, now: number
   return `${count} Last tool end ${observedTime(tools.last_ended_at, now)}${status}.`;
 }
 
+function hooksNote(hooks: NonNullable<SessionObservations['hooks']>, now: number): string {
+  if (hooks.coverage === 'unavailable') return `Claude hooks unavailable (${hooks.unavailable_reason ?? 'unknown'}).`;
+  const last = hooks.last_event;
+  const lastText = last
+    ? `Last Claude hook ${last.name}${last.detail ? ` (${last.detail})` : ''} observed ${observedTime(last.observed_at, now)}.`
+    : 'Claude hooks configured; no hook event received yet.';
+  return hooks.gaps.length > 0 ? `${lastText} Hook history incomplete: ${hooks.gaps.join(', ')}.` : lastText;
+}
+
 /**
  * Where a session's state words come from, and the newest facts behind them,
  * in plain sentences, or '' when the daemon did not say. It restates the
@@ -61,6 +70,7 @@ export function observationNote(session: SessionInfo, now: number = Date.now()):
     parts.push(`Last provider record observed ${observedTime(observations.last.provider_record_observed_at, now)}; its own time ${observedTime(observations.last.provider_record_event_at, now)}.`);
   }
   if (observations.tools) parts.push(toolsNote(observations.tools, now));
+  if (observations.hooks) parts.push(hooksNote(observations.hooks, now));
   for (const observer of observations.observers) {
     if (observer.state !== 'following') parts.push(`${observer.name} ${observer.state}${observer.detail ? `: ${observer.detail}` : ''}.`);
   }

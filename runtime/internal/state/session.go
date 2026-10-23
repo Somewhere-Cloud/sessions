@@ -154,7 +154,7 @@ func newSession(ctx context.Context, info proto.RunnerInfo, runner proto.Runner,
 		session.info.LastDataAt, session.info.LastDataUnknown = adoptedLastData(info.CreatedAt, metadata)
 	}
 	session.observed.fromStart = !metadata.Adopted
-	session.observed.attachedAt = now
+	session.observed.attachedAt, session.observed.hooks = now, resolveHooks(session.info)
 	if metadata.Adopted {
 		session.observed.adoptedAt = now
 	}

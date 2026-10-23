@@ -273,6 +273,7 @@ type runtimeSession struct {
 	waitingGeneration          uint64
 	stopped                    bool
 	watcher                    *watch.FileWatcher
+	hookDone                   chan struct{}
 	stopOnce                   sync.Once
 	outputObserved             chan struct{}
 	structuredEventArrived     chan struct{}
