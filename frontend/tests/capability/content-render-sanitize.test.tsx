@@ -64,6 +64,19 @@ describe('capability: rendered provider text stays inert', () => {
     }
   });
 
+  it('does not admit shadow templates or SVG animation from provider markup', () => {
+    const payloads = [
+      '<div><template shadowrootmode="open">$<object></object>{alert(1)}</template></div>',
+      '<svg><a><animate attributeName="href" values="x;javascript:alert(1)" dur="0.01s" fill="freeze"/><text>click</text></a></svg>',
+      '<div><span class="bad">x</span><img src=x onerror="alert(1)"></div>'
+    ];
+    for (const payload of payloads) {
+      const host = mount(renderContent(payload));
+      expect(scriptableSurface(host), payload).toEqual([]);
+      expect(host.querySelector('template, animate, set, [attributeName], [shadowrootmode]'), payload).toBeNull();
+    }
+  });
+
   it('applies the final allow-list in a DOM, removing tags the earlier stages emit but the view never uses', () => {
     // marked turns image syntax into <img>; only the DOM sanitizer stage can
     // remove it, so this proves that stage ran.
