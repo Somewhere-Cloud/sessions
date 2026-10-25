@@ -54,10 +54,13 @@ function spokenLine(value: string | undefined): string {
  * than shown as delivered, because a receipt is what makes a send a fact.
  */
 export function lastMessage(session: SessionInfo, sending?: string): LastMessage {
+  // Shell input has no assistant-reply contract. Output can be an echo,
+  // background process, or command result; none establishes a provider turn.
+  const awaitingReply = session.tool !== 'terminal';
   if (sending?.trim()) {
     return {
       kind: 'you', speaker: 'You', text: spokenLine(sending),
-      at: Date.now(), awaitingReply: true
+      at: Date.now(), awaitingReply
     };
   }
 
@@ -85,9 +88,9 @@ export function lastMessage(session: SessionInfo, sending?: string): LastMessage
   }
 
   if (humanAt > agentInputAt) {
-    // The person spoke last. Their text is not in the session record — what is
-    // true is that they sent something and no answer has arrived.
-    return { kind: 'you', speaker: 'You', text: '', at: humanAt, awaitingReply: true };
+    // Their input is recorded, but its text is not in the session record.
+    // Only provider conversations can be waiting for an assistant reply.
+    return { kind: 'you', speaker: 'You', text: '', at: humanAt, awaitingReply };
   }
 
   // Nothing has been stamped in either direction. A summary with no time behind
@@ -107,6 +110,7 @@ export function lastMessageLine(session: SessionInfo, sending?: string): string 
       return message.text;
     case 'you':
       if (message.text) return `You: ${message.text}${sending ? ' · sending…' : ''}`;
+      if (session.tool === 'terminal') return 'You sent terminal input';
       return session.working ? 'You sent a message · working' : 'You sent a message · no reply yet';
     case 'agent':
       return message.text ? `Agent: ${message.text}` : 'Agent replied';

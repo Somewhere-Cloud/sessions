@@ -126,6 +126,41 @@ describe('capability: what a session says its last message is', () => {
     expect(lastMessage(session, 'check the release notes').awaitingReply).toBe(true);
   });
 
+  it('describes shell input without expecting an assistant reply or interpreting output as completion', () => {
+    for (const working of [false, true]) {
+      for (const lastDataAt of [EARLIER, LATEST]) {
+        const shell = sessionOfKind('', 'terminal', {
+          lastHumanMessageAt: LATER, lastDataAt, working
+        });
+        expect(lastMessageLine(shell)).toBe('You sent terminal input');
+        expect(lastMessage(shell)).toMatchObject({
+          kind: 'you', at: LATER, awaitingReply: false
+        });
+        render(<SessionLastMessage session={shell} />);
+      }
+    }
+    expect(screen.getAllByText('You sent terminal input')).toHaveLength(4);
+    expect(screen.queryByText(/no reply yet|Agent replied|completed/i)).not.toBeInTheDocument();
+  });
+
+  it('keeps shell sends unconfirmed until acknowledged, without an assistant-reply expectation', () => {
+    const shell = sessionOfKind('', 'terminal');
+    expect(lastMessageLine(shell, 'printf hello')).toBe('You: printf hello · sending…');
+    expect(lastMessage(shell, 'printf hello')).toMatchObject({
+      kind: 'you', text: 'printf hello', awaitingReply: false
+    });
+  });
+
+  it('does not let terminal bytes clear a Claude or Codex reply expectation', () => {
+    for (const tool of ['claude-code', 'codex'] as const) {
+      const provider = sessionOfKind('', tool, {
+        lastHumanMessageAt: LATER, lastDataAt: LATEST, working: false
+      });
+      expect(lastMessageLine(provider)).toBe('You sent a message · no reply yet');
+      expect(lastMessage(provider).awaitingReply).toBe(true);
+    }
+  });
+
   it('says nothing rather than something wrong when nothing has been said', () => {
     const fresh = sessionOfKind('', 'terminal', {});
     expect(lastMessageLine(fresh)).toBe('');
@@ -153,5 +188,20 @@ describe('capability: the navigator row carries it', () => {
     const node = row.closest('.session-nav-row') as HTMLElement;
     expect(within(node).getByText('You sent a message · no reply yet')).toBeInTheDocument();
     expect(within(node).queryByText(/An older agent result/)).not.toBeInTheDocument();
+  }, 20_000);
+
+  it('does not claim a shell with later output is still waiting for a reply', async () => {
+    const shell = sessionOfKind('', 'terminal', {
+      name: 'Shell output observed', lastHumanMessageAt: LATER,
+      lastDataAt: LATEST, working: false
+    });
+    const machines = fleet([shell]);
+    installFakeDaemon(machines);
+    useFakeMachines(machines, 'local');
+
+    render(<Workbench />);
+    const row = (await screen.findByText(shell.name!)).closest('.session-nav-row') as HTMLElement;
+    expect(within(row).getByText('You sent terminal input')).toBeInTheDocument();
+    expect(within(row).queryByText(/no reply yet|Agent replied/)).not.toBeInTheDocument();
   }, 20_000);
 });
