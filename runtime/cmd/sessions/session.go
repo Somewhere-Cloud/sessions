@@ -310,7 +310,7 @@ func (a *app) cmdLS(args []string) error {
 	// The sessions the user pinned are the ones this list exists to find again.
 	records = pinnedFirst(records)
 	if a.wantJSON {
-		return writeRawSessionRecords(a.stdout, records)
+		return a.writeRawSessionRecords(a.stdout, records)
 	}
 	if scope.osUserFallback {
 		writeOSUserScope(a.stdout, scope)

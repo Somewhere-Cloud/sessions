@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/somewhere-tech/sessions/runtime/internal/delivery"
+	"github.com/somewhere-tech/sessions/runtime/internal/lanelink"
 	sessionruntime "github.com/somewhere-tech/sessions/runtime/internal/session"
 	"github.com/somewhere-tech/sessions/runtime/internal/state"
 )
@@ -74,7 +75,7 @@ func (s *Server) offerParentReport(report sessionruntime.ChildReport, logf func(
 	err := s.parentReports.enqueue(parentReport{
 		OperationID: parentReportOperationID(report.SessionID, report.At),
 		Child:       report.SessionID, Parent: parent,
-		Text: formatParentReport(report), CreatedAtMS: s.parentReports.now().UnixMilli(),
+		Text: formatParentReport(report, lanelink.Link(report.SessionID, s.identity.ID)), CreatedAtMS: s.parentReports.now().UnixMilli(),
 		OutcomeAtMS: report.At,
 	})
 	if err != nil {

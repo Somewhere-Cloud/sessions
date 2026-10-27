@@ -10,6 +10,7 @@ cmd/sessions internal/fleetaccount
 cmd/sessions internal/fleetendpoint
 cmd/sessions internal/integrations
 cmd/sessions internal/lan
+cmd/sessions internal/lanelink
 cmd/sessions internal/ledger
 cmd/sessions internal/localnetwork
 cmd/sessions internal/migrate
@@ -57,6 +58,7 @@ internal/api internal/fleetaccount
 internal/api internal/fleetendpoint
 internal/api internal/integrations
 internal/api internal/lan
+internal/api internal/lanelink
 internal/api internal/ledger
 internal/api internal/localnetwork
 internal/api internal/migrate

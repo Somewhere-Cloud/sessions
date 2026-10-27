@@ -161,6 +161,8 @@ type app struct {
 	// are printed with scope so they reach the same daemon (command_scope.go).
 	scope   string
 	machine string
+	// laneMachine caches the target daemon's identity for lane links.
+	laneMachine laneLinkMachine
 }
 
 func explainAPIClientNetworkError(client *apiClient, err error) error {

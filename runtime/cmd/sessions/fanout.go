@@ -18,6 +18,7 @@ type fanoutLane struct {
 	Provider string       `json:"provider"`
 	ID       string       `json:"id"`
 	Name     string       `json:"name"`
+	Link     string       `json:"link,omitempty"`
 	Outcome  *waitOutcome `json:"outcome,omitempty"`
 	Error    string       `json:"error,omitempty"`
 }
@@ -263,6 +264,9 @@ func fanoutFailure(report fanoutReport) string {
 }
 
 func (a *app) writeFanout(report fanoutReport, startedOnly bool, final error) error {
+	for index := range report.Lanes {
+		report.Lanes[index].Link = a.laneLink(report.Lanes[index].ID)
+	}
 	if a.wantJSON {
 		if err := writeJSON(a.stdout, report, true); err != nil {
 			return err
@@ -291,6 +295,13 @@ func (a *app) writeFanout(report fanoutReport, startedOnly bool, final error) er
 	}
 	if err := writePaddedRows(a.stdout, rows); err != nil {
 		return err
+	}
+	for _, lane := range report.Lanes {
+		if lane.Link != "" {
+			if _, err := fmt.Fprintf(a.stdout, "open %s in Sessions: %s\n", lane.Provider, lane.Link); err != nil {
+				return err
+			}
+		}
 	}
 	if startedOnly {
 		if _, err := io.WriteString(a.stdout, "\nlanes are running; join them with `sessions wait <id>... --all --summary`\n"); err != nil {

@@ -159,7 +159,7 @@ func TestParentReportUncertainDeliveryIsNotResent(t *testing.T) {
 	daemon, service, parent, child := newParentReportFixture(t)
 	report := childOutcome(child, parent, 1000)
 	// A daemon that stopped mid-send leaves the delivery record pending.
-	if _, _, err := daemon.handler.deliveries.Begin(parentReportOperationID(child, 1000), parent, formatParentReport(report)); err != nil {
+	if _, _, err := daemon.handler.deliveries.Begin(parentReportOperationID(child, 1000), parent, formatParentReport(report, "")); err != nil {
 		t.Fatal(err)
 	}
 	daemon.handler.offerParentReport(report, discardLog)
@@ -192,13 +192,13 @@ func TestParentReportSubscriptionEndsWithChild(t *testing.T) {
 func TestFormatParentReportLeadsWithTheQuestionForBlockedLanes(t *testing.T) {
 	report := childOutcome("child", "parent", 1)
 	report.IdleReason, report.Detail = state.IdleReasonNeedsInput, "Allow edits to go.mod?"
-	text := formatParentReport(report)
+	text := formatParentReport(report, "")
 	if !strings.Contains(text, "needs input:\nAllow edits to go.mod?") {
 		t.Fatalf("blocked report = %q", text)
 	}
 	report.Summary = strings.Repeat("x", parentReportTextLimit+50)
 	report.IdleReason = state.IdleReasonCompleted
-	if text := formatParentReport(report); strings.Count(text, "x") > parentReportTextLimit+1 {
+	if text := formatParentReport(report, ""); strings.Count(text, "x") > parentReportTextLimit+1 {
 		t.Fatalf("summary was not bounded: %d runes", len(text))
 	}
 }
@@ -253,5 +253,16 @@ func TestParentReportMatchesOnSubscriptionWhenTheRecordHasNoParent(t *testing.T)
 	daemon.handler.deliverParentReports(context.Background(), discardLog)
 	if calls, _ := service.submitted(); len(calls) != 1 {
 		t.Fatalf("submitted %d reports to %s, want 1", len(calls), parent)
+	}
+}
+
+func TestFormatParentReportCarriesTheLaneLinkWhenThereIsOne(t *testing.T) {
+	report := childOutcome("9075b95a-2987-476e-a3ba-094be0c86242", "parent", 1)
+	link := "sessions://lane/9075b95a-2987-476e-a3ba-094be0c86242"
+	if text := formatParentReport(report, link); !strings.HasSuffix(text, "Link for the user: "+link) {
+		t.Fatalf("report = %q", text)
+	}
+	if text := formatParentReport(report, ""); strings.Contains(text, "sessions://") {
+		t.Fatalf("report without a link = %q", text)
 	}
 }

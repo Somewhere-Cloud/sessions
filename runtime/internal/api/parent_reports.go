@@ -202,7 +202,9 @@ func parentReportOperationID(child string, at int64) string {
 	return encoded[:8] + "-" + encoded[8:12] + "-" + encoded[12:16] + "-" + encoded[16:20] + "-" + encoded[20:]
 }
 
-func formatParentReport(report sessionruntime.ChildReport) string {
+// formatParentReport renders the message the parent reads. link is the lane
+// link for the user, omitted when the child has no linkable id.
+func formatParentReport(report sessionruntime.ChildReport, link string) string {
 	verb := "finished"
 	body := strings.TrimSpace(report.Summary)
 	switch report.IdleReason {
@@ -217,8 +219,12 @@ func formatParentReport(report sessionruntime.ChildReport) string {
 	if utf8.RuneCountInString(body) > parentReportTextLimit {
 		body = string([]rune(body)[:parentReportTextLimit]) + "…"
 	}
-	return fmt.Sprintf("[sessions] Delegated lane %q (%s) %s:\n%s\n\nFull result: sessions last %s · Link for the user: sessions://lane/%s",
-		report.Name, report.SessionID, verb, body, report.SessionID, report.SessionID)
+	text := fmt.Sprintf("[sessions] Delegated lane %q (%s) %s:\n%s\n\nFull result: sessions last %s",
+		report.Name, report.SessionID, verb, body, report.SessionID)
+	if link != "" {
+		text += " · Link for the user: " + link
+	}
+	return text
 }
 
 func firstNonEmpty(values ...string) string {

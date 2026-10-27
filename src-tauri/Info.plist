@@ -8,6 +8,17 @@
   <string>Sessions agents need access to your chosen projects and their shared Git metadata on external drives.</string>
   <key>NSCameraUsageDescription</key>
   <string>Sessions scans one-time pairing codes from a Sessions machine you trust.</string>
+  <key>CFBundleURLTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleURLName</key>
+      <string>tech.somewhere.sessions</string>
+      <key>CFBundleURLSchemes</key>
+      <array>
+        <string>sessions</string>
+      </array>
+    </dict>
+  </array>
   <key>NSBonjourServices</key>
   <array>
     <string>_sessions._tcp</string>

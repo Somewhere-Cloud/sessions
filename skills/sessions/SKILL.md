@@ -23,8 +23,8 @@ the orientation you cannot get from a command list.
 - **Work that outlives the process that started it.** A session or lane keeps
   running after you exit, are killed, or run out of context. Dispatch with
   `run`, come back later — from any process — with `wait`. Native subagents
-  cannot do this; it is the main reason to reach for this tool. Or delegate
-  with `new --report` and end your turn: outcomes arrive once you are idle.
+  cannot do this; it is the main reason to reach for this tool. Delegate with
+  `new --report`, show the user its `link`, and end your turn; results follow.
 - **Conversations that outlive the provider.** Providers delete their own
   transcripts on a retention timer. Sessions keeps its own copy, so reading,
   searching, and resuming still work afterwards.

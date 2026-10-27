@@ -44,6 +44,7 @@ const GATE = [
   'terminal-viewport',
   'android-mobile',
   'external-links',
+  'lane-link',
   'lifecycle-clarity',
   'workspace-ux',
   'project-groups',

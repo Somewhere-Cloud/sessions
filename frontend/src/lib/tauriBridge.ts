@@ -721,3 +721,19 @@ export async function quitNativeApp(): Promise<void> {
   const { exit } = await import('@tauri-apps/plugin-process');
   await exit(0);
 }
+
+// The lane link (sessions://lane/<id>) the operating system asked the native
+// app to open, taken once. The shell parses and validates it; the viewer
+// validates it again before using it (lib/laneLink.ts).
+export async function takeNativeLaneLink(): Promise<unknown> {
+  if (!isTauri()) return null;
+  return invoke<unknown>('take_lane_link');
+}
+
+// Calls handler whenever the shell receives a lane link. The returned function
+// stops listening.
+export async function onNativeLaneLink(handler: () => void): Promise<() => void> {
+  if (!isTauri()) return () => {};
+  const { listen } = await import('@tauri-apps/api/event');
+  return listen('lane-link', () => handler());
+}

@@ -10,6 +10,7 @@ mod apple_credentials;
 mod lifecycle;
 #[cfg(mobile)]
 mod mobile_discovery;
+mod native_links;
 #[cfg(any(target_os = "windows", test))]
 mod windows_cli_path;
 mod windows_credentials;
@@ -371,6 +372,7 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(TrayState::default())
+        .manage(native_links::PendingLaneLink::default())
         .invoke_handler(tauri::generate_handler![
             open_scoped_window,
             set_tray_servers,
@@ -397,7 +399,8 @@ pub fn run() {
             open_external_url,
             open_local_network_settings,
             open_support_page,
-            somewhere_cli_status
+            somewhere_cli_status,
+            take_lane_link
         ])
         .setup(|app| {
             #[cfg(mobile)]
@@ -503,7 +506,51 @@ pub fn run() {
         if let tauri::RunEvent::Reopen { .. } = _event {
             let _ = open_window(_app, main_window_spec());
         }
+        #[cfg(any(target_os = "macos", target_os = "ios", target_os = "android"))]
+        if let tauri::RunEvent::Opened { urls } = &_event {
+            open_lane_links(_app, urls.iter().map(|url| url.as_str()));
+        }
     });
+}
+
+// open_lane_links handles URLs the operating system asked this app to open.
+// Only a valid lane link does anything: it becomes the pending link, the main
+// window comes forward, and the viewer is told to take it. Any other URL --
+// including a sessions://pair link, which is pasted into Connections instead --
+// is logged and ignored.
+#[cfg_attr(
+    not(any(target_os = "macos", target_os = "ios", target_os = "android")),
+    allow(dead_code)
+)]
+fn open_lane_links<'a>(app: &AppHandle, urls: impl Iterator<Item = &'a str>) {
+    use tauri::Emitter;
+    let mut latest = None;
+    for raw in urls {
+        match native_links::parse_lane_link(raw) {
+            Some(link) => latest = Some(link),
+            None => log::info!("Sessions ignored an opened URL that is not a lane link"),
+        }
+    }
+    let Some(link) = latest else {
+        return;
+    };
+    app.state::<native_links::PendingLaneLink>().replace(link);
+    #[cfg(desktop)]
+    if let Err(error) = open_window(app, main_window_spec()) {
+        log::warn!("show the main window for a lane link: {error}");
+    }
+    if let Err(error) = app.emit_to("main", native_links::LANE_LINK_EVENT, ()) {
+        log::warn!("tell the viewer about a lane link: {error}");
+    }
+}
+
+// take_lane_link hands the viewer the lane link the operating system opened,
+// once. The viewer asks at startup and whenever it hears LANE_LINK_EVENT.
+#[tauri::command]
+fn take_lane_link(
+    pending: tauri::State<'_, native_links::PendingLaneLink>,
+) -> Option<native_links::LaneLink> {
+    pending.take()
 }
 
 include!("lib_tests.rs");

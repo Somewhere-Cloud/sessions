@@ -417,7 +417,9 @@ func TestNodeCLIGoldenOutputShapes(t *testing.T) {
 		fixture string
 		exact   bool
 	}{
-		{"ls", []string{"--host", server.URL, "--json", "ls"}, "testdata/node-ls.json", true},
+		// The listing is the daemon's record byte for byte, with only the lane
+		// link appended (internal/lanelink).
+		{"ls", []string{"--host", server.URL, "--json", "ls"}, "testdata/node-ls-linked.json", true},
 		{"send", []string{"--host", server.URL, "--json", "send", id[:8], "echo", "GOLDEN_SEND"}, "testdata/node-send.json", false},
 	}
 	for _, test := range tests {

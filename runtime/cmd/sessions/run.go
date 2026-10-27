@@ -139,7 +139,7 @@ func (a *app) cmdRun(args []string) error {
 		// that believes it must not read a missing key as zero. Reaching this
 		// line means the lane was created, which is all this document reports.
 		created["code"] = exitSatisfied
-		return writeJSON(a.stdout, created, true)
+		return writeJSON(a.stdout, a.withLinkField(created), true)
 	}
 	id, ok := created["id"].(string)
 	if !ok || id == "" {

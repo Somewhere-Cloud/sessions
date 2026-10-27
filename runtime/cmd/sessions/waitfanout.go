@@ -77,6 +77,9 @@ func summarizeWaitJoin(results []waitOutcome) waitJoinOutcome {
 func (a *app) writeWaitJoin(results []waitOutcome, humanLines []string) error {
 	join := summarizeWaitJoin(results)
 	if a.wantJSON {
+		for index := range join.Results {
+			join.Results[index].Link = a.laneLink(join.Results[index].Session)
+		}
 		if err := writeJSON(a.stdout, join, false); err != nil {
 			return err
 		}

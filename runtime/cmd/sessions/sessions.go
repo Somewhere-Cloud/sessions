@@ -173,7 +173,7 @@ func (a *app) cmdSessions(args []string) error {
 	// it: an agent reading a long listing takes the head of the array.
 	records = pinnedFirst(records)
 	if a.wantJSON {
-		return writeRawSessionRecords(a.stdout, records)
+		return a.writeRawSessionRecords(a.stdout, records)
 	}
 	if scope.osUserFallback {
 		writeOSUserScope(a.stdout, scope)
@@ -394,10 +394,10 @@ func filterSessionRecords(records []sessionRecord, keep func(session) bool) []se
 	return filtered
 }
 
-func writeRawSessionRecords(writer io.Writer, records []sessionRecord) error {
+func (a *app) writeRawSessionRecords(writer io.Writer, records []sessionRecord) error {
 	raw := make([]json.RawMessage, 0, len(records))
 	for _, record := range records {
-		raw = append(raw, record.raw)
+		raw = append(raw, a.withLaneLink(record.raw, record.value.ID))
 	}
 	encoded, err := json.Marshal(raw)
 	if err != nil {

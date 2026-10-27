@@ -28,12 +28,14 @@ type waitOutcome struct {
 	// Targets is populated only when one outcome covers several targets at
 	// once — a race that timed out without any of them answering — because
 	// then no single id produced it.
-	Targets    []string             `json:"targets,omitempty"`
-	IdleReason string               `json:"idleReason,omitempty"`
-	Detail     string               `json:"detail,omitempty"`
-	Summary    string               `json:"summary,omitempty"`
-	Lane       *laneManifest        `json:"lane,omitempty"`
-	Condition  *waitConditionDetail `json:"condition,omitempty"`
+	Targets    []string      `json:"targets,omitempty"`
+	IdleReason string        `json:"idleReason,omitempty"`
+	Detail     string        `json:"detail,omitempty"`
+	Summary    string        `json:"summary,omitempty"`
+	Lane       *laneManifest `json:"lane,omitempty"`
+	// Link opens Session in the native app (internal/lanelink).
+	Link      string               `json:"link,omitempty"`
+	Condition *waitConditionDetail `json:"condition,omitempty"`
 	// Start is the session's delegated-start receipt when it has one, so the
 	// answer says whether the first request was ever delivered.
 	Start *state.StartReceipt `json:"start,omitempty"`
@@ -100,6 +102,7 @@ func (a *app) writeWaitOutcome(outcome waitOutcome, humanText string, humanToStd
 func (a *app) emitWaitOutcome(outcome waitOutcome, humanText string, humanToStderr bool, final error) error {
 	outcome.Code = statusCode(final)
 	if a.wantJSON {
+		outcome.Link = a.laneLink(outcome.Session)
 		if err := writeJSON(a.stdout, outcome, false); err != nil {
 			return err
 		}

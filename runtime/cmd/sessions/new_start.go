@@ -261,7 +261,7 @@ func (a *app) writeNewStartResult(id string, info map[string]any, result newStar
 		for key, value := range additions {
 			info[key] = value
 		}
-		if err := writeJSON(a.stdout, info, true); err != nil {
+		if err := writeJSON(a.stdout, a.withLinkField(info), true); err != nil {
 			return err
 		}
 		return statusOrNil(result.Code)
@@ -269,6 +269,7 @@ func (a *app) writeNewStartResult(id string, info map[string]any, result newStar
 	if _, err := fmt.Fprintln(a.stdout, id); err != nil {
 		return err
 	}
+	a.announceLaneLink(id)
 	if result.OK {
 		return nil
 	}

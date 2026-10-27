@@ -182,6 +182,22 @@ new terminal or agent-control features. See
 [`NETWORK_SECURITY.md`](NETWORK_SECURITY.md) for outbound and support-access
 rules.
 
+## Lane links
+
+`sessions new`, `run --json`, `fanout`, `ls --json`, `status --json` and
+`wait --json` include a lane link, `sessions://lane/<session-id>`, with
+`?machine=<machine-id>` when the daemon reports its stable identity
+(`runtime/internal/lanelink`). The macOS app registers the `sessions` scheme in
+`src-tauri/Info.plist`. When the system opens a lane link, the shell accepts
+only that exact shape with UUID identifiers, brings the main window forward,
+and hands the two identifiers to the viewer (`src-tauri/src/native_links.rs`).
+The viewer then opens the session the same way choosing it in the navigator
+does, and switches to the owning machine first when that machine is another
+configured one. A machine this app is not connected to gets a short notice,
+not an error. Nothing in a link is executed. `sessions://pair` links share the
+scheme but still have to be pasted into Connections; opening one does nothing.
+Windows, Linux and the phone apps do not register the scheme yet.
+
 ## Mobile clients
 
 Android and iOS builds are paired clients, not mobile daemon hosts. They reuse

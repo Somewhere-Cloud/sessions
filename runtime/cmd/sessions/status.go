@@ -141,7 +141,7 @@ func (a *app) cmdStatus(args []string) error {
 		output.ExitCode = current.ExitCode
 	}
 	if a.wantJSON {
-		document, mergeErr := statusDocument(record.raw, output)
+		document, mergeErr := statusDocument(a.withLaneLink(record.raw, id), output)
 		if mergeErr != nil {
 			return mergeErr
 		}

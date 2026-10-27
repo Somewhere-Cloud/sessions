@@ -30,6 +30,7 @@ import { useServers, configureNativeClientOnly, configureNativeLocalPort, getAct
 import { OnDemandSettingsMenu } from './components/OnDemandSettingsMenu';
 import { TailnetAccessInbox } from './components/TailnetAccessInbox';
 import { MachineRecoveryNotice } from './components/MachineRecoveryNotice';
+import { LaneLinkOpener } from './components/LaneLinkOpener';
 import { useIsMobile } from './hooks/useMediaQuery';
 import { useExactResume } from './hooks/useExactResume';
 import { useAndroidBackNavigation } from './hooks/useAndroidBackNavigation';
@@ -764,7 +765,7 @@ function ConnectedApp({ nativeClientOnly = false }: { nativeClientOnly?: boolean
       <div className="operations-frame">
         {sessionWorkspace && !isMobile ? sessionNavigator : null}
         <section className="operations-content">
-          <TailnetAccessInbox />
+          <TailnetAccessInbox /><LaneLinkOpener onOpen={openFleetSession} />
           {nativeClientOnly && onboardingPending ? <section className="client-onboarding-note" role="status" aria-live="polite"><strong>Finish setup on {machine}:</strong><span>Open Sessions on that computer once.</span></section> : null}
           {recoveryVisible ? (
             <MachineRecoveryNotice

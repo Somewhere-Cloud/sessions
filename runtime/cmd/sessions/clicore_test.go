@@ -284,6 +284,10 @@ func TestRunWithoutWaitKeepsIDAndJSONShapes(t *testing.T) {
 			_, _ = io.WriteString(response, responseBody)
 			return
 		}
+		if request.Method == http.MethodGet && request.URL.Path == "/api/machine" {
+			_, _ = io.WriteString(response, `{"machine_id":"9b2f0c3e-1d4a-4e5b-8c6d-7e8f9a0b1c2d","name":"mini"}`)
+			return
+		}
 		manifestRequests++
 		http.NotFound(response, request)
 	}))
@@ -316,6 +320,13 @@ func TestRunWithoutWaitKeepsIDAndJSONShapes(t *testing.T) {
 		t.Fatalf("dispatch document code = %#v, want %d", actual["code"], exitSatisfied)
 	}
 	delete(actual, "code")
+	// link is the other deliberate addition: it opens the lane in the app on
+	// the machine that owns it.
+	wantLink := "sessions://lane/00000000-0000-4000-8000-000000000044?machine=9b2f0c3e-1d4a-4e5b-8c6d-7e8f9a0b1c2d"
+	if actual["link"] != wantLink {
+		t.Fatalf("dispatch document link = %#v, want %q", actual["link"], wantLink)
+	}
+	delete(actual, "link")
 	if !reflect.DeepEqual(actual, expected) {
 		t.Fatalf("run JSON changed: got %#v want %#v", actual, expected)
 	}
