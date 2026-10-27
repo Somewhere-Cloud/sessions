@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { fetchServerMachineIdentity } from '../api/sessionsd';
-import { laneLinkTarget, resolveLaneLinkServerId, UNKNOWN_LANE_MACHINE_NOTICE } from '../lib/laneLink';
+import { laneLinkTarget, OPEN_LANE_EVENT, resolveLaneLinkServerId, UNKNOWN_LANE_MACHINE_NOTICE, type LaneLinkTarget } from '../lib/laneLink';
 import { useServers, type ServerConfig } from '../lib/servers';
 import { isTauri, onNativeLaneLink, takeNativeLaneLink } from '../lib/tauriBridge';
 import { readWindowScope } from '../lib/windowScope';
@@ -29,11 +29,10 @@ export function LaneLinkOpener({ onOpen }: {
   useEffect(() => { onOpenRef.current = onOpen; }, [onOpen]);
 
   useEffect(() => {
-    if (!isTauri() || readWindowScope() !== null) return;
+    if (readWindowScope() !== null) return;
     let stopped = false;
     let unlisten: (() => void) | null = null;
-    const take = async (): Promise<void> => {
-      const target = laneLinkTarget(await takeNativeLaneLink().catch(() => null));
+    const open = async (target: LaneLinkTarget | null): Promise<void> => {
       if (!target || stopped) return;
       const { servers, activeId } = useServers.getState();
       const serverId = await resolveLaneLinkServerId(target, servers, activeId, identify);
@@ -45,13 +44,19 @@ export function LaneLinkOpener({ onOpen }: {
       setNotice(null);
       onOpenRef.current(serverId, target.sessionId);
     };
-    void onNativeLaneLink(() => { void take(); }).then((stop) => {
-      if (stopped) stop();
-      else unlisten = stop;
-    }).catch(() => {});
-    void take();
+    const take = async (): Promise<void> => open(laneLinkTarget(await takeNativeLaneLink().catch(() => null)));
+    const clicked = (event: Event): void => { void open(laneLinkTarget((event as CustomEvent<unknown>).detail)); };
+    window.addEventListener(OPEN_LANE_EVENT, clicked);
+    if (isTauri()) {
+      void onNativeLaneLink(() => { void take(); }).then((stop) => {
+        if (stopped) stop();
+        else unlisten = stop;
+      }).catch(() => {});
+      void take();
+    }
     return () => {
       stopped = true;
+      window.removeEventListener(OPEN_LANE_EVENT, clicked);
       unlisten?.();
     };
   }, []);

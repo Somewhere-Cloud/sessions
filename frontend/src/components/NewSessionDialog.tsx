@@ -35,16 +35,16 @@ type AccessChoice = 'full' | 'ask' | 'plan';
 
 function defaultRuntimeMode(tool: NewSessionTool, parent: SessionInfo | null): RuntimeMode {
   if (tool === 'shell') return 'terminal';
-  // Claude always starts in its native interactive runtime. Conversation,
-  // Terminal, claude.ai, and mobile then observe one provider session even
-  // when the delegate was created from an older structured parent.
-  if (tool === 'claude-code') return 'terminal';
+  // Claude starts in the structured runtime, whose live work log is the
+  // Conversation view. The interactive terminal (needed for claude.ai and
+  // mobile Remote Control) stays one choice away here, and an existing
+  // conversation can move to it with "Terminal / Remote Control".
   if (parent && parent.tool === tool) {
     return parent.kind === 'codex-app-server' || parent.kind === 'claude-structured' ? 'rich' : 'terminal';
   }
   // A Codex Conversation session asks through Sessions when it is not given
   // full access, so the view no longer depends on the permission choice.
-  return tool === 'codex' ? 'rich' : 'terminal';
+  return tool === 'codex' || tool === 'claude-code' ? 'rich' : 'terminal';
 }
 
 function claudeModeFor(access: AccessChoice): ClaudeSessionOptions['permissionMode'] {
@@ -741,7 +741,16 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
                   <span className="field-help">Conversation is the normal Sessions view. Terminal opens Codex exactly as it appears in a shell.</span>
                 </div>
               ) : tool === 'claude-code' ? (
-                <div className="launcher-runtime-note"><strong>Conversation + Terminal</strong><span>One Claude session; switch views whenever you need the exact terminal.</span></div>
+                <div className="field launcher-advanced-card launcher-experience-field">
+                  <span className="field-label">Experience</span>
+                  <select className="field-input" value={runtimeMode} onChange={(event) => {
+                    setRuntimeMode(event.currentTarget.value as RuntimeMode);
+                  }} aria-label="Session experience">
+                    <option value="rich">Conversation</option>
+                    <option value="terminal">Terminal (Remote Control)</option>
+                  </select>
+                  <span className="field-help">Conversation shows Claude's work live. Terminal runs Claude's own interactive app, which claude.ai and mobile Remote Control need; you can switch a conversation to it later.</span>
+                </div>
               ) : null}
               {tool === 'claude-code' ? (
                 <details className="launcher-advanced-subsection launcher-troubleshooting">

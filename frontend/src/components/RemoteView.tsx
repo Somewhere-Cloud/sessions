@@ -17,7 +17,8 @@ import { PlanPanel } from './RemotePlanPanel';
 import { ProviderControlCard } from './ProviderControlCard';
 import { ProviderFaultCard } from './ProviderFaultCard';
 import { RemoteEmptyState } from './RemoteEmptyState';
-import { WorkLog } from './WorkLog';
+import { LaneLinkButtons, WorkLog } from './WorkLog';
+import { findLaneLinks } from '../lib/laneLink';
 import { messageActivity } from '../lib/workLog';
 import { useProviderControl } from '../hooks/useProviderControl';
 import { retryProviderSession } from '../api/sessionsd';
@@ -834,6 +835,7 @@ function RemoteMessageInner({
             ) : (
               <div className="remote-bubble-content">{m.content}</div>
             )}
+            {m.author?.kind === 'session' ? <LaneLinkButtons lanes={findLaneLinks(m.content)} /> : null}
             {m.systemNote ? <HarnessFold view={m.systemNote} className="remote-system-event remote-system-note" /> : null}
             {m.errorResponse ? (
               <div className="remote-bubble-error">

@@ -143,7 +143,7 @@ export function messageActivity(message: DispatchMessage): { lead: ActivityEntry
 
 const TOOL_PAST_TENSE = new Map<string, string>([
   ['add', 'Added'], ['build', 'Built'], ['check', 'Checked'], ['copy', 'Copied'],
-  ['create', 'Created'], ['delete', 'Deleted'], ['edit', 'Edited'], ['fetch', 'Fetched'],
+  ['create', 'Created'], ['delegate', 'Delegated'], ['delete', 'Deleted'], ['edit', 'Edited'], ['fetch', 'Fetched'],
   ['find', 'Found'], ['inspect', 'Inspected'], ['install', 'Installed'], ['list', 'Listed'],
   ['merge', 'Merged'], ['move', 'Moved'], ['read', 'Read'], ['regenerate', 'Regenerated'],
   ['remove', 'Removed'], ['resolve', 'Resolved'], ['run', 'Ran'], ['search', 'Searched'],

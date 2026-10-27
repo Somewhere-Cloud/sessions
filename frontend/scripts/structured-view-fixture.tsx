@@ -12,6 +12,8 @@ const claudeFixture = new URLSearchParams(window.location.search).has('claude');
 const turnStart = Date.now() - 42_000;
 const at = (offset: number): string => new Date(turnStart + offset).toISOString();
 const claudeEvents: StructuredSessionEvent[] = [
+  { type: 'user', uuid: 'cl-report', timestamp: at(-60_000), author: { kind: 'session', id: '31000000-0000-4000-8000-0000000000a1', name: 'docs-lane', client: 'sessions-report' },
+    message: { role: 'user', content: '[sessions] Delegated lane "docs-lane" (31000000-0000-4000-8000-0000000000a1) finished:\nDocs updated.\n\nFull result: sessions last 31000000-0000-4000-8000-0000000000a1 · Link for the user: sessions://lane/31000000-0000-4000-8000-0000000000a1' } },
   { type: 'user', uuid: 'cl-user', timestamp: at(0), message: { role: 'user', content: 'Make the parser tests pass.' } },
   { type: 'assistant', uuid: 'cl-think', timestamp: at(2_000), message: { role: 'assistant', content: [
     { type: 'thinking', thinking: 'The parser test failure is probably the new escape handling. I should run the package tests first.' }
@@ -36,6 +38,12 @@ const claudeEvents: StructuredSessionEvent[] = [
   ] } },
   { type: 'user', uuid: 'cl-r3', timestamp: at(26_000), message: { role: 'user', content: [
     { type: 'tool_result', tool_use_id: 'cl-tool3', content: 'updated' }
+  ] } },
+  { type: 'assistant', uuid: 'cl-delegate', timestamp: at(28_000), message: { role: 'assistant', content: [
+    { type: 'tool_use', id: 'cl-tool5', name: 'Bash', input: { command: 'sessions new --report --name docs-lane', description: 'Delegate the docs update' } }
+  ] } },
+  { type: 'user', uuid: 'cl-r5', timestamp: at(29_000), message: { role: 'user', content: [
+    { type: 'tool_result', tool_use_id: 'cl-tool5', content: '31000000-0000-4000-8000-0000000000a1\nopen in Sessions: sessions://lane/31000000-0000-4000-8000-0000000000a1' }
   ] } },
   { type: 'assistant', uuid: 'cl-rerun', timestamp: at(30_000), message: { role: 'assistant', content: [
     { type: 'tool_use', id: 'cl-tool4', name: 'Bash', input: { command: 'go test ./...', description: 'Run all tests' } }

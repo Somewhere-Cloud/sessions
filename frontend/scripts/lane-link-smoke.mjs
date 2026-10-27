@@ -22,12 +22,21 @@ try {
     external: ['react', 'zustand'],
     logLevel: 'silent'
   });
-  const { laneLinkTarget, resolveLaneLinkServerId } = await import(`${pathToFileURL(output).href}?v=${Date.now()}`);
+  const { findLaneLinks, laneLinkTarget, resolveLaneLinkServerId } = await import(`${pathToFileURL(output).href}?v=${Date.now()}`);
   const session = '31000000-0000-4000-8000-0000000000a1';
   const machine = '9b2f0c3e-1d4a-4e5b-8c6d-7e8f9a0b1c2d';
   const other = '0f1e2d3c-4b5a-4968-8776-655443322110';
 
   assert.deepEqual(laneLinkTarget({ sessionId: session }), { sessionId: session });
+
+  // Links inside command output or a lane's report: each lane once, in order,
+  // with its machine when named; anything that is not two UUIDs is ignored.
+  assert.deepEqual(findLaneLinks(`open in Sessions: sessions://lane/${session}?machine=${machine}\nagain sessions://lane/${session}`),
+    [{ sessionId: session, machineId: machine }]);
+  assert.deepEqual(findLaneLinks(`a sessions://lane/${other} b sessions://lane/${session}`),
+    [{ sessionId: other }, { sessionId: session }]);
+  assert.deepEqual(findLaneLinks('sessions://lane/not-a-uuid and sessions://pair/abc'), []);
+  assert.deepEqual(findLaneLinks(undefined), []);
   assert.deepEqual(laneLinkTarget({ sessionId: session.toUpperCase(), machineId: machine }), { sessionId: session, machineId: machine });
   for (const bad of [null, 'sessions://lane/x', { sessionId: '../etc' }, { sessionId: session, machineId: 'mini' }, { sessionId: `${session} ` }]) {
     assert.equal(laneLinkTarget(bad), null, JSON.stringify(bad));

@@ -273,8 +273,10 @@ assert.match(api, /\/api\/models\/codex/);
 assert.match(api, /remoteControl/);
 assert.doesNotMatch(newSession, /Provider default|More options|screen parsing|message parsing/);
 assert.match(newSession, /<summary><strong>Advanced<\/strong>/);
-assert.match(newSession, /if \(tool === 'claude-code'\) return 'terminal'/);
-assert.match(newSession, /Conversation \+ Terminal/);
+// Claude starts in Conversation (structured); the interactive terminal that
+// Remote Control needs is an explicit launcher choice.
+assert.match(newSession, /tool === 'codex' \|\| tool === 'claude-code' \? 'rich' : 'terminal'/);
+assert.match(newSession, /<option value="terminal">Terminal \(Remote Control\)<\/option>/);
 assert.match(newSession, /Uses this machine’s consent choice from Settings/);
 assert.doesNotMatch(newSession, /runtimeMode === 'rich'\s*\?\s*\{\s*\.\.\.claudeOptions,\s*remoteControl: 'off'/);
 assert.doesNotMatch(newSession, /Choose Terminal for Claude slash commands and Remote Control/);

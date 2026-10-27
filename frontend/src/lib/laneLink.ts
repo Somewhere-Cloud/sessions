@@ -47,3 +47,28 @@ export async function resolveLaneLinkServerId(
   }
   return null;
 }
+
+const LANE_LINK_PATTERN = /sessions:\/\/lane\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\?machine=([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}))?/gi;
+
+/** Every distinct lane link in a block of text, such as a command's output
+ *  or a delegated lane's report, in the order they appear. */
+export function findLaneLinks(text: string | undefined): LaneLinkTarget[] {
+  if (!text) return [];
+  const seen = new Set<string>();
+  const targets: LaneLinkTarget[] = [];
+  for (const match of text.matchAll(LANE_LINK_PATTERN)) {
+    const target = laneLinkTarget({ sessionId: match[1], machineId: match[2] });
+    if (!target || seen.has(target.sessionId)) continue;
+    seen.add(target.sessionId);
+    targets.push(target);
+  }
+  return targets;
+}
+
+// A lane link clicked inside the app takes the same path as one macOS hands
+// over: LaneLinkOpener resolves the machine and opens the session.
+export const OPEN_LANE_EVENT = 'sessions:open-lane';
+
+export function requestOpenLane(target: LaneLinkTarget): void {
+  window.dispatchEvent(new CustomEvent<LaneLinkTarget>(OPEN_LANE_EVENT, { detail: target }));
+}

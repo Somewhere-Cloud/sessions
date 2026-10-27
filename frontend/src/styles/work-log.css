@@ -59,6 +59,20 @@
   border-left: 1px solid var(--border);
 }
 .work-log-row { display: flex; flex-direction: column; min-width: 0; }
+.work-log-row-line { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.work-log-row-line > .work-log-row-head { flex: 1 1 0; width: 0; }
+.work-log-lanes { display: inline-flex; flex-shrink: 0; gap: 4px; padding-right: 6px; }
+.work-log-lane {
+  padding: 2px 8px;
+  border: 1px solid var(--accent-border-soft);
+  border-radius: 999px;
+  background: var(--accent-bg-soft);
+  color: var(--accent);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.work-log-lane:hover { border-color: var(--accent); }
 .work-log-row-head {
   display: flex;
   align-items: center;

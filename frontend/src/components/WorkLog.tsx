@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ActivityEntry, ToolCall } from '../types';
 import { renderContent } from '../lib/contentRender';
+import { findLaneLinks, requestOpenLane, type LaneLinkTarget } from '../lib/laneLink';
 import {
   firstLine, formatElapsed, summarizeActivity, toolActivityLabel, toolCategory, toolFailed, toolRunning,
   type ToolCategory
@@ -93,16 +94,41 @@ function WorkLogRow({ entry, live, cwd, open, onToggle }: WorkLogRowProps): JSX.
   const call = entry.call;
   const running = toolRunning(call, live);
   const failed = toolFailed(call);
+  // A command that started or named a Sessions lane links straight to it.
+  const lanes = findLaneLinks(`${call.inputFull ?? ''}\n${call.resultFull ?? ''}`);
   return (
     <li className={`work-log-row is-tool${running ? ' is-running' : ''}${failed ? ' is-failed' : ''}${open ? ' is-open' : ''}`}>
-      <button type="button" className="work-log-row-head" onClick={onToggle} aria-expanded={open} title={call.name}>
-        <WorkIcon kind={running ? 'running' : toolCategory(call)} />
-        <span className="work-log-row-label">{toolActivityLabel(call, running)}</span>
-        {failed ? <span className="work-log-row-badge">failed</span> : null}
-        <span className="work-log-row-caret" aria-hidden>{open ? '▾' : '▸'}</span>
-      </button>
+      <div className="work-log-row-line">
+        <button type="button" className="work-log-row-head" onClick={onToggle} aria-expanded={open} title={call.name}>
+          <WorkIcon kind={running ? 'running' : lanes.length > 0 ? 'agent' : toolCategory(call)} />
+          <span className="work-log-row-label">{toolActivityLabel(call, running)}</span>
+          {failed ? <span className="work-log-row-badge">failed</span> : null}
+          <span className="work-log-row-caret" aria-hidden>{open ? '▾' : '▸'}</span>
+        </button>
+        <LaneLinkButtons lanes={lanes} />
+      </div>
       {open ? <ToolDetail call={call} running={running} /> : null}
     </li>
+  );
+}
+
+/** "Open lane" for each Sessions lane a step or report names. */
+export function LaneLinkButtons({ lanes }: { lanes: LaneLinkTarget[] }): JSX.Element | null {
+  if (lanes.length === 0) return null;
+  return (
+    <span className="work-log-lanes">
+      {lanes.map((lane, index) => (
+        <button
+          key={lane.sessionId}
+          type="button"
+          className="work-log-lane"
+          title={`Open lane ${lane.sessionId}`}
+          onClick={(event) => { event.stopPropagation(); requestOpenLane(lane); }}
+        >
+          {lanes.length > 1 ? `Open lane ${index + 1}` : 'Open lane'}
+        </button>
+      ))}
+    </span>
   );
 }
 

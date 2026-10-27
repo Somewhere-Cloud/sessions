@@ -159,18 +159,28 @@ try {
     labels: Array.from(document.querySelectorAll('.work-log-row-label')).map((element) => element.textContent?.trim() ?? ''),
     failed: Array.from(document.querySelectorAll('.work-log-row.is-failed .work-log-row-label')).map((element) => element.textContent?.trim() ?? ''),
     running: Array.from(document.querySelectorAll('.work-log-row.is-running .work-log-row-label')).map((element) => element.textContent?.trim() ?? ''),
-    prose: document.querySelector('.remote-bubble-assistant .remote-bubble-content')?.textContent ?? ''
+    prose: document.querySelector('.remote-bubble-assistant .remote-bubble-content')?.textContent ?? '',
+    rowLanes: Array.from(document.querySelectorAll('.work-log-row .work-log-lane')).map((element) => element.textContent?.trim() ?? ''),
+    reportLanes: document.querySelectorAll('.remote-bubble-user .work-log-lane').length
   }));
   assert.equal(live.headers.length, 1);
   assert.match(live.headers[0], /^Working for 4\ds$/);
   assert.equal(live.summaries, 0);
-  assert.deepEqual(live.kinds, ['is-thinking', 'is-tool', 'is-tool', 'is-tool', 'is-tool']);
+  assert.deepEqual(live.kinds, ['is-thinking', 'is-tool', 'is-tool', 'is-tool', 'is-tool', 'is-tool']);
   assert.match(live.labels[0], /escape handling/);
   assert.deepEqual(live.failed, [live.labels[1]]);
   assert.equal(live.failed[0], 'Ran parser tests');
   assert.equal(live.running.length, 1);
   assert.equal(live.running[0], 'Run all tests');
   assert.match(live.prose, /trailing backslash/);
+  // The delegating command and the lane's report both open that lane.
+  assert.deepEqual(live.rowLanes, ['Open lane']);
+  assert.equal(live.reportLanes, 1);
+  const opened = await page.evaluate(() => new Promise((resolve) => {
+    window.addEventListener('sessions:open-lane', (event) => resolve(event.detail), { once: true });
+    document.querySelector('.work-log-row .work-log-lane').click();
+  }));
+  assert.deepEqual(opened, { sessionId: '31000000-0000-4000-8000-0000000000a1' });
   assert.deepEqual(pageErrors, []);
   if (process.env.STRUCTURED_VIEW_SCREENSHOT) {
     await page.screenshot({ path: `${process.env.STRUCTURED_VIEW_SCREENSHOT}-claude.png`, captureBeyondViewport: false });
