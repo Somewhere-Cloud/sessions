@@ -1,0 +1,143 @@
+/* One agent turn's work: a live list of steps while the turn runs, folded
+ * into one quiet line once it ends. Rows are deliberately flat — an icon,
+ * one line of text, a caret — so a long turn reads like a log, not a stack
+ * of cards. */
+.work-log {
+  min-width: 0;
+  max-width: 100%;
+  margin: 2px 0 4px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--fg-dim);
+}
+.work-log + .remote-bubble-content,
+.remote-bubble-content + .work-log { margin-top: 6px; }
+
+.work-log-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 0;
+  border: 0;
+  background: transparent;
+  color: var(--fg-dim);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.work-log-summary:hover { color: var(--fg); }
+.work-log-caret { color: var(--fg-faint); font-size: 17px; line-height: 1; }
+
+.work-log-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0 5px;
+  color: var(--fg-dim);
+  font-variant-numeric: tabular-nums;
+}
+.work-log-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: workLogPulse 1.4s ease-in-out infinite;
+}
+@keyframes workLogPulse {
+  0%, 100% { opacity: 0.35; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+.work-log-rows {
+  min-width: 0;
+  list-style: none;
+  margin: 2px 0 0;
+  padding: 0 0 0 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  border-left: 1px solid var(--border);
+}
+.work-log-row { display: flex; flex-direction: column; min-width: 0; }
+.work-log-row-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg-dim);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.work-log-row-head:hover { background: var(--bg-elev-1); color: var(--fg); }
+.work-log-row-label {
+  /* A zero basis keeps a long one-line label from setting the view's
+   * minimum width; it still takes all the space the row has. */
+  flex: 1 1 0;
+  width: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.work-log-row-label.is-hidden { visibility: hidden; }
+.work-log-row.is-tool .work-log-row-label { font-family: var(--font-mono); font-size: 12px; }
+.work-log-row.is-thinking .work-log-row-label { font-style: italic; color: var(--fg-faint); }
+.work-log-row-caret { flex-shrink: 0; color: var(--fg-faint); opacity: 0; }
+.work-log-row-head:hover .work-log-row-caret,
+.work-log-row.is-open .work-log-row-caret { opacity: 1; }
+.work-log-row-badge { flex-shrink: 0; color: var(--danger); font-size: 12px; }
+
+.work-log-icon { flex-shrink: 0; color: var(--fg-faint); }
+.work-log-row.is-failed .work-log-icon,
+.work-log-row.is-failed .work-log-row-label { color: var(--danger); }
+.work-log-row.is-thinking .work-log-icon { color: var(--accent); }
+span.work-log-icon.is-running {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  margin: 0 2px;
+  border: 1.6px solid var(--border-strong);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: workLogSpin 0.8s linear infinite;
+}
+@keyframes workLogSpin { to { transform: rotate(360deg); } }
+
+.work-log-row-text {
+  margin: 0 8px 6px 31px;
+  color: var(--fg-dim);
+  font-size: 13px;
+}
+.work-log-detail {
+  margin: 2px 8px 8px 31px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.work-log-detail pre {
+  margin: 0;
+  padding: 7px 9px;
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-base);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.work-log-detail-input { color: var(--fg-dim); }
+.work-log-detail-empty,
+.work-log-detail-meta { color: var(--fg-faint); font-size: 12px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .work-log-live-dot, span.work-log-icon.is-running { animation: none; }
+}

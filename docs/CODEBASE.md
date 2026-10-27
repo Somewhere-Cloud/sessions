@@ -144,6 +144,10 @@ keeps provider outages, rate limits, and login failures distinct from working,
 waiting, and ended runtimes across the navigator, inbox, Grid, Fleet, and session
 details. Recent same-provider faults roll up into one fleet notice. `RemoteView.tsx`
 renders timestamped Codex-style user cards and full-width provider answers;
+`WorkLog.tsx` shows each turn's thinking, tool calls and updates in provider
+order from the `activity` that `lib/claudeEvents.ts` projects for Claude and
+Codex alike, live under a "Working for" header and folded to one summary line
+once the turn ends (`lib/workLog.ts`);
 `ProviderFaultCard.tsx` reports the daemon's concise failure detail, live Rich-turn
 retry schedule and recovery controls in both Conversation and Terminal. Structured
 `provider_fault` and `provider_retry` history stays system UI rather than assistant

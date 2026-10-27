@@ -29,7 +29,18 @@ export interface ToolCall {
   kind?: string;
   status?: string;
   durationMs?: number;
+  // The provider reported this call as failed (Claude tool_result is_error).
+  failed?: boolean;
 }
+
+/**
+ * One step of an agent turn's work, in the order the provider produced it:
+ * a thinking or reasoning block, a tool call, or an in-progress update.
+ */
+export type ActivityEntry =
+  | { kind: 'thinking'; id: string; text: string }
+  | { kind: 'tool'; id: string; call: ToolCall }
+  | { kind: 'update'; id: string; text: string };
 
 export interface MessagePlanStep {
   step: string;
@@ -59,6 +70,10 @@ export interface DispatchMessage {
   blockId?: string;
   errorResponse?: string;
   toolCalls?: ToolCall[];
+  // Thinking, tool calls and updates in provider order. activityLead is how
+  // many of them came before content; the rest came after it.
+  activity?: ActivityEntry[];
+  activityLead?: number;
   hadThinking?: boolean;
   reasoningSummary?: string;
   updates?: string[];

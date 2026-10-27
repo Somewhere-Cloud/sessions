@@ -508,6 +508,62 @@ try {
   const unavailable = eventsToMessages([{ ...codexBase, type: 'system', subtype: 'resume_history_unavailable', detail: 'Earlier display history is unavailable; open the saved runtime.' }]);
   assert.equal(unavailable[0].quietStatus, 'Earlier display history is unavailable; open the saved runtime.');
 
+  // Claude's work log keeps thinking, tools and prose in block order, carries
+  // readable thinking text, and marks a tool_result is_error as failed.
+  const claudeLog = eventsToMessages([
+    { type: 'user', uuid: 'c-user', timestamp: '2026-07-20T10:00:00Z', message: { role: 'user', content: 'Fix the test' } },
+    { type: 'assistant', uuid: 'c-think', timestamp: '2026-07-20T10:00:01Z', message: { role: 'assistant', content: [
+      { type: 'thinking', thinking: 'The failing test is in the parser.' }
+    ] } },
+    { type: 'assistant', uuid: 'c-tool', timestamp: '2026-07-20T10:00:02Z', message: { role: 'assistant', content: [
+      { type: 'tool_use', id: 'toolu_1', name: 'Bash', input: { command: 'go test ./parser' } }
+    ] } },
+    { type: 'user', uuid: 'c-result', timestamp: '2026-07-20T10:00:03Z', message: { role: 'user', content: [
+      { type: 'tool_result', tool_use_id: 'toolu_1', is_error: true, content: 'FAIL parser' }
+    ] } },
+    { type: 'assistant', uuid: 'c-answer', timestamp: '2026-07-20T10:00:04Z', message: { role: 'assistant', content: [
+      { type: 'thinking', thinking: '' },
+      { type: 'text', text: 'The parser test fails; fixing it next.' },
+      { type: 'tool_use', id: 'toolu_2', name: 'Read', input: { file_path: '/repo/parser.go' } }
+    ] } }
+  ]);
+  const claudeAgent = claudeLog.filter((message) => message.role === 'assistant');
+  assert.equal(claudeAgent.length, 2);
+  assert.deepEqual(claudeAgent[0].activity.map((entry) => entry.kind), ['thinking', 'tool']);
+  assert.equal(claudeAgent[0].activity[0].text, 'The failing test is in the parser.');
+  assert.equal(claudeAgent[0].activity[1].call.failed, true);
+  assert.equal(claudeAgent[0].activity[1].call.resultFull, 'FAIL parser');
+  assert.equal(claudeAgent[0].activityLead, 2);
+  assert.equal(claudeAgent[1].content, 'The parser test fails; fixing it next.');
+  // Empty thinking (redacted) adds no row; the Read came after the prose.
+  assert.deepEqual(claudeAgent[1].activity.map((entry) => entry.kind), ['tool']);
+  assert.equal(claudeAgent[1].activityLead, 0);
+  const allIDs = claudeAgent.flatMap((message) => message.activity.map((entry) => entry.id));
+  assert.equal(new Set(allIDs).size, allIDs.length);
+
+  // Codex reasoning, tools and commentary keep the order they arrived in.
+  const orderBase = { source: 'codex-app-server', conversationId: 'thread-order' };
+  const codexLog = eventsToMessages([
+    { ...orderBase, type: 'user', uuid: 'o-user', timestamp: '2026-07-20T11:00:00Z', message: { role: 'user', content: 'Go' } },
+    { ...orderBase, type: 'codex', subtype: 'turn_started', turnId: 'o-turn', timestamp: '2026-07-20T11:00:01Z' },
+    { ...orderBase, type: 'codex', subtype: 'item_completed', turnId: 'o-turn', timestamp: '2026-07-20T11:00:02Z',
+      item: { id: 'o-cmd', type: 'commandExecution', status: 'completed', command: 'ls', aggregatedOutput: 'a', exitCode: 0 } },
+    { ...orderBase, type: 'codex', subtype: 'item_completed', turnId: 'o-turn', timestamp: '2026-07-20T11:00:03Z',
+      item: { id: 'o-think', type: 'reasoning', summary: ['Listing showed one file.'] } },
+    { ...orderBase, type: 'codex', subtype: 'item_completed', turnId: 'o-turn', timestamp: '2026-07-20T11:00:04Z',
+      item: { id: 'o-note', type: 'agentMessage', phase: 'commentary', text: 'Checking it now.' } },
+    { ...orderBase, type: 'codex', subtype: 'item_started', turnId: 'o-turn', timestamp: '2026-07-20T11:00:05Z',
+      item: { id: 'o-cmd2', type: 'commandExecution', status: 'inProgress', command: 'cat a' } },
+    { ...orderBase, type: 'codex', subtype: 'item_completed', turnId: 'o-turn', timestamp: '2026-07-20T11:00:06Z',
+      item: { id: 'o-answer', type: 'agentMessage', phase: 'final_answer', text: 'Done.' } }
+  ]);
+  const codexTurn = codexLog.find((message) => message.role === 'assistant');
+  assert.deepEqual(codexTurn.activity.map((entry) => `${entry.kind}:${entry.id}`),
+    ['tool:o-cmd', 'thinking:o-think', 'update:o-note', 'tool:o-cmd2']);
+  assert.equal(codexTurn.activity[3].call.status, 'inProgress');
+  assert.equal(codexTurn.content, 'Done.');
+  assert.equal(codexTurn.streaming, true);
+
   process.stdout.write('structured-events smoke passed\n');
 } finally {
   await rm(work, { recursive: true, force: true });

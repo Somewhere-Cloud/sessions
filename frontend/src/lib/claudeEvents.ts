@@ -24,7 +24,7 @@
 //   - 'tool_result'  Claude's loop feedback (skip — not user content)
 //   - 'image'        user pasted/attached an image
 
-import type { ClaudeSessionEvent, DispatchMessage, ToolCall } from '../types';
+import type { ActivityEntry, ClaudeSessionEvent, DispatchMessage, ToolCall } from '../types';
 import { previewToolInput } from './toolPreview';
 import { harnessLine, isHarnessOnly, splitHarnessContent } from './harnessContent';
 import { codexEventIdentity, uniqueCodexEvents } from './codexEventIdentity';
@@ -52,9 +52,13 @@ interface AssistantBreakdown {
   text: string;
   toolCalls: ToolCall[];
   hadThinking: boolean;
+  // Readable thinking and tool calls in block order; lead counts the ones
+  // before the first text block.
+  activity: ActivityEntry[];
+  lead: number;
 }
 function breakdownAssistant(content: unknown): AssistantBreakdown {
-  const result: AssistantBreakdown = { text: '', toolCalls: [], hadThinking: false };
+  const result: AssistantBreakdown = { text: '', toolCalls: [], hadThinking: false, activity: [], lead: 0 };
   if (typeof content === 'string') {
     result.text = content;
     return result;
@@ -63,9 +67,12 @@ function breakdownAssistant(content: unknown): AssistantBreakdown {
   const textParts: string[] = [];
   for (const block of content) {
     if (block.type === 'text' && typeof block.text === 'string') {
+      if (textParts.length === 0 && block.text.trim()) result.lead = result.activity.length;
       textParts.push(block.text);
     } else if (block.type === 'thinking') {
       result.hadThinking = true;
+      const thinking = typeof block.thinking === 'string' ? block.thinking.trim() : '';
+      if (thinking) result.activity.push({ kind: 'thinking', id: `think-${result.activity.length}`, text: thinking });
     } else if (block.type === 'tool_use' && block.id && block.name) {
       // inputFull is the prettyprinted JSON for the expanded view; the
       // preview is the one-line summary on the chip.
@@ -73,15 +80,18 @@ function breakdownAssistant(content: unknown): AssistantBreakdown {
       if (block.input && typeof block.input === 'object') {
         try { inputFull = JSON.stringify(block.input, null, 2); } catch { /* skip */ }
       }
-      result.toolCalls.push({
+      const call: ToolCall = {
         id: block.id,
         name: block.name,
         inputPreview: previewToolInput(block.name, block.input),
         inputFull
-      });
+      };
+      result.toolCalls.push(call);
+      result.activity.push({ kind: 'tool', id: block.id, call });
     }
   }
   result.text = textParts.join('\n\n').trim();
+  if (!result.text) result.lead = result.activity.length;
   return result;
 }
 
@@ -170,7 +180,7 @@ function timestampMs(ts: unknown): number {
 // string. Claude's tool_result content can be a string OR an array of
 // content blocks (typically a text block); we flatten to a single
 // string for display.
-function indexToolResultsFromUser(ev: ClaudeSessionEvent): Map<string, string> {
+function indexToolResultsFromUser(ev: ClaudeSessionEvent, failed?: Set<string>): Map<string, string> {
   const map = new Map<string, string>();
   const content = ev.message?.content;
   if (!isContentBlockArray(content)) return map;
@@ -189,6 +199,7 @@ function indexToolResultsFromUser(ev: ClaudeSessionEvent): Map<string, string> {
       result = parts.join('\n');
     }
     map.set(id, result);
+    if ((block as { is_error?: unknown }).is_error === true) failed?.add(id);
   }
   return map;
 }
@@ -336,6 +347,9 @@ interface CodexTurnProjection {
   itemOrder: string[];
   tools: Map<string, ToolCall>;
   reasoning: string[];
+  reasoningByItem: Map<string, string[]>;
+  // Reasoning, tool and text items in first-seen order, for the work log.
+  activityOrder: string[];
   completed: boolean;
   completedItems: Map<string, number>;
 }
@@ -344,7 +358,8 @@ function newCodexProjection(turnID: string, at: number, boundary?: string): Code
   return {
     message: { id: `codex-turn-${turnID}${boundary ? `-after-${boundary}` : ''}`, role: 'assistant', content: '', status: 'sent',
       createdAt: at, blockId: turnID, streaming: true, turnStatus: 'inProgress' },
-    itemText: new Map(), itemPhase: new Map(), itemOrder: [], tools: new Map(), reasoning: [], completed: false, completedItems: new Map()
+    itemText: new Map(), itemPhase: new Map(), itemOrder: [], tools: new Map(), reasoning: [],
+    reasoningByItem: new Map(), activityOrder: [], completed: false, completedItems: new Map()
   };
 }
 
@@ -365,6 +380,28 @@ function refreshCodexTurn(projection: CodexTurnProjection): void {
     ? projection.reasoning.join('\n\n')
     : undefined;
   projection.message.streaming = !projection.completed;
+  const activity = codexActivity(projection);
+  projection.message.activity = activity.length > 0 ? activity : undefined;
+  projection.message.activityLead = activity.length > 0 ? activity.length : undefined;
+}
+
+function noteCodexActivity(projection: CodexTurnProjection, itemID: string): void {
+  if (itemID && !projection.activityOrder.includes(itemID)) projection.activityOrder.push(itemID);
+}
+
+// The turn's work in order. The final answer is the message content and
+// stays out of the log; commentary between steps becomes update rows.
+function codexActivity(projection: CodexTurnProjection): ActivityEntry[] {
+  const entries: ActivityEntry[] = [];
+  for (const itemID of projection.activityOrder) {
+    const reasoning = projection.reasoningByItem.get(itemID);
+    const call = projection.tools.get(itemID);
+    const text = projection.itemText.get(itemID)?.trim() ?? '';
+    if (reasoning && reasoning.length > 0) entries.push({ kind: 'thinking', id: itemID, text: reasoning.join('\n\n') });
+    else if (call) entries.push({ kind: 'tool', id: itemID, call });
+    else if (text && projection.itemPhase.get(itemID) === 'commentary') entries.push({ kind: 'update', id: itemID, text });
+  }
+  return entries;
 }
 
 function markFinalTextTime(projection: CodexTurnProjection, itemID: string, at: number): void {
@@ -573,6 +610,7 @@ function codexEventsToMessages(events: ClaudeSessionEvent[]): DispatchMessage[] 
   const rememberItemText = (projection: CodexTurnProjection, itemID: string, text: string): void => {
     if (!itemID) return;
     if (!projection.itemOrder.includes(itemID)) projection.itemOrder.push(itemID);
+    noteCodexActivity(projection, itemID);
     projection.itemText.set(itemID, text);
   };
 
@@ -690,10 +728,15 @@ function codexEventsToMessages(events: ClaudeSessionEvent[]): DispatchMessage[] 
         const summaries = Array.isArray(item['summary'])
           ? item['summary'].filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
           : [];
-        projection.reasoning = summaries;
+        noteCodexActivity(projection, itemID);
+        projection.reasoningByItem.set(itemID, summaries);
+        projection.reasoning = Array.from(projection.reasoningByItem.values()).flat();
       } else {
         const call = codexToolCall(item, projection.tools.get(itemID));
-        if (call) projection.tools.set(call.id, call);
+        if (call) {
+          noteCodexActivity(projection, call.id);
+          projection.tools.set(call.id, call);
+        }
       }
       refreshCodexTurn(projection);
       continue;
@@ -778,15 +821,37 @@ function userOrSystemEntry(
 // text event: doing so visibly shifts every command group one message late.
 // A trailing group remains visible while Claude is mid-turn. Its stable id
 // comes from the first tool event so React does not re-key it on every tick.
+function withToolResults(calls: ToolCall[], toolResults: Map<string, string>, failedTools: Set<string>): ToolCall[] {
+  return calls.map((t) => {
+    const result = toolResults.get(t.id);
+    const failed = failedTools.has(t.id) || undefined;
+    if (!result) return failed ? { ...t, failed } : t;
+    const trimmed = result.length > RESULT_PREVIEW_LEN
+      ? result.slice(0, RESULT_PREVIEW_LEN - 1) + '…'
+      : result;
+    return { ...t, resultPreview: trimmed.replace(/\s+/g, ' ').trim(), resultFull: result, failed };
+  });
+}
+
+// Activity entries point at the enriched calls, so a row shows its result,
+// and take ids from the message that owns them.
+function enrichActivity(entries: ActivityEntry[], calls: ToolCall[], owner: string): ActivityEntry[] {
+  const byID = new Map(calls.map((call) => [call.id, call]));
+  return entries.map((entry, index) => entry.kind === 'tool'
+    ? { ...entry, call: byID.get(entry.call.id) ?? entry.call }
+    : { ...entry, id: `${owner}:${entry.kind}-${index}` });
+}
+
 export function eventsToMessages(events: ClaudeSessionEvent[]): DispatchMessage[] {
   if (isCodexAppServerHistory(events)) return codexEventsToMessages(events);
   // First pass: index every tool_result by tool_use_id. They live on
   // user events but logically belong to the assistant's tool_use that
   // requested them.
   const toolResults = new Map<string, string>();
+  const failedTools = new Set<string>();
   for (const ev of events) {
     if (ev.type === 'user' && ev.message?.role === 'user' && isUserToolResultOnly(ev.message?.content)) {
-      for (const [id, result] of indexToolResultsFromUser(ev)) toolResults.set(id, result);
+      for (const [id, result] of indexToolResultsFromUser(ev, failedTools)) toolResults.set(id, result);
     }
   }
   const out: DispatchMessage[] = [];
@@ -794,6 +859,7 @@ export function eventsToMessages(events: ClaudeSessionEvent[]): DispatchMessage[
   // assistant events. Drains into the next text-bearing assistant
   // event OR a synthetic "in progress" message at end-of-stream.
   let pendingTools: ToolCall[] = [];
+  let pendingActivity: ActivityEntry[] = [];
   let pendingHadThinking = false;
   // Track the earliest timestamp/uuid of the pending batch so the ordered
   // activity entry keeps the time at which the commands actually started.
@@ -803,33 +869,26 @@ export function eventsToMessages(events: ClaudeSessionEvent[]): DispatchMessage[
   // twice; we drop replicas).
   const queuedContents = new Set<string>();
 
-  const enrichToolCalls = (
-    calls: ToolCall[]
-  ): ToolCall[] => {
-    return calls.map((t) => {
-      const result = toolResults.get(t.id);
-      if (!result) return t;
-      const trimmed = result.length > RESULT_PREVIEW_LEN
-        ? result.slice(0, RESULT_PREVIEW_LEN - 1) + '…'
-        : result;
-      return { ...t, resultPreview: trimmed.replace(/\s+/g, ' ').trim(), resultFull: result };
-    });
-  };
 
   const flushPendingTools = (): void => {
-    if (pendingTools.length === 0) return;
-    const collected = enrichToolCalls(pendingTools);
+    if (pendingTools.length === 0 && pendingActivity.length === 0) return;
+    const collected = withToolResults(pendingTools, toolResults, failedTools);
+    const id = `${pendingFirstUuid ?? `asst-tools-${out.length}`}:tools`;
+    const activity = enrichActivity(pendingActivity, collected, id);
     out.push({
-      id: `${pendingFirstUuid ?? `asst-tools-${out.length}`}:tools`,
+      id,
       role: 'assistant',
       content: '',
       status: 'sent',
       createdAt: pendingFirstCreatedAt ?? Date.now(),
       blockId: pendingFirstUuid,
       toolCalls: collected.length > 0 ? collected : undefined,
+      activity: activity.length > 0 ? activity : undefined,
+      activityLead: activity.length > 0 ? activity.length : undefined,
       hadThinking: pendingHadThinking || undefined
     });
     pendingTools = [];
+    pendingActivity = [];
     pendingHadThinking = false;
     pendingFirstUuid = undefined;
     pendingFirstCreatedAt = undefined;
@@ -864,9 +923,10 @@ export function eventsToMessages(events: ClaudeSessionEvent[]): DispatchMessage[
       // yet) — buffer the tool calls and continue. The next
       // visible timeline boundary will flush them in place.
       if (!breakdown.text) {
-        if (breakdown.toolCalls.length > 0) {
-          const startsGroup = pendingTools.length === 0;
+        if (breakdown.toolCalls.length > 0 || breakdown.activity.length > 0) {
+          const startsGroup = pendingTools.length === 0 && pendingActivity.length === 0;
           pendingTools.push(...breakdown.toolCalls);
+          pendingActivity.push(...breakdown.activity);
           if (startsGroup) {
             pendingFirstUuid = ev.uuid;
             pendingFirstCreatedAt = timestampMs(ev.timestamp);
@@ -878,19 +938,23 @@ export function eventsToMessages(events: ClaudeSessionEvent[]): DispatchMessage[
       // The pending commands happened before this prose. Emit them first
       // instead of visually shifting them down onto this message.
       flushPendingTools();
-      const collected = enrichToolCalls(breakdown.toolCalls);
+      const collected = withToolResults(breakdown.toolCalls, toolResults, failedTools);
       const hadThinkingAny = pendingHadThinking || breakdown.hadThinking;
       pendingHadThinking = false;
       pendingFirstUuid = undefined;
       pendingFirstCreatedAt = undefined;
+      const messageID = ev.uuid ?? `asst-evt-${out.length}`;
+      const activity = enrichActivity(breakdown.activity, collected, messageID);
       out.push({
-        id: ev.uuid ?? `asst-evt-${out.length}`,
+        id: messageID,
         role: 'assistant',
         content: breakdown.text,
         status: 'sent',
         createdAt: timestampMs(ev.timestamp),
         blockId: ev.uuid,
         toolCalls: collected.length > 0 ? collected : undefined,
+        activity: activity.length > 0 ? activity : undefined,
+        activityLead: activity.length > 0 ? breakdown.lead : undefined,
         hadThinking: hadThinkingAny || undefined
       });
       continue;

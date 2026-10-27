@@ -88,23 +88,24 @@ try {
   page.on('pageerror', (error) => pageErrors.push(error.message));
   t.watch(page);
   await page.goto(`http://127.0.0.1:${address.port}`, { waitUntil: 'domcontentloaded' });
-  t.scenario('the structured assistant bubble renders its plan, activity and reasoning');
+  t.scenario('the structured assistant bubble renders its plan and an ordered work log');
   await t.waitForSelector(page, '.remote-bubble-plan', 'the assistant bubble to render its plan block');
-  await page.$eval('.remote-bubble-tools-toggle', (element) => element.click());
-  await page.$eval('.remote-bubble-tool', (element) => element.click());
+  const foldedRows = await page.$$eval('.work-log-row', (rows) => rows.length);
+  await page.$eval('.work-log-summary', (element) => element.click());
+  await page.$eval('.work-log-row.is-tool .work-log-row-head', (element) => element.click());
 
   const report = await page.evaluate(() => ({
     planSteps: document.querySelectorAll('.remote-bubble-plan-step').length,
-    activityItems: document.querySelectorAll('.remote-bubble-tool-row').length,
-    activitySummary: document.querySelector('.remote-bubble-tools-toggle')?.textContent?.replace(/\s+/g, ' ').trim() ?? '',
-    activityLabels: Array.from(document.querySelectorAll('.remote-bubble-tool-input')).map((element) => element.textContent?.trim() ?? ''),
-    activityListRadius: getComputedStyle(document.querySelector('.remote-bubble-tools-list')).borderRadius,
-    reasoning: document.querySelector('.remote-bubble-reasoning')?.textContent ?? '',
-    updates: document.querySelector('.remote-bubble-updates')?.textContent ?? '',
-    updatesTag: document.querySelector('.remote-bubble-updates')?.tagName ?? '',
-    updateTexts: Array.from(document.querySelectorAll('.remote-bubble-updates-list > .md-content'))
+    rowKinds: Array.from(document.querySelectorAll('.work-log-row')).map((row) =>
+      ['is-thinking', 'is-tool', 'is-update'].find((kind) => row.classList.contains(kind)) ?? ''),
+    activitySummary: document.querySelector('.work-log-summary')?.textContent?.replace(/\s+/g, ' ').trim() ?? '',
+    activityLabels: Array.from(document.querySelectorAll('.work-log-row.is-tool .work-log-row-label')).map((element) => element.textContent?.trim() ?? ''),
+    toolDetail: document.querySelector('.work-log-detail-output')?.textContent ?? '',
+    thinking: document.querySelector('.work-log-row.is-thinking .work-log-row-label')?.textContent ?? '',
+    updateTexts: Array.from(document.querySelectorAll('.work-log-row.is-update .work-log-row-label'))
       .map((element) => element.textContent?.trim() ?? ''),
-    updateBeforeAnswer: Boolean(document.querySelector('.remote-bubble-updates')?.compareDocumentPosition(
+    oldChips: document.querySelectorAll('.remote-bubble-tools, .remote-bubble-reasoning, .remote-bubble-updates').length,
+    logBeforeAnswer: Boolean(document.querySelector('.work-log')?.compareDocumentPosition(
       document.querySelector('.remote-bubble-assistant > .remote-bubble-content')
     ) & Node.DOCUMENT_POSITION_FOLLOWING),
     attachControl: document.querySelector('.input-attach')?.textContent ?? '',
@@ -117,20 +118,20 @@ try {
     horizontalOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
   }));
   assert.equal(report.planSteps, 3);
-  assert.equal(report.activityItems, 2);
-  assert.match(report.activitySummary, /Used 2 tools/);
-  assert.doesNotMatch(report.activitySummary, /Activity/);
+  // A finished turn folds to one line; opening it shows every step in order.
+  assert.equal(foldedRows, 0);
+  assert.equal(report.activitySummary.replace(/[›⌄]/g, '').trim(), 'Thought, ran a command, edited a file');
+  assert.deepEqual(report.rowKinds, ['is-thinking', 'is-tool', 'is-tool', 'is-update', 'is-update']);
+  assert.match(report.thinking, /hard lifecycle boundaries/);
   assert.match(report.activityLabels[0] ?? '', /go test/);
   assert.doesNotMatch(report.activityLabels[0] ?? '', /^Command\b/);
-  assert.notEqual(report.activityListRadius, '0px');
-  assert.match(report.reasoning, /Reasoning summary/);
-  assert.match(report.updates, /The structured event adapter is live/);
-  assert.equal(report.updatesTag, 'SECTION');
+  assert.match(report.toolDetail, /exit code/);
   assert.deepEqual(report.updateTexts, [
     'The structured event adapter is live. I am finishing the desktop verification now.',
     'The desktop fixture passes. I am checking the final response now.'
   ]);
-  assert.equal(report.updateBeforeAnswer, true);
+  assert.equal(report.oldChips, 0);
+  assert.equal(report.logBeforeAnswer, true);
   assert.match(report.attachControl, /Attach/);
   assert.equal(report.quickKeyCount, 0);
   assert.equal(report.timestampCount, 2);
@@ -146,6 +147,35 @@ try {
       'screenshot'
     );
   }
+  t.scenario('a live Claude turn shows every step as it happens under one live header');
+  await page.setViewport({ width: 1440, height: 960, deviceScaleFactor: 1 });
+  await page.goto(`http://127.0.0.1:${address.port}/?claude`, { waitUntil: 'domcontentloaded' });
+  await t.waitForSelector(page, '.work-log-live', 'the live work header');
+  const live = await page.evaluate(() => ({
+    headers: Array.from(document.querySelectorAll('.work-log-live')).map((element) => element.textContent?.trim() ?? ''),
+    summaries: document.querySelectorAll('.work-log-summary').length,
+    kinds: Array.from(document.querySelectorAll('.work-log-row')).map((row) =>
+      ['is-thinking', 'is-tool', 'is-update'].find((kind) => row.classList.contains(kind)) ?? ''),
+    labels: Array.from(document.querySelectorAll('.work-log-row-label')).map((element) => element.textContent?.trim() ?? ''),
+    failed: Array.from(document.querySelectorAll('.work-log-row.is-failed .work-log-row-label')).map((element) => element.textContent?.trim() ?? ''),
+    running: Array.from(document.querySelectorAll('.work-log-row.is-running .work-log-row-label')).map((element) => element.textContent?.trim() ?? ''),
+    prose: document.querySelector('.remote-bubble-assistant .remote-bubble-content')?.textContent ?? ''
+  }));
+  assert.equal(live.headers.length, 1);
+  assert.match(live.headers[0], /^Working for 4\ds$/);
+  assert.equal(live.summaries, 0);
+  assert.deepEqual(live.kinds, ['is-thinking', 'is-tool', 'is-tool', 'is-tool', 'is-tool']);
+  assert.match(live.labels[0], /escape handling/);
+  assert.deepEqual(live.failed, [live.labels[1]]);
+  assert.equal(live.failed[0], 'Ran parser tests');
+  assert.equal(live.running.length, 1);
+  assert.equal(live.running[0], 'Run all tests');
+  assert.match(live.prose, /trailing backslash/);
+  assert.deepEqual(pageErrors, []);
+  if (process.env.STRUCTURED_VIEW_SCREENSHOT) {
+    await page.screenshot({ path: `${process.env.STRUCTURED_VIEW_SCREENSHOT}-claude.png`, captureBeyondViewport: false });
+  }
+
   t.scenario('active Codex steering stays visible and fits desktop and mobile composers');
   for (const width of [1440, 390]) {
     await page.setViewport({ width, height: 960, deviceScaleFactor: 1 });

@@ -17,6 +17,8 @@ import { PlanPanel } from './RemotePlanPanel';
 import { ProviderControlCard } from './ProviderControlCard';
 import { ProviderFaultCard } from './ProviderFaultCard';
 import { RemoteEmptyState } from './RemoteEmptyState';
+import { WorkLog } from './WorkLog';
+import { messageActivity } from '../lib/workLog';
 import { useProviderControl } from '../hooks/useProviderControl';
 import { retryProviderSession } from '../api/sessionsd';
 import type { MessageSubmission } from '../lib/messageDelivery';
@@ -283,6 +285,7 @@ export function RemoteView({
     if (transcript.length <= visibleCount) return transcript;
     return transcript.slice(transcript.length - visibleCount);
   }, [transcript, visibleCount]);
+  const liveTurn = useMemo(() => findLiveTurn(visibleMessages), [visibleMessages]);
   const hiddenCount = transcript.length - visibleMessages.length;
   const latestFailedSend = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -536,14 +539,9 @@ export function RemoteView({
             agentName={providerName}
             provider={providerIdentity}
             isLatest={i === visibleMessages.length - 1}
+            {...liveTurnProps(m, i, liveTurn, sidebar.isWorking)}
             showAgentHeader={m.role === 'assistant' && visibleMessages[i - 1]?.role !== 'assistant'}
-            followedByToolActivity={Boolean(
-              m.role === 'assistant'
-              && m.content
-              && visibleMessages[i + 1]?.role === 'assistant'
-              && !visibleMessages[i + 1]?.content
-              && visibleMessages[i + 1]?.toolCalls?.length
-            )}
+            followedByToolActivity={followedByToolActivity(visibleMessages, i)}
             onRetry={() => restoreDraft(m.id)}
             onDelete={() => remove(m.id)}
             forkOpen={forkPointId === m.id}
@@ -560,6 +558,7 @@ export function RemoteView({
               : undefined}
           />
         ))}
+        {sidebar.isWorking && liveTurn.lastAgent < liveTurn.lastUser ? <PendingTurn startedAt={liveTurn.startedAt} /> : null}
         {!lostConversation && controlPending && messages.length > 0 ? (
           <ProviderControlCard
             detail={needsInputDetail}
@@ -621,6 +620,45 @@ export function RemoteView({
 }
 
 /** The files this conversation has touched, as links into the project. */
+// An agent message whose next entry is a tool-only group from the same turn.
+function followedByToolActivity(messages: DispatchMessage[], index: number): boolean {
+  const message = messages[index]!;
+  const next = messages[index + 1];
+  return Boolean(message.role === 'assistant' && message.content && next?.role === 'assistant' && !next.content && next.toolCalls?.length);
+}
+
+interface LiveTurn { lastUser: number; lastAgent: number; startedAt?: number }
+
+// The live turn is everything after the latest user message while the
+// provider is working; its newest agent message carries the live header.
+function findLiveTurn(messages: DispatchMessage[]): LiveTurn {
+  let lastUser = -1;
+  let lastAgent = -1;
+  messages.forEach((message, index) => {
+    if (message.role === 'user' && !message.queued) lastUser = index;
+    else if (message.role === 'assistant') lastAgent = index;
+  });
+  return { lastUser, lastAgent, startedAt: lastUser >= 0 ? messages[lastUser]!.createdAt : undefined };
+}
+
+function liveTurnProps(message: DispatchMessage, index: number, turn: LiveTurn, working: boolean): Pick<RemoteMessageProps, 'live' | 'showLiveHeader' | 'turnStartedAt'> {
+  const inLiveTurn = message.role === 'assistant' && index > turn.lastUser && (Boolean(message.streaming) || working);
+  return {
+    live: Boolean(message.streaming) || inLiveTurn,
+    showLiveHeader: inLiveTurn && index === turn.lastAgent,
+    turnStartedAt: turn.startedAt
+  };
+}
+
+// Working, but nothing from the agent yet this turn.
+function PendingTurn({ startedAt }: { startedAt?: number }): JSX.Element {
+  return (
+    <div className="remote-msg remote-msg-assistant is-live-pending">
+      <WorkLog entries={[]} live showLiveHeader startedAt={startedAt} />
+    </div>
+  );
+}
+
 function ChangedFilesStrip({ files, cwd = '' }: { files: string[]; cwd?: string }): JSX.Element | null {
   if (files.length === 0) return null;
   return (
@@ -693,6 +731,10 @@ interface RemoteMessageProps {
   agentName: string;
   provider: ProviderIdentity;
   isLatest: boolean;
+  // The provider is still working on the turn this message belongs to.
+  live: boolean;
+  showLiveHeader: boolean;
+  turnStartedAt?: number;
   showAgentHeader: boolean;
   followedByToolActivity: boolean;
   onRetry: () => void;
@@ -721,6 +763,9 @@ function RemoteMessageInner({
   agentName,
   provider,
   isLatest,
+  live,
+  showLiveHeader,
+  turnStartedAt,
   showAgentHeader,
   followedByToolActivity,
   onRetry,
@@ -732,6 +777,7 @@ function RemoteMessageInner({
   onFork
 }: RemoteMessageProps): JSX.Element {
   const isUser = m.role === 'user';
+  const { lead: workLead, trail: workTrail } = isUser ? { lead: [], trail: [] } : messageActivity(m);
   const toolOnly = !isUser && !m.content && Boolean(m.toolCalls?.length);
   const cls = `remote-msg remote-msg-${m.role} is-${m.status}${isLatest ? ' is-latest' : ''}${m.interrupted ? ' is-interrupted' : ''}${m.queued ? ' is-queued' : ''}${!isUser && !showAgentHeader ? ' is-continuation' : ''}${toolOnly ? ' is-tool-only' : ''}${followedByToolActivity ? ' has-following-tool-activity' : ''}`;
   const timestamp = formatMessageTimestamp(m.createdAt);
@@ -820,19 +866,16 @@ function RemoteMessageInner({
             ref={bubbleRef}
             style={lockStyle}
           >
-            {m.streaming ? (
-              <div className="remote-bubble-live" role="status">
-                <span className="remote-bubble-live-dot" aria-hidden />
-                <span>Codex is working</span>
-              </div>
+            {workLead.length > 0 || (showLiveHeader && workTrail.length === 0) ? (
+              <WorkLog entries={workLead} live={live} showLiveHeader={showLiveHeader} startedAt={turnStartedAt} cwd={cwd} />
             ) : null}
-            {m.reasoningSummary ? (
+            {!m.activity && m.reasoningSummary ? (
               <details className="remote-bubble-disclosure remote-bubble-reasoning">
                 <summary>Reasoning summary</summary>
                 <div className="md-content" dangerouslySetInnerHTML={{ __html: renderContent(m.reasoningSummary, cwd) }} />
               </details>
             ) : null}
-            {m.updates && m.updates.length > 0 ? (
+            {!m.activity && m.updates && m.updates.length > 0 ? (
               <section className="remote-bubble-updates" aria-label="Assistant updates">
                 <div className="remote-bubble-updates-list">
                   {m.updates.map((update, index) => (
@@ -854,8 +897,14 @@ function RemoteMessageInner({
                 dangerouslySetInnerHTML={{ __html: renderContent(m.content, cwd) }}
               />
             ) : null}
-            {m.toolCalls && m.toolCalls.length > 0 ? (
-              <ToolCallsPanel calls={m.toolCalls} />
+            {workTrail.length > 0 ? (
+              <WorkLog
+                entries={workTrail}
+                live={live}
+                showLiveHeader={showLiveHeader && workLead.length === 0}
+                startedAt={turnStartedAt}
+                cwd={cwd}
+              />
             ) : null}
             {m.errorResponse ? (
               <div className="remote-bubble-error">
@@ -902,6 +951,7 @@ const RemoteMessage = memo(RemoteMessageInner, (a, b) => {
   // are deliberately excluded from the compare — they change identity
   // on every parent render but always do the same thing.
   if (a.isLatest !== b.isLatest) return false;
+  if (a.live !== b.live || a.showLiveHeader !== b.showLiveHeader || a.turnStartedAt !== b.turnStartedAt) return false;
   if (a.showAgentHeader !== b.showAgentHeader) return false;
   if (a.followedByToolActivity !== b.followedByToolActivity) return false;
   if (Boolean(a.onToggleFork) !== Boolean(b.onToggleFork)) return false;
@@ -931,7 +981,9 @@ const RemoteMessage = memo(RemoteMessageInner, (a, b) => {
     ma.planExplanation === mb.planExplanation &&
     ma.streaming === mb.streaming &&
     ma.turnStatus === mb.turnStatus &&
-    ma.toolCalls === mb.toolCalls
+    ma.toolCalls === mb.toolCalls &&
+    ma.activity === mb.activity &&
+    ma.activityLead === mb.activityLead
   );
 });
 
@@ -953,138 +1005,3 @@ function formatMessageTimestamp(value: number): string {
 // data-no-copy so clicking inside doesn't trigger the bubble's
 // click-to-copy. Stops propagation so the bubble doesn't try to
 // copy when the user is interacting with the panel.
-function ToolCallsPanel({
-  calls
-}: {
-  calls: import('../hooks/useDispatch').ToolCall[];
-}): JSX.Element {
-  const [expanded, setExpanded] = useState(false);
-  const [openId, setOpenId] = useState<string | null>(null);
-  const providerActivity = calls.some((call) => !!call.kind);
-  const runningCount = calls.filter((call) => {
-    const status = call.status?.toLowerCase() ?? '';
-    return status === 'inprogress' || status === 'running' || status === 'pending';
-  }).length;
-  const summary = summarizeToolActivity(calls);
-  return (
-    <div
-      className={`remote-bubble-tools${expanded ? ' is-expanded' : ''}`}
-      data-no-copy
-      onClick={(e) => e.stopPropagation()}
-    >
-      <button
-        type="button"
-        className="remote-bubble-tools-toggle"
-        onClick={() => setExpanded((v) => !v)}
-      >
-        <span>{summary}</span>
-        {providerActivity && runningCount > 0 ? <span className="remote-bubble-tools-summary">{runningCount} running</span> : null}
-        <span className="remote-bubble-tools-caret" aria-hidden>{expanded ? '⌄' : '›'}</span>
-      </button>
-      {expanded ? (
-        <div className="remote-bubble-tools-list">
-          {calls.map((t) => {
-            const isOpen = openId === t.id;
-            const hasResult = !!t.resultFull;
-            const normalizedStatus = t.status?.toLowerCase() ?? '';
-            const showStatus = Boolean(normalizedStatus && !['completed', 'success'].includes(normalizedStatus));
-            return (
-              <div key={t.id} className={`remote-bubble-tool-row${isOpen ? ' is-open' : ''}`}>
-                <button
-                  type="button"
-                  className="remote-bubble-tool"
-                  onClick={() => setOpenId(isOpen ? null : t.id)}
-                  title={`${t.name} · ${hasResult ? 'Open details' : 'No captured output'}`}
-                >
-                  <span className="remote-bubble-tool-input">{toolActivityLabel(t)}</span>
-                  {showStatus ? (
-                    <span className={`remote-bubble-tool-status is-${normalizedStatus}`}>
-                      {t.status}
-                    </span>
-                  ) : null}
-                  <span className="remote-bubble-tool-caret" aria-hidden>{isOpen ? '▾' : '▸'}</span>
-                </button>
-                {isOpen ? (
-                  <div className="remote-bubble-tool-detail">
-                    {t.inputFull && t.inputFull !== t.inputPreview ? (
-                      <details className="remote-bubble-tool-section" open>
-                        <summary>input</summary>
-                        <pre>{t.inputFull}</pre>
-                      </details>
-                    ) : null}
-                    {t.resultFull ? (
-                      <details className="remote-bubble-tool-section" open>
-                        <summary>output</summary>
-                        <pre>{t.resultFull}</pre>
-                      </details>
-                    ) : (
-                      <div className="remote-bubble-tool-empty">
-                        {t.status && ['inprogress', 'running', 'pending'].includes(t.status.toLowerCase())
-                          ? '(running…)'
-                          : '(no output captured)'}
-                      </div>
-                    )}
-                    {t.durationMs != null ? (
-                      <div className="remote-bubble-tool-meta">{t.durationMs} ms</div>
-                    ) : null}
-                  </div>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function isCommandTool(call: import('../hooks/useDispatch').ToolCall): boolean {
-  return call.kind === 'commandExecution' || ['Bash', 'BashOutput', 'KillBash', 'Command'].includes(call.name);
-}
-
-function summarizeToolActivity(calls: import('../hooks/useDispatch').ToolCall[]): string {
-  if (calls.length > 0 && calls.every(isCommandTool)) {
-    return calls.length === 1 ? 'Ran a command' : `Ran ${calls.length} commands`;
-  }
-  if (calls.length === 1) return 'Used a tool';
-  return `Used ${calls.length} tools`;
-}
-
-function toolActivityLabel(call: import('../hooks/useDispatch').ToolCall): string {
-  const preview = call.inputPreview?.trim();
-  if (isCommandTool(call)) return preview ? pastTenseLeadingVerb(preview) : 'Ran a command';
-  if (!preview) return call.name;
-  switch (call.name) {
-    case 'Read': return `Read ${preview}`;
-    case 'Write': return `Wrote ${preview}`;
-    case 'Edit': return `Edited ${preview}`;
-    case 'NotebookEdit': return `Edited ${preview}`;
-    case 'Glob': return `Matched files for ${preview}`;
-    case 'Grep': return `Searched for ${preview}`;
-    case 'WebFetch': return `Fetched ${preview}`;
-    case 'WebSearch': return `Searched the web for ${preview}`;
-    default: return `${call.name} · ${preview}`;
-  }
-}
-
-const TOOL_PAST_TENSE = new Map<string, string>([
-  ['add', 'Added'], ['build', 'Built'], ['check', 'Checked'], ['copy', 'Copied'],
-  ['create', 'Created'], ['delete', 'Deleted'], ['edit', 'Edited'], ['fetch', 'Fetched'],
-  ['find', 'Found'], ['inspect', 'Inspected'], ['install', 'Installed'], ['list', 'Listed'],
-  ['merge', 'Merged'], ['move', 'Moved'], ['read', 'Read'], ['regenerate', 'Regenerated'],
-  ['remove', 'Removed'], ['resolve', 'Resolved'], ['run', 'Ran'], ['search', 'Searched'],
-  ['see', 'Saw'], ['show', 'Showed'], ['test', 'Tested'], ['update', 'Updated'],
-  ['verify', 'Verified'], ['write', 'Wrote']
-]);
-
-function pastTenseLeadingVerb(value: string): string {
-  const match = value.match(/^([A-Za-z]+)(\b.*)$/);
-  if (!match) return value;
-  const replacement = TOOL_PAST_TENSE.get(match[1]!.toLowerCase());
-  if (!replacement) return value;
-  const rest = match[2]!.replace(/^ and ([A-Za-z]+)\b/i, (full, verb: string) => {
-    const second = TOOL_PAST_TENSE.get(verb.toLowerCase());
-    return second ? ` and ${second.toLowerCase()}` : full;
-  });
-  return `${replacement}${rest}`;
-}

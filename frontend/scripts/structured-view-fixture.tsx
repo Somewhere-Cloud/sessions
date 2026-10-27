@@ -6,6 +6,41 @@ import type { StructuredSessionEvent } from '../src/types';
 
 const base = { source: 'codex-app-server', conversationId: 'thread-1' } as const;
 const steeringFixture = new URLSearchParams(window.location.search).has('steering');
+// ?claude renders a live Claude turn: thinking, a finished command, a failed
+// one, prose, and a command still running.
+const claudeFixture = new URLSearchParams(window.location.search).has('claude');
+const turnStart = Date.now() - 42_000;
+const at = (offset: number): string => new Date(turnStart + offset).toISOString();
+const claudeEvents: StructuredSessionEvent[] = [
+  { type: 'user', uuid: 'cl-user', timestamp: at(0), message: { role: 'user', content: 'Make the parser tests pass.' } },
+  { type: 'assistant', uuid: 'cl-think', timestamp: at(2_000), message: { role: 'assistant', content: [
+    { type: 'thinking', thinking: 'The parser test failure is probably the new escape handling. I should run the package tests first.' }
+  ] } },
+  { type: 'assistant', uuid: 'cl-run', timestamp: at(4_000), message: { role: 'assistant', content: [
+    { type: 'tool_use', id: 'cl-tool1', name: 'Bash', input: { command: 'go test ./parser', description: 'Run parser tests' } }
+  ] } },
+  { type: 'user', uuid: 'cl-r1', timestamp: at(9_000), message: { role: 'user', content: [
+    { type: 'tool_result', tool_use_id: 'cl-tool1', is_error: true, content: '--- FAIL: TestEscape (0.00s)\nFAIL parser' }
+  ] } },
+  { type: 'assistant', uuid: 'cl-read', timestamp: at(11_000), message: { role: 'assistant', content: [
+    { type: 'tool_use', id: 'cl-tool2', name: 'Read', input: { file_path: '/Users/example/sessions/parser/escape.go' } }
+  ] } },
+  { type: 'user', uuid: 'cl-r2', timestamp: at(12_000), message: { role: 'user', content: [
+    { type: 'tool_result', tool_use_id: 'cl-tool2', content: 'package parser' }
+  ] } },
+  { type: 'assistant', uuid: 'cl-text', timestamp: at(20_000), message: { role: 'assistant', content: [
+    { type: 'text', text: 'The escape handler drops a trailing backslash. Fixing it and rerunning the tests.' }
+  ] } },
+  { type: 'assistant', uuid: 'cl-edit', timestamp: at(25_000), message: { role: 'assistant', content: [
+    { type: 'tool_use', id: 'cl-tool3', name: 'Edit', input: { file_path: '/Users/example/sessions/parser/escape.go', old_string: 'a', new_string: 'b' } }
+  ] } },
+  { type: 'user', uuid: 'cl-r3', timestamp: at(26_000), message: { role: 'user', content: [
+    { type: 'tool_result', tool_use_id: 'cl-tool3', content: 'updated' }
+  ] } },
+  { type: 'assistant', uuid: 'cl-rerun', timestamp: at(30_000), message: { role: 'assistant', content: [
+    { type: 'tool_use', id: 'cl-tool4', name: 'Bash', input: { command: 'go test ./...', description: 'Run all tests' } }
+  ] } }
+] as unknown as StructuredSessionEvent[];
 const events: StructuredSessionEvent[] = [
   {
     ...base,
@@ -93,7 +128,7 @@ createRoot(document.getElementById('root')!).render(
     <main style={{ height: '100vh', display: 'flex' }}>
       <RemoteView
         sessionId="fixture-session"
-        events={events}
+        events={claudeFixture ? claudeEvents : events}
         send={() => {}}
         submitMessage={async () => {}}
         steerMessage={steeringFixture ? async () => {} : undefined}
@@ -101,10 +136,10 @@ createRoot(document.getElementById('root')!).render(
         hasEarlierClaudeEvents={false}
         loadingEarlierClaudeEvents={false}
         onLoadEarlierClaudeEvents={() => {}}
-        sidebar={{ ...sidebar, isWorking: steeringFixture }}
+        sidebar={{ ...sidebar, parserName: claudeFixture ? 'Claude' : sidebar.parserName, isWorking: steeringFixture || claudeFixture }}
         cwd="/Users/example/sessions"
         onOpenTerminal={() => {}}
-        provider="codex"
+        provider={claudeFixture ? 'claude-code' : 'codex'}
       />
     </main>
   </React.StrictMode>
