@@ -34,6 +34,9 @@ for explicit lookups; neither changes the source provider history.
 ├── push-subscriptions.json
 ├── delivery-operations/
 │   └── <operation-id>.json
+├── parent-reports/
+│   ├── subscriptions/<session-id>.json
+│   └── outbox/<operation-id>.json
 ├── team-cursors/
 │   └── <32 hex cursor>.json
 ├── uploads/
@@ -78,6 +81,7 @@ override:
   and integration-error state already resolve;
 - `delivery-operations/`, the content-free idempotency receipts for composer
   submissions;
+- `parent-reports/`, delegated lanes' pending outcome reports to their managers;
 - `usage.sqlite3` and `errors.jsonl`;
 - `history-cache.json`, what the history listing has already computed about each
   transcript file — its message count, its recorded last activity, and the card
@@ -274,6 +278,29 @@ absolute `cursor`, preceding-event `anchor` SHA-256 when the cursor is nonzero,
 normalized `message_sha256`, and `runtime_created_at`. No message body is stored.
 These permit later history-only confirmation under the checks in `http-api.md`;
 older readers ignore the field and preserve their conservative unknown result.
+
+### `parent-reports/`
+
+Go-runtime-only, mode 0600 files below mode-0700 directories, written by the
+daemon for children created with `reportToParent` (`sessions new --report`).
+`subscriptions/<session-id>.json` records `child`, `parent`, and
+`created_at_ms`; it is removed once the child has ended or is unknown to a
+daemon that finished discovery. `outbox/<operation-id>.json` holds one child
+idle outcome waiting for its parent: `operation_id`, `child`, `parent`, the
+report `text` (a bounded summary of the child's turn, its question, or its
+failure line, plus `sessions last` and lane-link pointers), `created_at_ms`,
+`outcome_at_ms`, and the additive retry fields `attempts`, `next_attempt_ms`,
+and `last_reason`. Unlike `delivery-operations/`, this file stores the report
+body, because the daemon must be able to send it after a restart. The
+operation id is derived from the child id and outcome time, so the same
+outcome is never queued or delivered twice; it is delivered through the
+ordinary `/submit` path with the child as source session, which writes the
+usual `delivery-operations/` receipt. A file is removed once its receipt is
+`accepted`, `unknown`, or `text-delivered`, once the parent ended or is
+unknown, or after 12 `not-delivered` retries; an uncertain delivery is never
+resent. Subscription and outbox files are written to a `.tmp` name and renamed
+into place. The directory follows `SESSIONS_STATE_DIR` like
+`delivery-operations/`.
 
 ### `team-cursors/<cursor>.json`
 

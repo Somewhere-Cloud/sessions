@@ -63,6 +63,7 @@ type Server struct {
 	usage              *usage.Service
 	smartSearch        *smartsearch.Service
 	deliveries         *delivery.Store
+	parentReports      *parentReports
 	identity           machineIdentity
 	identityError      error
 	account            *fleetaccount.Manager
@@ -203,6 +204,7 @@ func NewWithUsage(config state.Config, registry sessionService, localUsage *usag
 		relayWake:     make(chan struct{}, 1),
 		identity:      identity, identityError: identityErr,
 		deliveries:       delivery.New(deliveryRoot),
+		parentReports:    newParentReports(deliveryRoot),
 		teamChanges:      newTeamChanges(deliveryRoot),
 		continuationJobs: newContinuationJobStore(),
 		routes:           newRouteStats(),

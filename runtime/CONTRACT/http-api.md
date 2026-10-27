@@ -170,6 +170,7 @@ fields. Optional fields are omitted when their value is `undefined`.
 | `claudeCustomTitle` | string, optional | latest Claude `custom-title` value |
 | `claudeAiTitle` | string, optional | latest Claude `ai-title` value |
 | `onIdle` | string, optional | trimmed per-session idle hook command |
+| `reports_to_parent` | boolean, optional | present as `true` when the daemon delivers this child's idle outcomes to `parent_session_id` (created with `reportToParent`) |
 | `model` | string, optional | model parsed from effective arguments |
 | `effort` | string, optional | effort parsed from effective arguments |
 | `fast` | boolean, optional | present as `true` for Codex priority service tier; otherwise omitted |
@@ -840,6 +841,7 @@ Auth required. Every request field is optional:
 | `base` | string | optional worktree base ref; requires `worktree`; defaults to the source checkout's current branch |
 | `initialInput` | string | optional; the first request when the provider consumes it from `args` (a terminal Codex session), carried so the transcript watcher binds to the rollout that records it |
 | `onIdle` | string | trimmed; empty becomes absent |
+| `reportToParent` | boolean | optional; for a child created with a validated `X-Sessions-Creator-Session` parent, the daemon delivers every idle outcome (completed, needs-input, failed) to that parent as an attributed `/submit` from the child once the parent is idle, at most once per outcome. Ignored for a root session and for a parent that is not a Claude or Codex session (a report typed into a shell would run as a command); the response's `reports_to_parent` says whether it applies |
 | `waitReady` | boolean | only literal `true` waits for readiness, capped at 30 seconds |
 | `delegationKind` | `"user" \| "agent"` | optional child presentation provenance; requires a validated `X-Sessions-Creator-Session` parent |
 | `providerTerminal` | boolean | explicit escape hatch for an agent-created Claude child that needs the interactive provider terminal; otherwise newly attributed agent children use the structured Claude runtime |
@@ -894,7 +896,7 @@ ledger event beside `start_operation_id`. It covers `cmd`, `args`, `cwd`,
 `base`, `providerTerminal`, `permissions`, `lifecycle`, `onIdle`, and `claude`.
 It leaves out the operation ids, a Claude `--session-id` (clients mint a
 fresh one on every attempt), and `name`, `description`, `tags`, `taskRefs`, `taskProject`, `env`, `cols`,
-`rows`, `waitReady`, `force`, `delegationKind`, and `initialInput`. A first
+`rows`, `waitReady`, `force`, `delegationKind`, `reportToParent`, and `initialInput`. A first
 request a terminal Codex process takes from `args` is therefore compared with
 them. A first request sent through `/submit` is not: only its delivery receipt
 guards it. A replay of that id with different text is refused there once a

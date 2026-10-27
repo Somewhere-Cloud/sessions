@@ -209,9 +209,12 @@ type SessionInfo struct {
 	CreatorKind            string `json:"creator_kind,omitempty"`
 	CreatorID              string `json:"creator_id,omitempty"`
 	ParentSessionID        string `json:"parent_session_id,omitempty"`
-	DelegationKind         string `json:"delegation_kind,omitempty"`
-	Permissions            string `json:"permissions,omitempty"`
-	Lifecycle              string `json:"lifecycle,omitempty"`
+	// ReportsToParent means the daemon delivers this child's idle outcomes to
+	// ParentSessionID (`sessions new --report`).
+	ReportsToParent bool   `json:"reports_to_parent,omitempty"`
+	DelegationKind  string `json:"delegation_kind,omitempty"`
+	Permissions     string `json:"permissions,omitempty"`
+	Lifecycle       string `json:"lifecycle,omitempty"`
 	// DisplayParentSessionID is a user-controlled organizational override.
 	// nil preserves the creator-ledger hierarchy, a pointer to "" makes the
 	// session a visual root, and any other value groups it under that session.
@@ -360,8 +363,12 @@ type CreateSessionRequest struct {
 	Kind       string `json:"kind,omitempty"`
 	SpecPath   string `json:"specPath,omitempty"`
 	OnIdle     string `json:"onIdle,omitempty"`
-	WaitReady  bool   `json:"waitReady,omitempty"`
-	Force      bool   `json:"force,omitempty"`
+	// ReportToParent asks the daemon to deliver each of this child's idle
+	// outcomes to the session that created it. It is honored only for a
+	// child created from inside another session.
+	ReportToParent bool `json:"reportToParent,omitempty"`
+	WaitReady      bool `json:"waitReady,omitempty"`
+	Force          bool `json:"force,omitempty"`
 	// ProviderTerminal is a request-only escape hatch for an agent-created
 	// Claude child that genuinely needs the provider's interactive terminal.
 	// It is never persisted as a session kind: the normal PTY kind remains

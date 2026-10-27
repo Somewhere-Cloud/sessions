@@ -28,6 +28,9 @@ func (s *Server) beginDeliveryInFlight(operationID string) func() {
 // Sessions created without an operation id are returned untouched.
 func (s *Server) withStartReceipts(infos []state.SessionInfo) []state.SessionInfo {
 	for index := range infos {
+		if s.parentReports != nil {
+			_, infos[index].ReportsToParent = s.parentReports.parentOf(infos[index].ID)
+		}
 		if infos[index].Start == nil {
 			continue
 		}
@@ -142,6 +145,9 @@ func (s *Server) handleCreateSession(response http.ResponseWriter, request *http
 		}
 		s.sendJSON(response, status, map[string]any{"error": err.Error()}, corsOrigin)
 		return
+	}
+	if body.ReportToParent {
+		info = s.subscribeParentReport(info)
 	}
 	s.sendCreatedSession(response, info, corsOrigin)
 }

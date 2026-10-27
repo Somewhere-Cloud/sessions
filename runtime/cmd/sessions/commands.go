@@ -83,6 +83,7 @@ type createSessionRequest struct {
 	NoWorktree        bool              `json:"noWorktree,omitempty"`
 	Base              string            `json:"base,omitempty"`
 	OnIdle            string            `json:"onIdle,omitempty"`
+	ReportToParent    bool              `json:"reportToParent,omitempty"`
 	WaitReady         bool              `json:"waitReady,omitempty"`
 	Kind              string            `json:"kind,omitempty"`
 	Force             bool              `json:"force,omitempty"`
@@ -355,6 +356,12 @@ func (a *app) cmdNew(args []string) error {
 			return fail(1, "--on-idle needs a shell command")
 		}
 		body.OnIdle = value
+	}
+	if removeFirst(&args, "--report") {
+		if strings.TrimSpace(os.Getenv("SESSIONS_SESSION_ID")) == "" {
+			return fail(1, "--report delivers the child's outcomes to the session that creates it; run it from inside a Sessions session, or use `sessions wait <id>`")
+		}
+		body.ReportToParent = true
 	}
 	body.WaitReady = removeFirst(&args, "--wait-ready")
 	if body.OperationID, err = pluckStartOperationID(&args); err != nil {

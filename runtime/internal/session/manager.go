@@ -8,6 +8,7 @@ import (
 	"log"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/somewhere-tech/sessions/runtime/internal/codexapp"
@@ -169,10 +170,13 @@ type Manager struct {
 	// runner twice.
 	wakeMu   sync.Mutex
 	registry *state.Registry
-	push     *PushService
-	guard    MassKillGuard
-	options  ManagerOptions
-	started  time.Time
+	// childReports receives each delegated lane's idle outcome; see
+	// child_report.go.
+	childReports atomic.Pointer[childReportHandler]
+	push         *PushService
+	guard        MassKillGuard
+	options      ManagerOptions
+	started      time.Time
 
 	boundaries   ledger.BoundaryWriter
 	observations ledger.ObservationWriter
