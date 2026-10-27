@@ -19,6 +19,8 @@ import { ProviderFaultCard } from './ProviderFaultCard';
 import { RemoteEmptyState } from './RemoteEmptyState';
 import { LaneLinkButtons, WorkLog } from './WorkLog';
 import { findLaneLinks } from '../lib/laneLink';
+import { parseLaneReport } from '../lib/laneReport';
+import { LaneReportCard } from './LaneReportCard';
 import { messageActivity } from '../lib/workLog';
 import { useProviderControl } from '../hooks/useProviderControl';
 import { retryProviderSession } from '../api/sessionsd';
@@ -747,6 +749,28 @@ interface RemoteMessageProps {
   onFork?: (destinationProvider: 'claude' | 'codex') => void;
 }
 
+// What the person, or a delegated lane, put in this message. A lane's
+// outcome reads as a card, not as something typed.
+function UserBubbleBody({ message, cwd }: { message: DispatchMessage; cwd?: string }): JSX.Element {
+  if (message.interrupted) {
+    return (
+      <div className="remote-bubble-badge remote-bubble-badge-interrupted" aria-label="interrupted">
+        <span aria-hidden>⎋</span>
+        <span>you interrupted Claude</span>
+      </div>
+    );
+  }
+  const fromLane = message.author?.kind === 'session';
+  const report = fromLane ? parseLaneReport(message.content) : null;
+  if (report) return <LaneReportCard report={report} cwd={cwd} />;
+  return (
+    <>
+      <div className="remote-bubble-content">{message.content}</div>
+      {fromLane ? <LaneLinkButtons lanes={findLaneLinks(message.content)} /> : null}
+    </>
+  );
+}
+
 // Per-message render. Memoized — adapted-co + somewhere-tech both have
 // hundreds of bubbles. Without memo, the entire list re-runs through
 // markdown + ANSI + linkify on every messages-array reference change
@@ -827,15 +851,7 @@ function RemoteMessageInner({
             style={lockStyle}
           >
             {m.queued ? <QueuedBadge agentName={agentName} /> : null}
-            {m.interrupted ? (
-              <div className="remote-bubble-badge remote-bubble-badge-interrupted" aria-label="interrupted">
-                <span aria-hidden>⎋</span>
-                <span>you interrupted Claude</span>
-              </div>
-            ) : (
-              <div className="remote-bubble-content">{m.content}</div>
-            )}
-            {m.author?.kind === 'session' ? <LaneLinkButtons lanes={findLaneLinks(m.content)} /> : null}
+            <UserBubbleBody message={m} cwd={cwd} />
             {m.systemNote ? <HarnessFold view={m.systemNote} className="remote-system-event remote-system-note" /> : null}
             {m.errorResponse ? (
               <div className="remote-bubble-error">

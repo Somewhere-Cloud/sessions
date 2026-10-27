@@ -1,0 +1,42 @@
+/* A delegated lane's report inside its parent conversation. */
+.lane-report {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-family: var(--font-ui);
+}
+.lane-report-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.lane-report-dot { flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--fg-faint); }
+.lane-report.is-done .lane-report-dot { background: var(--ok); }
+.lane-report.is-attention .lane-report-dot { background: var(--warn); }
+.lane-report.is-failed .lane-report-dot { background: var(--danger); }
+.lane-report-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.lane-report-outcome { flex-shrink: 0; color: var(--fg-dim); font-size: 12px; }
+.lane-report-head > .work-log-lanes { margin-left: auto; padding-right: 0; }
+.lane-report-body { min-width: 0; font-size: 13px; overflow-wrap: anywhere; }
+.lane-report-body > :first-child { margin-top: 0; }
+.lane-report-body > :last-child { margin-bottom: 0; }
+.lane-report-body.is-folded {
+  max-height: 9.5em;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, #000 70%, transparent);
+  mask-image: linear-gradient(to bottom, #000 70%, transparent);
+}
+.lane-report-more {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}

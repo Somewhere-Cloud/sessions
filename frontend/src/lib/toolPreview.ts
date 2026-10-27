@@ -55,7 +55,7 @@ export function previewToolInput(
       preview = tryField('title') ?? tryField('description');
       break;
     default:
-      preview = tryField('description') ?? tryField('command') ?? tryField('query') ?? tryField('path');
+      preview = tryField('description') ?? tryField('command') ?? tryField('cmd') ?? tryField('query') ?? tryField('path');
   }
 
   if (!preview) {

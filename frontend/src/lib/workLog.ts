@@ -1,4 +1,5 @@
 import type { ActivityEntry, DispatchMessage, ToolCall } from '../types';
+import { previewToolInput } from './toolPreview';
 
 // The work log presents one agent turn's steps: what it thought, which tools
 // it ran, and the updates it gave along the way. Claude and Codex feed the
@@ -6,9 +7,9 @@ import type { ActivityEntry, DispatchMessage, ToolCall } from '../types';
 
 export type ToolCategory = 'command' | 'read' | 'edit' | 'search' | 'web' | 'agent' | 'mcp' | 'plan' | 'tool';
 
-const COMMAND_TOOLS = new Set(['Bash', 'BashOutput', 'KillBash', 'KillShell', 'Command']);
+const COMMAND_TOOLS = new Set(['Bash', 'BashOutput', 'KillBash', 'KillShell', 'Command', 'exec_command', 'shell', 'shell_command', 'local_shell']);
 const READ_TOOLS = new Set(['Read', 'NotebookRead', 'LS']);
-const EDIT_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit']);
+const EDIT_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'apply_patch']);
 const SEARCH_TOOLS = new Set(['Grep', 'Glob', 'ToolSearch']);
 const WEB_TOOLS = new Set(['WebFetch', 'WebSearch']);
 const AGENT_TOOLS = new Set(['Task', 'Agent', 'SendMessage']);
@@ -161,4 +162,31 @@ function pastTenseLeadingVerb(value: string): string {
     return second ? ` and ${second.toLowerCase()}` : full;
   });
   return `${replacement}${rest}`;
+}
+
+/** A saved-history tool step (GET /api/history/<id>/preview) as a work-log row. */
+export interface SavedToolStep {
+  id: string;
+  name: string;
+  input?: Record<string, unknown>;
+  result?: string;
+  failed?: boolean;
+}
+
+export function savedToolActivity(steps: SavedToolStep[] | undefined): ActivityEntry[] {
+  return (steps ?? []).map((step, index) => {
+    let inputFull: string | undefined;
+    if (step.input) {
+      try { inputFull = JSON.stringify(step.input, null, 2); } catch { /* leave empty */ }
+    }
+    const call: ToolCall = {
+      id: step.id || `saved-${index}`,
+      name: step.name,
+      inputPreview: previewToolInput(step.name, step.input),
+      inputFull,
+      resultFull: step.result,
+      failed: step.failed
+    };
+    return { kind: 'tool', id: call.id, call };
+  });
 }

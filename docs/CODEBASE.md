@@ -147,7 +147,10 @@ renders timestamped Codex-style user cards and full-width provider answers;
 `WorkLog.tsx` shows each turn's thinking, tool calls and updates in provider
 order from the `activity` that `lib/claudeEvents.ts` projects for Claude and
 Codex alike, live under a "Working for" header and folded to one summary line
-once the turn ends (`lib/workLog.ts`);
+once the turn ends (`lib/workLog.ts`). Saved history gets the same folded rows
+from the `tools` the history preview attaches to each answer
+(`runtime/internal/integrations/history_tools.go`), and a delegated lane's
+report renders as `LaneReportCard.tsx` (`lib/laneReport.ts`);
 `ProviderFaultCard.tsx` reports the daemon's concise failure detail, live Rich-turn
 retry schedule and recovery controls in both Conversation and Terminal. Structured
 `provider_fault` and `provider_retry` history stays system UI rather than assistant

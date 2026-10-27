@@ -12,6 +12,10 @@ import { SessionPopOutButton } from './SessionPopOutButton';
 import { SessionArchiveButton } from './SessionArchiveButton';
 import { ContinueElsewhereButton } from './ContinueElsewhereButton';
 import { ConversationForkButton } from './ConversationForkButton';
+import { WorkLog } from './WorkLog';
+import { LaneReportCard } from './LaneReportCard';
+import { savedToolActivity } from '../lib/workLog';
+import { parseLaneReport } from '../lib/laneReport';
 
 const INITIAL_PREVIEW_MESSAGES = 60;
 const MAX_PREVIEW_MESSAGES = 400;
@@ -280,7 +284,7 @@ export function SessionHistoryView({ session, onResume, onFork, onCloseView, onO
                     <time>{message.timestamp ? formatDate(message.timestamp) : ''}</time>
                   </header>
                 ) : null}
-                <p>{message.text}</p>
+                <SavedMessageBody message={message} cwd={session.cwd} />
                 {message.role === 'user' ? (
                   <footer>
                     <span>{message.author ? `${message.author.name} · via Sessions` : 'You'}</span>
@@ -329,6 +333,20 @@ export function SessionHistoryView({ session, onResume, onFork, onCloseView, onO
         ) : null}
       </div>
     </div>
+  );
+}
+
+// The tool steps before an answer fold into one line, as in a live
+// conversation; a delegated lane's report shows as its card.
+function SavedMessageBody({ message, cwd }: { message: HistoryTranscript['messages'][number]; cwd: string }): JSX.Element {
+  const report = message.role === 'user' && message.author?.kind === 'session' ? parseLaneReport(message.text) : null;
+  if (report) return <LaneReportCard report={report} cwd={cwd} />;
+  const steps = message.role === 'assistant' ? savedToolActivity(message.tools) : [];
+  return (
+    <>
+      {steps.length > 0 ? <WorkLog entries={steps} live={false} cwd={cwd} /> : null}
+      <p>{message.text}</p>
+    </>
   );
 }
 

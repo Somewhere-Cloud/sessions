@@ -3579,7 +3579,12 @@ artifact and returns at most its latest 400 normalized messages. An optional
 `limit=1..400` lowers the message count for a particular interactive view;
 invalid limits return 400 rather than being ignored. The additive
 response field `"truncated":true` appears when either bound removed older
-content; it is omitted for a complete preview. This bound does not change the
+content; it is omitted for a complete preview. Preview assistant messages may
+carry an additive `tools` array: the tool calls made before that message, in
+order, each `{id, name, input?, result?, failed?}` with string inputs bounded to
+2000 characters and results to 4000. Calls from a turn interrupted before it
+answered are omitted. `tools` never affects `index` or `id`, and the full,
+window, text, and raw forms do not include it. This bound does not change the
 deliberate full-history JSON/text response or `/api/history/<id>/raw` download.
 The distinct path is intentional: an older runtime returns 404 instead of
 silently ignoring a query parameter and sending an unbounded transcript.

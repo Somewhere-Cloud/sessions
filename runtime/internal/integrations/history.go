@@ -157,6 +157,20 @@ type TranscriptMessage struct {
 	Text      string         `json:"text"`
 	Timestamp *string        `json:"timestamp"`
 	Author    *MessageAuthor `json:"author,omitempty"`
+	// Tools are the steps the agent took before this assistant message, in
+	// order. Only the interactive preview fills them; indices and IDs ignore
+	// them, so fork points and search hits are unchanged.
+	Tools []TranscriptTool `json:"tools,omitempty"`
+}
+
+// TranscriptTool is one tool call as saved history shows it: the provider's
+// own input and a bounded copy of its output.
+type TranscriptTool struct {
+	ID     string         `json:"id"`
+	Name   string         `json:"name"`
+	Input  map[string]any `json:"input,omitempty"`
+	Result string         `json:"result,omitempty"`
+	Failed bool           `json:"failed,omitempty"`
 }
 
 type MessageAuthor struct {

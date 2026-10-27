@@ -284,7 +284,7 @@ func (h *HistoryStore) messageCount(path, tool string, info os.FileInfo) (int, i
 	// skip-accounting while retaining none of the messages it builds.
 	discardEveryMessage := func(TranscriptMessage) bool { return false }
 	_, count, skipped, err := normalizeTranscriptReaderSelected(
-		context.Background(), bufio.NewReader(file), path, tool, discardEveryMessage)
+		context.Background(), bufio.NewReader(file), path, tool, discardEveryMessage, false)
 	closeErr := file.Close()
 	if err != nil {
 		return 0, 0, err
@@ -369,7 +369,7 @@ func normalizeTranscriptWindow(path, tool string, options TranscriptWindowOption
 			return false
 		}
 		return options.Role == "" || message.Role == options.Role
-	})
+	}, false)
 	return messages, messageCount, skipped, matchedExpected, err
 }
 
@@ -412,7 +412,7 @@ func normalizeTranscriptTail(path, tool string, maxBytes int64, maxMessages int)
 	} else {
 		reader = bufio.NewReader(io.LimitReader(file, maxBytes))
 	}
-	messages, skipped, err := normalizeTranscriptReader(reader, path, tool)
+	messages, _, skipped, err := normalizeTranscriptReaderSelected(context.Background(), reader, path, tool, nil, true)
 	if err != nil {
 		return nil, 0, false, err
 	}
@@ -428,7 +428,7 @@ func normalizeTranscriptReader(reader *bufio.Reader, path, tool string) ([]Trans
 }
 
 func normalizeTranscriptReaderContext(ctx context.Context, reader *bufio.Reader, path, tool string) ([]TranscriptMessage, int, error) {
-	messages, _, skipped, err := normalizeTranscriptReaderSelected(ctx, reader, path, tool, nil)
+	messages, _, skipped, err := normalizeTranscriptReaderSelected(ctx, reader, path, tool, nil, false)
 	return messages, skipped, err
 }
 
@@ -438,14 +438,21 @@ func normalizeTranscriptReaderContext(ctx context.Context, reader *bufio.Reader,
 // result, so a truncated tail from a power cut costs exactly that record and
 // the caller can still tell the read was degraded. include may be nil to keep
 // every message, or return false for every message to count without retaining.
+// withTools attaches each turn's tool steps to the assistant message that
+// follows them (see history_tools.go).
 func normalizeTranscriptReaderSelected(
 	ctx context.Context,
 	reader *bufio.Reader,
 	path, tool string,
 	include func(TranscriptMessage) bool,
+	withTools bool,
 ) ([]TranscriptMessage, int, int, error) {
 	messages := make([]TranscriptMessage, 0)
 	relayCalls := make(map[string]string)
+	var tools *toolSteps
+	if withTools {
+		tools = newToolSteps()
+	}
 	lineIndex := 0
 	messageIndex := 0
 	skipped := 0
@@ -469,22 +476,15 @@ func normalizeTranscriptReaderSelected(
 				if json.Unmarshal(trimmed, &decoded) != nil {
 					skipped++
 				} else {
+					events := []watch.SessionEvent{decoded}
 					if tool == "codex" {
-						normalized := watch.NormalizeCodexRolloutLine(decoded, watch.CodexNormalizeContext{
+						events = watch.NormalizeCodexRolloutLine(decoded, watch.CodexNormalizeContext{
 							RolloutBasename: filepath.Base(path), LineIndex: currentIndex,
-						})
-						for _, event := range normalized.Events {
-							for _, message := range transcriptMessages(event, relayCalls) {
-								message.Index = messageIndex
-								message.ID = transcriptMessageID(message)
-								messageIndex++
-								if include == nil || include(message) {
-									messages = append(messages, message)
-								}
-							}
-						}
-					} else {
-						for _, message := range transcriptMessages(decoded, relayCalls) {
+						}).Events
+					}
+					for _, event := range events {
+						produced := tools.attach(event, transcriptMessages(event, relayCalls))
+						for _, message := range produced {
 							message.Index = messageIndex
 							message.ID = transcriptMessageID(message)
 							messageIndex++

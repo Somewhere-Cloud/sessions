@@ -161,7 +161,13 @@ try {
     running: Array.from(document.querySelectorAll('.work-log-row.is-running .work-log-row-label')).map((element) => element.textContent?.trim() ?? ''),
     prose: document.querySelector('.remote-bubble-assistant .remote-bubble-content')?.textContent ?? '',
     rowLanes: Array.from(document.querySelectorAll('.work-log-row .work-log-lane')).map((element) => element.textContent?.trim() ?? ''),
-    reportLanes: document.querySelectorAll('.remote-bubble-user .work-log-lane').length
+    reportLanes: document.querySelectorAll('.remote-bubble-user .work-log-lane').length,
+    reportCard: Array.from(document.querySelectorAll('.lane-report')).map((card) => ({
+      name: card.querySelector('.lane-report-name')?.textContent ?? '',
+      outcome: card.querySelector('.lane-report-outcome')?.textContent ?? '',
+      body: card.querySelector('.lane-report-body')?.textContent?.trim() ?? ''
+    })),
+    rawReport: Array.from(document.querySelectorAll('.remote-bubble-user')).some((bubble) => bubble.textContent?.includes('[sessions] Delegated lane'))
   }));
   assert.equal(live.headers.length, 1);
   assert.match(live.headers[0], /^Working for 4\ds$/);
@@ -176,6 +182,9 @@ try {
   // The delegating command and the lane's report both open that lane.
   assert.deepEqual(live.rowLanes, ['Open lane']);
   assert.equal(live.reportLanes, 1);
+  // The report reads as a card, never as the raw text the agent received.
+  assert.deepEqual(live.reportCard, [{ name: 'docs-lane', outcome: 'Finished', body: 'Docs updated.' }]);
+  assert.equal(live.rawReport, false);
   const opened = await page.evaluate(() => new Promise((resolve) => {
     window.addEventListener('sessions:open-lane', (event) => resolve(event.detail), { once: true });
     document.querySelector('.work-log-row .work-log-lane').click();

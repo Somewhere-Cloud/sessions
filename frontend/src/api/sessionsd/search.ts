@@ -335,6 +335,8 @@ export interface HistoryMessage {
   role: 'user' | 'assistant' | 'tool';
   kind?: 'delegation' | 'handoff' | 'status' | 'automation';
   text: string;
+  // Preview only: the tool steps taken before this assistant message.
+  tools?: Array<{ id: string; name: string; input?: Record<string, unknown>; result?: string; failed?: boolean }>;
   timestamp: string | null;
   author?: {
     kind: 'session' | 'automation';
