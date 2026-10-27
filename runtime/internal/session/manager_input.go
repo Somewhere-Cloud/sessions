@@ -277,6 +277,8 @@ func (m *Manager) afterInput(ctx context.Context, id, data string, source ledger
 }
 
 func (m *Manager) afterAcceptedInput(ctx context.Context, id, data string, source ledger.ActivitySource, started bool) {
+	// A person's or lane's input makes the next turn theirs, not automation's.
+	m.setAutomationTurn(id, false)
 	if started {
 		m.clearIdleAfterInput(id)
 	}

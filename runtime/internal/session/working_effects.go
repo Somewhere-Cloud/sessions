@@ -174,6 +174,9 @@ func (r *runtimeSession) deliverTransition(transition workingTransition) *idleRe
 		}
 		outcome := classifyEndedTurn(r.session, transition)
 		record := r.manager.applyIdle(r.session, outcome)
+		if r.takeAutomationTurn() {
+			return &record
+		}
 		r.manager.deliverIdle(record)
 		r.notifyIdle(record, transition.resultSeen)
 		return &record

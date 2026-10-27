@@ -19,6 +19,7 @@ func (m *Manager) AutomationInput(ctx context.Context, id, data string) bool {
 }
 
 func (m *Manager) afterAutomationInput(ctx context.Context, id string, started bool) {
+	m.setAutomationTurn(id, true)
 	if started {
 		m.clearIdleAfterInput(id)
 	}
@@ -27,4 +28,26 @@ func (m *Manager) afterAutomationInput(ctx context.Context, id string, started b
 			Meta: ledger.Meta{LaneID: id}, Source: ledger.ActivityProviderEvent,
 		})
 	})
+}
+
+func (m *Manager) setAutomationTurn(id string, value bool) {
+	m.mu.Lock()
+	runtime := m.runtimes[id]
+	m.mu.Unlock()
+	if runtime == nil {
+		return
+	}
+	runtime.mu.Lock()
+	runtime.automationTurn = value
+	runtime.mu.Unlock()
+}
+
+// takeAutomationTurn reports and clears whether the turn that just ended was
+// started by automation.
+func (r *runtimeSession) takeAutomationTurn() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	automation := r.automationTurn
+	r.automationTurn = false
+	return automation
 }

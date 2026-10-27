@@ -273,17 +273,21 @@ type runtimeSession struct {
 	structuredLifecycleWorking *bool
 	turn                       turnBookkeeping
 	faultNotified              bool
-	waitingTimer               *time.Timer
-	waitingGeneration          uint64
-	stopped                    bool
-	watcher                    *watch.FileWatcher
-	hookDone                   chan struct{}
-	stopOnce                   sync.Once
-	outputObserved             chan struct{}
-	structuredEventArrived     chan struct{}
-	firstMessageInput          []byte
-	firstMessageDone           bool
-	providerInput              []byte
+	// automationTurn marks a turn a daemon-owned sender started (idle
+	// compaction). Its end publishes state but no hooks, pushes or parent
+	// reports: nobody asked for it, so nobody is waiting on it.
+	automationTurn         bool
+	waitingTimer           *time.Timer
+	waitingGeneration      uint64
+	stopped                bool
+	watcher                *watch.FileWatcher
+	hookDone               chan struct{}
+	stopOnce               sync.Once
+	outputObserved         chan struct{}
+	structuredEventArrived chan struct{}
+	firstMessageInput      []byte
+	firstMessageDone       bool
+	providerInput          []byte
 	// preTurnOutput records terminal output that arrived while the session
 	// has not yet completed a turn, so a provider dialog drawn before the
 	// first request (Claude's folder-trust screen, a login prompt) can be
