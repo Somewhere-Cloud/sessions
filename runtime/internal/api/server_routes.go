@@ -291,6 +291,9 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 	if s.handleOnboardingRoute(response, request, corsOrigin) {
 		return
 	}
+	if s.handleIdleCompactionRoute(response, request, corsOrigin) {
+		return
+	}
 	if s.handleClaudeSettingsRoute(response, request, corsOrigin) {
 		return
 	}

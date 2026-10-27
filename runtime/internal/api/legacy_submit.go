@@ -61,7 +61,7 @@ func (s *Server) deliverLegacyProvider(ctx context.Context, id, data string, att
 		return delivery.StatusUnknown, false, "sending stopped before Enter; inspect the composer and do not automatically resend"
 	case <-timer.C:
 	}
-	if ctx.Err() != nil || !s.registry.Input(ctx, id, "\r") {
+	if ctx.Err() != nil || !s.pressEnter(ctx, id, attribution) {
 		return delivery.StatusUnknown, false, "Enter was not acknowledged; inspect the composer and do not automatically resend"
 	}
 	confirmation, cancel := context.WithTimeout(ctx, 5*time.Second)

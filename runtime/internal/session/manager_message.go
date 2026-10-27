@@ -38,7 +38,9 @@ func (m *Manager) SubmitMessage(ctx context.Context, id string, control proto.Me
 	if err != nil || (!result.Accepted && !unknown) {
 		return result, err
 	}
-	if !unknown {
+	if !unknown && attribution.Automation != "" {
+		m.afterAutomationInput(ctx, id, result.Boundary != "queue")
+	} else if !unknown {
 		principal, source := state.PrincipalHuman, ledger.ActivityHumanInput
 		if attribution.SourceSessionID != "" {
 			principal, source = state.PrincipalAgent, ledger.ActivitySessionInput

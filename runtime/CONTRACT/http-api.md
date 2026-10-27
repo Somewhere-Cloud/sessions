@@ -3336,6 +3336,53 @@ skip-permissions flag. This is a new process bound to the same provider
 conversation, because Claude's live permission-mode cycle cannot elevate a
 process that was launched constrained.
 
+### `GET /api/idle-compaction`
+
+Returns the machine-wide idle compaction default and every live Claude lane's
+choice, current window, and latest outcome. Idle compaction is off unless the
+user turns it on:
+
+```json
+{"enabled":false,"lanes":[{"id":"<id>","name":"Parser","structured":false,
+  "override":null,"enabled":false,"reason":"idle compaction is off for this lane",
+  "next":{"key":"msg_…","fireAtMs":0,"expiresAtMs":0,"contextTokens":250000,"ttlMs":3600000},
+  "last":{"key":"msg_…","fireAtMs":0,"expiresAtMs":0,"contextTokens":250000,"ttlMs":3600000,
+          "state":"sent","operationId":"<uuid>","detail":"…","updatedAtMs":0}}]}
+```
+
+`override` is `null` when the lane follows the default. `next` is present only
+when the lane has an open window; otherwise `reason` says why it has none.
+`error` appears, and nothing is planned or sent, when the schedule file in the
+state root cannot be read. When enabled, the daemon sends `/compact` to a lane
+two minutes before the prompt cache of its last Claude request expires. The
+expiry is that request's start plus the lifetime its `usage.cache_creation`
+reports (`ephemeral_1h_input_tokens` > 0: one hour; `ephemeral_5m_input_tokens`
+> 0: five minutes); a request served fully from cache reports neither and is
+skipped. A lane qualifies only when it is a live, top-level Claude lane (Terminal
+or Rich) that is not working, waiting for input or approval, blocked by a
+provider failure, or holding queued input; its last request's context is at
+least 100,000 tokens; and no `/compact` or compaction boundary follows that
+request. Each request is compacted at most once. Delivery uses the same path as
+`POST /api/sessions/:id/submit`, under the same per-session gate, and records
+the input as automation: it stamps no human or agent message principal, records
+provider activity, and does not bring a set-aside lane back. Event and
+transcript reads attribute the delivered turn with
+`author: {"kind":"automation","id":"idle-compaction","name":"Idle compaction","client":"sessionsd"}`;
+this author is derived from the schedule file and is not written to the lane
+ledger.
+
+### `PUT /api/idle-compaction`
+
+Accepts `{"enabled": true}` or `{"enabled": false}`, persists it as
+`idleCompaction.enabled` in `settings.json`, and returns the status above. A
+missing or non-boolean `enabled` returns 400.
+
+### `PUT /api/idle-compaction/lanes/:id`
+
+Accepts `{"override": "on" | "off" | "default"}` for a live Claude lane and
+returns the status above. `default` removes the lane's choice. A session the
+daemon does not hold returns 404; a non-Claude session returns 400.
+
 ### `POST /api/search/plan`
 
 Accepts `{"query":"the session where I discussed Apple signing"}`. The query

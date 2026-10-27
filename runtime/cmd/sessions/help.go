@@ -451,6 +451,12 @@ var commandTable = []commandSpec{
 		examples: []string{"sessions lan enable", "sessions lan status", "sessions lan disable"}, run: (*app).cmdLan,
 	},
 	{
+		name: "compaction", usage: "compaction [status|on|off|default] [--lane SESSION]",
+		summary: "compact idle Claude lanes before their prompt cache expires", group: adminCommandGroup, localJSON: true,
+		longHelp: "Inspect or change idle compaction, which is off by default. When it is on, Sessions sends /compact to an idle Claude lane two minutes before the prompt cache of its last request expires (about an hour on a Claude subscription, five minutes with an API key), so returning to a large conversation reads a summary instead of the whole context uncached. A lane qualifies only when it is a live, top-level Claude lane that is not working, waiting for input, blocked, or holding queued input, its context is at least 100,000 tokens, its last request reported a cache lifetime, and its last turn was not already /compact. The compaction appears in the conversation as a /compact turn attributed to Idle compaction, not to you. Plans are saved, so a daemon restart inside the window still sends it and a restart after the window skips it. on and off change the machine default; with --lane they set that lane's own choice, and default returns the lane to the machine default. status lists every live Claude lane with its choice, its planned send time, or why it has none.",
+		examples: []string{"sessions compaction", "sessions compaction on", "sessions compaction off --lane 1a2b3c4d", "sessions compaction default --lane 1a2b3c4d", "sessions --json compaction status"}, run: (*app).cmdCompaction,
+	},
+	{
 		name: "notify", usage: "notify <status|on|off> [done|waiting|lost]",
 		summary: "configure session push notifications", group: adminCommandGroup, localJSON: true,
 		longHelp: "Inspect or toggle encrypted push notifications for structured turn completion, sustained waiting, and unexpectedly lost sessions. Omitting the kind from on or off changes all three kinds; delivery begins only after subscribing in the web UI.",

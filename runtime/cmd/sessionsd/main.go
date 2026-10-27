@@ -205,6 +205,7 @@ func startAutomaticServices(handler *api.Server, remotePreview bool) func() {
 	handler.StartFleetAccount(accountContext, log.Printf)
 	handler.StartFleetRelay(accountContext, log.Printf)
 	handler.StartParentReports(accountContext, log.Printf)
+	handler.StartIdleCompaction(accountContext, log.Printf)
 	return func() {
 		stopAccount()
 		stopRemote()

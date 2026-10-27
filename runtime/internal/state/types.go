@@ -424,6 +424,10 @@ type EndSessionRequest struct {
 type InputAttribution struct {
 	SourceSessionID string
 	Client          string
+	// Automation names a daemon-owned sender, such as idle compaction. Its
+	// input is neither a person's nor another lane's: it stamps no message
+	// principal and records provider activity rather than human input.
+	Automation string
 }
 
 // ClaudeSessionOptions are explicit per-session overrides. Empty fields use

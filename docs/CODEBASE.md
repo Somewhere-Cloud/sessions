@@ -415,6 +415,27 @@ child environment and validates provider events before persisting normalized
 history (`runtime/internal/claudep/events.go`,
 `runtime/internal/claudep/history.go`).
 
+### `compaction`
+
+`compaction` plans idle compaction for Claude lanes, an opt-in setting that is
+off by default. `Observe` reads a lane's retained Claude events (Terminal
+transcript or Rich runner log) for the last request's `message.usage`: its
+context size, the cache lifetime `cache_creation` reports, and its start time,
+taken from the conversation record written before the response. `Window`
+combines that with the lane's state and returns a plan that fires two minutes
+before the cache expires, or the reason there is none
+(`runtime/internal/compaction/observe.go`,
+`runtime/internal/compaction/window.go`). The scheduler persists each plan
+before acting on it, writes `sending` before delivery, and settles plans a
+previous daemon left on startup, so a restart inside the window still sends and
+a restart past it never does (`runtime/internal/compaction/scheduler.go`,
+`runtime/internal/compaction/store.go`). `runtime/internal/api/idle_compaction.go`
+supplies live lanes, delivers `/compact` through the submit path as automation
+input (`runtime/internal/session/automation_input.go`), attributes the
+delivered turn in event reads, and serves `GET/PUT /api/idle-compaction` for
+`sessions compaction` and the Settings card
+(`frontend/src/components/IdleCompactionCard.tsx`).
+
 ### `codexapp`
 
 `codexapp` speaks the Codex app-server JSON-RPC contract and persists provider

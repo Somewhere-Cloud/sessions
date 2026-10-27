@@ -285,6 +285,19 @@ type Settings struct {
 	Claude                 *ClaudeSettings     `json:"claude,omitempty"`
 	Delegation             *DelegationSettings `json:"delegation,omitempty"`
 	Onboarding             *OnboardingSettings `json:"onboarding,omitempty"`
+	// IdleCompaction is the machine-wide default for compacting idle Claude
+	// lanes before their prompt cache expires. Missing means off; per-lane
+	// choices live with the schedule in the state root.
+	IdleCompaction *IdleCompactionSettings `json:"idleCompaction,omitempty"`
+}
+
+type IdleCompactionSettings struct {
+	Enabled bool `json:"enabled"`
+}
+
+// IdleCompactionEnabled reports the machine-wide default, off unless chosen.
+func (s Settings) IdleCompactionEnabled() bool {
+	return s.IdleCompaction != nil && s.IdleCompaction.Enabled
 }
 
 func (s Settings) EffectiveRemote() RemoteSettings {

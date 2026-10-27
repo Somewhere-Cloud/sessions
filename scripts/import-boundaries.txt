@@ -50,6 +50,7 @@ internal/api internal/agentcall
 internal/api internal/background
 internal/api internal/backup
 internal/api internal/codexapp
+internal/api internal/compaction
 internal/api internal/delivery
 internal/api internal/discovery
 internal/api internal/fleetaccount

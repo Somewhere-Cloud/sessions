@@ -104,6 +104,9 @@ func (s *Server) writeSessionInput(
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	if attribution.Automation != "" {
+		return s.writeAutomationInput(ctx, id, data)
+	}
 	if !attributed {
 		if s.registry.Input(ctx, id, data) {
 			return nil

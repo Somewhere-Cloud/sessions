@@ -33,6 +33,7 @@ import { useSessions } from '../store/sessions';
 import { FleetProviderUpdates } from './FleetProviderUpdates';
 import { NotificationDeliveryStatus } from './NotificationDeliveryStatus';
 import { NativeRuntimeStatusCard } from './NativeRuntimeStatusCard';
+import { IdleCompactionCard } from './IdleCompactionCard';
 
 const StorageView = lazy(() => import('./StorageView').then((module) => ({ default: module.StorageView })));
 
@@ -480,6 +481,7 @@ function AgentSettings(props: AgentSettingsProps): JSX.Element {
         <label className="settings-select-row"><span><strong>Remote Control name prefix</strong><small>Optional label prefix for sessions visible on claude.ai.</small></span><input value={props.claudeSettings.remoteControlNamePrefix} disabled={props.clientOnly || props.claudeBusy || !props.claudeAvailable} maxLength={64} placeholder="This Mac" onChange={(event) => props.onClaudeDraft({ ...props.claudeSettings, remoteControlNamePrefix: event.currentTarget.value })} onBlur={() => void props.onClaudeSettings(props.claudeSettings)} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }} /></label>
         {props.claudeMessage ? <div className="settings-message" role="status">{props.claudeMessage}</div> : null}
       </div>
+      <IdleCompactionCard clientOnly={props.clientOnly} hostName={props.hostName} />
       <div className="settings-card">
         <h2>Delegated agent access</h2>
         <p>Applies only when one Sessions agent starts another. It never changes an existing session or lets a child escalate itself.</p>

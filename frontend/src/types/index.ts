@@ -427,7 +427,8 @@ export interface StructuredTokenUsage {
 }
 
 export interface MessageAuthor {
-  kind: 'session';
+  // 'automation' is a daemon-owned sender, such as idle compaction.
+  kind: 'session' | 'automation';
   id: string;
   name: string;
   client: string;

@@ -175,6 +175,44 @@ export async function updateAISettings(settings: AISettings): Promise<AISettings
   return featureJSON<AISettings>(r, 'Smart features');
 }
 
+export interface IdleCompactionPlan {
+  fireAtMs: number;
+  expiresAtMs: number;
+  contextTokens: number;
+  ttlMs: number;
+}
+
+export interface IdleCompactionLane {
+  id: string;
+  name?: string;
+  structured: boolean;
+  override: boolean | null;
+  enabled: boolean;
+  reason?: string;
+  next?: IdleCompactionPlan;
+  last?: IdleCompactionPlan & { state: string; detail?: string; updatedAtMs: number };
+}
+
+export interface IdleCompactionStatus {
+  enabled: boolean;
+  error?: string;
+  lanes: IdleCompactionLane[];
+}
+
+export async function fetchIdleCompaction(signal?: AbortSignal): Promise<IdleCompactionStatus> {
+  const r = await apiFetch(`${httpBase()}/api/idle-compaction`, { signal });
+  return featureJSON<IdleCompactionStatus>(r, 'Idle compaction');
+}
+
+export async function updateIdleCompaction(enabled: boolean): Promise<IdleCompactionStatus> {
+  const r = await apiFetch(`${httpBase()}/api/idle-compaction`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ enabled })
+  });
+  return featureJSON<IdleCompactionStatus>(r, 'Idle compaction');
+}
+
 export async function fetchClaudeSettings(signal?: AbortSignal): Promise<ClaudeSettings> {
   const r = await apiFetch(`${httpBase()}/api/claude/settings`, { signal });
   return featureJSON<ClaudeSettings>(r, 'Claude defaults');
@@ -299,7 +337,7 @@ export interface HistoryMessage {
   text: string;
   timestamp: string | null;
   author?: {
-    kind: 'session';
+    kind: 'session' | 'automation';
     id: string;
     name: string;
     client: string;

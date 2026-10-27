@@ -89,15 +89,16 @@ func (m *relayMatcher) match(text string, atMS int64, operationID string) *ledge
 }
 
 func (s *Server) messageRelayMatcher(ctx context.Context, laneID string) (*relayMatcher, error) {
+	relays := s.idleCompactionRelays(laneID)
 	service, ok := s.registry.(messageAttributionService)
 	if !ok {
-		return newRelayMatcher(nil), nil
+		return newRelayMatcher(relays), nil
 	}
-	relays, err := service.MessageRelays(ctx, laneID)
+	recorded, err := service.MessageRelays(ctx, laneID)
 	if err != nil {
 		return nil, err
 	}
-	return newRelayMatcher(relays), nil
+	return newRelayMatcher(append(recorded, relays...)), nil
 }
 
 // eventsWindowBody builds the structured-events payload that BOTH transports
@@ -189,6 +190,7 @@ func (s *Server) annotateTranscript(ctx context.Context, transcript *integration
 	if err != nil {
 		return err
 	}
+	relays = append(relays, s.idleCompactionRelays(transcript.Session.ID)...)
 	if len(relays) == 0 {
 		return nil
 	}

@@ -32,6 +32,7 @@ for explicit lookups; neither changes the source provider history.
 ├── fleet-machine-key.json.claim-nonces
 ├── vapid.json
 ├── push-subscriptions.json
+├── idle-compaction.json
 ├── delivery-operations/
 │   └── <operation-id>.json
 ├── parent-reports/
@@ -83,6 +84,7 @@ override:
   submissions;
 - `parent-reports/`, delegated lanes' pending outcome reports to their managers;
 - `usage.sqlite3` and `errors.jsonl`;
+- `idle-compaction.json`, the idle compaction schedule and per-lane choices;
 - `history-cache.json`, what the history listing has already computed about each
   transcript file — its message count, its recorded last activity, and the card
   the provider scan read out of that file's head — keyed by path with the size
@@ -324,6 +326,37 @@ Temporary files older than ten minutes are abandoned writes and removed. Only
 `<32 hex>.json` regular files and `.tmp-*` files in this directory are ever
 removed. The
 directory follows `SESSIONS_STATE_DIR` like `delivery-operations/`.
+
+### `idle-compaction.json`
+
+Version-1, mode-0600 JSON written by the daemon's idle compaction scheduler
+(`runtime/internal/compaction/store.go`). It is replaced atomically through a
+synced temporary file. It follows `SESSIONS_STATE_DIR`; the machine-wide on/off
+default instead lives in `settings.json` as `idleCompaction.enabled` (missing
+means off).
+
+```json
+{"version":1,
+ "lanes":{"<id>":{"key":"msg_…","fireAtMs":0,"expiresAtMs":0,"contextTokens":0,"ttlMs":3600000,
+                  "state":"scheduled","operationId":"","detail":"","updatedAtMs":0}},
+ "overrides":{"<id>":false},
+ "sent":{"<id>":[{"operationId":"<uuid>","text":"/compact","atMs":0}]}}
+```
+
+`lanes` holds at most one entry per lane: its latest plan, keyed by the
+provider message id of the request whose prompt cache it protects. `state` is
+`scheduled`, `sending` (written before delivery starts), `sent`,
+`unconfirmed`, `failed`, or `missed`. On startup a `sending` entry becomes
+`unconfirmed` and a `scheduled` entry whose `expiresAtMs` has passed becomes
+`missed`; neither is sent again. A `scheduled` entry still inside its window is
+re-armed, even before the runner's history has been replayed. `overrides` are
+explicit per-lane choices; a lane without one follows the machine default.
+`sent` keeps at most 16 records per lane for 30 days so a transcript can
+attribute a delivered `/compact` turn to automation; it stores the command
+text and time, never conversation content. Entries and overrides of a lane
+absent for ten minutes after startup discovery are forgotten. A file that
+cannot be read or decoded, or has another version, pauses idle compaction and
+is never overwritten; move it aside to reset. An older daemon ignores the file.
 
 ### `idle/<id>`
 
