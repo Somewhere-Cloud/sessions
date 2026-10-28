@@ -28,7 +28,7 @@ describe('capability: understand usage without invented productivity claims', ()
     expect(screen.queryByText('$0.000')).not.toBeInTheDocument();
   });
 
-  it('measures context reuse against input, without double-counting reasoning', () => {
+  it('measures cache read traffic against input, without double-counting reasoning', () => {
     const total = row();
     render(<UsageOverview report={{ totals: total, rows: [total] }} mode="auto" />);
     expect(screen.getByText('80%')).toBeVisible();
@@ -36,6 +36,12 @@ describe('capability: understand usage without invented productivity claims', ()
     expect(screen.getByText('2')).toBeVisible();
     expect(screen.getByText(/not your bill/)).toBeVisible();
     expect(screen.getByText(/Token volume measures usage, not work quality/)).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Token traffic' })).toBeVisible();
+    for (const label of ['Fresh input', 'Cache write', 'Cache read', 'Output']) {
+      expect(screen.getByText(label)).toBeVisible();
+    }
+    expect(screen.getByText(/not current context occupancy/)).toBeVisible();
+    expect(screen.getByText(/No cache expiry is reported/)).toBeVisible();
   });
 
   it('does not invent a reuse percentage for an empty period', () => {

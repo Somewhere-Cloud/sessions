@@ -600,6 +600,7 @@ button.model-picker-option { display: flex; align-items: center; justify-content
   gap: 4px;
   white-space: nowrap;
 }
+.sidebar-metric-footprint { min-width: 0; max-width: 100%; white-space: normal; flex-wrap: wrap; overflow-wrap: anywhere; }
 .sidebar-metric-label {
   color: var(--fg-faint);
   font-size: 12px;

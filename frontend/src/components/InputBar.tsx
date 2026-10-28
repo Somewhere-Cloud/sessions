@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent } from 'react';
 import { uploadFile } from '../api/sessionsd';
 import type { SessionTool } from '../types';
+import { ComposerAccountUsage } from './ComposerAccountUsage';
+import type { ComposerUsageScope } from '../lib/composerAccountUsage';
 import { ComposerModelControl } from './ComposerModelControl';
 import { MessageDeliveryError, queuedComposerNotice, type MessageSubmission } from '../lib/messageDelivery';
 import { useDurableDraft } from '../hooks/useDurableDraft';
@@ -25,6 +27,7 @@ interface Props {
   // dropped file as a result of drag-drop).
   sessionId: string;
   draftMachineId?: string;
+  usageScope?: ComposerUsageScope;
   // Capture matching-history baseline before IO; record only after acknowledgement.
   onSubmitting?: (text: string) => number;
   onSubmitted?: (text: string, queued: boolean, baseline?: number) => void;
@@ -112,7 +115,7 @@ export function InputBar({
   steerMessage,
   connected,
   sendAvailable = connected,
-  sessionId, draftMachineId,
+  sessionId, draftMachineId, usageScope,
   onSubmitting,
   onSubmitted,
   recoverDraft,
@@ -148,7 +151,6 @@ export function InputBar({
     const id = window.setTimeout(() => setUploadError(null), 8000);
     return () => window.clearTimeout(id);
   }, [uploadError]);
-
   useEffect(() => {
     if (!recoverDraft) {
       const restored = restoredDraftRef.current;
@@ -487,6 +489,7 @@ export function InputBar({
             <span aria-hidden>＋</span><span>Attach</span>
           </button>
           <span className="input-composer-spacer" />
+          {usageScope && provider !== 'terminal' ? <ComposerAccountUsage scope={usageScope} /> : null}
           {provider !== 'terminal' && onConfigureModel ? (
             <ComposerModelControl
               sessionId={sessionId}

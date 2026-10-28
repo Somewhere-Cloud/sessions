@@ -752,6 +752,7 @@ function SessionViewInner({ sessionId, onStatusChange, isActive = false, onResum
         <ConversationPane>
           <RemoteView
             sessionId={sessionId} draftMachineId={getActiveServer().id}
+            usageScope={session ? { sessionId: session.id, machineId: sourceServerId, provider: session.tool, profile: session.profile, configDir: session.configDir } : undefined}
             events={term.claudeEvents}
             historyPending={term.historyPending}
             sendConfirmed={sendConfirmedInput}

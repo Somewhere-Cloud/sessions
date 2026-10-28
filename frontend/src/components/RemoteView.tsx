@@ -1,3 +1,4 @@
+import type { ComposerUsageScope } from '../lib/composerAccountUsage';
 import { Suspense, lazy, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch } from '../hooks/useDispatch';
 import { renderContent } from '../lib/contentRender';
@@ -117,6 +118,7 @@ function FaultCard({ sessionId, fault, rich, onOpenTerminal }: {
 interface Props {
   sessionId: string;
   draftMachineId?: string;
+  usageScope?: ComposerUsageScope;
   // Provider-neutral structured history. Claude supplies JSONL records;
   // Codex supplies normalized rollout or app-server notifications.
   events: ClaudeSessionEvent[];
@@ -181,7 +183,7 @@ interface Props {
 // cycle.
 
 export function RemoteView({
-  sessionId, draftMachineId,
+  sessionId, draftMachineId, usageScope,
   events,
   historyPending,
   sendConfirmed,
@@ -603,7 +605,7 @@ export function RemoteView({
           steerMessage={steerMessage}
           connected={connected}
           sendAvailable={sendAvailable}
-          sessionId={sessionId} draftMachineId={draftMachineId}
+          sessionId={sessionId} draftMachineId={draftMachineId} usageScope={usageScope}
           onSubmitting={prepareSend}
           onSubmitted={recordSent}
           recoverDraft={recoverDraft}

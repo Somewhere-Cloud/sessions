@@ -13,7 +13,7 @@ export interface SidebarProps {
   isWorking: boolean;
   timer: string;          // "7m 35s" — empty when idle
   tokens: string;         // "1.9k" — empty when idle
-  context: string;        // "32% of 258k" — Codex app-server only
+  context: string;        // Latest request estimate — Codex app-server only
   finalElapsed: string;   // "9m 50s" frozen from the last completed turn, empty if no recent run
   currentTask: string;    // latest tool call name + preview
   checklist: SidebarChecklistItem[];
@@ -46,7 +46,7 @@ export default function StatusSidebar({
               <span className="sidebar-metric"><span className="sidebar-metric-label">tokens</span>{tokens}</span>
             ) : null}
             {context ? (
-              <span className="sidebar-metric"><span className="sidebar-metric-label">context</span>{context}</span>
+              <span className="sidebar-metric sidebar-metric-footprint"><span className="sidebar-metric-label">request footprint</span>{context}</span>
             ) : null}
           </>
         ) : null}
@@ -56,7 +56,7 @@ export default function StatusSidebar({
           </span>
         ) : null}
         {!isWorking && context ? (
-          <span className="sidebar-metric"><span className="sidebar-metric-label">context</span>{context}</span>
+          <span className="sidebar-metric sidebar-metric-footprint"><span className="sidebar-metric-label">request footprint</span>{context}</span>
         ) : null}
       </section>
 

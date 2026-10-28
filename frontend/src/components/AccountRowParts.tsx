@@ -1,6 +1,6 @@
 import { useId, useState, type FormEvent } from 'react';
 import { placementCheck, type AccountPlacement, type MachineAccounts, type PlacementCheck } from '../lib/accountRollup';
-import { relativeTime } from './AccountUsageSummary';
+import { relativeTime } from '../lib/accountUsageDisplay';
 import { setDefaultAccount } from '../api/sessionsd';
 
 // The per-computer parts of an account row: where it is signed in, what that

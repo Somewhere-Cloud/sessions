@@ -714,15 +714,19 @@ async function profilesForServer(server: ServerConfig, signal?: AbortSignal): Pr
  * answering from the daemon's short cache.
  */
 export async function fetchAccountUsage(
-  serverId: string | undefined, options: { refresh?: boolean; signal?: AbortSignal } = {}
+  serverId: string | undefined, options: { refresh?: boolean; signal?: AbortSignal; tool?: 'claude' | 'codex'; name?: string } = {}
 ): Promise<AccountUsage[] | null> {
   const server = requestedServer(serverId);
-  const query = options.refresh ? '?refresh=1' : '';
+  const params = new URLSearchParams();
+  if (options.refresh) params.set('refresh', '1');
+  if (options.tool) params.set('tool', options.tool);
+  if (options.name !== undefined) params.set('name', options.name);
+  const query = params.size ? `?${params}` : '';
   const r = await serverFetch(server, `${httpBaseForServer(server)}/api/account-usage${query}`, { signal: options.signal });
   if (r.status === 404 || r.status === 501) return null;
   // Only a local or paired client may make providers answer again; any other
   // client still gets the daemon's latest reading.
-  if (r.status === 403 && options.refresh) return fetchAccountUsage(serverId, { signal: options.signal });
+  if (r.status === 403 && options.refresh) return fetchAccountUsage(serverId, { ...options, refresh: false });
   const body = await json<{ accounts: AccountUsage[] }>(r);
   return body.accounts ?? [];
 }

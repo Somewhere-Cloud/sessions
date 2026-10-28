@@ -52,6 +52,7 @@ const GATE = [
   'launcher-layout',
   'account-login',
   'account-usage',
+  'composer-usage',
   'storage',
   'account-choice',
   'account-freshness',

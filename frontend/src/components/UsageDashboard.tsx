@@ -399,13 +399,14 @@ export function UsageOverview(
   const models = [...new Set(report.rows.flatMap((row) => row.models).filter(Boolean))];
   const unpriced = report.totals.missingPricingEntries;
   const parts = [
-    { label: 'New context', value: input, className: 'is-input' },
-    { label: 'Reused context', value: tokens.cacheReadTokens, className: 'is-cache' },
+    { label: 'Fresh input', value: tokens.inputTokens, className: 'is-input' },
+    { label: 'Cache write', value: tokens.cacheCreationTokens, className: 'is-input' },
+    { label: 'Cache read', value: tokens.cacheReadTokens, className: 'is-cache' },
     { label: 'Output', value: tokens.outputTokens, className: 'is-output' }
   ];
   const stats = [
     { label: 'Tokens processed', value: compactNumber(total), detail: `${compactNumber(report.totals.entries)} recorded usage events` },
-    { label: 'Context reused', value: context > 0 ? `${percent(tokens.cacheReadTokens, context)}%` : '—', detail: context > 0 ? 'of input served from cache' : 'No input recorded yet' },
+    { label: 'Input served from cache', value: context > 0 ? `${percent(tokens.cacheReadTokens, context)}%` : '—', detail: context > 0 ? 'of input served from cache' : 'No input recorded yet' },
     { label: 'Models used', value: String(models.length), detail: models.join(', ') || 'No model data yet' },
     { label: unpriced > 0 ? 'Partial cost estimate' : 'Estimated cost',
       value: unpriced > 0 && unpriced >= report.totals.entries ? 'Unavailable' : dollars(report.totals.costUSD),
@@ -421,14 +422,14 @@ export function UsageOverview(
       <span>{stat.label}</span><strong>{stat.value}</strong><small title={stat.detail}>{stat.detail}</small>
     </div>)}</div>
     <div className="usage-token-mix">
-      <h2>How your agents used context</h2>
+      <h2>Token traffic</h2>
       {total > 0 ? <div className="usage-token-track" aria-hidden="true">{parts.map((part) =>
         <span key={part.label} className={part.className} style={{ width: `${part.value / total * 100}%` }} />
       )}</div> : <p>No token activity recorded in this period.</p>}
       <div className="usage-token-legend">{parts.map((part) => <span key={part.label}>
         <i className={part.className} aria-hidden="true" />{part.label} <strong>{compactNumber(part.value)}</strong>
       </span>)}</div>
-      <p>Output includes {compactNumber(tokens.reasoningTokens)} reported reasoning tokens. Token volume measures usage, not work quality.</p>
+      <p>Output includes {compactNumber(tokens.reasoningTokens)} reported reasoning tokens. Token volume measures usage, not work quality. Period totals are token traffic, not current context occupancy. No cache expiry is reported.</p>
     </div>
   </section>;
 }

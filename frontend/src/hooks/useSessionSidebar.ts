@@ -38,7 +38,7 @@ export interface SessionSidebarState {
   // "1.9k" — tokens consumed in the current (in-progress or just-
   // completed) assistant turn.
   tokens: string;
-  // Codex app-server context utilization, e.g. "32% of 258k".
+  // Latest Codex request footprint estimate, never cumulative token traffic.
   context: string;
   // "9m 50s" frozen from the last completed turn, shown while idle.
   finalElapsed: string;
@@ -107,17 +107,20 @@ function itemTaskLabel(item: unknown): string {
   return type.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/^./, (char) => char.toUpperCase());
 }
 
-function codexContextLabel(used: number, window: number): string {
-  if (used <= 0 || window <= 0) return '';
-  const percent = Math.min(100, Math.round((used / window) * 100));
-  return `${percent}% of ${formatTokens(window)}`;
+function codexContextLabel(used: number | null | undefined, window: number | null | undefined): string {
+  if (used == null || !Number.isFinite(used) || used < 0) return 'Latest request estimate unknown';
+  const count = used === 0 ? '0' : formatTokens(used);
+  if (!window || !Number.isFinite(window) || window <= 0) return `Latest request ≈${count} tokens · window unknown`;
+  const percent = Math.round((used / window) * 100);
+  return `Latest request ≈${count} tokens · ${percent}% of reported ${formatTokens(window)} window`;
 }
 
 function codexSidebarState(
   events: ClaudeSessionEvent[],
   daemonWorking: boolean,
   parserName: string,
-  parserIcon: string
+  parserIcon: string,
+  conversationId?: string
 ): SessionSidebarState {
   let turnStartedAt: number | null = null;
   let lastCompletedElapsed: number | null = null;
@@ -151,14 +154,16 @@ function codexSidebarState(
       }
     } else if (event.subtype === 'token_count') {
       const last = event.usage?.last;
-      const total = event.usage?.total;
       tokens = last?.totalTokens ?? last?.outputTokens ?? tokens;
-      // `total` is the cumulative thread bill; context pressure is the
+      // `total` is cumulative thread traffic; this estimate is the
       // provider's latest request footprint. Using the cumulative value would
       // eventually show 100% even after app-server compacts the conversation.
-      const contextUsed = last?.totalTokens ?? total?.totalTokens ?? 0;
-      const contextWindow = event.usage?.modelContextWindow ?? 0;
-      context = codexContextLabel(contextUsed, contextWindow);
+      const contextUsed = last?.totalTokens;
+      const contextWindow = event.usage?.modelContextWindow;
+      context = conversationId && event.conversationId !== conversationId
+        ? 'Latest request estimate unknown'
+        : codexContextLabel(contextUsed, contextWindow) + (Number.isNaN(timestamp)
+          ? ' · observation time unknown' : ` · observed ${new Date(timestamp).toLocaleString()}`);
     } else if (event.subtype === 'turn_completed') {
       sawLifecycle = true;
       lifecycleWorking = false;
@@ -235,7 +240,7 @@ export function useSessionSidebar({ session, events, daemonWorking }: Args): Ses
       session.tool === 'codex' &&
       events.some((event) => event.source === 'codex-app-server' || event.type === 'codex')
     ) {
-      return codexSidebarState(events, daemonWorking, ident.name, ident.icon);
+      return codexSidebarState(events, daemonWorking, ident.name, ident.icon, session.conversationId);
     }
 
     // Walk events oldest-first to accumulate sidebar state.
