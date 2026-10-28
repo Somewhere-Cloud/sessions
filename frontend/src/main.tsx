@@ -1,3 +1,4 @@
+import { readSingleWindow } from './lib/singleWindow';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { App } from './App';
@@ -106,7 +107,7 @@ async function bootstrap(): Promise<void> {
     store.setActive(null);
   }
 
-  if (!credentialHydrationFailed) {
+  if (!credentialHydrationFailed && !readSingleWindow()) {
     // Pairing is same-origin and authoritative. Claim (and scrub) it before a
     // hosted endpoint fragment or the current-origin health probe can run.
     const fragment = new URLSearchParams(window.location.hash.slice(1));

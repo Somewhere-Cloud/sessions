@@ -53,6 +53,7 @@ function relativeTime(ts: number): string {
 // monitor you get more. No more fixed N×M; cells flow into whatever
 // columns fit the viewport.
 export function GridView({ sessions, statusBySession, iconBySession, onEnd, onExpand }: Props): JSX.Element {
+  const machine = useServers((state) => state.activeId);
   return (
     <div className="grid-view">
       {sessions.map((s) => {
@@ -63,7 +64,7 @@ export function GridView({ sessions, statusBySession, iconBySession, onEnd, onEx
             session={s}
             status={statusBySession[s.id] ?? 'idle'}
             icon={iconBySession[s.id] ?? '⬛'}
-            onPopOut={() => openSessionWindow(s.id, label)}
+            onPopOut={() => { if (machine) void openSessionWindow(s.id, label, machine); }}
             onExpand={onExpand ? () => onExpand(s.id) : undefined}
             onEnd={onEnd ? () => onEnd(s.id) : undefined}
           />

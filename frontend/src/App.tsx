@@ -1,3 +1,4 @@
+import { readSingleWindow, singleWindowMachine } from './lib/singleWindow';
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RestartConversationHost } from './components/RestartConversation';
 import { SessionTabs, type TabStatus } from './components/SessionTabs';
@@ -64,16 +65,9 @@ const TOOL_ICONS: Record<SessionTool, string> = {
 // has live data here — inactive tabs stay 'idle' until we add background
 // polling (deferred from Phase 4).
 // Pop-out mode: a second window opened by Tauri (or window.open in the
-// browser) for a single session. URL signals it: `?session=<id>&mode=single`.
+// browser) for a single session. URL carries session, mode=single, and the originating configured machine.
 // We render a stripped shell — no tabs, no server selector, no mobile nav,
 // no grid toggle — and let SessionView fill the whole window.
-function readSingleModeParams(): { sessionId: string } | null {
-  if (typeof window === 'undefined') return null;
-  const params = new URLSearchParams(window.location.search);
-  if (params.get('mode') !== 'single') return null;
-  const sessionId = params.get('session');
-  return sessionId ? { sessionId } : null;
-}
 // Layout mode: tabs (default), fleet (all configured machines), or grid
 // (active-machine monitor tiles).
 // Persisted per-window in localStorage so each window remembers its
@@ -113,6 +107,14 @@ export function App(): JSX.Element {
   const servers = useServers((state) => state.servers);
   const pairingError = useServers((state) => state.pairingError);
   const credentialError = useServers((state) => state.credentialError);
+  const popOutTokenRequired = useServers((state) => state.tokenRequiredServerId);
+  const singleWindow = useMemo(() => readSingleWindow(), []);
+  const singleMachine = singleWindow ? singleWindowMachine(singleWindow, servers) : null;
+  useEffect(() => {
+    if (singleMachine && activeServerId !== singleMachine.id) {
+      useServers.setState({ activeId: singleMachine.id });
+    }
+  }, [singleMachine, activeServerId]);
   const updateServer = useServers((state) => state.updateServer);
   // Credentials are part of the endpoint's identity. Saving or replacing a
   // token changes nothing else here, so without it a machine that answered 401
@@ -178,6 +180,12 @@ export function App(): JSX.Element {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [identityRefreshKey, nativeHydrated, updateServer]);
   if (!nativeHydrated) return <div className="native-hydration">Connecting to the Sessions runtime…</div>;
+  if (singleWindow) {
+    if (!singleMachine || pairingError || credentialError || popOutTokenRequired === singleMachine.id) {
+      return <div className="native-hydration" role="status">{singleWindow.error || 'This session’s machine is unavailable or needs pairing. Open Connections in the main Sessions window, reconnect that machine, then reopen the session.'}</div>;
+    }
+    if (activeServerId !== singleMachine.id) return <div className="native-hydration">Connecting to the session’s machine…</div>;
+  }
   return activeServerId && !pairingError && !credentialError
     ? <>
         <ConnectedApp nativeClientOnly={nativeClientOnly} />
@@ -281,7 +289,7 @@ function ConnectedApp({ nativeClientOnly = false }: { nativeClientOnly?: boolean
     });
   }, [rawSessions]);
 
-  const single = useMemo(() => readSingleModeParams(), []);
+  const single = useMemo(() => readSingleWindow(), []);
   // Paid starts keep their exact source in dialog state. Opening a review is
   // never the operation that creates the new runtime.
   const [dialogOpen, setDialogOpen] = useState<
@@ -699,6 +707,8 @@ function ConnectedApp({ nativeClientOnly = false }: { nativeClientOnly?: boolean
         sessionId={single.sessionId}
         sessions={sessions}
         textSize={textSize}
+        hydrated={sessionsHydrated}
+        error={sessionsError}
       />
     );
   }

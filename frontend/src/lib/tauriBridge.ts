@@ -1,3 +1,4 @@
+import { validWindowIdentity } from './singleWindow';
 // Thin wrapper around Tauri APIs that survives running in a regular
 // browser too. The desktop app loads the same React bundle as the
 // browser; we feature-detect window.__TAURI_INTERNALS__ to decide
@@ -46,15 +47,18 @@ async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T
 
 // Pop a single session into its own native window (Tauri) or a new
 // browser tab (web). The Tauri command focuses an existing window for
-// the same session id rather than stacking duplicates.
+// the same configured machine and session rather than stacking duplicates.
 //
 // Browser path opens as a TAB (no width/height in features) — Chrome
 // and Safari treat any `window.open` with explicit dims as a popup,
 // which is blocked by default popup-blocker rules even from a real
 // user gesture. As a plain `_blank`, the browser opens it as a tab
 // and the user can drag it out into its own window if they want.
-export async function openSessionWindow(sessionId: string, title: string): Promise<void> {
-  const query = new URLSearchParams({ session: sessionId, mode: 'single' }).toString();
+export async function openSessionWindow(sessionId: string, title: string, machine: string): Promise<void> {
+  if (!validWindowIdentity(sessionId) || !validWindowIdentity(machine)) {
+    throw new Error('Reopen the session from its configured machine before popping it out.');
+  }
+  const query = new URLSearchParams({ session: sessionId, mode: 'single', machine }).toString();
   if (isTauri()) {
     await invoke<void>('open_scoped_window', { query, title });
     return;

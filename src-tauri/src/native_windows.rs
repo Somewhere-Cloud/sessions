@@ -133,6 +133,36 @@ fn stable_label_part(value: &str) -> String {
 }
 
 #[cfg(desktop)]
+fn valid_window_identity(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 256
+        && value.trim() == value
+        && !value.chars().any(char::is_control)
+}
+
+// Length-prefixed UTF-8 bytes make this an injective key without lossy
+// sanitization/truncation. Legacy local-only windows occupy a separate namespace.
+#[cfg(desktop)]
+fn session_window_label(machine: Option<&str>, session: &str) -> String {
+    let hex = |value: &str| {
+        value
+            .as_bytes()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>()
+    };
+    match machine {
+        Some(machine) => format!(
+            "win-session-m{}-{}-{}",
+            machine.len(),
+            hex(machine),
+            hex(session)
+        ),
+        None => format!("win-session-legacy-{}", hex(session)),
+    }
+}
+
+#[cfg(desktop)]
 fn parse_scoped_window(query: &str, title: String) -> Result<WindowSpec, String> {
     let pairs: Vec<(String, String)> =
         url::form_urlencoded::parse(query.trim().trim_start_matches('?').as_bytes())
@@ -175,22 +205,34 @@ fn parse_scoped_window(query: &str, title: String) -> Result<WindowSpec, String>
         }
     }
 
-    if pairs.len() == 2 {
-        let session_id = pairs
+    if pairs.len() == 2 || pairs.len() == 3 {
+        let field = |name: &str| {
+            pairs
+                .iter()
+                .find_map(|(key, value)| (key == name).then_some(value.as_str()))
+        };
+        let machine = field("machine");
+        let valid_fields = pairs
             .iter()
-            .find_map(|(key, value)| (key == "session").then_some(value.as_str()));
-        let single = pairs
-            .iter()
-            .any(|(key, value)| key == "mode" && value == "single");
-        if let Some(session_id) = session_id.filter(|id| !id.trim().is_empty()) {
-            if single {
-                let query = url::form_urlencoded::Serializer::new(String::new())
-                    .append_pair("session", session_id.trim())
-                    .append_pair("mode", "single")
-                    .finish();
+            .all(|(key, _)| matches!(key.as_str(), "session" | "mode" | "machine"))
+            && pairs.iter().enumerate().all(|(index, (key, _))| {
+                !pairs[..index].iter().any(|(previous, _)| previous == key)
+            });
+        if let Some(session) = field("session").filter(|id| valid_window_identity(id)) {
+            if valid_fields
+                && field("mode") == Some("single")
+                && machine.map(valid_window_identity).unwrap_or(true)
+            {
+                let mut serializer = url::form_urlencoded::Serializer::new(String::new());
+                serializer
+                    .append_pair("session", session)
+                    .append_pair("mode", "single");
+                if let Some(machine) = machine {
+                    serializer.append_pair("machine", machine);
+                }
                 return Ok(WindowSpec {
-                    label: format!("win-session-{}", stable_label_part(session_id)),
-                    query,
+                    label: session_window_label(machine, session),
+                    query: serializer.finish(),
                     title,
                     width: 900.0,
                     height: 700.0,
@@ -200,7 +242,7 @@ fn parse_scoped_window(query: &str, title: String) -> Result<WindowSpec, String>
     }
 
     Err(
-        "scope must be server=<id>, tool=codex|claude|shell, or session=<id>&mode=single"
+        "scope must be server=<id>, tool=codex|claude|shell, or session=<id>&mode=single[&machine=<configured-id>]"
             .to_string(),
     )
 }

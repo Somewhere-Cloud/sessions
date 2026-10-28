@@ -1,3 +1,4 @@
+import { readSingleWindow, singleWindowMachine } from './singleWindow';
 import { create } from 'zustand';
 import { randomUUID } from './uuid';
 import {
@@ -338,6 +339,8 @@ const initial = (() => {
   const savedActive = readActiveId();
   const windowScope = readWindowScope();
   const scopedServerId = windowScope?.kind === 'server' ? windowScope.value : '';
+  const single = readSingleWindow();
+  if (single) return { servers, activeId: singleWindowMachine(single, servers)?.id ?? null };
   const activeId = servers.some((s) => s.id === scopedServerId)
     ? scopedServerId
     : servers.some((s) => s.id === savedActive)
@@ -440,6 +443,8 @@ export const useServers = create<ServersStore>((set, get) => ({
 
   active: () => {
     const { servers, activeId } = get();
+    const single = readSingleWindow();
+    if (single) return singleWindowMachine(single, servers) ?? null;
     return servers.find((s) => s.id === activeId)
       ?? servers.find((s) => s.isDefault)
       ?? servers[0]

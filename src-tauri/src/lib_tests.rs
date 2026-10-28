@@ -232,7 +232,39 @@ mod tests {
 
         let session =
             parse_scoped_window("session=abc-123&mode=single", "Session".to_string()).unwrap();
-        assert_eq!(session.label, "win-session-abc-123");
+        assert_eq!(session.label, session_window_label(None, "abc-123"));
+        let scoped = |machine: &str| {
+            parse_scoped_window(
+                &format!("session=abc-123&mode=single&machine={machine}"),
+                String::new(),
+            )
+            .unwrap()
+        };
+        assert_eq!(scoped("host-a").label, scoped("host-a").label);
+        assert_ne!(scoped("host-a").label, scoped("host-b").label);
+        assert_ne!(scoped("a%2Fb").label, scoped("a-b").label);
+        assert_ne!(scoped("host-a").label, session.label);
+        assert_ne!(
+            scoped(&"a".repeat(100)).label,
+            scoped(&format!("{}b", "a".repeat(99))).label
+        );
+        assert_eq!(
+            scoped("host-a").query,
+            "session=abc-123&mode=single&machine=host-a"
+        );
+        for query in [
+            "session=x&mode=single&machine=",
+            "session=x&mode=single&machine=%00",
+            "session=x&mode=single&unknown=x",
+            "session=x&mode=single&session=y",
+            "session=x&mode=single&machine=a&machine=b",
+            "session=%20x&mode=single",
+        ] {
+            assert!(
+                parse_scoped_window(query, String::new()).is_err(),
+                "{query}"
+            );
+        }
         assert!(parse_scoped_window("tool=unknown", String::new()).is_err());
         assert!(parse_scoped_window("server=x&tool=codex", String::new()).is_err());
     }
@@ -345,8 +377,7 @@ mod tests {
                     "http://192.168.1.25:8787".to_string(),
                     "https://mac-mini.example.ts.net".to_string(),
                     "http://100.100.20.30:8787".to_string(),
-                    "https://relay.example/m/123e4567-e89b-42d3-a456-426614174000"
-                        .to_string(),
+                    "https://relay.example/m/123e4567-e89b-42d3-a456-426614174000".to_string(),
                 ],
                 ticket: "ticket-id.ticket-secret".to_string(),
             }

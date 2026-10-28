@@ -97,11 +97,15 @@ export function DaemonBanner({
 export function SinglePopOut({
   sessionId,
   sessions,
-  textSize
+  textSize,
+  hydrated,
+  error
 }: {
   sessionId: string;
   sessions: SessionInfo[];
   textSize: TextSize;
+  hydrated: boolean;
+  error: string | null;
 }): JSX.Element {
   const session = sessions.find((s) => s.id === sessionId);
   const overrideLabel = useTabLabel(sessionId);
@@ -151,7 +155,11 @@ export function SinglePopOut({
           <span className="single-mode-idle" aria-label="idle">○ idle</span>
         )}
       </header>
-      <SessionView
+      {!hydrated || !session ? <div role="status" className="native-hydration">
+        {error ? 'Cannot reach this session’s machine. Reconnect it in the main Sessions window, then reopen this view.'
+          : !hydrated ? 'Loading this machine’s sessions…'
+          : 'This session is unavailable on its originating machine. Reopen it from that machine’s session list.'}
+      </div> : <SessionView
         key={sessionId}
         sessionId={sessionId}
         isActive
@@ -162,7 +170,7 @@ export function SinglePopOut({
           next.searchParams.set('session', nextSessionId);
           window.location.assign(next);
         }}
-      />
+      />}
     </div>
   );
 }

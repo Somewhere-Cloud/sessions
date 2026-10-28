@@ -206,6 +206,20 @@ layouts. A phone does not run host onboarding or change host-owned runtime
 choices; it reads those settings from the connected computer and presents them
 read-only while keeping device-local choices editable.
 
+## Session pop-out windows
+
+Explicit **Pop out** opens a view on the originating configured machine. Desktop
+windows reuse the same machine/session target; matching session IDs on different
+machines open separate windows. The view waits for that machine’s session list
+before attaching. If the configured machine is missing or needs pairing, reopen
+Connections in the main window, reconnect it, then reopen the session.
+
+Single-session URLs carry `session`, `mode=single`, and `machine` (the client’s
+configured endpoint ID, not a credential or daemon UUID). Legacy two-field URLs
+are local-default-only; they never select the last active remote machine. Closing
+a pop-out detaches the viewer and leaves the runner alive. Browser fallback keeps
+the existing new-tab behavior, with the same originating-machine scope.
+
 ## Paired-machine credential storage
 
 The candidate implements protected native storage for saved machine tokens on

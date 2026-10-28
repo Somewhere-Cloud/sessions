@@ -146,7 +146,7 @@ const origin = `http://127.0.0.1:${uiAddress.port}`;
 const storedServers = [
   {
     id: 'primary-server', name: 'Primary', host: '127.0.0.1', port: primaryAddress.port,
-    isDefault: false, scheme: 'http'
+    isDefault: true, scheme: 'http'
   },
   {
     id: 'scoped-server', name: 'Scoped', host: '127.0.0.1', port: scopedAddress.port,
