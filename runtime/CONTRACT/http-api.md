@@ -1506,11 +1506,15 @@ request. The daemon captures the authenticated initiator plus the optional
 session/external-owner attribution headers before it sends the runner KILL
 frame, and leaves removal to the runner EXIT path. A retained record with
 `runnerGone:true` has no process to signal: the same request appends the
-user-close boundary and removes any stale unreachable map entry instead.
+user-close boundary and removes any stale unreachable map entry instead. A
+session paused after a reboot (`unreachableReason:"restart-restore-pending"`)
+with no live runner is ended the same way: the boundary is appended, then its
+launch registration and restore marker are removed so it is never woken; its
+provider conversation remains resumable.
 Responses:
 
-- known live entry, already-exited retained entry, or retained
-  `runnerGone:true` record: `200 {"ok":true}`. Re-ending an already-exited
+- known live entry, already-exited retained entry, retained
+  `runnerGone:true` record, or paused-after-reboot record: `200 {"ok":true}`. Re-ending an already-exited
   entry is idempotent and does not append a user-kill boundary after its exit.
 - unknown entry: `404 {"ok":false}`
 - a known entry whose attribution, durable boundary, or runner control cannot
@@ -1526,8 +1530,8 @@ Auth required. Body is:
 {"ids":["<session id>","<session id>"],"reason":"<operator text>","operationId":"<correlation id>","force":false}
 ```
 
-At least two non-empty live, already-exited retained, or retained
-`runnerGone:true` session IDs are required. The request is rejected before
+At least two non-empty live, already-exited retained, retained
+`runnerGone:true`, or paused-after-reboot session IDs are required. The request is rejected before
 mutation if a target is missing or the manager's mass-end safety guard requires
 explicit `force:true`. On success the daemon records one attributed operation
 for the batch and returns

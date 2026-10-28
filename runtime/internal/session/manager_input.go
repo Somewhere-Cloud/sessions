@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"unicode"
 
@@ -34,7 +35,7 @@ func (m *Manager) RequestKillAttributed(ctx context.Context, id string, force bo
 	if err := m.guard.Check(1, force); err != nil {
 		return err
 	}
-	if _, ok := m.registry.Get(id); !ok && !m.lostWithoutRunner(ctx, id) {
+	if _, ok := m.registry.Get(id); !ok && !m.lostWithoutRunner(ctx, id) && !m.pausedWithoutRunner(id) {
 		return fmt.Errorf("session %s not found", id)
 	}
 	return m.killOne(ctx, id, end)
@@ -54,7 +55,7 @@ func (m *Manager) KillManyAttributed(ctx context.Context, ids []string, force bo
 	for _, id := range ids {
 		if _, ok := m.registry.Get(id); ok {
 			unique[id] = struct{}{}
-		} else if m.lostWithoutRunner(ctx, id) {
+		} else if m.lostWithoutRunner(ctx, id) || m.pausedWithoutRunner(id) {
 			unique[id] = struct{}{}
 		}
 	}
@@ -111,6 +112,7 @@ func (m *Manager) killOne(ctx context.Context, id string, end state.EndSessionRe
 		return nil
 	}
 	closeLostRecord := m.lostWithoutRunner(ctx, id)
+	closePaused := m.pausedWithoutRunner(id)
 	if m.boundaries != nil {
 		if err := m.boundaries.RecordUserKill(ctx, ledger.UserKill{
 			Meta:          ledger.Meta{LaneID: id},
@@ -123,6 +125,9 @@ func (m *Manager) killOne(ctx context.Context, id string, end state.EndSessionRe
 		}); err != nil {
 			return fmt.Errorf("record user kill before runner kill: %w", err)
 		}
+	}
+	if closePaused {
+		return m.closePaused(id)
 	}
 	if closeLostRecord {
 		// There is no process to signal. Drop a stale unreachable connection if
@@ -157,6 +162,34 @@ func (m *Manager) lostWithoutRunner(ctx context.Context, id string) bool {
 		}
 	}
 	return false
+}
+
+// pausedWithoutRunner is a session that deliberately stayed stopped after a
+// reboot: its restore marker stands and no runner for it is alive. Ending it
+// is closing the record, not signalling a process.
+func (m *Manager) pausedWithoutRunner(id string) bool {
+	if _, paused := m.PendingRestore(id); !paused {
+		return false
+	}
+	return !m.runtimeStillLive(id)
+}
+
+// closePaused retires a paused session's launch registration and restore
+// marker after its end was recorded, so it is no longer offered for wake-up
+// and lists as ended. The provider conversation is untouched and resumable.
+func (m *Manager) closePaused(id string) error {
+	m.wakeMu.Lock()
+	defer m.wakeMu.Unlock()
+	if existing, live := m.registry.Get(id); live && !existing.Info().Unreachable {
+		return fmt.Errorf("session %s was woken while it was being ended; end it again to stop the live runtime", id)
+	}
+	m.registry.RemoveUnreachable(id)
+	if err := m.reap(id); err != nil {
+		return fmt.Errorf("retire paused session %s: %w; its end is recorded, run `sessions kill %s` again to finish removing its launch registration", id, err, id)
+	}
+	_ = os.Remove(state.For(m.config.RunnerStateDir, id).RestorePending)
+	m.removeCachedPendingRestore(id)
+	return nil
 }
 
 func (m *Manager) Input(ctx context.Context, id, data string) bool {

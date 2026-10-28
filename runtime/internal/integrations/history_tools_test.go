@@ -8,12 +8,12 @@ import (
 )
 
 const toolTurnTranscript = `{"type":"user","message":{"role":"user","content":"run the tests"}}
-{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"go test ./...","description":"Run all tests"}}]}}
-{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"ok  ./..."}]}}
-{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"t2","name":"Read","input":{"file_path":"missing.go"}}]}}
-{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t2","is_error":true,"content":[{"type":"text","text":"no such file"}]}]}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"s1","name":"Bash","input":{"command":"go test ./...","description":"Run all tests"}}]}}
+{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"s1","content":"ok  ./..."}]}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"s2","name":"Read","input":{"file_path":"missing.go"}}]}}
+{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"s2","is_error":true,"content":[{"type":"text","text":"no such file"}]}]}}
 {"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Tests pass."}]}}
-{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"t3","name":"Bash","input":{"command":"sleep 100"}}]}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"s3","name":"Bash","input":{"command":"sleep 100"}}]}}
 {"type":"user","message":{"role":"user","content":"stop that"}}
 {"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Stopped."}]}}
 `

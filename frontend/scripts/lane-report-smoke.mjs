@@ -35,9 +35,9 @@ export { savedToolActivity, summarizeActivity, toolRunning } from ${JSON.stringi
   assert.equal(parseLaneReport(`[sessions] Delegated lane "worker" (${child}) finished:\nbody\n\nFull result: sessions last 00000000-0000-4000-8000-000000000000`), null);
 
   const steps = savedToolActivity([
-    { id: 't1', name: 'Bash', input: { command: 'go test ./...', description: 'Run all tests' }, result: 'ok' },
-    { id: 't2', name: 'Read', input: { file_path: 'missing.go' }, failed: true },
-    { id: 't3', name: 'Grep', input: { pattern: 'TODO' } }
+    { id: 's1', name: 'Bash', input: { command: 'go test ./...', description: 'Run all tests' }, result: 'ok' },
+    { id: 's2', name: 'Read', input: { file_path: 'missing.go' }, failed: true },
+    { id: 's3', name: 'Grep', input: { pattern: 'TODO' } }
   ]);
   assert.equal(steps.length, 3);
   assert.equal(steps[0].call.inputPreview, 'Run all tests');

@@ -569,6 +569,7 @@ func (a *app) cmdModel(args []string) error {
 const (
 	killStatusKilled        = "killed"
 	killStatusClosedLost    = "closed-lost"
+	killStatusClosedPaused  = "closed-paused"
 	killStatusAlreadyExited = "already-exited"
 	killStatusFailed        = "failed"
 	killStatusUnconfirmed   = "unconfirmed"
@@ -664,6 +665,8 @@ func (a *app) reportKill(result killResult) error {
 				fmt.Fprintf(a.stdout, "killed %s\n", item.ID)
 			case killStatusClosedLost:
 				fmt.Fprintf(a.stdout, "closed lost record %s\n", item.ID)
+			case killStatusClosedPaused:
+				fmt.Fprintf(a.stdout, "closed paused session %s; its conversation stays resumable\n", item.ID)
 			case killStatusAlreadyExited:
 				fmt.Fprintf(a.stdout, "lane %s already exited; nothing to kill\n", item.ID)
 			default:
@@ -690,6 +693,18 @@ func (a *app) reportKill(result killResult) error {
 			len(unconfirmed), len(result.Items), strings.Join(killItemIDs(unconfirmed), " "))
 	}
 	return nil
+}
+
+// closedRecordStatus names how ending a session with no runner to signal is
+// reported: a lost runner's record or a session paused after a reboot.
+func closedRecordStatus(runnerGone bool, unreachableReason string) string {
+	switch {
+	case runnerGone:
+		return killStatusClosedLost
+	case unreachableReason == "restart-restore-pending":
+		return killStatusClosedPaused
+	}
+	return ""
 }
 
 func killItemIDs(items []killItem) []string {
@@ -735,7 +750,7 @@ func (a *app) cmdKill(ids []string) error {
 	}
 	result := killResult{Items: make([]killItem, 0, len(ids)), OperationID: operationID}
 	resolved := make([]string, 0, len(ids))
-	lost := make(map[string]struct{})
+	lost := make(map[string]string)
 	for _, idArg := range ids {
 		laneID, isLane, err := a.resolveLaneID(idArg)
 		if err != nil {
@@ -768,8 +783,8 @@ func (a *app) cmdKill(ids []string) error {
 				if candidate.Kind == "lane" && candidate.Exited {
 					alreadyExitedLane = true
 				}
-				if candidate.RunnerGone {
-					lost[id] = struct{}{}
+				if closed := closedRecordStatus(candidate.RunnerGone, candidate.UnreachableReason); closed != "" {
+					lost[id] = closed
 				}
 				break
 			}
@@ -795,8 +810,8 @@ func (a *app) cmdKill(ids []string) error {
 		}
 		items := response.classify(resolved)
 		for index := range items {
-			if _, wasLost := lost[items[index].ID]; wasLost && items[index].Status == killStatusKilled {
-				items[index].Status = killStatusClosedLost
+			if closed, wasLost := lost[items[index].ID]; wasLost && items[index].Status == killStatusKilled {
+				items[index].Status = closed
 			}
 		}
 		result.Items = append(result.Items, items...)
@@ -819,8 +834,8 @@ func (a *app) cmdKill(ids []string) error {
 		return a.reportKill(result)
 	}
 	status := killStatusKilled
-	if _, wasLost := lost[resolved[0]]; wasLost {
-		status = killStatusClosedLost
+	if closed, wasLost := lost[resolved[0]]; wasLost {
+		status = closed
 	}
 	result.Items = append(result.Items, killItem{ID: resolved[0], Status: status})
 	return a.reportKill(result)

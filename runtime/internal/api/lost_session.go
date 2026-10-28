@@ -18,7 +18,9 @@ func sessionCanBeEnded(registry sessionService, id string) bool {
 		return true
 	}
 	for _, info := range registry.List(true) {
-		if info.ID == id && !info.Exited && info.RunnerGone {
+		// A lost runner and a session paused after a reboot have no process
+		// to signal; ending either closes its record.
+		if info.ID == id && !info.Exited && (info.RunnerGone || info.UnreachableReason == "restart-restore-pending") {
 			return true
 		}
 	}
