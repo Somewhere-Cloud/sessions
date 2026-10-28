@@ -684,6 +684,14 @@ button:active:not(:disabled),
   display: flex;
   flex-direction: column;
 }
+.session-drilldown {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
 .session-view-host.is-hidden {
   display: none;
 }

@@ -178,6 +178,29 @@ try {
     // Opened sessions stay mounted; the one on screen is the one with a layout box.
     await t.waitForFunction(page, () => Array.from(document.querySelectorAll('.session-active-header'))
       .some((header) => header.getClientRects().length > 0 && header.textContent.includes('Review the narrow-screen lanes fix')), 'Open to show the reviewer lane');
+    t.scenario(`${viewport.label}: child drilldown stays transient and returns to the mounted parent draft`);
+    const retained = () => page.evaluate(() => Object.entries(localStorage)
+      .filter(([key]) => key.startsWith('sessions:open-views:v2:')).flatMap(([, value]) => JSON.parse(value)));
+    assert.deepEqual(await retained(), ['lead']);
+    await page.type('.session-view-host:not(.is-hidden) textarea', 'child draft');
+    await page.click('.session-drilldown button');
+    await t.waitForFunction(page, () => document.querySelector('.session-view-host:not(.is-hidden) textarea')?.value === 'draft', 'the parent draft to remain mounted');
+    await t.waitForFunction(page, () => document.activeElement?.matches('.session-nav-row, .session-view-host:not(.is-hidden) textarea, .session-view-host:not(.is-hidden) button'), 'parent return focus');
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await page.click('.session-view-host:not(.is-hidden) .subagents-panel-trigger');
+      await t.waitForSelector(page, '.subagent-card', 'the child cards');
+      await page.evaluate(() => Array.from(document.querySelectorAll('.subagent-card-actions button')).find((button) => button.textContent.trim() === 'Open').click());
+      await t.waitForSelector(page, '.session-drilldown', 'the temporary child view');
+      assert.deepEqual(await retained(), ['lead']);
+      assert.equal(await page.$eval('.session-view-host:not(.is-hidden) textarea', (node) => node.value), 'child draft');
+      if (attempt === 0) {
+        await page.click('.session-drilldown button:last-child');
+        await t.waitForFunction(page, () => document.querySelector('.session-view-host:not(.is-hidden) textarea')?.value === 'draft', 'close view to return to parent draft');
+      }
+    }
+    await page.click('.session-drilldown button:nth-last-child(2)');
+    await t.waitForFunction(page, () => !document.querySelector('.session-drilldown'), 'Keep view open to retain the child');
+    assert.deepEqual(await retained(), ['lead', 'reviewer']);
     // Phones replace the list with the detail; returning keeps the child selected.
     if (viewport.width <= 720) await page.click('.session-view-host:not(.is-hidden) [aria-label="Back to sessions"]');
     await t.waitForSelector(page, '[data-session-id="lead"].is-active',
@@ -188,6 +211,60 @@ try {
     const writes = await page.evaluate(() => window.__subagentsPanelFixture.daemon.requests
       .filter((request) => request.method !== 'GET').map((request) => `${request.method} ${request.path}`));
     assert.deepEqual(writes, [], `${viewport.label}: viewing lanes must not write`);
+    t.scenario(`${viewport.label}: pin/promotion and orphan discovery preserve intentional views`);
+    await page.evaluate(() => document.querySelector('.session-nav-row[data-session-id="lead"]').click());
+    await page.evaluate(() => window.__subagentsPanelFixture.select(window.__subagentsPanelFixture.collisionId));
+    await t.waitForFunction(page, () => document.querySelector('.tab.is-active')?.textContent.includes('Release lead'), 'transient sibling to preserve the manager tab selection');
+    // Fixture inventory transitions are independent of viewing. They model the
+    // next daemon frame after explicit pin/promotion and parent disappearance.
+    await page.evaluate(() => {
+      const f = window.__subagentsPanelFixture;
+      f.change(f.collisionId, { pinned: true }); f.select(f.collisionId);
+    });
+    await t.waitForFunction(page, () => !document.querySelector('.session-drilldown'), 'pin to retain a child view');
+    assert.ok((await retained()).includes(await page.evaluate(() => window.__subagentsPanelFixture.collisionId)));
+    await page.evaluate(() => {
+      const f = window.__subagentsPanelFixture;
+      f.change('reviewer', { displayParentSessionId: '' }); f.select('reviewer');
+      f.change('lead', { exited: true });
+    });
+    await t.waitForFunction(page, () => !document.querySelector('.session-drilldown'), 'promotion to remain open after parent exit');
+    await page.evaluate(() => {
+      const f = window.__subagentsPanelFixture;
+      f.change(f.collisionId, { pinned: false, parentSessionId: 'missing', creatorId: 'missing' });
+      f.select(f.collisionId);
+    });
+    // Kept views remain intentional even when lineage changes.
+    assert.ok((await retained()).includes(await page.evaluate(() => window.__subagentsPanelFixture.collisionId)));
+
+    await page.evaluate(() => window.__subagentsPanelFixture.select('orphan'));
+    await t.waitForFunction(page, () => document.querySelector('.session-drilldown')?.textContent.includes('Parent unavailable'), 'missing-parent helper to remain accessible');
+    assert.ok(!(await retained()).includes('orphan'));
+    await page.evaluate(() => window.__subagentsPanelFixture.change('orphan', { displayParentSessionId: '' }));
+    await t.waitForFunction(page, () => !document.querySelector('.session-drilldown'), 'explicit promotion to retain the active view');
+    assert.ok((await retained()).includes('orphan'));
+    await page.evaluate(() => window.__subagentsPanelFixture.select('fork'));
+    await t.waitForFunction(page, () => document.querySelector('.session-view-host:not(.is-hidden)')?.textContent.includes('User fork'), 'intentional user fork to open');
+    assert.ok((await retained()).includes('fork'));
+
+    t.scenario(`${viewport.label}: delayed fleet inventory never borrows same-UUID identity`);
+    await page.evaluate(() => window.__subagentsPanelFixture.openRemote());
+    await t.waitForFunction(page, () => !document.querySelector('.session-view-host:not(.is-hidden)'), 'old machine content to detach while destination loads');
+    assert.ok(!(await retained()).includes('Remote user root'));
+    await page.evaluate(() => window.__subagentsPanelFixture.releaseRemote());
+    await t.waitForFunction(page, () => document.querySelector('.session-view-host:not(.is-hidden)')?.textContent.includes('Remote user root'), 'destination inventory to select the remote root');
+    const remoteViews = await page.evaluate(() => Object.entries(localStorage).filter(([key]) => key.startsWith('sessions:open-views:v2:remote:')).map(([, value]) => JSON.parse(value)));
+    assert.deepEqual(remoteViews, [[await page.evaluate(() => window.__subagentsPanelFixture.collisionId)]]);
+    t.scenario(`${viewport.label}: App reload restores only its machine/window view list`);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await t.waitForSelector(page, '.session-nav-row[data-session-id="lead"]', 'the local machine after fixture reload');
+    await page.evaluate(() => document.querySelector('.session-nav-row[data-session-id="lead"]').click());
+    await page.evaluate(() => window.__subagentsPanelFixture.select('reviewer'));
+    await t.waitForFunction(page, () => document.querySelector('.session-view-host:not(.is-hidden)')?.textContent.includes('Review the narrow-screen lanes fix'), 'the intentionally kept reviewer to reopen');
+    assert.equal(await page.$('.session-drilldown'), null, 'kept child view survives reload without promotion');
+    const restoredRemote = await page.evaluate(() => Object.entries(localStorage).filter(([key]) => key.startsWith('sessions:open-views:v2:remote:')).map(([, value]) => JSON.parse(value)));
+    assert.deepEqual(restoredRemote, remoteViews, 'local restore leaves remote views intact');
+    assert.deepEqual(await page.evaluate(() => window.__subagentsPanelFixture.daemon.requests.filter((request) => request.method !== 'GET')), [], 'view restoration must not write organization or lifecycle state');
     assert.deepEqual(problems, [], `${viewport.label}: page problems`);
     await context.close();
   }

@@ -156,7 +156,7 @@ assert.match(paidStartPlan, /Access policy/,
   'the shared paid-start confirmation must disclose access');
 assert.match(paidStartHook, /isDefault/,
   'the shared paid-start hook must preselect the provider default model');
-assert.match(app, /useExactResume\(openSession\)/,
+assert.match(app, /useExactResume\(openCreatedSession\)/,
   'An already selected conversation resumes directly through the scoped resume hook');
 assert.doesNotMatch(app, /\bawait forkConversation\(/,
   'Forking must still open the shared confirmation');

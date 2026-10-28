@@ -39,6 +39,9 @@ import { getNativeConnectionSettings, getNativeRuntimeStatus, isTauri, notify, r
 import { readTextSize, writeTextSize, type TextSize } from './lib/textSize';
 import { INITIAL_STATUS, type ActiveStatus } from './lib/activeStatus';
 import { effectiveParentId } from './lib/workingSet';
+import { navigatorRowId } from './lib/sessionNavigation';
+import { useOpenViews } from './hooks/useOpenViews';
+import { openViewsKey, retainViewedSession } from './lib/openViews';
 import { providerConversationId } from './lib/sessionStatus';
 import { handleExternalLinkClick } from './lib/externalLinks';
 import {
@@ -82,7 +85,6 @@ type LayoutMode = 'home' | 'tabs' | 'today' | 'fleet' | 'search' | 'usage' | 'ac
 // re-run continuously while the scope was mismatched.
 const NO_SESSIONS: SessionInfo[] = [];
 const LAYOUT_KEY = 'sessions:layout-mode';
-const OPEN_TABS_KEY = 'sessions:open-tabs:v1';
 const THEME_KEY = 'sessions:theme:v1';
 function readStoredLayout(): LayoutMode {
   try {
@@ -90,13 +92,6 @@ function readStoredLayout(): LayoutMode {
     if (v === 'home' || v === 'tabs' || v === 'today' || v === 'fleet' || v === 'search' || v === 'usage' || v === 'accounts' || v === 'settings' || v === 'feedback' || v === 'connections' || v === 'grid') return v;
   } catch { /* ignore */ }
   return 'tabs';
-}
-
-function readOpenTabs(): string[] {
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(OPEN_TABS_KEY) ?? '[]');
-    return Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === 'string').slice(0, 12) : [];
-  } catch { return []; }
 }
 
 function readTheme(): ThemeMode {
@@ -207,7 +202,6 @@ function ConnectedApp({ nativeClientOnly = false }: { nativeClientOnly?: boolean
   const refresh = useSessions((s) => s.refresh);
   const kill = useSessions((s) => s.kill);
   const updateDisplayParent = useSessions((s) => s.updateDisplayParent);
-  const updateSetAside = useSessions((s) => s.updateSetAside);
   // Track whether the session list has ever successfully loaded. While
   // hydrated is false, any error means we can't reach the daemon.
   const storedSessionsError = useSessions((s) => s.error);
@@ -304,7 +298,10 @@ function ConnectedApp({ nativeClientOnly = false }: { nativeClientOnly?: boolean
     }
   >(null);
   const [activeStatus, setActiveStatus] = useState<ActiveStatus>(INITIAL_STATUS);
-  const [openTabIds, setOpenTabIds] = useState<string[]>(readOpenTabs);
+  const viewScope = useMemo(() => openViewsKey(activeServerId ?? ''), [activeServerId]);
+  const localMain = Boolean(selectedServer?.isDefault && isLocalServer(selectedServer) && !window.location.search);
+  const [openTabIds, setOpenTabIds] = useOpenViews(viewScope, rawSessions, sessionsHydrated, localMain);
+  const [pendingFleetView, setPendingFleetView] = useState<{ serverId: string; sessionId: string } | null>(null);
   const [theme, setTheme] = useState<ThemeMode>(readTheme);
   const [mobileSessionDetail, setMobileSessionDetail] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
@@ -314,36 +311,24 @@ function ConnectedApp({ nativeClientOnly = false }: { nativeClientOnly?: boolean
   const [onboardingError, setOnboardingError] = useState<string | null>(null);
   const onboardingPending = onboarding?.supported !== false && onboarding?.complete === false;
 
-  const writeOpenTabs = useCallback((ids: string[]): void => {
-    try { window.localStorage.setItem(OPEN_TABS_KEY, JSON.stringify(ids)); } catch { /* non-fatal */ }
-  }, []);
-  // Read the current rows through a ref rather than closing over them. With
-  // `rawSessions` in the dependency list this callback got a new identity
-  // every time any single session changed, and openSession is a prop on the
-  // memo()'d SessionView — so one session going working→idle re-rendered
-  // every mounted session view, which is exactly what that memo exists to
-  // prevent. Nothing here needs a render when the list changes.
   const rawSessionsRef = useRef(rawSessions);
   rawSessionsRef.current = rawSessions;
   const openSession = useCallback((id: string): void => {
-    if (rawSessionsRef.current.find((session) => session.id === id)?.setAsideAt != null) {
-      void updateSetAside(id, false).catch(() => {
-        // Opening remains useful even if an older daemon cannot persist the
-        // working-set change. The next refresh will keep the row discoverable.
-      });
-    }
-    setOpenTabIds((current) => {
-      const next = current.includes(id) ? current : [...current, id].slice(-12);
-      writeOpenTabs(next);
-      return next;
-    });
+    setPendingFleetView(null);
+    // Viewing is selection only. Inventory reconciliation below decides whether
+    // this is a user root or a transient agent drilldown, including delayed rows.
     setActive(id);
     setLayoutMode('tabs');
     setMobileSessionDetail(true);
-  // setLayoutMode is a stable React setter declared below; callbacks run only
-  // after the component has completed initialization.
-  }, [setActive, updateSetAside, writeOpenTabs]);
-  const exactResume = useExactResume(openSession);
+  }, [setActive]);
+  const keepViewOpen = useCallback((id: string): void => {
+    setOpenTabIds((ids) => ids.includes(id) ? ids : [...ids, id].slice(-12));
+  }, [setOpenTabIds]);
+  const openCreatedSession = useCallback((id: string): void => {
+    keepViewOpen(id);
+    openSession(id);
+  }, [keepViewOpen, openSession]);
+  const exactResume = useExactResume(openCreatedSession);
   const resumeSelected = exactResume.resume;
   const chooseHowToContinue = useCallback((
     session: SessionInfo,
@@ -495,40 +480,54 @@ function ConnectedApp({ nativeClientOnly = false }: { nativeClientOnly?: boolean
     try { window.localStorage.setItem(THEME_KEY, theme); } catch { /* ignore */ }
   }, [theme]);
   useEffect(() => {
-    if (!activeId || !rawSessions.some((session) => session.id === activeId)) return;
-    setOpenTabIds((current) => {
-      if (current.includes(activeId)) return current;
-      const next = [...current, activeId].slice(-12);
-      writeOpenTabs(next);
-      return next;
-    });
-  }, [activeId, rawSessions, writeOpenTabs]);
-  useEffect(() => {
-    setOpenTabIds((current) => {
-      const next = current.filter((id) => rawSessions.some((session) => session.id === id));
-      if (next.length === current.length) return current;
-      if (!activeId && next.length > 0) setActive(next[0]);
-      writeOpenTabs(next);
-      return next;
-    });
-  }, [activeId, rawSessions, setActive, writeOpenTabs]);
+    if (pendingFleetView) {
+      if (pendingFleetView.serverId !== activeServerId) { setPendingFleetView(null); return; }
+      if (!sessionsHydrated) return;
+      if (!rawSessions.some((session) => session.id === pendingFleetView.sessionId)) return;
+      setActive(pendingFleetView.sessionId);
+      setPendingFleetView(null);
+      return;
+    }
+    if (!sessionsHydrated) return;
+    const session = rawSessions.find((candidate) => candidate.id === activeId);
+    if (session && retainViewedSession(session)) keepViewOpen(session.id);
+  }, [activeId, activeServerId, rawSessions, sessionsHydrated, pendingFleetView, setActive, keepViewOpen]);
 
-  const closeTab = useCallback((id: string): void => {
-    setOpenTabIds((current) => {
-      const index = current.indexOf(id);
-      const next = current.filter((item) => item !== id);
-      writeOpenTabs(next);
-      if (activeId === id) setActive(next[Math.max(0, index - 1)] ?? next[0] ?? null);
-      return next;
+  const returnToManager = useCallback((id: string): void => {
+    openSession(id);
+    requestAnimationFrame(() => {
+      const rows = document.querySelectorAll<HTMLElement>('.session-nav-row[data-session-id]');
+      const row = Array.from(rows).find((item) => item.dataset.sessionId === id && item.getClientRects().length > 0);
+      const content = document.querySelector<HTMLElement>('.session-view-host:not(.is-hidden) textarea, .session-view-host:not(.is-hidden) button');
+      (row ?? content)?.focus();
     });
-  }, [activeId, setActive, writeOpenTabs]);
+  }, [openSession]);
+  const openRelatedSession = useCallback((id: string): void => {
+    const selectedId = useSessions.getState().activeId;
+    const manager = selectedId ? navigatorRowId(selectedId, rawSessionsRef.current) : null;
+    if (id === manager) returnToManager(id);
+    else openSession(id);
+  }, [openSession, returnToManager]);
+  const closeTab = useCallback((id: string): void => {
+    const index = openTabIds.indexOf(id);
+    const next = openTabIds.filter((item) => item !== id);
+    setOpenTabIds(() => next);
+    if (activeId !== id) return;
+    const manager = navigatorRowId(id, rawSessionsRef.current);
+    if (manager !== id) returnToManager(manager);
+    else setActive(next[Math.max(0, index - 1)] ?? next[0] ?? null);
+  }, [activeId, openTabIds, setActive, setOpenTabIds, returnToManager]);
 
   const openFleetSession = useCallback((serverId: string, sessionId: string): void => {
+    setPendingFleetView({ serverId, sessionId });
     useServers.getState().setActive(serverId);
     setServerScope(serverId);
-    openSession(sessionId);
-  }, [openSession, setServerScope]);
+    setActive(null);
+    setLayoutMode('tabs');
+    setMobileSessionDetail(true);
+  }, [setActive, setServerScope]);
   const openFleetMachine = useCallback((serverId: string): void => {
+    setPendingFleetView(null);
     useServers.getState().setActive(serverId);
     setServerScope(serverId);
     setActive(null);
@@ -709,7 +708,8 @@ function ConnectedApp({ nativeClientOnly = false }: { nativeClientOnly?: boolean
   const sessionWorkspace = effectiveLayout === 'tabs' || effectiveLayout === 'grid';
   const openedSessions = sessions.filter((session) => openTabIds.includes(session.id));
   const activeSession = activeId ? sessions.find((session) => session.id === activeId) ?? null : null;
-  const activeManagerId = activeSession && !effectiveParentId(activeSession) ? activeSession.id : null;
+  const activeManagerId = activeSession ? navigatorRowId(activeSession.id, sessions) : null;
+  const transientView = activeSession && !openTabIds.includes(activeSession.id) && !retainViewedSession(activeSession);
   const activeManagerTabs = activeManagerId
     ? openedSessions.filter((session) => {
       if (session.id === activeManagerId) return true;
@@ -787,7 +787,7 @@ function ConnectedApp({ nativeClientOnly = false }: { nativeClientOnly?: boolean
             <header className="app-header operations-tabs-header">
               <SessionTabs
                 sessions={activeManagerTabs}
-                activeId={activeId}
+                activeId={transientView ? activeManagerId : activeId}
                 statusBySession={statusBySession}
                 iconBySession={iconBySession}
                 onSwitch={openSession}
@@ -813,7 +813,7 @@ function ConnectedApp({ nativeClientOnly = false }: { nativeClientOnly?: boolean
               embedded
               projectSeed={projectSeed}
               onClose={() => setDialogOpen(null)}
-              onStarted={openSession}
+              onStarted={openCreatedSession}
               onOpenResume={(providerId) => setDialogOpen(providerId ? { resumeProviderId: providerId } : 'resume')}
             /></Suspense>
         ) : sessionWorkspace && sessions.length === 0 && !sessionsHydrated ? (
@@ -859,7 +859,7 @@ function ConnectedApp({ nativeClientOnly = false }: { nativeClientOnly?: boolean
           ) : (
             <EmptyState onNew={openNewSession} />
           )
-        ) : openedSessions.length === 0 ? (
+        ) : !activeSession ? (
           recoveryVisible ? (
             <SessionsWorkspaceSkeleton />
           ) : sessions.length > 0 ? (
@@ -877,13 +877,18 @@ function ConnectedApp({ nativeClientOnly = false }: { nativeClientOnly?: boolean
           // snapshot-prefills (fast, not blank). Every session still appears
           // in the tab strip above regardless of live state.
           sessions
-            .filter((s) => s.id === activeId || liveIds.includes(s.id))
+            .filter((s) => s.id === activeId || s.id === activeManagerId || liveIds.includes(s.id))
             .map((s) => (
               <div
-                key={s.id}
+                key={`${activeServerId}:${s.id}`}
                 data-session-id={s.id}
                 className={`session-view-host${s.id === activeId ? '' : ' is-hidden'}`}
               >
+                {s.id === activeId && transientView ? <div className="session-drilldown" role="group" aria-label="Temporary view">
+                  {activeManagerId && activeManagerId !== s.id ? <button type="button" className="btn btn-secondary" onClick={() => returnToManager(activeManagerId)}>Back to manager</button> : <span>Parent unavailable</span>}
+                  <button type="button" className="btn btn-secondary" onClick={() => keepViewOpen(s.id)}>Keep view open</button>
+                  <button type="button" className="btn btn-secondary" onClick={() => closeTab(s.id)}>Close view</button>
+                </div> : null}
                 <SessionView
                   sessionId={s.id}
                   isActive={s.id === activeId}
@@ -891,7 +896,7 @@ function ConnectedApp({ nativeClientOnly = false }: { nativeClientOnly?: boolean
                   onResume={chooseHowToContinue} onContinueConversation={chooseHowToContinue}
                   onFork={forkSession} onCloseView={closeTab}
                   onOpenAccounts={() => setLayoutMode('accounts')}
-                  onOpenSession={openSession}
+                  onOpenSession={openRelatedSession}
                   onReparent={updateDisplayParent}
                   onBack={isMobile ? () => setMobileSessionDetail(false) : undefined}
                 />
@@ -902,6 +907,7 @@ function ConnectedApp({ nativeClientOnly = false }: { nativeClientOnly?: boolean
         </section>
       </div>
 
+      {pendingFleetView && sessionsHydrated && !rawSessions.some((session) => session.id === pendingFleetView.sessionId) ? <div className="dialog-error" role="status">This session is not in this machine's current inventory. Choose another session or wait for it to reconnect.<button type="button" onClick={() => setPendingFleetView(null)}>Dismiss</button></div> : null}
       {exactResume.notice ? <div className="dialog-error" role="alert">{exactResume.notice}<button type="button" onClick={exactResume.dismiss}>Dismiss</button></div> : null}
       <MobileNav
         layoutMode={effectiveLayout === 'grid' ? 'tabs' : effectiveLayout === 'feedback' ? 'settings' : effectiveLayout}
@@ -930,7 +936,7 @@ function ConnectedApp({ nativeClientOnly = false }: { nativeClientOnly?: boolean
         <Suspense fallback={null}>
           <ResumeDialog
             onClose={() => setDialogOpen(null)}
-            onResumed={(laneId) => openSession(laneId)}
+            onResumed={openCreatedSession}
             onStartNew={openNewSession}
             preferredProviderId={typeof dialogOpen === 'object' && 'resumeProviderId' in dialogOpen
               ? dialogOpen.resumeProviderId
@@ -956,14 +962,14 @@ function ConnectedApp({ nativeClientOnly = false }: { nativeClientOnly?: boolean
           destinationProvider={dialogOpen.destinationProvider}
           point={dialogOpen.point}
           onClose={() => setDialogOpen(null)}
-          onStarted={openSession}
+          onStarted={openCreatedSession}
         /></Suspense>
       ) : null}
       {dialogOpen && typeof dialogOpen === 'object' && 'delegateFrom' in dialogOpen ? (
         <Suspense fallback={null}><NewSessionDialog
           parentSession={sessions.find((session) => session.id === dialogOpen.delegateFrom) ?? null}
           onClose={() => setDialogOpen(null)}
-          onStarted={openSession}
+          onStarted={openCreatedSession}
         /></Suspense>
       ) : null}
       <RestartConversationHost />
