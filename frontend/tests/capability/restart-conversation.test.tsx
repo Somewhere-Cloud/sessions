@@ -1,6 +1,6 @@
 import { useDurableDraft } from '../../src/hooks/useDurableDraft';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { RestartConversation, RestartConversationHost } from '../../src/components/RestartConversation';
 import { previewRestart, type RestartPreview } from '../../src/api/sessionsd/restart';
@@ -29,6 +29,19 @@ describe('confirmed conversation restart', () => {
     useServers.setState({ servers: [{ id: 'fixture', name: 'Fixture', host: '127.0.0.1', port: 8899, isDefault: true }], activeId: 'fixture' });
     useSessions.setState({ serverId: 'fixture', sessions: [source], activeId: source.id, hydrated: true });
   });
+  it('reviews safely with keyboard focus containment and restores focus when cancelled', async () => {
+    const user = userEvent.setup();
+    render(<><RestartConversation session={source} onOpen={() => {}} /><RestartConversationHost /></>);
+    const opener = screen.getByRole('button', { name: 'Restart / change permissions…' }); await user.click(opener);
+    const dialog = await screen.findByRole('dialog'); expect(dialog).toHaveFocus();
+    const end = screen.getByRole('button', { name: 'End this runtime and reopen' });
+    await waitFor(() => expect(end).toBeEnabled());
+    await user.tab({ shift: true }); expect(end).toHaveFocus();
+    await user.tab(); expect(screen.getByText('What restarts', { selector: 'summary' })).toHaveFocus();
+    fireEvent.mouseDown(dialog.parentElement!); expect(dialog).toBeInTheDocument();
+    await user.keyboard('{Escape}'); expect(screen.queryByRole('dialog')).toBeNull(); expect(opener).toHaveFocus();
+  });
+
   it('shows the exact runtime, selects YOLO, reopens automatically and retains the draft', async () => {
     const user = userEvent.setup(); const onOpen = vi.fn(); const posted: unknown[] = [];
     vi.stubGlobal('fetch', vi.fn(async (_url, options) => {

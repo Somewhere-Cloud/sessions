@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
+import { ModalScopeContext } from './ui/ModalDialog';
 import { ProviderMark } from './ProviderBadge';
 import { useAnchoredPopover } from '../hooks/useAnchoredPopover';
 
@@ -54,6 +55,7 @@ export function ModelPicker({
   compact = false,
   allowCustom = false
 }: Props): JSX.Element {
+  const modalScope = useContext(ModalScopeContext);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
@@ -72,7 +74,10 @@ export function ModelPicker({
 
   const orderedOptions = useMemo(() => filterModelOptions(options, query), [options, query]);
 
-  const closePopover = useCallback(() => setOpen(false), []);
+  const closePopover = useCallback(() => {
+    setOpen(false);
+    rootRef.current?.querySelector<HTMLButtonElement>('button')?.focus();
+  }, []);
   const popoverStyle = useAnchoredPopover({ open, rootRef, popoverRef, focusRef: searchRef,
     layoutKey: `${query}:${orderedOptions.length}:${customValue}:${loading ? 'loading' : 'ready'}`, onClose: closePopover });
 
@@ -89,14 +94,14 @@ export function ModelPicker({
 
   const choose = (next: string): void => {
     onChange(next);
-    setOpen(false);
+    closePopover();
   };
   const activeOptionId = `${listId}-option-${activeIndex}`;
 
   const onKeyDown = (event: KeyboardEvent): void => {
     if (event.key === 'Escape') {
       event.preventDefault();
-      setOpen(false);
+      closePopover();
       return;
     }
     if (event.key === 'ArrowDown') {
@@ -151,14 +156,14 @@ export function ModelPicker({
         <span className="model-picker-chevron" aria-hidden>⌄</span>
       </button>
       {open && popoverStyle ? createPortal((
-        <section ref={popoverRef} className="model-picker-popover" style={popoverStyle}
+        <section ref={popoverRef} className="model-picker-popover" style={popoverStyle} data-modal-owner={modalScope}
           onPointerDown={(event) => event.stopPropagation()}
           onClick={(event) => event.stopPropagation()}
           onKeyDown={onKeyDown} aria-label={`${providerName} model picker`}
         >
           <header>
             <span><ProviderMark provider={provider} size={20} /><strong>{providerName} models</strong></span>
-            <button type="button" onClick={() => setOpen(false)} aria-label="Close model picker">×</button>
+            <button type="button" onClick={closePopover} aria-label="Close model picker">×</button>
           </header>
           <div className="model-picker-search">
             <span aria-hidden>⌕</span>

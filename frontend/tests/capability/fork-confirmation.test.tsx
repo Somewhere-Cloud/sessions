@@ -38,6 +38,29 @@ function forkMachine(session: SessionInfo): FakeMachine {
 }
 
 describe('capability: confirm a conversation fork', () => {
+  it('keeps model search inside the review focus scope and returns to its opener on keyboard dismissal', async () => {
+    const session = makeSession({ id: 'focus-source', name: 'Project name stays', tool: 'claude-code', cmd: 'claude', kind: 'claude-structured' });
+    const machine = forkMachine(session); const daemon = installFakeDaemon([machine]); useFakeMachines([machine]);
+    const user = userEvent.setup();
+    function ReviewFlow(): JSX.Element {
+      const [open, setOpen] = useState(false);
+      return <Workbench><button onClick={() => setOpen(true)}>Review new agent</button>
+        {open ? <ForkConfirmationDialog session={session} destinationProvider="claude" onClose={() => setOpen(false)} onStarted={() => {}} /> : null}
+      </Workbench>;
+    }
+    render(<ReviewFlow />);
+    const opener = screen.getByRole('button', { name: 'Review new agent' }); await user.click(opener);
+    expect(screen.getByRole('dialog', { name: 'Add agent' })).toHaveFocus();
+    const model = await screen.findByRole('button', { name: 'Fable 5' }); await user.click(model);
+    const search = await screen.findByRole('combobox', { name: 'Search Claude models' });
+    await waitFor(() => expect(search).toHaveFocus()); await user.type(search, 'Fable');
+    expect(screen.getByRole('option', { name: /Fable 5/ })).toBeInTheDocument();
+    await user.keyboard('{Escape}'); expect(model).toHaveFocus();
+    expect(screen.getByRole('dialog', { name: 'Add agent' })).toBeInTheDocument();
+    await user.keyboard('{Escape}'); expect(screen.queryByRole('dialog')).toBeNull(); expect(opener).toHaveFocus();
+    expect(daemon.requests.some((request) => request.path === '/api/recovery/collaborator')).toBe(false);
+  });
+
   it('starts light, generates only on request, and sends one reviewed briefing with the chosen account', async () => {
     const session = makeSession({ id: 'brief-source', name: 'Manager', tool: 'claude-code', cmd: 'claude', kind: 'claude-structured' });
     const machine = forkMachine(session);

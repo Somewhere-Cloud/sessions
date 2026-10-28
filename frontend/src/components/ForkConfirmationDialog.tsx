@@ -5,6 +5,7 @@ import { preferNextSessionView } from '../lib/sessionViewPreference';
 import { formatTokenEstimate, usePaidStartPlan, type PaidStartProvider } from '../hooks/usePaidStartPlan';
 import { useSessions } from '../store/sessions';
 import type { SessionInfo } from '../types';
+import { ModalDialog } from './ui/ModalDialog';
 import { PaidStartPlan, paidStartProviderName } from './PaidStartPlan';
 import { CollaboratorContext, useCollaboratorContext } from './CollaboratorContext';
 
@@ -128,8 +129,7 @@ export function ForkConfirmationDialog({
       ? `${measured.size.messages} messages, about ${formatTokenEstimate(measured.size.tokens)} tokens`
       : 'Conversation size unavailable';
   return (
-    <div className="dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose(); }}>
-      <section className="dialog dialog-wide paid-start-dialog collaborator-dialog" role="dialog" aria-modal="true" aria-labelledby="fork-confirmation-title">
+    <ModalDialog className="dialog dialog-wide paid-start-dialog collaborator-dialog" labelledBy="fork-confirmation-title" onClose={onClose} dismissible={!busy}>
         <header className="dialog-header">
           <div><span className="dialog-kicker">Work together</span><h2 id="fork-confirmation-title">Add agent</h2></div>
           <button type="button" className="dialog-close" aria-label="Close" disabled={busy} onClick={onClose}>×</button>
@@ -153,7 +153,6 @@ export function ForkConfirmationDialog({
             {busy ? 'Starting…' : plan.ready ? `Start ${paidStartProviderName(plan.destination)} (${plan.modelName})` : 'Preparing details…'}
           </button>
         </footer>
-      </section>
-    </div>
+    </ModalDialog>
   );
 }

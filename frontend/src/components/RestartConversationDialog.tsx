@@ -7,6 +7,7 @@ import { sessionMode } from '../lib/sessionMode';
 import { resolvedSessionLabel } from '../lib/tabLabels';
 import type { SessionInfo } from '../types';
 import type { RestartConversationProps } from './RestartConversation';
+import { ModalDialog } from './ui/ModalDialog';
 import '../styles/restart-conversation.css';
 
 type RestartChoice = NonNullable<RestartPreview['recordedRestart']>;
@@ -92,12 +93,6 @@ export function RestartConversationDialog({ session, onOpen, onResume, serverId,
     return () => controller.abort();
   }, [session.id, machineId, machineName]);
   const locked = useRef(false);
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent): void => { if (event.key === 'Escape' && !locked.current) onClose(); };
-    document.addEventListener('keydown', onKey);
-    document.querySelector<HTMLSelectElement>('[aria-label="Restart permissions"]')?.focus();
-    return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
   // Older daemons omit restartable; they answered 404 for a record that was not live.
   const unavailable = !result && preview?.restartable === false ? preview : null;
   // A recorded restart finishes only with its exact choices; different ones are refused.
@@ -154,8 +149,7 @@ export function RestartConversationDialog({ session, onOpen, onResume, serverId,
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Restart failed. Retry the same choices to check the recorded operation.'); }
     finally { locked.current = false; setBusy(false); }
   };
-  return createPortal(<div className="dialog-backdrop" onClick={(event) => event.stopPropagation()}>
-      <section className="dialog restart-conversation-dialog" role="dialog" aria-modal="true" aria-labelledby={`restart-title-${session.id}`}>
+  return createPortal(<ModalDialog className="dialog restart-conversation-dialog" labelledBy={`restart-title-${session.id}`} onClose={onClose} dismissible={!busy} dismissOnBackdrop={false}>
         <h2 id={`restart-title-${session.id}`}>{dialogVerb(unavailable, offer)} “{resolvedSessionLabel(session)}”</h2>
         <p><strong>On {machineName}</strong> · This does not move the conversation to another computer.</p>
         {unavailable ? <p role="status">{unavailable.reason || 'This runtime is not running here, so there is nothing to restart.'}</p> : <>
@@ -180,6 +174,5 @@ export function RestartConversationDialog({ session, onOpen, onResume, serverId,
           {unavailable ? offer ? <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void follow()}>{offer.label}</button> : null
             : <button type="button" className="btn btn-primary" disabled={busy || !(preview || previewError)} onClick={() => void restart()}>{busy ? 'Restarting…' : submitted ? 'Retry same restart' : recorded ? 'Retry recorded restart' : 'End this runtime and reopen'}</button>}
         </div>
-      </section>
-    </div>, document.body);
+    </ModalDialog>, document.body);
 }
