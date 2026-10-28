@@ -178,6 +178,13 @@ try {
     // Opened sessions stay mounted; the one on screen is the one with a layout box.
     await t.waitForFunction(page, () => Array.from(document.querySelectorAll('.session-active-header'))
       .some((header) => header.getClientRects().length > 0 && header.textContent.includes('Review the narrow-screen lanes fix')), 'Open to show the reviewer lane');
+    // Phones replace the list with the detail; returning keeps the child selected.
+    if (viewport.width <= 720) await page.click('.session-view-host:not(.is-hidden) [aria-label="Back to sessions"]');
+    await t.waitForSelector(page, '[data-session-id="lead"].is-active',
+      'the manager row to represent the selected lane');
+    assert.equal(await page.$$eval('.session-nav-row', (rows) => rows.filter((row) =>
+      row.textContent.includes('Review the narrow-screen lanes fix')).length), 0,
+    'opening a lane does not promote it into the main list');
     const writes = await page.evaluate(() => window.__subagentsPanelFixture.daemon.requests
       .filter((request) => request.method !== 'GET').map((request) => `${request.method} ${request.path}`));
     assert.deepEqual(writes, [], `${viewport.label}: viewing lanes must not write`);

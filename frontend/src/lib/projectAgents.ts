@@ -1,7 +1,8 @@
 import type { ProjectView } from '../api/sessionsd';
 import type { SessionInfo } from '../types';
 import type { ServerConfig } from './servers';
-import { collapseConversationRuntimes, humanEngagementAt, isAgentLedChild, isPinned } from './workingSet';
+import { humanEngagementAt, isPinned } from './workingSet';
+import { navigatorSessions } from './sessionNavigation';
 import { resolvedSessionLabel } from './tabLabels';
 
 export interface Agent { session: SessionInfo; server: ServerConfig; unavailable: boolean; projectName?: string }
@@ -76,8 +77,8 @@ export function groupAgents(
   const groups = new Map<string, AgentProject>();
   for (const snapshot of snapshots) {
     const membership = new Map((projects[snapshot.server.id] ?? []).flatMap((p) => p.session_ids.map((id) => [id, p] as const)));
-    for (const session of collapseConversationRuntimes(snapshot.sessions)) {
-      if (isAgentLedChild(session) || isSavedAgent(session) !== saved || !matches(session, snapshot.server.id)) continue;
+    for (const session of navigatorSessions(snapshot.sessions)) {
+      if (isSavedAgent(session) !== saved || !matches(session, snapshot.server.id)) continue;
       if (!saved && session.setAsideAt && !isPinned(session)) continue;
       const identity = projectIdentity(session, snapshot.server, membership.get(session.id));
       const group = groups.get(identity.id) ?? { ...identity, rows: [] };

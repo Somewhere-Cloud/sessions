@@ -27,6 +27,13 @@ try {
   assert.equal(matchesResolvedProject(a, pa, 'all', 'DESIGN PROJECT'), true);
   assert.equal(matchesResolvedProject(b, pb, pa.id, ''), false);
   assert.equal(matchesResolvedProject(b, pb, pb.id, 'research'), true);
+  const child = { ...session('helper', 40, '/work/folder'), creatorKind: 'session', delegationKind: 'agent', parentSessionId: a.id };
+  const branchRows = groupAgents([
+    { ...snapshots[0], sessions: [a, child] },
+    { ...snapshots[1], sessions: [child] }
+  ], projects, false, () => true).flatMap((group) => group.rows);
+  assert.deepEqual(branchRows.map((row) => `${row.server.id}:${row.session.id}`).sort(),
+    ['a:same-session', 'b:helper'], 'group each machine independently; a remote parent cannot hide an orphan');
   const grouped = groupAgents(snapshots, projects, false, () => true);
   const recent = recentAgents(grouped);
   assert.equal(recent.length, 1, 'recent is one arrangement, not several project groups');

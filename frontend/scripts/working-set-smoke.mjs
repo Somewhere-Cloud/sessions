@@ -27,6 +27,35 @@ try {
     lastDataAt: 1,
     ...values
   });
+  const navigationOutput = join(scratch, 'navigation.mjs');
+  await build({ entryPoints: ['src/lib/sessionNavigation.ts'], bundle: true, format: 'esm',
+    outfile: navigationOutput, platform: 'node', target: 'node20', logLevel: 'silent' });
+  const { navigatorSessions, navigatorRowId } = await import(pathToFileURL(navigationOutput).href);
+  const manager = session('manager');
+  const helper = session('helper', { creatorKind: 'session', parentSessionId: 'manager', delegationKind: 'agent' });
+  const fork = session('fork', { creatorKind: 'session', parentSessionId: 'manager', delegationKind: 'user' });
+  const adopted = session('pinned-helper', { ...helper, id: 'pinned-helper', pinned: true });
+  const promoted = session('promoted-helper', { ...helper, id: 'promoted-helper', displayParentSessionId: '' });
+  const orphan = session('orphan', { ...helper, id: 'orphan', parentSessionId: 'absent' });
+  const cycleA = session('cycle-a', { ...helper, id: 'cycle-a', parentSessionId: 'cycle-b' });
+  const cycleB = session('cycle-b', { ...helper, id: 'cycle-b', parentSessionId: 'cycle-a' });
+  const inventory = [manager, helper, fork, adopted, promoted, orphan, cycleA, cycleB];
+  assert.deepEqual(navigatorSessions(inventory).map(({ id }) => id),
+    ['manager', 'fork', 'pinned-helper', 'promoted-helper', 'orphan', 'cycle-a', 'cycle-b']);
+  assert.equal(navigatorRowId('helper', inventory), 'manager', 'selecting a child represents its manager');
+  assert.equal(navigatorRowId('fork', inventory), 'fork', 'a user fork remains its own intent');
+  assert.equal(navigatorRowId('orphan', inventory), 'orphan', 'a missing parent cannot hide work');
+  assert.equal(navigatorRowId('cycle-a', inventory), 'cycle-a', 'cycles stay discoverable');
+  assert.equal(navigatorRowId('unknown', inventory), 'unknown', 'unknown IDs do not invent lineage');
+  assert.deepEqual(navigatorSessions([helper]).map(({ id }) => id), ['helper'],
+    'a parent ID present only on another machine cannot suppress this row');
+  assert.equal(navigatorRowId('helper', [session('manager', { pinned: true }), helper]), 'manager');
+  assert.equal(navigatorRowId('pinned-helper', inventory), 'pinned-helper');
+  assert.equal(navigatorRowId('promoted-helper', inventory), 'promoted-helper');
+  assert.equal(navigatorRowId('cycle-b', inventory), 'cycle-b');
+  assert.equal(navigatorRowId('helper', [helper, { ...manager, delegationKind: 'agent', parentSessionId: 'helper' }]),
+    'helper', 'a cycle through the selected child remains reachable');
+  assert.equal(helper.parentSessionId, 'manager', 'presentation preserves trusted lineage');
   const sessions = [
     session('aside-manager', { setAsideAt: 100 }),
     session('live-child', { parentSessionId: 'aside-manager' }),

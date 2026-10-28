@@ -94,7 +94,7 @@ assert.match(navigator, /draggable=\{movingId !== session\.id\}/);
 assert.match(navigator, /text\/x-sessions-session-id/);
 assert.match(navigator, /Start related session…/);
 assert.match(navigator, /Close tab <small>keeps running<\/small>/);
-assert.match(navigator, /filter\(\(session\) => !isAgentLedChild\(session\)\)/);
+assert.match(navigator, /visibleNavigatorSessions\(snapshot.sessions\)/); // Behavior is covered by working-set smoke.
 assert.doesNotMatch(navigator, /className="session-helper-summary"/);
 // Helpers stay folded away. Only an agent's own request for input belongs in
 // its row; a helper needing its manager is not automatically a user decision.

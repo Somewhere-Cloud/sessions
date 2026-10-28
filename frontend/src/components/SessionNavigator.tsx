@@ -19,12 +19,12 @@ import {
   effectiveParentId,
   collapseConversationRuntimes,
   humanEngagementAt,
-  isAgentLedChild,
   isPinned,
   pinnedFirst,
   pinnedSessionIds,
   PIN_UNAVAILABLE_WHEN_ENDED
 } from '../lib/workingSet';
+import { navigatorRowId, navigatorSessions as visibleNavigatorSessions } from '../lib/sessionNavigation';
 import { useSessions } from '../store/sessions';
 import { MachineMark } from './MachineMark';
 import { serverDisplayName, useServers, type ServerConfig } from '../lib/servers';
@@ -243,19 +243,10 @@ export function SessionNavigator({
   const [endError, setEndError] = useState<string | null>(null);
   const [copyingId, setCopyingId] = useState<string | null>(null);
   const [pinningId, setPinningId] = useState<string | null>(null);
-  // The left navigator is the person's working set, not an execution tree.
-  // Agent-created work belongs in the selected manager's Subagents panel. A
-  // helper promoted with "Make main session" stops satisfying
-  // isAgentLedChild and appears here immediately without rewriting its trusted
-  // creator provenance.
-  const navigatorSessions = useMemo(() => {
-    const seen = new Set<string>();
-    return collapseConversationRuntimes(sessions).filter((session) => {
-      if (seen.has(session.id) || isAgentLedChild(session)) return false;
-      seen.add(session.id);
-      return true;
-    });
-  }, [sessions]);
+  // Resolve grouping and selection against the same machine-local inventory.
+  const navigationInventory = useMemo(() => collapseConversationRuntimes(sessions), [sessions]);
+  const navigatorSessions = useMemo(() => visibleNavigatorSessions(sessions), [sessions]);
+  const activeRowId = activeId ? navigatorRowId(activeId, navigationInventory) : null;
   const selectGrouping = (next: SessionGrouping): void => {
     setGroupingState(next);
     writeGrouping(next);
@@ -376,7 +367,7 @@ export function SessionNavigator({
   );
   const pinnedSessions = sortRoots(navigatorSessions.filter((session) => pinnedIds.has(session.id)));
   const fleetSessions = useMemo(
-    () => fleetSnapshots.flatMap((snapshot) => snapshot.sessions).filter((session) => !isAgentLedChild(session)),
+    () => fleetSnapshots.flatMap((snapshot) => visibleNavigatorSessions(snapshot.sessions)),
     [fleetSnapshots]
   );
   const providerFaultNotices = useProviderFaultNotices(fleetSnapshots, sessions, activeMachineId, configuredMachines[0]?.id ?? '');
@@ -581,7 +572,7 @@ export function SessionNavigator({
         <div
           role="treeitem"
           tabIndex={0}
-          className={`session-nav-row ${status.className}${session.id === activeId ? ' is-active' : ''}${draggingId === session.id ? ' is-dragging' : ''}${dropTargetId === session.id ? ' is-drop-target' : ''}`}
+          className={`session-nav-row ${status.className}${session.id === activeRowId ? ' is-active' : ''}${draggingId === session.id ? ' is-dragging' : ''}${dropTargetId === session.id ? ' is-drop-target' : ''}`}
           data-session-id={session.id}
           style={{ '--tree-depth': 0 } as React.CSSProperties}
           onClick={() => selectingEnded && session.exited ? toggleEndedSelection(session.id) : onOpen(session.id)}
@@ -832,7 +823,7 @@ export function SessionNavigator({
           </button>
           {runningOpen ? (
             <>
-              <Suspense fallback={<div className="session-tree-empty is-compact">Loading agents…</div>}><ProjectAgents groups={agentGroups} activeMachineId={activeMachineId} activeSessionId={activeId} compact={grouping === 'project'}
+              <Suspense fallback={<div className="session-tree-empty is-compact">Loading agents…</div>}><ProjectAgents groups={agentGroups} activeMachineId={activeMachineId} activeSessionId={activeRowId} compact={grouping === 'project'}
                 renderLocal={(row) => renderNode(row.session)} onOpen={onOpenMachineSession}
                 onAdd={grouping === 'project' && onAddProjectAgent ? (row) => onAddProjectAgent(row.server.id, row.session.cwd, { ...row.session.tags }) : undefined} /></Suspense>
               {fleetSnapshots.some((snapshot) => snapshot.loading) ? <div className="session-tree-empty is-compact">Loading agents…</div> : null}
@@ -875,7 +866,7 @@ export function SessionNavigator({
         </div> : null}
         {!showingAllMachines && primary !== 'ended' ? (
           <InboxSections
-            layout={inboxLayout} activeSessionId={activeId}
+            layout={inboxLayout} activeSessionId={activeRowId}
             renderNode={renderNode}
             onOpen={onOpen}
             onShowAllNeedsYou={() => setPrimary('needs')}
