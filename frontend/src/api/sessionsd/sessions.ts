@@ -721,7 +721,7 @@ export async function fetchAccountUsage(
   if (options.refresh) params.set('refresh', '1');
   if (options.tool) params.set('tool', options.tool);
   if (options.name !== undefined) params.set('name', options.name);
-  const query = params.size ? `?${params}` : '';
+  const query = params.toString() ? `?${params}` : '';
   const r = await serverFetch(server, `${httpBaseForServer(server)}/api/account-usage${query}`, { signal: options.signal });
   if (r.status === 404 || r.status === 501) return null;
   // Only a local or paired client may make providers answer again; any other

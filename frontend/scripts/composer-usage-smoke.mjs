@@ -25,6 +25,10 @@ try {
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   browser = await puppeteer.launch({ headless: true });
   const page = await browser.newPage();
+  // Older native WebViews support query serialization but not the size getter.
+  await page.evaluateOnNewDocument(() => {
+    Object.defineProperty(URLSearchParams.prototype, 'size', { configurable: true, get: () => undefined });
+  });
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   const scope = (machineId = 'local', profile = 'work', provider = 'codex', extra = {}) => ({ sessionId: 'one', machineId, profile, provider, ...extra });
@@ -32,6 +36,11 @@ try {
   const text = () => page.$eval('main', (el) => el.textContent);
   await page.goto(`http://127.0.0.1:${server.address().port}/`, { waitUntil: 'networkidle0' });
   await page.waitForFunction(() => document.querySelector('summary').textContent.includes('12%'));
+  assert.deepEqual(await page.evaluate(() => {
+    const request = window.usageDaemon.requests.find((item) => item.path === '/api/account-usage');
+    const query = new URL(request.url).searchParams;
+    return [query.get('tool'), query.get('name')];
+  }), ['codex', 'work'], 'older WebViews must retain executing-account filters');
   await page.click('summary');
   assert.deepEqual(await page.$$eval('[role="meter"]', nodes => nodes.map(n => n.getAttribute('aria-valuenow'))), ['12', '31']);
   assert.match(await text(), /local work/);

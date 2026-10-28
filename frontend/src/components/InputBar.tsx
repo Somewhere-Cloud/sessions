@@ -478,7 +478,7 @@ export function InputBar({
           autoCorrect="on"
           spellCheck
         />
-        <div className="input-composer-footer">
+        <div className={`input-composer-footer${usageScope && provider !== 'terminal' ? ' has-account-usage' : ''}`}>
           <button
             type="button"
             className="input-attach"
