@@ -23,6 +23,14 @@ runners reject schema 2 rather than interpreting a briefing as an instruction
 to load the whole source transcript. Both schemas keep the source history ID
 for explicit lookups; neither changes the source provider history.
 
+Codex native-import continuations write `providerContext: "applying"` before
+calling `thread/inject_items`, then `"applied"` after acknowledgement. A restart
+with `"applying"` does not inject again: a transport failure, JSON-RPC error, or
+failed finish write leaves consumption unknown. Only a local refusal before
+request dispatch clears the marker. Inspect the target and source history
+before intentionally creating another continuation. This retains schemas 1 and
+2 and their existing marker meanings; absent markers remain readable.
+
 ```text
 ~/.local/state/sessions/
 ├── token

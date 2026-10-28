@@ -182,23 +182,12 @@ func (r *codexAppRunner) prepareContinuation() error {
 	}
 	r.continuation = &continuation
 	if continuation.ProviderContext == "applying" {
-		return errors.New("Codex continuation import has an unknown prior outcome; refusing to duplicate history")
+		return errors.New("Codex continuation import has an unknown prior outcome; inspect the target thread and source history before intentionally creating another continuation; history will not be injected again")
 	}
 	if continuation.ProviderContext != "applied" {
-		continuation.ProviderContext = "applying"
-		if err := state.WriteContinuation(r.paths.Continuation, continuation); err != nil {
-			return fmt.Errorf("mark Codex continuation applying: %w", err)
-		}
-		messages := make([]codexapp.ImportedMessage, 0, len(continuation.Messages))
-		for _, message := range continuation.Messages {
-			messages = append(messages, codexapp.ImportedMessage{Role: message.Role, Text: message.Text})
-		}
-		if err := r.client.InjectMessages(r.ctx, r.conversationID, messages); err != nil {
-			continuation.ProviderContext = ""
-			_ = state.WriteContinuation(r.paths.Continuation, continuation)
+		if err := r.importContinuation(&continuation, r.client.InjectMessages); err != nil {
 			return err
 		}
-		continuation.ProviderContext = "applied"
 	}
 	if !continuation.LocalHistoryReady {
 		if raw, encodeErr := codexapp.ContinuationStartedEvent(

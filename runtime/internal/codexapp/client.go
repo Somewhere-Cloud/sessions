@@ -523,21 +523,26 @@ type ImportedMessage struct {
 	Text string
 }
 
+// ErrImportNotSent proves that local checks refused an import before dispatch.
+// Transport and JSON-RPC errors never carry this evidence: even an error reply
+// does not establish that the server made no changes.
+var ErrImportNotSent = errors.New("Codex history import was not sent")
+
 // InjectMessages uses Codex app-server's explicit history import endpoint.
 // Callers must use it only for a newly-created thread: this method does not
 // deduplicate messages and never mutates the source conversation.
 func (c *Client) InjectMessages(ctx context.Context, conversationID string, messages []ImportedMessage) error {
 	if conversationID == "" {
-		return errors.New("conversation id is required")
+		return fmt.Errorf("%w: conversation id is required", ErrImportNotSent)
 	}
 	if len(messages) == 0 {
-		return errors.New("at least one imported message is required")
+		return fmt.Errorf("%w: at least one imported message is required", ErrImportNotSent)
 	}
 	items := make([]map[string]any, 0, len(messages))
 	for index, message := range messages {
 		text := strings.TrimSpace(message.Text)
 		if text == "" {
-			return fmt.Errorf("imported message %d is empty", index)
+			return fmt.Errorf("%w: imported message %d is empty", ErrImportNotSent, index)
 		}
 		switch message.Role {
 		case "user":
@@ -551,8 +556,17 @@ func (c *Client) InjectMessages(ctx context.Context, conversationID string, mess
 				"content": []map[string]any{{"type": "output_text", "text": text}},
 			})
 		default:
-			return fmt.Errorf("imported message %d has unsupported role %q", index, message.Role)
+			return fmt.Errorf("%w: imported message %d has unsupported role %q", ErrImportNotSent, index, message.Role)
 		}
+	}
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("%w: %w", ErrImportNotSent, err)
+	}
+	c.mu.Lock()
+	closed := c.closed
+	c.mu.Unlock()
+	if closed {
+		return fmt.Errorf("%w: %w", ErrImportNotSent, ErrClosed)
 	}
 	params := struct {
 		ThreadID string           `json:"threadId"`
