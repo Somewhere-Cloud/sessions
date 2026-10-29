@@ -5,7 +5,7 @@ import { archivedLiveIds } from '../../src/lib/sessionOrganization';
 import { groupAgents } from '../../src/lib/projectAgents';
 import { SessionArchiveButton } from '../../src/components/SessionArchiveButton';
 import { InputBar } from '../../src/components/InputBar';
-import { draftStorageKey, readDraft } from '../../src/lib/draftStore';
+import { draftStorageKey, readDraft, saveDraft } from '../../src/lib/draftStore';
 import { useSessions } from '../../src/store/sessions';
 import { useServers } from '../../src/lib/servers';
 import { Workbench } from './harness';
@@ -22,11 +22,12 @@ const archived = (id: string, extra = {}) => makeSession({
 describe('reversible manual session organization', () => {
   it('keeps pins, attention, work and new output visible, including their manager path', () => {
     const protections = [
-      { pinned: true }, { working: true }, { launching: true }, { unreachable: true },
+      { lastDataUnknown: true }, { pinned: true }, { working: true }, { launching: true }, { unreachable: true },
       { idleReason: 'needs-input' }, { failureKind: 'other' },
       { pendingApproval: { id: 'approval' } }, { lastDataAt: 101 },
       { lastHumanMessageAt: 101 }, { lastAgentMessageAt: 101 },
-      { observations: { approval: { pending: true } } }
+      { observations: { approval: { pending: true } } },
+      { observations: { last: { provider_record_observed_at: 101 } } }
     ];
     for (const protection of protections) {
       const rows = [archived('manager'), archived('child', { parentSessionId: 'manager', ...protection }), archived('other')];
@@ -90,6 +91,45 @@ describe('reversible manual session organization', () => {
     expect(daemon.archived).toEqual([]);
     expect(daemon.requests.filter((r) => r.method !== 'GET').map((r) => r.path))
       .toEqual(['/api/sessions/quiet/set-aside', '/api/sessions/quiet/set-aside']);
+  });
+
+  it('keeps the open composer and machine-scoped drafts when a daemon archive mark arrives', async () => {
+    window.localStorage.setItem('sessions:projects-machine-scope', 'local');
+    const host = machine('local', [archived('automatic', { setAsideAt: null })]);
+    const daemon = installFakeDaemon([host]);
+    useFakeMachines([host]);
+    saveDraft(draftStorageKey('other-client-machine', 'automatic'), 'Another stored draft');
+    const view = render(<Workbench>
+      <InputBar send={async () => {}} submitMessage={async () => {}} connected sessionId="automatic" draftMachineId="local" />
+    </Workbench>);
+    const composer = await screen.findByPlaceholderText(/Message Claude/);
+    fireEvent.change(composer, { target: { value: 'Keep editing while organized' } });
+    host.sessions[0] = { ...host.sessions[0], setAsideAt: 100 };
+    await act(async () => { await useSessions.getState().refresh(); });
+    await screen.findByRole('region', { name: 'Archived live sessions' });
+    expect(composer).toBeInTheDocument();
+    expect(composer).toHaveValue('Keep editing while organized');
+    expect(readDraft(draftStorageKey('other-client-machine', 'automatic')).text).toBe('Another stored draft');
+    view.unmount();
+    expect(readDraft(draftStorageKey('local', 'automatic')).text).toBe('Keep editing while organized');
+    expect(daemon.requests.filter((request) => request.method !== 'GET')).toEqual([]);
+    expect(daemon.ended).toEqual([]); expect(daemon.archived).toEqual([]);
+  });
+
+  it('brings archived work back on provider receipt alone without a legacy output timestamp change', async () => {
+    window.localStorage.setItem('sessions:projects-machine-scope', 'local');
+    const host = machine('local', [archived('provider-only')]);
+    installFakeDaemon([host]); useFakeMachines([host]);
+    render(<Workbench />);
+    await screen.findByRole('region', { name: 'Archived live sessions' });
+    host.sessions[0] = { ...host.sessions[0], observations: { version: 1,
+      capabilities: { runtime: 'claude-structured', turn_boundaries: 'provider-stream', tool_records: 'provider-stream', terminal_output: false },
+      runner: { state: 'reachable', since: null, exit_code: null }, working: null, turn: null, tools: null, observers: [],
+      last: { provider_record_observed_at: 101, provider_record_event_at: null, terminal_output_at: null,
+        transcript_record_event_at: null, input_dispatched_at: null, provider_user_record_at: null } } };
+    await act(async () => { await useSessions.getState().refresh(); });
+    expect(await screen.findByText('provider-only', { selector: '.session-nav-title' })).toBeInTheDocument();
+    expect(host.sessions[0].setAsideAt).toBe(100);
   });
 
   it('brings a marked row back when an approval alone changes in the next inventory frame', async () => {

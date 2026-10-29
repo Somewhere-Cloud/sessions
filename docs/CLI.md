@@ -52,6 +52,7 @@ Daily workflows:
   transcripts              keep a durable copy of provider conversations
   gc                       archive old closed records safely
   archive                  hide selected closed sessions
+  auto-archive             choose reversible automatic organization
   aside                    set live sessions aside or bring them back
   pin                      keep a user-driven session at the top
   unpin                    remove the workbench mark from a session
@@ -465,6 +466,24 @@ Examples:
   sessions archive 0123abcd
   sessions archive 0123abcd 89abcdef
   sessions --json archive 0123abcd
+
+--json may appear before the command or among its options. --machine, --direct, --host, and --port must appear before the command. Arguments after `sessions run --` always belong to the child command.
+```
+
+## `sessions auto-archive`
+
+```text
+Usage:
+  sessions auto-archive [status|on|off]
+
+choose reversible automatic organization
+
+Default off, per machine. After 24 hours of qualifying minute observations without activity or attention, set eligible structured sessions aside. An observed settled provider turn is not a completed user task. Pins, running work, unknown state and observed queued input stay visible. Drafts and client queues are retained but are not globally observable. Restart resets the observation window. No session is ended or deleted. Activity brings relevant work back; restore explicitly with sessions aside ID --clear.
+
+Examples:
+  sessions auto-archive on
+  sessions --json auto-archive status
+  sessions auto-archive off
 
 --json may appear before the command or among its options. --machine, --direct, --host, and --port must appear before the command. Arguments after `sessions run --` always belong to the child command.
 ```

@@ -36,6 +36,7 @@ function reconcileSessions(prev: SessionInfo[], fresh: SessionInfo[]): SessionIn
       old.launching === f.launching &&
       old.pendingApproval?.id === f.pendingApproval?.id &&
       old.observations?.approval?.pending === f.observations?.approval?.pending &&
+      old.observations?.last?.provider_record_observed_at === f.observations?.last?.provider_record_observed_at &&
       old.exited === f.exited &&
       old.exitCode === f.exitCode &&
       old.exitSignal === f.exitSignal &&
@@ -46,6 +47,7 @@ function reconcileSessions(prev: SessionInfo[], fresh: SessionInfo[]): SessionIn
       old.unreachableSince === f.unreachableSince &&
       old.runnerGone === f.runnerGone &&
       old.lastDataAt === f.lastDataAt &&
+      old.lastDataUnknown === f.lastDataUnknown &&
       old.lastUserMessageAt === f.lastUserMessageAt &&
       old.lastHumanMessageAt === f.lastHumanMessageAt &&
       old.lastAgentMessageAt === f.lastAgentMessageAt &&

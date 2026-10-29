@@ -125,6 +125,12 @@ var commandTable = []commandSpec{
 		examples: []string{"sessions archive 0123abcd", "sessions archive 0123abcd 89abcdef", "sessions --json archive 0123abcd"}, run: (*app).cmdArchive,
 	},
 	{
+		name: "auto-archive", usage: "auto-archive [status|on|off]",
+		summary: "choose reversible automatic organization", group: dailyCommandGroup, localJSON: true,
+		longHelp: "Default off, per machine. After 24 hours of qualifying minute observations without activity or attention, set eligible structured sessions aside. An observed settled provider turn is not a completed user task. Pins, running work, unknown state and observed queued input stay visible. Drafts and client queues are retained but are not globally observable. Restart resets the observation window. No session is ended or deleted. Activity brings relevant work back; restore explicitly with sessions aside ID --clear.",
+		examples: []string{"sessions auto-archive on", "sessions --json auto-archive status", "sessions auto-archive off"}, run: (*app).cmdAutoArchive,
+	},
+	{
 		name: "aside", usage: "aside <session> [session...] [--clear]",
 		summary: "set live sessions aside or bring them back", group: dailyCommandGroup, localJSON: true,
 		longHelp: "Set aside removes selected live sessions from the default native working set without ending them, suppressing attention, changing notifications, or hiding them from the CLI. --clear brings them back. Ended records use archive instead.",

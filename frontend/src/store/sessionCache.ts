@@ -68,7 +68,7 @@ const PATH_LIMIT = 200;
  */
 const CACHED_FIELDS = [
   'id', 'name', 'description', 'tags', 'cmd', 'cwd', 'tool', 'kind', 'profile',
-  'createdAt', 'lastDataAt', 'lastUserMessageAt', 'lastHumanMessageAt', 'lastAgentMessageAt',
+  'lastDataUnknown', 'createdAt', 'lastDataAt', 'lastUserMessageAt', 'lastHumanMessageAt', 'lastAgentMessageAt',
   'idleReason', 'lastSummary', 'working', 'exited', 'exitedAt', 'pinned', 'setAsideAt',
   'parentSessionId', 'displayParentSessionId', 'delegationKind', 'creatorKind', 'creatorId',
   'claudeCustomTitle', 'claudeAiTitle'

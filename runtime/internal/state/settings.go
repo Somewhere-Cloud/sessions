@@ -276,6 +276,7 @@ func (n *NotifySettings) Set(kind string, enabled bool) error {
 // state. Additive fields keep this file easy to extend without changing its
 // location or format.
 type Settings struct {
+	AutoArchive            bool                `json:"autoArchive,omitempty"`
 	LAN                    bool                `json:"lan"`
 	LocalNetworkPermission string              `json:"localNetworkPermission,omitempty"`
 	Remote                 *RemoteSettings     `json:"remote,omitempty"`

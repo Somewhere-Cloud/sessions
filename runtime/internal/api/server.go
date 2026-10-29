@@ -44,6 +44,7 @@ var Version = "0.2.28"
 type Server struct {
 	config               state.Config
 	projects             *project.Store
+	autoArchive          autoArchivePolicy
 	registry             sessionService
 	push                 pushService
 	tokens               tokenStore
@@ -75,7 +76,7 @@ type Server struct {
 	relayWake          chan struct{}
 	submits            *sessionMutexes
 	deliveriesInFlight sync.Map
-	handoffsRunning sync.Map
+	handoffsRunning    sync.Map
 	continuationJobs   *continuationJobStore
 	lanFallbackLog     sync.Once
 	teamChanges        teamChanges

@@ -36,6 +36,7 @@ import { useSessions } from '../store/sessions';
 import { FleetProviderUpdates } from './FleetProviderUpdates';
 import { NotificationDeliveryStatus } from './NotificationDeliveryStatus';
 import { NativeRuntimeStatusCard } from './NativeRuntimeStatusCard';
+import { AutoArchiveCard } from './AutoArchiveCard';
 import { IdleCompactionCard } from './IdleCompactionCard';
 
 const StorageView = lazy(() => import('./StorageView').then((module) => ({ default: module.StorageView })));
@@ -472,6 +473,7 @@ function AgentSettings(props: AgentSettingsProps): JSX.Element {
         <label className="settings-select-row"><span><strong>Remote Control name prefix</strong><small>Optional label prefix for sessions visible on claude.ai.</small></span><Input value={props.claudeSettings.remoteControlNamePrefix} disabled={props.clientOnly || props.claudeBusy || !props.claudeAvailable} maxLength={64} placeholder="This Mac" onChange={(event) => props.onClaudeDraft({ ...props.claudeSettings, remoteControlNamePrefix: event.currentTarget.value })} onBlur={() => void props.onClaudeSettings(props.claudeSettings)} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }} /></label>
         {props.claudeMessage ? <Status>{props.claudeMessage}</Status> : null}
       </SettingsSection></Surface>
+      <AutoArchiveCard hostName={props.hostName} />
       <IdleCompactionCard clientOnly={props.clientOnly} hostName={props.hostName} />
       <Surface><SettingsSection title={<>Delegated agent access</>} description={<>Applies only when one Sessions agent starts another. It never changes an existing session or lets a child escalate itself.</>}>
         {props.clientOnly ? <HostChoice hostName={props.hostName} /> : null}

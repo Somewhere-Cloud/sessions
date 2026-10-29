@@ -3719,3 +3719,48 @@ a bounded file prefix as the newest conversation. Authored text whitespace is
 preserved; adjacent text blocks are concatenated without inserted separators.
 Unreadable saved handoff receipts make discovery fail explicitly with the
 receipt filename, rather than silently returning an incomplete operation list.
+
+### `GET /api/auto-archive`, `PUT /api/auto-archive`
+
+Authenticated machine-scoped reversible organization preference. GET returns
+`{"enabled":false,"inactivityMs":86400000,"scope":"machine-structured-sessions"}`
+by default. PUT requires `{"enabled":true}` or `{"enabled":false}` and returns
+the same shape after persistence. Missing/invalid enabled is 400; wrong methods
+are 405; settings read/write failures are 500 with an instructional `error`.
+`sessions auto-archive [status|on|off]`, including `--json`, is equivalent.
+
+The daemon checks once per minute. A live Claude structured or Codex app-server
+session qualifies only while unmarked, unpinned, reachable, not starting or
+working, with known activity, a current `completed` idle outcome, a known closed
+provider turn and end timestamp, provider-stream idle evidence, known absence
+of pending approval, exact zero open tools, and no failed/stopped/unresolved
+observer, failure or retry. Observed queued input in retained structured events
+excludes it (the latest retained queue operation is `enqueue`). Lost or invalid
+provenance also excludes it. A settled provider turn is **not** a completed user task.
+
+An eligible session is set aside after at least 24 hours from its first eligible
+observation with unchanged activity timestamps. Activity includes output, provider
+record receipt, dispatched input, human/agent/provider-user message times and
+idle-outcome and observed turn-end times. Each clock is compared independently,
+so one future timestamp cannot mask changes to another. Any sampled exclusion or activity change resets its window.
+Discovery, disabling, explicit preference writes, restart, clock rollback or a
+sampling gap over two minutes reset observation windows. Windows are not
+persisted or backdated from historical provider times. The preference and normal
+`setAsideAt` marks persist in existing settings/runner metadata respectively.
+Turning off leaves existing marks; restore with `sessions aside ID --clear`.
+
+This changes only the existing working-set mark. No lifecycle, retention,
+transcript, project, lineage, pin, promotion, draft or runner operation occurs.
+The native active list retains pins, current activity/attention, unknown activity
+and manager paths of visible descendants. Input clears the existing mark; newer
+observed output also makes the row visible until another explicit archive;
+already-marked sessions are not automatically marked again. Archived remains searchable and
+explicitly restorable. Open views are not automatically closed. CLI inventory
+continues to expose marked sessions and `setAsideAt` rather than filtering them.
+
+Eligibility describes daemon observations at sampling time, not global absence
+of unsent work or unread attention. Client drafts and unsent/disconnected queues
+are not globally observable; they remain stored in their existing clients, and
+this policy never deletes them. Transient states between samples and concurrent
+changes can race an organization write; current native visibility protections
+still apply. A retained queue observation is not an exhaustive queue inventory.

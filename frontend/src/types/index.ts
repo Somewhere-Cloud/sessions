@@ -144,6 +144,7 @@ export interface SessionInfo {
   launching?: boolean;
   working: boolean;
   lastDataAt: number;
+  lastDataUnknown?: boolean;
   // The daemon's factual observation block; see lib/observations.ts. Older
   // daemons omit it.
   observations?: SessionObservations;

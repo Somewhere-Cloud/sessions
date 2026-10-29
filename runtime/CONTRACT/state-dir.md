@@ -751,3 +751,12 @@ A lone socket or lone metadata file also prevents this pre-pass from deleting
 the plist. A `.restore-pending.json` marker additionally prevents cleanup of a
 runner deliberately paused by the reboot budget. The later socket-connection
 failure path is stricter as described above.
+
+## Automatic working-set organization
+
+`settings.json` adds optional `autoArchive` (boolean; absent means false).
+The authenticated `/api/auto-archive` preference is per daemon machine. Eligible
+structured sessions reuse runner metadata `set_aside_at`; there is no separate
+archive store. Observation windows live only in daemon memory and reset on
+restart, so no downtime counts toward the 24-hour inactivity interval. Disabling
+the preference does not clear existing marks or alter runner lifecycle.

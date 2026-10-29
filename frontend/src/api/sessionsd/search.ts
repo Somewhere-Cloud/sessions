@@ -458,3 +458,21 @@ export async function fetchServerHistoryTranscript(
   }
   return normalizeHistoryTranscript(await json<HistoryTranscript>(r));
 }
+
+export interface AutoArchiveStatus {
+  enabled: boolean;
+  inactivityMs: number;
+  scope: 'machine-structured-sessions';
+}
+
+export async function fetchAutoArchive(signal?: AbortSignal): Promise<AutoArchiveStatus> {
+  const r = await apiFetch(`${httpBase()}/api/auto-archive`, { signal });
+  return featureJSON<AutoArchiveStatus>(r, 'Automatic archive');
+}
+
+export async function updateAutoArchive(enabled: boolean): Promise<AutoArchiveStatus> {
+  const r = await apiFetch(`${httpBase()}/api/auto-archive`, {
+    method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ enabled })
+  });
+  return featureJSON<AutoArchiveStatus>(r, 'Automatic archive');
+}

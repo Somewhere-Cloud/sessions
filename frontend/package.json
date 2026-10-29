@@ -59,6 +59,7 @@
     "test:account-choice": "node scripts/account-choice-smoke.mjs",
     "test:account-freshness": "node scripts/account-freshness-smoke.mjs",
     "test:capability": "node scripts/run-capability.mjs",
+    "test:auto-archive": "node scripts/auto-archive-smoke.mjs",
     "test:smoke": "node scripts/run-smoke.mjs",
     "test:storage": "node scripts/storage-smoke.mjs",
     "test:usage-dashboard": "node scripts/usage-dashboard-smoke.mjs",

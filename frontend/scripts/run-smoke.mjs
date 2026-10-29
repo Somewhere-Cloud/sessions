@@ -55,6 +55,7 @@ const GATE = [
   'provider-handoff',
   'shell-ui',
   'settings-machines',
+  'auto-archive',
   'conversation-ui',
 
   'history-search-ui',

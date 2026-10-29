@@ -136,7 +136,7 @@ func Observe(events []json.RawMessage) Observation {
 			break
 		}
 	}
-	observation.QueuedInput = queuedInput(events[start:])
+	observation.QueuedInput = QueuedInput(events[start:])
 	observation.LastUserCompact = lastUserCompact(events[start:])
 	if request < 0 {
 		return observation
@@ -201,8 +201,9 @@ func requestStart(events []json.RawMessage, requestID string) int64 {
 	return 0
 }
 
-// queuedInput reports whether the latest queue operation left input waiting.
-func queuedInput(events []json.RawMessage) bool {
+// QueuedInput reports whether the latest retained queue operation left input
+// waiting. This is an observation, not an exhaustive inventory of client queues.
+func QueuedInput(events []json.RawMessage) bool {
 	for index := len(events) - 1; index >= 0; index-- {
 		if !bytes.Contains(events[index], []byte(`queue-operation`)) {
 			continue

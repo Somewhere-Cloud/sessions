@@ -2,7 +2,7 @@ import type { SessionInfo } from '../types';
 import { classifySession } from './sessionStatus';
 import { effectiveParentId } from './workingSet';
 
-// This is a manual visibility choice, not evidence that a task is complete.
+// A working-set mark organizes visibility; it is not evidence of task completion.
 // Fresh observed output brings work back and keeps it back until another
 // explicit archive. Evaluate each machine separately; never join bare UUIDs.
 export function archivedLiveIds(sessions: SessionInfo[]): Set<string> {
@@ -11,10 +11,11 @@ export function archivedLiveIds(sessions: SessionInfo[]): Set<string> {
   const byId = new Map(sessions.map((session) => [session.id, session]));
   const visible = sessions.filter((session) => (!session.exited && session.setAsideAt == null)
     || session.pinned || session.working || session.launching
-    || session.unreachable || session.pendingApproval || session.observations?.approval?.pending
+    || session.unreachable || session.lastDataUnknown || session.pendingApproval || session.observations?.approval?.pending
     || session.retry || classifySession(session).wantsAttention
     || (session.setAsideAt != null && Math.max(session.lastDataAt || 0,
-      session.lastHumanMessageAt || 0, session.lastAgentMessageAt || 0) > session.setAsideAt));
+      session.lastHumanMessageAt || 0, session.lastAgentMessageAt || 0,
+      session.observations?.last?.provider_record_observed_at || 0) > session.setAsideAt));
   for (const session of visible) {
     let current: SessionInfo | undefined = session;
     const seen = new Set<string>();

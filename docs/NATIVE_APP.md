@@ -271,3 +271,17 @@ separate from client-to-daemon pairing.
 
 Source-only, CI-tested, hardware-tested, signed, released, and installed are
 different states and must never be reported as synonyms.
+
+### Optional automatic archive
+
+Settings → Agents & models → Auto archive opts this machine into reversible
+organization after 24 hours of observed inactivity for eligible structured
+Claude and Codex sessions. It defaults off. A settled provider turn does not
+mean your task is complete. Pins, running work, attention, observed queued input
+and unknown states are excluded; ordinary terminal/PTY sessions are excluded.
+Restarting the service begins a fresh observation window. Activity brings
+relevant work back to the active list. Archived work stays searchable and can
+be restored explicitly; no runner is ended and no draft is removed. Open views
+stay open. Drafts and unsent queues on other clients are retained but not
+observed by this policy. CLI parity is `sessions auto-archive status|on|off`
+(with `--json`), `sessions ls --aside`, and `sessions aside ID --clear`.
