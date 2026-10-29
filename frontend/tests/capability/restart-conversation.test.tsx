@@ -33,7 +33,8 @@ describe('confirmed conversation restart', () => {
     const user = userEvent.setup();
     render(<><RestartConversation session={source} onOpen={() => {}} /><RestartConversationHost /></>);
     const opener = screen.getByRole('button', { name: 'Restart / change permissions…' }); await user.click(opener);
-    const dialog = await screen.findByRole('dialog'); expect(dialog).toHaveFocus();
+    const dialog = await screen.findByRole('dialog');
+    await waitFor(() => expect(dialog).toHaveFocus());
     const end = screen.getByRole('button', { name: 'End this runtime and reopen' });
     await waitFor(() => expect(end).toBeEnabled());
     await user.tab({ shift: true }); expect(end).toHaveFocus();
