@@ -60,7 +60,8 @@
     "test:capability": "node scripts/run-capability.mjs",
     "test:smoke": "node scripts/run-smoke.mjs",
     "test:storage": "node scripts/storage-smoke.mjs",
-    "test:composer-usage": "node scripts/composer-usage-smoke.mjs"
+    "test:composer-usage": "node scripts/composer-usage-smoke.mjs",
+    "test:ui-foundation": "node scripts/ui-foundation-smoke.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.0",

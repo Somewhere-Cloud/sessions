@@ -40,6 +40,7 @@
   --fg: #171a1f;
   --fg-dim: #55606d;
   --fg-faint: #69727f;
+  --danger: #c42b2b;
   --accent: #0b7f75;
   --accent-hover: #06645d;
   --accent-contrast: #ffffff;
@@ -824,14 +825,10 @@ button.session-tree-group-head { width: 100%; }
 }
 .agent-project .session-drag-handle { display: none; }
 .collaborator-context { display: grid; gap: 12px; padding: 12px 0; }
-.collaborator-context > label { display: grid; gap: 6px; }
-.collaborator-context textarea, .collaborator-context input:not([type="radio"]) { width: 100%; min-width: 0; }
 .collaborator-context fieldset { display: grid; gap: 8px; border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
 .collaborator-context fieldset label { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-.collaborator-context small { font-size: 12px; color: var(--fg-muted); line-height: 1.5; }
+.collaborator-context small { font-size: 12px; color: var(--fg-dim); line-height: 1.5; }
 .collaborator-context textarea { resize: vertical; min-height: 140px; }
-.collaborator-context details > label { display: grid; gap: 6px; padding: 8px 0; }
-.collaborator-context input:not([type="radio"]), .collaborator-context textarea, .collaborator-context select,
 .agent-rename-form input { border: 1px solid var(--border); border-radius: 8px; background: var(--bg-elev-2); color: var(--fg); font: inherit; padding: 9px 10px; }
 .collaborator-dialog { display: flex; flex-direction: column; max-height: calc(100dvh * var(--interface-scale-inverse, 1) - 24px); overflow: hidden; }
 .collaborator-dialog > .paid-start-plan { overflow-y: auto; min-height: 0; }

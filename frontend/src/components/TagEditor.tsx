@@ -1,4 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
+import { Button, IconButton } from './ui/Button';
+import { Field, Input } from './ui/Field';
+import { Surface } from './ui/Layout';
 
 interface Props {
   value: Record<string, string>;
@@ -9,6 +12,7 @@ interface Props {
 const TAG_KEY = /^[a-z0-9][a-z0-9._-]*$/;
 
 export function TagEditor({ value, onChange, disabled = false }: Props): JSX.Element {
+  const errorId = useId();
   const [key, setKey] = useState('');
   const [tagValue, setTagValue] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -39,15 +43,15 @@ export function TagEditor({ value, onChange, disabled = false }: Props): JSX.Ele
   };
 
   return (
-    <div className="tag-editor">
+    <Surface className="tag-editor">
       {entries.length > 0 ? (
         <div className="tag-chip-list" aria-label="Session tags">
           {entries.map(([tagKey, currentValue]) => (
             <span className="tag-chip" key={tagKey}>
               <span className="tag-chip-key">{tagKey}</span>
               <span className="tag-chip-value">{currentValue}</span>
-              <button
-                type="button"
+              <IconButton
+                size="compact"
                 aria-label={`Remove ${tagKey} tag`}
                 disabled={disabled}
                 onClick={() => {
@@ -57,28 +61,27 @@ export function TagEditor({ value, onChange, disabled = false }: Props): JSX.Ele
                 }}
               >
                 ×
-              </button>
+              </IconButton>
             </span>
           ))}
         </div>
       ) : null}
       <div className="tag-editor-row">
-        <input
-          className="field-input tag-editor-key"
+        <Field label="Tag key"><Input
+          aria-describedby={error ? errorId : undefined}
+          aria-invalid={Boolean(error)}
           type="text"
           placeholder="product"
-          aria-label="Tag key"
           value={key}
           maxLength={64}
           disabled={disabled}
           onChange={(event) => setKey(event.target.value)}
-        />
-        <span className="tag-editor-equals">=</span>
-        <input
-          className="field-input tag-editor-value"
+        /></Field>
+        <Field label="Tag value"><Input
+          aria-describedby={error ? errorId : undefined}
+          aria-invalid={Boolean(error)}
           type="text"
           placeholder="Sessions"
-          aria-label="Tag value"
           value={tagValue}
           maxLength={256}
           disabled={disabled}
@@ -89,18 +92,16 @@ export function TagEditor({ value, onChange, disabled = false }: Props): JSX.Ele
               add();
             }
           }}
-        />
-        <button
-          type="button"
-          className="btn btn-ghost tag-editor-add"
+        /></Field>
+        <Button variant="ghost"
           disabled={disabled || !key.trim() || !tagValue.trim()}
           onClick={add}
         >
           Add tag
-        </button>
+        </Button>
       </div>
-      {error ? <span className="tag-editor-error">{error}</span> : null}
-      <span className="field-hint">Use any dimensions you care about, such as product, client, project, or environment.</span>
-    </div>
+      {error ? <span id={errorId} className="ui-error" role="alert">{error}</span> : null}
+      <span className="field-help">Use any dimensions you care about, such as product, client, project, or environment.</span>
+    </Surface>
   );
 }

@@ -462,7 +462,7 @@
               color var(--press-time) ease,
               transform 0.08s ease;
 }
-.btn:hover { background: var(--bg-elev-3); border-color: var(--border-strong); }
+.btn:hover:not(:disabled) { background: var(--bg-elev-3); border-color: var(--border-strong); }
 .btn:active { transform: scale(var(--press-scale)); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 .btn-primary {
@@ -471,16 +471,11 @@
   color: var(--accent-contrast);
   font-weight: 600;
 }
-.btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
-.btn-secondary {
-  border-color: var(--border-strong);
-  background: var(--bg-elev-2);
-  color: var(--fg);
-}
-.btn-secondary:hover { border-color: var(--fg-dim); background: var(--bg-elev-3); }
+.btn-primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+.btn-secondary:hover:not(:disabled) { border-color: var(--fg-dim); background: var(--bg-elev-3); }
 .btn-ghost {
   background: transparent;
   border-color: transparent;
   color: var(--fg-dim);
 }
-.btn-ghost:hover { background: var(--bg-elev-2); color: var(--fg); }
+.btn-ghost:hover:not(:disabled) { background: var(--bg-elev-2); color: var(--fg); }

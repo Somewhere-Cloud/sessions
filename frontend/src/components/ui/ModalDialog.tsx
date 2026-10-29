@@ -1,3 +1,4 @@
+import { useSurfaceTheme } from './useSurfaceTheme';
 import { createContext, useEffect, useId, useRef, type ReactNode } from 'react';
 
 interface Props {
@@ -44,6 +45,7 @@ function visible(element: HTMLElement, root: HTMLElement): boolean {
 /** Mounted while open. Keeps Sessions presentation separate from modal behavior. */
 export function ModalDialog({ children, className, labelledBy, onClose, dismissible = true, dismissOnBackdrop = true }: Props): JSX.Element {
   const ref = useRef<HTMLElement>(null);
+  const themeStyle = useSurfaceTheme(ref);
   const scope = useId();
   const current = useRef({ onClose, dismissible });
   current.current = { onClose, dismissible };
@@ -85,7 +87,7 @@ export function ModalDialog({ children, className, labelledBy, onClose, dismissi
       if (wasForemost && previous?.isConnected) previous.focus();
     };
   }, [scope]);
-  return <div className="dialog-backdrop" onClick={(event) => event.stopPropagation()}
+  return <div className="dialog-backdrop" style={themeStyle} onClick={(event) => event.stopPropagation()}
     onMouseDown={(event) => {
       if (event.target === event.currentTarget && dismissOnBackdrop && dismissible && modalStack[modalStack.length - 1] === ref.current) onClose();
     }}>

@@ -1,3 +1,6 @@
+import { Field, Select } from './ui/Field';
+import { Button } from './ui/Button';
+import { Actions, PageHeader, Status } from './ui/Layout';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { previewRestart, restartConversation, type RestartPreview, type RestartResult } from '../api/sessionsd/restart';
@@ -30,11 +33,11 @@ function RestartChoices({ session, choice, locked, onPermissions, onRuntimeMode,
   onRemoteControl: (value: boolean) => void;
 }): JSX.Element {
   return <>
-    <label>Permissions <select aria-label="Restart permissions" value={choice.permissions} disabled={locked} onChange={(event) => onPermissions(event.target.value as 'constrained' | 'full')}>
+    <Field label="Permissions"><Select aria-label="Restart permissions" value={choice.permissions} disabled={locked} onChange={(event) => onPermissions(event.target.value as 'constrained' | 'full')}>
       <option value="constrained">Ask for approval</option><option value="full">Full access (YOLO)</option>
-    </select></label>
+    </Select></Field>
     {choice.permissions === 'full' ? <p>Full access lets this conversation run commands without approval. This changes only the replacement runtime.</p> : null}
-    <label>Runtime <select aria-label="Restart runtime" value={choice.runtimeMode ?? sessionMode(session)} disabled={locked || choice.remoteControl} onChange={(event) => onRuntimeMode(event.target.value as 'rich' | 'terminal')}><option value="rich">Rich</option><option value="terminal">Terminal</option></select></label>
+    <Field label="Runtime"><Select aria-label="Restart runtime" value={choice.runtimeMode ?? sessionMode(session)} disabled={locked || choice.remoteControl} onChange={(event) => onRuntimeMode(event.target.value as 'rich' | 'terminal')}><option value="rich">Rich</option><option value="terminal">Terminal</option></Select></Field>
     {session.tool === 'claude-code' ? <label><input type="checkbox" checked={choice.remoteControl} disabled={locked} onChange={(event) => onRemoteControl(event.target.checked)} /> Remote Control (Claude Terminal; requires consent in Settings)</label> : null}
   </>;
 }
@@ -150,7 +153,7 @@ export function RestartConversationDialog({ session, onOpen, onResume, serverId,
     finally { locked.current = false; setBusy(false); }
   };
   return createPortal(<ModalDialog className="dialog restart-conversation-dialog" labelledBy={`restart-title-${session.id}`} onClose={onClose} dismissible={!busy} dismissOnBackdrop={false}>
-        <h2 id={`restart-title-${session.id}`}>{dialogVerb(unavailable, offer)} “{resolvedSessionLabel(session)}”</h2>
+        <PageHeader level={2} titleId={`restart-title-${session.id}`} title={<>{dialogVerb(unavailable, offer)} “{resolvedSessionLabel(session)}”</>} />
         <p><strong>On {machineName}</strong> · This does not move the conversation to another computer.</p>
         {unavailable ? <p role="status">{unavailable.reason || 'This runtime is not running here, so there is nothing to restart.'}</p> : <>
         {recorded ? <RecordedRestart session={session} choice={recorded} sourceRunning={sourceRunning} /> : <>
@@ -166,13 +169,13 @@ export function RestartConversationDialog({ session, onOpen, onResume, serverId,
           onPermissions={setPermissions} onRuntimeMode={setRuntimeMode} onRemoteControl={setRemoteControl} />
         </>}
         </>}
-        {error ? <p role="alert">{error}</p> : null}
+        {error ? <Status tone="danger" live="assertive">{error}</Status> : null}
         {result?.sourceEnded ? <p role="status">Original runtime ended.{result.laneId ? ` Replacement: ${result.laneId}.` : ' Replacement creation is incomplete.'}</p> : null}
-        <div className="dialog-actions">
-          <button type="button" className="btn" disabled={busy} onClick={onClose}>{result || unavailable ? 'Close' : 'Cancel'}</button>
-          {result?.laneId ? <button type="button" className="btn" disabled={busy} onClick={() => { void reopen(result.laneId!).catch((reason) => setError(String(reason))); }}>Open replacement</button> : null}
-          {unavailable ? offer ? <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void follow()}>{offer.label}</button> : null
-            : <button type="button" className="btn btn-primary" disabled={busy || !(preview || previewError)} onClick={() => void restart()}>{busy ? 'Restarting…' : submitted ? 'Retry same restart' : recorded ? 'Retry recorded restart' : 'End this runtime and reopen'}</button>}
-        </div>
+        <Actions>
+          <Button disabled={busy} onClick={onClose}>{result || unavailable ? 'Close' : 'Cancel'}</Button>
+          {result?.laneId ? <Button disabled={busy} onClick={() => { void reopen(result.laneId!).catch((reason) => setError(String(reason))); }}>Open replacement</Button> : null}
+          {unavailable ? offer ? <Button variant="primary" loading={busy} onClick={() => void follow()}>{offer.label}</Button> : null
+            : <Button variant="primary" loading={busy} disabled={!(preview || previewError)} onClick={() => void restart()}>{busy ? 'Restarting…' : submitted ? 'Retry same restart' : recorded ? 'Retry recorded restart' : 'End this runtime and reopen'}</Button>}
+        </Actions>
     </ModalDialog>, document.body);
 }

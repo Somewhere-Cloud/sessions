@@ -1,3 +1,5 @@
+import { Button } from './ui/Button';
+import { Field, Input, Select, Textarea } from './ui/Field';
 import { useEffect, useRef, useState } from 'react';
 import { fetchProfiles, generateConversationBriefing, type AccountProfile } from '../api/sessionsd';
 import type { ForkPoint } from './ForkConfirmationDialog';
@@ -45,22 +47,22 @@ export function CollaboratorContext({ value, source, disabled }: {
   value: ReturnType<typeof useCollaboratorContext>; source: SessionInfo; disabled: boolean;
 }): JSX.Element {
   return <div className="collaborator-context">
-    <label>Agent name<input value={value.name} onChange={(event) => value.setName(event.target.value)} placeholder="e.g. Release reviewer" disabled={disabled} /></label>
+    <Field label="Agent name"><Input value={value.name} onChange={(event) => value.setName(event.target.value)} placeholder="e.g. Release reviewer" disabled={disabled} /></Field>
     <fieldset disabled={disabled}><legend>Starting context</legend>
       <label><input type="radio" name="collaborator-context" checked={value.mode === 'briefing'} onChange={() => value.setMode('briefing')} /> Briefing <small>Start light; look up details when needed</small></label>
       <label><input type="radio" name="collaborator-context" checked={value.mode === 'conversation'} onChange={() => value.setMode('conversation')} /> Conversation copy <small>More history, more context</small></label>
     </fieldset>
     {value.mode === 'briefing' ? <>
-      <label>Briefing<textarea value={value.briefing} onChange={(event) => value.setBriefing(event.target.value)} disabled={disabled || value.generating} rows={5} placeholder="Goal, decisions, restrictions, progress, and files to read…" /></label>
-      <button type="button" className="btn btn-secondary" disabled={disabled || value.generating} onClick={() => void value.generate()}>{value.generating ? 'Preparing briefing…' : 'Generate draft briefing'}</button>
+      <Field label="Briefing"><Textarea value={value.briefing} onChange={(event) => value.setBriefing(event.target.value)} disabled={disabled || value.generating} rows={5} placeholder="Goal, decisions, restrictions, progress, and files to read…" /></Field>
+      <Button loading={value.generating} disabled={disabled} onClick={() => void value.generate()}>{value.generating ? 'Preparing briefing…' : 'Generate draft briefing'}</Button>
       <small>Drafted by {source.tool === 'codex' ? 'Codex' : 'Claude'} using the {source.profile || 'default'} account. Uses your allowance; the original stays unchanged. Review before starting.</small>
       <small>About {Math.ceil([...value.briefing].length / 4).toLocaleString()} tokens of briefing. Additional provider instructions may apply.</small>
       {value.error ? <p role="alert">{value.error}</p> : null}
     </> : null}
-    <details><summary>Account</summary><label>Run this agent with<select aria-label="Destination account" value={value.profile} disabled={disabled} onChange={(event) => value.setProfile(event.target.value)}>
+    <details><summary>Account</summary><Field label="Run this agent with"><Select aria-label="Destination account" value={value.profile} disabled={disabled} onChange={(event) => value.setProfile(event.target.value)}>
       <option value="">{value.profiles.find((p) => p.default_profile) ? accountLabel(value.profiles.find((p) => p.default_profile)!) : 'CLI default'}</option>
       {value.profile && !value.profiles.some((p) => p.name === value.profile) ? <option value={value.profile}>{value.profile}</option> : null}
       {value.profiles.filter((p) => !p.default_profile).map((p) => <option key={p.name} value={p.name}>{accountLabel(p)}{p.identity || p.signed_in ? '' : ' · needs sign-in'}</option>)}
-    </select></label>{value.profileError ? <p role="alert">{value.profileError}</p> : null}<small>Uses an existing account on this computer. Settings › Accounts adds one.</small></details>
+    </Select></Field>{value.profileError ? <p role="alert">{value.profileError}</p> : null}<small>Uses an existing account on this computer. Settings › Accounts adds one.</small></details>
   </div>;
 }

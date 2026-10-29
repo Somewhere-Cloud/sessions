@@ -50,6 +50,7 @@ const GATE = [
   'workspace-ux',
   'project-groups',
   'launcher-layout',
+  'ui-foundation',
   'account-login',
   'account-usage',
   'composer-usage',

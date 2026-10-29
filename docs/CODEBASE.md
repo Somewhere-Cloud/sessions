@@ -1116,3 +1116,5 @@ events are normalized before they enter the shared session event stream
 (`runtime/internal/watch/claude_watcher.go`,
 `runtime/internal/watch/codex_watcher.go`,
 `runtime/internal/watch/codex_normalize.go`).
+
+Shared frontend control APIs and fixture guidance: [Frontend components](FRONTEND_COMPONENTS.md).

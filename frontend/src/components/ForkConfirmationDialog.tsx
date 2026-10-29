@@ -5,6 +5,8 @@ import { preferNextSessionView } from '../lib/sessionViewPreference';
 import { formatTokenEstimate, usePaidStartPlan, type PaidStartProvider } from '../hooks/usePaidStartPlan';
 import { useSessions } from '../store/sessions';
 import type { SessionInfo } from '../types';
+import { Button, IconButton } from './ui/Button';
+import { Actions, PageHeader, Status } from './ui/Layout';
 import { ModalDialog } from './ui/ModalDialog';
 import { PaidStartPlan, paidStartProviderName } from './PaidStartPlan';
 import { CollaboratorContext, useCollaboratorContext } from './CollaboratorContext';
@@ -130,10 +132,8 @@ export function ForkConfirmationDialog({
       : 'Conversation size unavailable';
   return (
     <ModalDialog className="dialog dialog-wide paid-start-dialog collaborator-dialog" labelledBy="fork-confirmation-title" onClose={onClose} dismissible={!busy}>
-        <header className="dialog-header">
-          <div><span className="dialog-kicker">Work together</span><h2 id="fork-confirmation-title">Add agent</h2></div>
-          <button type="button" className="dialog-close" aria-label="Close" disabled={busy} onClick={onClose}>×</button>
-        </header>
+        <PageHeader level={2} title="Add agent" titleId="fork-confirmation-title" eyebrow="Work together"
+          actions={<IconButton aria-label="Close" disabled={busy} onClick={onClose}>×</IconButton>} />
         <PaidStartPlan
           compact
           plan={plan}
@@ -145,14 +145,14 @@ export function ForkConfirmationDialog({
           disabled={busy}
           assurance="The new agent starts only when you press Start."
         ><CollaboratorContext value={context} source={session} disabled={busy} /></PaidStartPlan>
-        {context.mode === 'conversation' && measured.error ? <div className="dialog-error" role="alert">{measured.error}</div> : null}
-        {error ? <div className="dialog-error" role="alert">{error}</div> : null}
-        <footer className="paid-start-dialog-actions">
-          <button type="button" className="btn btn-ghost" disabled={busy} onClick={onClose}>Cancel</button>
-          <button type="button" className="btn btn-primary continuation-start" disabled={busy || context.generating || !plan.ready || (context.mode === 'briefing' ? !context.briefing.trim() : !measured.size || Boolean(measured.error))} onClick={() => void start()}>
+        {context.mode === 'conversation' && measured.error ? <Status tone="danger" live="assertive">{measured.error}</Status> : null}
+        {error ? <Status tone="danger" live="assertive">{error}</Status> : null}
+        <Actions>
+          <Button variant="ghost" disabled={busy} onClick={onClose}>Cancel</Button>
+          <Button variant="primary" loading={busy} disabled={context.generating || !plan.ready || (context.mode === 'briefing' ? !context.briefing.trim() : !measured.size || Boolean(measured.error))} onClick={() => void start()}>
             {busy ? 'Starting…' : plan.ready ? `Start ${paidStartProviderName(plan.destination)} (${plan.modelName})` : 'Preparing details…'}
-          </button>
-        </footer>
+          </Button>
+        </Actions>
     </ModalDialog>
   );
 }
