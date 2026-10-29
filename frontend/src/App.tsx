@@ -832,7 +832,7 @@ function ConnectedApp({ nativeClientOnly = false }: { nativeClientOnly?: boolean
           sessionNavigator
 
         ) : effectiveLayout === 'fleet' ? (
-          <Suspense fallback={null}><AccountsView hostName={machine} serverId={activeServerId ?? undefined} initialTab="computers" onOpenSession={openFleetSession} onOpenMachine={openFleetMachine} /></Suspense>
+          <Suspense fallback={null}><AccountsView hostName={machine} serverId={activeServerId ?? undefined} onOpenSession={openFleetSession} onOpenMachine={openFleetMachine} onOpenConnections={() => setLayoutMode('connections')} /></Suspense>
         ) : effectiveLayout === 'today' ? (
           <Suspense fallback={null}><DailyView /></Suspense>
         ) : effectiveLayout === 'search' ? (
@@ -843,7 +843,7 @@ function ConnectedApp({ nativeClientOnly = false }: { nativeClientOnly?: boolean
         ) : effectiveLayout === 'usage' ? (
           <Suspense fallback={null}><UsageDashboard /></Suspense>
         ) : effectiveLayout === 'accounts' ? (
-          <Suspense fallback={null}><AccountsView key={activeServerId ?? ''} hostName={machine} serverId={activeServerId ?? undefined} onOpenSession={openFleetSession} onOpenMachine={openFleetMachine} /></Suspense>
+          <Suspense fallback={null}><AccountsView key={activeServerId ?? ''} hostName={machine} serverId={activeServerId ?? undefined} onOpenSession={openFleetSession} onOpenMachine={openFleetMachine} onOpenConnections={() => setLayoutMode('connections')} /></Suspense>
         ) : effectiveLayout === 'settings' || effectiveLayout === 'feedback' || effectiveLayout === 'connections' ? (
           <Suspense fallback={null}><SettingsView clientOnly={nativeClientOnly} hostName={machine} theme={theme}
               onThemeChange={setTheme}

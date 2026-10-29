@@ -7,6 +7,7 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useServers } from '../../src/lib/servers';
 import { AccountsView } from '../../src/components/AccountsView';
 import { MobileNav } from '../../src/components/MobileNav';
 import { ProductSidebar, type ProductView } from '../../src/components/ProductSidebar';
@@ -178,4 +179,35 @@ describe('capability: adding an account is one flow at a time', () => {
     await screen.findByRole('region', { name: 'Sign in to account' });
     expect(screen.queryByRole('dialog', { name: 'Add account' })).not.toBeInTheDocument();
   });
+});
+
+
+it('keeps a failed page-computer profile read distinct from a successful empty list', async () => {
+  const fleet = machines();
+  fleet[0]!.reachable = false;
+  installFakeDaemon(fleet);
+  useFakeMachines(fleet, 'local');
+  render(<AccountsView hostName="This Mac" serverId="local" />);
+  const roster = await screen.findByRole('list', { name: 'Computers' });
+  expect(within(roster).getByText('Accounts unavailable')).toBeVisible();
+  expect(within(roster).queryByText(/0 profiles|Accounts read/)).not.toBeInTheDocument();
+  await userEvent.click(within(roster).getByText('Details'));
+  expect(within(roster).getByText(/does not establish whether the computer is offline/)).toBeVisible();
+});
+
+
+it('renames a computer through its details while keeping its routing identity', async () => {
+  const fleet = machines();
+  const daemon = installFakeDaemon(fleet);
+  useFakeMachines(fleet, 'local');
+  render(<AccountsView hostName="This Mac" serverId="local" />);
+  const roster = await screen.findByRole('list', { name: 'Computers' });
+  await userEvent.click(within(roster).getByText('Details'));
+  const input = within(roster).getByRole('textbox', { name: 'Name for This Mac' });
+  await userEvent.clear(input);
+  await userEvent.type(input, 'Studio laptop');
+  await userEvent.click(within(roster).getByRole('button', { name: 'Save name' }));
+  await waitFor(() => expect(useServers.getState().servers[0]?.customName).toBe('Studio laptop'));
+  expect(useServers.getState().servers[0]?.id).toBe('local');
+  expect(daemon.created).toHaveLength(0);
 });

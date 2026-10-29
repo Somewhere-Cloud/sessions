@@ -48,6 +48,22 @@ try {
     await page.click('.accounts-unfinished .accounts-placement-details > summary');
     assert.ok(await page.$eval('.accounts-unfinished button', (el) => el.getBoundingClientRect().height > 0), 'recovery controls reachable');
     await page.click('.accounts-unfinished > summary');
+    assert.equal(await page.$$eval('h1', (nodes) => nodes.map((node) => node.textContent).join()), 'Accounts & computers');
+    assert.equal(await page.$('.account-workspace-tabs'), null);
+    assert.equal(await page.$$eval('.computer-roster > li', (nodes) => nodes.length), 3);
+    const roster = await page.$eval('.computer-roster', (el) => el.textContent);
+    assert.ok(roster.includes('Accounts unavailable') && !roster.includes('0 profiles'), roster);
+    const profileReads = await page.evaluate(() => window.accountDaemon.requests.filter((request) => request.path === '/api/profiles').map((request) => request.origin));
+    assert.equal(profileReads.length, 3, 'one profile read per computer, shared with the roster');
+    assert.equal(new Set(profileReads).size, 3, 'each read targets a different computer');
+    assert.equal(await page.$$eval('button', (nodes) => nodes.filter((node) => node.checkVisibility() && /Remove|Forget|Make default/.test(node.textContent)).length), 0);
+    await page.click('[aria-label="Open sessions on Mac mini"]');
+    assert.equal(await page.evaluate(() => document.body.dataset.openMachine), 'mini');
+    await page.click('.accounts-roster .ui-header button');
+    assert.equal(await page.evaluate(() => document.body.dataset.connections), 'open');
+    const height = await page.$eval('.account-workspace', (el) => el.getBoundingClientRect().height);
+    console.log(`${theme} ${width}: collapsed content ${height.toFixed(1)}px`);
+    assert.ok(height <= (width > 560 ? 1000 : 1800), `collapsed workspace height ${height}px at ${width}`);
     const meters = await page.$$eval('[aria-label="Usage for Team plan"] [role="meter"]', (nodes) => nodes.map((node) => node.getAttribute('aria-valuenow')));
     assert.deepEqual(meters, ['93', '41', '5'], 'the fresher Mac mini reading, every limit separately');
     // The meter's fill is visible against its track in both themes.
@@ -64,6 +80,7 @@ try {
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `no overflow at ${width}px in ${theme}`);
     if (process.env.ACCOUNT_SCREENSHOT_DIR) {
       await page.evaluate(() => { for (const el of document.querySelectorAll('*')) if (el.scrollTop) el.scrollTop = 0; });
+      await page.mouse.move(0, 0);
       await page.screenshot({ path: join(process.env.ACCOUNT_SCREENSHOT_DIR, `account-usage-${theme}-${width}.png`), fullPage: true });
     }
   }

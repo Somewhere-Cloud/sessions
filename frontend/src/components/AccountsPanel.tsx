@@ -1,14 +1,15 @@
-import { EmptyState, PageHeader, Section, Status, Surface } from './ui/Layout';
+import { EmptyState, PageHeader, Section, Surface } from './ui/Layout';
 import { Button } from './ui/Button';
 import { useEffect, useState } from 'react';
 import { forgetAccount, renameAccount, type AccountProfile } from '../api/sessionsd';
 import { useAccountFleet } from '../hooks/useAccountFleet';
-import { computersWithout, coverageNotes, groupTitle, rollUpAccounts, type AccountGroup, type AccountPlacement, type MachineAccounts } from '../lib/accountRollup';
+import { computersWithout, groupTitle, rollUpAccounts, type AccountGroup, type AccountPlacement, type MachineAccounts } from '../lib/accountRollup';
 import { useServers } from '../lib/servers';
 import { AccountPlacementRow, AddOnComputer } from './AccountRowParts';
 import { AddAccountDialog } from './AddAccountDialog';
 import { loginPending, SigningInCard, useGuidedAccountLogin } from './AccountSignIn';
 import { AccountUsageSummary } from './AccountUsageSummary';
+import { ComputerRoster } from './ComputerRoster';
 import { ProviderMark } from './ProviderBadge';
 
 // Accounts, one row per account. A subscription's allowance belongs to the
@@ -26,6 +27,9 @@ import { ProviderMark } from './ProviderBadge';
 
 interface Props {
   embedded?: boolean;
+  profilesError?: string;
+  onOpenMachine?: (id: string) => void;
+  onOpenConnections?: () => void;
   profiles: AccountProfile[];
   machineName: string;
   serverId?: string;
@@ -62,7 +66,7 @@ function useTargetedLogin(homeId: string, onProfiles: (id: string, profiles: Acc
   return { login, target, on };
 }
 
-export function AccountsPanel({ embedded = false, profiles, machineName, serverId, onReload }: Props): JSX.Element {
+export function AccountsPanel({ embedded = false, profiles, machineName, serverId, profilesError, onReload, onOpenMachine, onOpenConnections }: Props): JSX.Element {
   const activeId = useServers((state) => state.activeId);
   const home = serverId ?? activeId ?? '';
   const fleet = useAccountFleet({ homeId: home, homeName: machineName, homeProfiles: profiles, onHomeReload: onReload });
@@ -97,8 +101,7 @@ export function AccountsPanel({ embedded = false, profiles, machineName, serverI
   return (
     <section className="settings-page accounts-panel">
       {!embedded ? <AccountsIntroduction /> : null}
-      <Surface className="accounts-card"><Section title="Your accounts" actions={<Button variant="ghost" disabled={fleet.refreshing} onClick={() => void fleet.refreshUsage()}>{fleet.refreshing ? 'Reading usage…' : 'Refresh usage'}</Button>}>
-        {coverageNotes(fleet.machines).map((note) => <Status key={note}>{note}</Status>)}
+      <Surface className="accounts-card"><Section title="Subscriptions" actions={<Button variant="ghost" disabled={fleet.refreshing} onClick={() => void fleet.refreshUsage()}>{fleet.refreshing ? 'Reading usage…' : 'Refresh usage'}</Button>}>
         {groups.length === 0 ? (
           <EmptyState title="Accounts will appear here">
             {fleet.machines.some((machine) => machine.profiles === null && !machine.profilesError)
@@ -139,6 +142,8 @@ export function AccountsPanel({ embedded = false, profiles, machineName, serverI
         ) : null}
       </Section></Surface>
 
+      <ComputerRoster machines={fleet.machines.map((machine) => machine.serverId === home && profilesError ? { ...machine, profilesError } : machine)} onOpenMachine={onOpenMachine} onOpenConnections={onOpenConnections} />
+
       {adding && !login.signingInFor ? (
         <AddAccountDialog
           busy={login.busy}
@@ -166,7 +171,6 @@ export function AccountsPanel({ embedded = false, profiles, machineName, serverI
 
       {login.message ? <p className="settings-message" role="status">{login.message}</p> : null}
       {notice ? <p className="settings-message" role="status">{notice}</p> : null}
-      <p className="field-help">Removing an account keeps its saved chats and sign-in on that computer.</p>
     </section>
   );
 }
@@ -244,7 +248,7 @@ function AccountGroupRow(
       </div>
       <div className="accounts-usage-area"><AccountUsageSummary group={group} label={title} /></div>
       <details className="accounts-computers">
-        <summary>{[...new Set(group.placements.map((placement) => placement.machineName))].join(' · ')} <span>Manage sign-ins</span></summary>
+        <summary><span className="accounts-machine-chips">{[...new Set(group.placements.map((placement) => placement.machineName))].map((name) => <span key={name}>{name}</span>)}</span><span>Manage sign-ins</span></summary>
         <AccountMatchNote group={group} />
         <ul className="accounts-placements" aria-label={`Computers for ${title}`}>
           {group.placements.map((placement) => (

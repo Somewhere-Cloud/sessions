@@ -1,8 +1,7 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { createRoot } from 'react-dom/client';
 import '../src/styles/globals.css';
-import { AccountsPanel } from '../src/components/AccountsPanel';
-import type { AccountProfile } from '../src/api/sessionsd';
+import { AccountsView } from '../src/components/AccountsView';
 import { installFakeDaemon, useFakeMachines, type FakeMachine } from '../tests/capability/fake-daemon';
 
 // Two computers: one ChatGPT team account both report under the same provider
@@ -54,16 +53,21 @@ const machines: FakeMachine[] = [
     }
   }
 ];
+machines.push({ id: 'studio', name: 'Studio workstation', host: 'studio.test', port: 8787, sessions: [], reachable: false });
 const daemon = installFakeDaemon(machines);
 useFakeMachines(machines, 'local');
 Object.assign(window, { accountDaemon: daemon });
 const theme = new URLSearchParams(location.search).get('theme') === 'light' ? 'light' : 'dark';
 document.documentElement.dataset.theme = theme;
-const initial = machines[0]!.profiles!.map((account) => ({ path: '', sessions: [], last_used: 0, signed_in: false, ...account })) as AccountProfile[];
+document.documentElement.style.overflow = 'auto';
+document.body.style.overflow = 'auto';
+document.getElementById('root')!.style.height = 'auto';
+document.getElementById('root')!.style.overflow = 'visible';
+document.body.style.height = 'auto';
+document.documentElement.style.height = 'auto';
 function Fixture(): JSX.Element {
-  const [profiles, setProfiles] = useState<AccountProfile[]>(initial);
-  return <div className="operations-shell text-size-s" data-theme={theme} style={{ height: 'auto', minHeight: '100dvh', display: 'block' }}>
-    <AccountsPanel profiles={profiles} machineName="This Mac" serverId="local" onReload={setProfiles} />
+  return <div className="operations-shell text-size-s" data-theme={theme} style={{ height: 'auto', minHeight: '100dvh', display: 'block', overflow: 'visible' }}>
+    <AccountsView hostName="This Mac" serverId="local" onOpenMachine={(id) => { document.body.dataset.openMachine = id; }} onOpenConnections={() => { document.body.dataset.connections = "open"; }} />
   </div>;
 }
 createRoot(document.getElementById('root')!).render(<Fixture />);

@@ -92,14 +92,49 @@
 
 .accounts-placement > .ui-button { justify-self: start; }
 
-.account-workspace-heading { display: grid; gap: 18px; padding: 28px 28px 0; }
-.account-workspace-tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--border); padding-bottom: 12px; }
-.account-workspace-tabs [aria-pressed="true"] { color: var(--accent); background: var(--accent-bg-soft); }
-.account-workspace .accounts-panel { padding-top: 20px; }
-.account-workspace .fleet-view-heading .ui-header > div:first-child { display: none; }
+.account-workspace-heading { display: grid; gap: 0; width: min(1040px, calc(100% - 56px)); margin: 0 auto; padding: 28px 0 0; }
+.account-workspace .accounts-panel { width: min(1040px, calc(100% - 56px)); max-width: 1040px; margin: 0 auto; gap: 12px; padding: 20px 0; }
 .accounts-computers > summary { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; cursor: pointer; color: var(--fg-dim); padding: 8px 0; font-size: 13px; }
 .accounts-computers > summary::before { content: '›'; color: var(--fg-dim); }
 .accounts-computers[open] > summary::before { transform: rotate(90deg); }
 .accounts-computers > summary > span { margin-left: auto; color: var(--accent); }
 .accounts-computers[open] .accounts-placements { margin-top: 12px; }
-@media (max-width: 560px) { .account-workspace-heading { padding: 20px 16px 0; } }
+
+/* One account workspace: quiet rows, a shared scroll, and a short computer index. */
+.account-workspace { overflow-y: auto; }
+.accounts-card.ui-surface { border: 0; box-shadow: none; background: transparent; padding: 0; }
+.accounts-row { background: transparent; }
+.account-workspace .accounts-row { padding: 12px 0; }
+.accounts-group { gap: 6px 12px; }
+.accounts-details, .accounts-activity, .accounts-computers summary, .accounts-unfinished > p { font-size: 13px; }
+.accounts-computers > summary { padding: 4px 0; }
+.accounts-computers > summary > .accounts-machine-chips { margin-left: 0; color: var(--fg-dim); }
+.accounts-computers > summary > span:last-child { color: var(--fg-dim); }
+.accounts-machine-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.accounts-machine-chips > span { padding: 2px 7px; border-radius: 5px; background: var(--bg-elev-2); font-size: 12px; }
+.accounts-roster { margin-top: 4px; padding-top: 16px; border-top: 1px solid var(--border); }
+.computer-roster { list-style: none; padding: 0; margin: 0; }
+.computer-roster > li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; }
+.computer-roster-identity { display: flex; flex-wrap: wrap; align-items: baseline; gap: 5px 12px; min-width: 0; overflow-wrap: anywhere; }
+.computer-roster-identity strong { font-size: 14px; }
+.computer-roster-identity > span, .computer-roster details { color: var(--fg-dim); font-size: 13px; }
+.computer-roster-evidence::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; background: var(--fg-faint); }
+.computer-roster-evidence[data-answered="true"]::before { background: var(--ok); }
+.computer-roster details[open] { flex-basis: 100%; }
+.computer-roster-details form { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.computer-roster-details input { flex: 1; min-width: 120px; }
+.computer-roster summary { cursor: pointer; }
+.computer-roster .btn { flex-shrink: 0; }
+@media (min-width: 800px) {
+  .accounts-group { grid-template-columns: 32px minmax(180px, .85fr) minmax(0, 1.15fr); grid-template-areas: "mark identity usage" "mark computers usage"; }
+}
+@media (max-width: 560px) {
+  .computer-roster > li { align-items: flex-start; }
+  .computer-roster-identity { display: grid; }
+  .computer-roster .btn { padding: 6px; font-size: 12px; }
+}
+@media (max-width: 560px) {
+  .account-workspace .accounts-panel, .account-workspace-heading { width: calc(100% - 32px); }
+  .account-workspace-heading { padding-top: 20px; }
+}
+.accounts-panel.settings-page > .accounts-card.ui-surface { padding: 0; }

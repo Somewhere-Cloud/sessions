@@ -40,6 +40,9 @@ export function AccountPlacementRow(
         <span id={labelId} className="accounts-placement-name">{placement.machineName}{account.default_profile ? ' · CLI default' : ''}{unfinished ? ` · ${account.tool === 'claude' ? 'Claude' : 'ChatGPT'} · ${account.label || account.name}` : ''}</span>
         <PlacementStatus check={check} signedIn={account.signed_in} />
       </div>
+      {error && !editing ? <span className="accounts-row-error" role="alert">{error}</span> : null}
+      <details className="accounts-placement-details">
+      <summary aria-label={`Manage ${title} on ${placement.machineName}`}>Manage sign-in</summary>
       {onDefaultChanged ? <Button type="button" variant="ghost" disabled={busy || savingDefault || account.preferred}
         onClick={async () => {
           setSavingDefault(true); setError(null);
@@ -49,9 +52,6 @@ export function AccountPlacementRow(
           } catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not save default account.'); }
           finally { setSavingDefault(false); }
         }}>{account.preferred ? 'Default for new sessions' : savingDefault ? 'Saving…' : 'Make default'}</Button> : null}
-      {error && !editing ? <span className="accounts-row-error" role="alert">{error}</span> : null}
-      <details className="accounts-placement-details">
-      <summary aria-label={`Manage ${title} on ${placement.machineName}`}>Manage sign-in</summary>
       {editing ? (
         <NicknameEditor
           label={account.label ?? ''}
@@ -66,6 +66,7 @@ export function AccountPlacementRow(
           }}
         />
       ) : null}
+      <p className="field-help">Removing an account keeps its saved chats and sign-in on this computer.</p>
       {activity ? <span className="accounts-activity">{activity}</span> : null}
       {error ? <span className="accounts-row-error" role="alert">{error}</span> : null}
       {account.default_profile ? <p className="field-help">This is the existing {account.tool === 'claude' ? 'Claude' : 'Codex'} CLI login on {placement.machineName}. Choose “CLI default” when starting a session. Refresh accounts to check its identity; changing it in the provider CLI does not switch existing sessions.</p> : null}
