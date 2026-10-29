@@ -1,3 +1,5 @@
+import { EmptyState, PageHeader, Surface } from './ui/Layout';
+import { Button } from './ui/Button';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   fetchServerHistoryListing,
@@ -209,17 +211,9 @@ export function ConversationBrowser({
 
   return (
     <section className="conversation-browser" aria-label="Recorded conversations">
-      <header className="conversation-browser-head">
-        <div>
-          <h2>Every conversation on your machines</h2>
-          <p>
-            Claude and Codex history, newest first. Search above by something that was said.
-          </p>
-        </div>
-        <button type="button" className="conversation-browser-refresh" disabled={loading} onClick={() => setReloadToken((value) => value + 1)}>
-          {loading ? 'Reading…' : 'Refresh'}
-        </button>
-      </header>
+      <PageHeader level={2} title="Recent conversations" description="Claude and Codex history from your machines, newest first." actions={
+        <Button disabled={loading} onClick={() => setReloadToken((value) => value + 1)}>{loading ? 'Reading…' : 'Refresh'}</Button>
+      } />
 
       {loading ? <p role="status">Reading available computers… Results appear as each one responds.</p> : null}
       {failures.length > 0 ? (
@@ -241,27 +235,27 @@ export function ConversationBrowser({
       {loading && answered === 0 ? (
         <div className="search-loading-results" aria-hidden><span /><span /><span /></div>
       ) : answered === 0 ? (
-        <div className="usage-empty">
-          No machine answered, so history is unavailable.
+        <EmptyState title="History is unavailable">
+          No machine answered.
           {failures.length > 0 ? ` ${failures.map((answer) => `${compactMachineName(answer.serverName)}: ${answer.error}`).join(' · ')}` : ''}
-        </div>
+        </EmptyState>
       ) : rows.length === 0 ? (
-        <div className="usage-empty">
-          No Claude or Codex history was found.
-        </div>
+        <EmptyState title="No saved conversations">
+          Claude and Codex history will appear here when it is available.
+        </EmptyState>
       ) : matched.length === 0 ? (
-        <div className="usage-empty">
+        <EmptyState title="No conversations in this view">
           <p>
             No conversation matches {filtered ? 'these filters' : 'this view'}.{' '}
             {plural(rows.length, 'conversation')} {rows.length === 1 ? 'is' : 'are'} recorded
             {partial ? ' on the machines that answered' : ''}.
           </p>
           {!showAll ? (
-            <button type="button" className="btn btn-ghost" onClick={() => setShowAll(true)}>
+            <Button type="button" variant="ghost" onClick={() => setShowAll(true)}>
               Show empty and unrecoverable
-            </button>
+            </Button>
           ) : null}
-        </div>
+        </EmptyState>
       ) : (
         <div className="search-results">
           {shown.map((row) => (
@@ -289,13 +283,13 @@ export function ConversationBrowser({
           </span>
           <span className="conversation-browser-foot-actions">
             {shown.length < matched.length ? (
-              <button type="button" onClick={() => setLimit((value) => value + PAGE)}>
+              <Button type="button" onClick={() => setLimit((value) => value + PAGE)}>
                 Show {Math.min(PAGE, matched.length - shown.length)} more
-              </button>
+              </Button>
             ) : null}
-            <button type="button" onClick={() => setShowAll((value) => !value)}>
+            <Button type="button" onClick={() => setShowAll((value) => !value)}>
               {showAll ? 'Show conversations only' : 'Show everything'}
-            </button>
+            </Button>
           </span>
         </footer>
       ) : null}
@@ -330,12 +324,12 @@ function ConversationCard({
     })
     : 'No recorded activity';
   return (
-    <article className={`search-result-card conversation-row${provider ? ` is-${provider}` : ''}${row.status === 'live' ? ' is-live' : ''}`}>
+    <Surface data-history-key={row.key} className={`search-result-card conversation-row${provider ? ` is-${provider}` : ''}${row.status === 'live' ? ' is-live' : ''}`}>
       <span className="search-result-provider" aria-label={provider ? `${provider} conversation` : 'Saved conversation'}>
         <ParserIcon icon={provider === 'claude' ? '🟠' : provider === 'codex' ? '🟢' : '⬛'} size={24} />
       </span>
       <span className="search-result-body">
-        <button type="button" className="search-result-main" onClick={onOpen} disabled={!row.readable}>
+        <Button type="button" variant="ghost" className="search-result-main" onClick={onOpen} disabled={!row.readable}>
           <span className="search-result-source">
             <strong>{row.name || 'Untitled conversation'}</strong>
             {row.status === 'live' ? <span className="search-title-match">Live now</span> : null}
@@ -348,7 +342,7 @@ function ConversationCard({
             {age ? ` · ${age}` : ''}
             {row.messagesKnown === false ? '' : ` · ${row.messages > 0 ? plural(row.messages, 'message') : 'no messages recorded'}`}
           </span>
-        </button>
+        </Button>
 
         {preview?.open ? (
           <span className="conversation-preview">
@@ -382,18 +376,18 @@ function ConversationCard({
           </span>
           <span className="search-result-actions">
             {row.readable ? (
-              <button type="button" onClick={onTogglePreview}>
+              <Button type="button" onClick={onTogglePreview}>
                 {preview?.open ? 'Hide preview' : 'Preview'}
-              </button>
+              </Button>
             ) : null}
-            {row.readable ? <button type="button" onClick={onOpen}>Open conversation <span aria-hidden>→</span></button> : null}
+            {row.readable ? <Button type="button" onClick={onOpen}>Open conversation <span aria-hidden>→</span></Button> : null}
             {row.status === 'live' && onAttach ? (
-              <button type="button" className="is-resume" onClick={() => onAttach(row)}>Open the live session</button>
+              <Button type="button" className="is-resume" onClick={() => onAttach(row)}>Open the live session</Button>
             ) : null}
             {resumeTarget ? (
-              <button type="button" className="is-resume" disabled={resuming} onClick={() => onResume(row, resumeTarget)}>
+              <Button type="button" className="is-resume" disabled={resuming} onClick={() => onResume(row, resumeTarget)}>
                 {resuming ? 'Resuming…' : 'Resume conversation'}
-              </button>
+              </Button>
             ) : null}
           </span>
         </span>
@@ -406,6 +400,6 @@ function ConversationCard({
           <span className={`conversation-row-note${row.status === 'unrecoverable' ? ' is-gone' : ''}`}>{row.reason}</span>
         ) : null}
       </span>
-    </article>
+    </Surface>
   );
 }

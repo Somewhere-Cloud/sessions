@@ -1,3 +1,6 @@
+import { PageHeader, EmptyState, Status } from './ui/Layout';
+import { Field, Input, Select } from './ui/Field';
+import { Button } from './ui/Button';
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   daemonErrorDisplay,
@@ -286,6 +289,7 @@ export function SearchView({ onResumeConversation, onOpenLiveSession }: SearchVi
   const [continuationError, setContinuationError] = useState<string | null>(null);
   const [selected, setSelected] = useState<SelectedConversation | null>(null);
   const selectionToken = useRef(0);
+  const returnRow = useRef<string>();
   const planGeneration = useRef(0);
   const planAbort = useRef<AbortController | null>(null);
   const transcriptAbort = useRef<AbortController | null>(null);
@@ -518,6 +522,7 @@ export function SearchView({ onResumeConversation, onOpenLiveSession }: SearchVi
       setScreenError(`The ${target.serverName} connection is no longer configured.`);
       return;
     }
+    returnRow.current = document.activeElement?.closest<HTMLElement>('[data-history-key]')?.dataset.historyKey;
     transcriptAbort.current?.abort();
     const controller = new AbortController();
     transcriptAbort.current = controller;
@@ -623,6 +628,10 @@ export function SearchView({ onResumeConversation, onOpenLiveSession }: SearchVi
           onBack={() => {
             transcriptAbort.current?.abort();
             setSelected(null);
+            window.requestAnimationFrame(() => {
+              const row = Array.from(document.querySelectorAll<HTMLElement>('[data-history-key]')).find((element) => element.dataset.historyKey === returnRow.current);
+              row?.querySelector<HTMLButtonElement>('button')?.focus();
+            });
           }}
         />
       </Suspense>;
@@ -644,28 +653,26 @@ export function SearchView({ onResumeConversation, onOpenLiveSession }: SearchVi
   return (
     <div className="search-view">
       <div className="search-shell">
-        <header className="search-heading">
-          <h1>Search</h1>
-          <p>Every Claude and Codex conversation recorded on your machines. Browse the recent ones, or search for something that was said.</p>
-        </header>
+        <PageHeader title="Search" eyebrow="Conversation library" description="Find a request, revisit a decision, or pick up a conversation from your machines." />
         <form className="search-query-row" aria-busy={searchBusy} onSubmit={(event) => {
           event.preventDefault();
           submitSearch();
         }}>
           <span aria-hidden>⌕</span>
-          <input
+          <Input
             autoFocus
+            aria-label="Search conversations"
             value={query}
             onChange={(event) => updateQuery(event.target.value)}
             placeholder={mode === 'ai'
               ? 'Where did I explain how the drafts rollout should work?'
               : 'Search a chat title, request, decision, or handoff…'}
           />
-          <button type="submit" className="search-ai-submit" disabled={!query.trim() || searchBusy}>
+          <Button type="submit" variant="primary" className="search-ai-submit" disabled={!query.trim() || searchBusy}>
             {planning ? 'Understanding…' : loading ? 'Searching…' : 'Search'}
-          </button>
+          </Button>
           {query && !searchBusy ? (
-            <button type="button" aria-label="Clear search" onClick={() => updateQuery('')}>×</button>
+            <Button type="button" aria-label="Clear search" onClick={() => updateQuery('')}>×</Button>
           ) : null}
         </form>
         {searchBusy ? (
@@ -678,9 +685,9 @@ export function SearchView({ onResumeConversation, onOpenLiveSession }: SearchVi
         <div className="search-mode-row">
           <div className="usage-segmented" role="tablist" aria-label="Search method">
             {(nativeClient ? ['ai', 'ranked'] as const : ['ranked'] as const).map((candidate) => (
-              <button type="button" key={candidate} className={mode === candidate ? 'is-active' : ''} onClick={() => selectMode(candidate)}>
+              <Button type="button" key={candidate} className={mode === candidate ? 'is-active' : ''} onClick={() => selectMode(candidate)}>
                 {candidate === 'ai' ? 'Smart' : candidate === 'ranked' ? 'Keywords' : candidate}
-              </button>
+              </Button>
             ))}
           </div>
           {plan ? (
@@ -707,30 +714,27 @@ export function SearchView({ onResumeConversation, onOpenLiveSession }: SearchVi
             <FilterButton active={tool === 'claude'} onClick={() => setTool('claude')}><ProviderBadge provider="claude" compact /></FilterButton>
             <FilterButton active={tool === 'codex'} onClick={() => setTool('codex')}><ProviderBadge provider="codex" compact /></FilterButton>
           </FilterGroup>
-          <button type="button" className="search-more-filters" onClick={() => setShowMoreFilters((value) => !value)}>
+          <Button type="button" aria-expanded={showMoreFilters} variant="ghost" className="search-more-filters" onClick={() => setShowMoreFilters((value) => !value)}>
             {showMoreFilters ? 'Fewer filters' : 'More filters'}
-          </button>
+          </Button>
         </section>
 
         {showMoreFilters ? (
           <section className="search-advanced-filters">
-            <label>
-              <span>When</span>
-              <select value={dateRange} onChange={(event) => setDateRange(event.target.value as DateRange)}>
+            <Field label="When">
+              <Select value={dateRange} onChange={(event) => setDateRange(event.target.value as DateRange)}>
                 <option value="all">Any time</option>
                 <option value="today">Today</option>
                 <option value="7d">Last 7 days</option>
                 <option value="30d">Last 30 days</option>
-              </select>
-            </label>
-            <label>
-              <span>Session name</span>
-              <input value={sessionName} onChange={(event) => setSessionName(event.target.value)} placeholder="PM* or *builder*" />
-            </label>
-            <label>
-              <span>Workspace</span>
-              <input value={cwd} onChange={(event) => setCWD(event.target.value)} placeholder="~/somewhere/tech" />
-            </label>
+              </Select>
+            </Field>
+            <Field label="Session name">
+              <Input value={sessionName} onChange={(event) => setSessionName(event.target.value)} placeholder="PM* or *builder*" />
+            </Field>
+            <Field label="Workspace">
+              <Input value={cwd} onChange={(event) => setCWD(event.target.value)} placeholder="~/somewhere/tech" />
+            </Field>
             <FilterGroup label="Order">
               <FilterButton active={sort === 'relevance'} onClick={() => setSort('relevance')}>Best matches</FilterButton>
               <FilterButton active={sort === 'timeline'} onClick={() => setSort('timeline')}>Timeline</FilterButton>
@@ -739,19 +743,19 @@ export function SearchView({ onResumeConversation, onOpenLiveSession }: SearchVi
         ) : null}
 
         {missingPeers.length > 0 ? (
-          <div className="search-errors" role="status">
+          <Status>
             {missingPeers.map((report) => peerReportText(report, stillRetrying)).join(' · ')}
             {/* Asking again is already happening; a button beside it would only
                 invite a person to do what the screen is doing. */}
             {stillRetrying ? null : (
-              <button type="button" className="btn btn-ghost" onClick={() => setRetryToken((token) => token + 1)}>
+              <Button type="button" variant="ghost" onClick={() => setRetryToken((token) => token + 1)}>
                 Try again
-              </button>
+              </Button>
             )}
-          </div>
+          </Status>
         ) : null}
-        {screenError ? <div className="search-errors">{screenError}</div> : null}
-        {continuationError ? <div className="search-errors">{continuationError}</div> : null}
+        {screenError ? <Status>{screenError}</Status> : null}
+        {continuationError ? <Status>{continuationError}</Status> : null}
         {/* Both notices are silent on a normal strict search: a screen that
             explains itself every time teaches people to stop reading it. */}
         {hasSearch && !loading && queryNotice ? (
@@ -795,9 +799,9 @@ export function SearchView({ onResumeConversation, onOpenLiveSession }: SearchVi
           // A machine that did not answer is not an answer of none. Saying "no
           // matching conversations" while this Mac is restarting would report
           // its silence as its history.
-          <div className="usage-empty">
-            {missingPeers.length > 0 ? 'No matching conversations on the machines that answered.' : 'No matching conversations.'}
-          </div>
+          <EmptyState title="No matching conversations">
+            {missingPeers.length > 0 ? 'No matches on the machines that answered. Retry unavailable machines or adjust your filters.' : 'Try another phrase or broaden your filters.'}
+          </EmptyState>
         ) : (
           <div className="search-results">
             {rows.map((row) => row.kind === 'group' ? (
@@ -839,7 +843,7 @@ function FilterGroup({ label, children }: { label: string; children: ReactNode }
 }
 
 function FilterButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }): JSX.Element {
-  return <button type="button" className={active ? 'is-active' : ''} onClick={onClick}>{children}</button>;
+  return <Button type="button" aria-pressed={active} variant={active ? 'secondary' : 'ghost'} className={active ? 'is-active' : ''} onClick={onClick}>{children}</Button>;
 }
 
 function dateFilters(range: DateRange): { since?: string; until?: string } {

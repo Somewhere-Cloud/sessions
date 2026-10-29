@@ -1,3 +1,5 @@
+import { PageHeader, Surface } from './ui/Layout';
+import { Button } from './ui/Button';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchServerHistoryTranscript, type HistoryTranscript } from '../api/sessionsd';
 import { getActiveServer, serverDisplayName, useServers } from '../lib/servers';
@@ -188,20 +190,10 @@ export function SessionHistoryView({ session, onResume, onFork, onCloseView, onO
 
   return (
     <div className={`session-view view-history${detailsOpen ? ' view-details' : ''}`}>
-      <header className="session-active-header">
-        {onBack ? <button type="button" className="mobile-session-back" onClick={onBack} aria-label="Back to sessions">‹</button> : null}
-        <div className="session-active-copy">
-          <span className="session-parent-breadcrumb">{parent ? `${resolvedSessionLabel(parent)} / ${session.displayParentSessionId !== undefined ? 'grouped session' : 'child session'}` : 'Manager session'} · saved history</span>
-          <div className="session-active-title-row"><h1>{label}</h1><span className={`session-live-pill ${continuationIsLive ? 'is-completed' : 'is-finished'}`}>{lifecycleLabel}</span><span className={`session-runtime-badge${sessionMode(session) === 'terminal' && session.tool !== 'claude-code' ? ' is-terminal' : ''}`} title={sessionModeName(session)}>{sessionModeShort(session)}</span></div>
-          <div className="session-active-meta">
-            {provider ? <ProviderBadge provider={provider} compact /> : <span className="provider-badge is-shell is-compact">⌘ Shell</span>}
-            <span>{session.profile || 'Default profile'}</span><span>Saved on {serverDisplayName(getActiveServer(), true)}</span><span title={session.cwd}>{session.cwd}</span>
-          </div>
-        </div>
-        <HistoryHeaderActions session={session} label={label} onCloseView={onCloseView} />
-      </header>
+      <HistoryPageHeader session={session} parent={parent} label={label} lifecycleLabel={lifecycleLabel}
+        continuationIsLive={continuationIsLive} onBack={onBack} onCloseView={onCloseView} />
       <div className="session-toolbar">
-        {supportsConversation ? <div className="view-toggle is-content-switch"><button type="button" className="view-toggle-btn is-active">Conversation</button></div> : <span className="history-shell-label">Shell session</span>}
+        {supportsConversation ? <div className="view-toggle is-content-switch"><Button type="button" className="view-toggle-btn is-active">Conversation</Button></div> : <span className="history-shell-label">Shell session</span>}
         <span className="status-text">{recoveryReason ? `${recoveryReason} Read-only history.` : hasContinuation ? `Original runtime ended ${endedAtLabel(session)} · ${continuationIsLive ? 'live continuation' : 'continued elsewhere'}` : `Ended ${endedAtLabel(session)} · read-only history`}</span>
         {onFork && provider ? (
           <ConversationForkButton
@@ -215,7 +207,7 @@ export function SessionHistoryView({ session, onResume, onFork, onCloseView, onO
             }}
           />
         ) : null}
-        <button
+        <Button
           type="button"
           className={`details-inspector-button${detailsOpen ? ' is-active' : ''}`}
           onClick={() => {
@@ -224,17 +216,17 @@ export function SessionHistoryView({ session, onResume, onFork, onCloseView, onO
           }}
         >
           {detailsOpen ? 'Close details' : 'Details'}
-        </button>
+        </Button>
       </div>
       <div ref={historyBodyRef} className="session-history-body" onScroll={updateJumpToLatest}>
         {detailsOpen ? (
           <SessionDetails session={session} allSessions={allSessions} onEnd={async () => undefined} onResume={onResume} />
         ) : (
           <div className="session-history-transcript">
-            <div className={`session-ended-summary is-${end.tone}`}>
+            <Surface className={`session-ended-summary is-${end.tone}`}>
               <div>
                 {endInitiator && onOpenSession ? (
-                  <button type="button" className="session-ended-actor" onClick={() => onOpenSession(endInitiator.id)}>{end.label}</button>
+                  <Button type="button" className="session-ended-actor" onClick={() => onOpenSession(endInitiator.id)}>{end.label}</Button>
                 ) : <strong>{end.label}</strong>}
                 <span>{recoveryReason ? 'Runtime not contacted' : endedAtLabel(session)}</span>
               </div>
@@ -242,9 +234,9 @@ export function SessionHistoryView({ session, onResume, onFork, onCloseView, onO
               <p className="session-ended-read-only">{continuationIsLive ? 'You are viewing the original runtime. Open the live continuation to send a message.' : 'Viewing does not resume or send anything.'}</p>
               <div className="session-ended-actions">
                 {continuation && onOpenSession ? (
-                  <button type="button" className="btn btn-primary" onClick={() => onOpenSession(continuation.id)}>Open {continuationIsLive ? 'live ' : ''}continuation <span aria-hidden>→</span></button>
+                  <Button type="button" variant="primary" onClick={() => onOpenSession(continuation.id)}>Open {continuationIsLive ? 'live ' : ''}continuation <span aria-hidden>→</span></Button>
                 ) : canContinueSession(session) ? (
-                  <button type="button" className="btn btn-primary" disabled={resumeBusy} onClick={() => void resumeExactConversation()}>{resumeBusy ? 'Resuming…' : 'Resume conversation'} {!resumeBusy ? <span aria-hidden>→</span> : null}</button>
+                  <Button type="button" variant="primary" disabled={resumeBusy} onClick={() => void resumeExactConversation()}>{resumeBusy ? 'Resuming…' : 'Resume conversation'} {!resumeBusy ? <span aria-hidden>→</span> : null}</Button>
                 ) : hasContinuation ? (
                   <span>The continuation is recorded on another machine.</span>
                 ) : (
@@ -253,9 +245,9 @@ export function SessionHistoryView({ session, onResume, onFork, onCloseView, onO
                     : 'Shell sessions do not have an agent conversation to resume.'}</span>
                 )}
                 {canContinueSession(session) ? <ContinueElsewhereButton sessionId={session.id} label={label} /> : null}
-                <button type="button" className="btn btn-secondary" disabled={archiveBusy} onClick={() => void archiveFromInbox()}>{archiveBusy ? 'Archiving…' : 'Archive from list'}</button>
+                <Button type="button" disabled={archiveBusy} onClick={() => void archiveFromInbox()}>{archiveBusy ? 'Archiving…' : 'Archive from list'}</Button>
               </div>
-            </div>
+            </Surface>
             {archiveError ? <div className="session-history-action-error" role="alert">{archiveError}</div> : null}
             {resumeError ? <div className="session-history-action-error" role="alert">{resumeError}</div> : null}
             {forkMode ? (
@@ -270,7 +262,7 @@ export function SessionHistoryView({ session, onResume, onFork, onCloseView, onO
               <div className="search-preview-notice session-history-preview-control">
                 <span>Showing the latest {transcript.messages.length} messages so this conversation opens quickly.</span>
                 {previewMessages < MAX_PREVIEW_MESSAGES ? (
-                  <button type="button" className="btn btn-ghost" disabled={loading} onClick={showEarlierMessages}>{loading ? 'Loading…' : 'Show earlier messages'}</button>
+                  <Button type="button" variant="ghost" disabled={loading} onClick={showEarlierMessages}>{loading ? 'Loading…' : 'Show earlier messages'}</Button>
                 ) : <span>Use Search to find anything earlier.</span>}
               </div>
             ) : null}
@@ -293,7 +285,7 @@ export function SessionHistoryView({ session, onResume, onFork, onCloseView, onO
                 ) : null}
                 {forkMode && onFork && provider ? (
                   <div className="session-history-message-actions">
-                    <button
+                    <Button
                       type="button"
                       className="remote-message-fork-trigger"
                       disabled={forkBusy}
@@ -303,16 +295,16 @@ export function SessionHistoryView({ session, onResume, onFork, onCloseView, onO
                       }}
                     >
                       Fork here
-                    </button>
+                    </Button>
                     {forkPoint === message.index ? (
                       <div className="session-history-fork-picker">
                         <span>Start an independent copy through this message. The original stays unchanged.</span>
-                        <button type="button" className="btn btn-secondary" disabled={forkBusy} onClick={() => void forkFromMessage(message, provider)}>
+                        <Button type="button" disabled={forkBusy} onClick={() => void forkFromMessage(message, provider)}>
                           {forkBusy ? 'Forking…' : `Fork in ${provider === 'claude' ? 'Claude' : 'Codex'}`}
-                        </button>
-                        <button type="button" className="btn btn-secondary" disabled={forkBusy} onClick={() => void forkFromMessage(message, provider === 'claude' ? 'codex' : 'claude')}>
+                        </Button>
+                        <Button type="button" disabled={forkBusy} onClick={() => void forkFromMessage(message, provider === 'claude' ? 'codex' : 'claude')}>
                           {`Open copy in ${provider === 'claude' ? 'Codex' : 'Claude'}`}
-                        </button>
+                        </Button>
                       </div>
                     ) : null}
                   </div>
@@ -326,9 +318,9 @@ export function SessionHistoryView({ session, onResume, onFork, onCloseView, onO
         )}
         {!detailsOpen && showJumpToLatest ? (
           <div className="session-history-jump-anchor">
-            <button type="button" className="scroll-to-bottom" onClick={jumpToLatest} aria-label="Jump to latest message" title="Jump to latest message">
+            <Button type="button" className="scroll-to-bottom" onClick={jumpToLatest} aria-label="Jump to latest message" title="Jump to latest message">
               <span aria-hidden>↓</span>
-            </button>
+            </Button>
           </div>
         ) : null}
       </div>
@@ -356,6 +348,32 @@ function formatDate(value: string): string {
   return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
+function HistoryPageHeader({ session, parent, label, lifecycleLabel, continuationIsLive, onBack, onCloseView }: {
+  session: SessionInfo; parent?: SessionInfo | null; label: string; lifecycleLabel: string;
+  continuationIsLive: boolean; onBack?: () => void; onCloseView?: (sessionId: string) => void;
+}): JSX.Element {
+  const provider = normalizeProvider(session.tool);
+  return (
+    <div className="session-active-header">
+      <PageHeader title={label}
+        eyebrow={`${parent ? `${resolvedSessionLabel(parent)} / ${session.displayParentSessionId !== undefined ? 'grouped session' : 'child session'}` : 'Manager session'} · saved history`}
+        description={<>
+          <div className="session-active-meta">
+            <span className={`session-live-pill ${continuationIsLive ? 'is-completed' : 'is-finished'}`}>{lifecycleLabel}</span>
+            <span className={`session-runtime-badge${sessionMode(session) === 'terminal' && session.tool !== 'claude-code' ? ' is-terminal' : ''}`} title={sessionModeName(session)}>{sessionModeShort(session)}</span>
+            {provider ? <ProviderBadge provider={provider} compact /> : <span className="provider-badge is-shell is-compact">⌘ Shell</span>}
+            <span>{session.profile || 'Default profile'}</span><span>Saved on {serverDisplayName(getActiveServer(), true)}</span><span title={session.cwd}>{session.cwd}</span>
+          </div>
+        </>}
+        actions={<>
+          {onBack ? <Button variant="ghost" onClick={onBack} aria-label="Back to sessions">← Sessions</Button> : null}
+          <HistoryHeaderActions session={session} label={label} onCloseView={onCloseView} />
+        </>}
+      />
+    </div>
+  );
+}
+
 // The saved conversation's own controls: open it in its own window, put it
 // away, or close the tab. Archiving is here because this is where a person
 // finishes with a conversation.
@@ -369,12 +387,12 @@ function HistoryHeaderActions({ session, label, onCloseView }: {
       <SessionPopOutButton sessionId={session.id} label={label} />
       <SessionArchiveButton session={session} onArchived={(id) => onCloseView?.(id)} />
       {onCloseView ? (
-        <button
+        <Button
           type="button"
-          className="btn btn-ghost session-close-view"
+          variant="ghost" className="session-close-view"
           onClick={() => onCloseView(session.id)}
           title="Close this tab. The saved conversation remains available."
-        ><span aria-hidden>×</span> Close tab</button>
+        ><span aria-hidden>×</span> Close tab</Button>
       ) : null}
     </div>
   );

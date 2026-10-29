@@ -4,8 +4,6 @@
 .resume-dialog-body { min-height: 160px; }
 .resume-discovery-list { min-width: 0; }
 .resume-preview { border-top: 1px solid var(--border); padding-top: 12px; min-width: 0; }
-.resume-preview h3 { font-size: 14px; margin: 0 0 12px; }
-.resume-preview h3 small { display: block; font-weight: 400; color: var(--fg-dim); margin-top: 4px; }
 .resume-preview-message { margin: 12px 0; }
 .resume-preview-message strong { font-size: 12px; }
 .resume-preview p { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.5; margin: 4px 0; }

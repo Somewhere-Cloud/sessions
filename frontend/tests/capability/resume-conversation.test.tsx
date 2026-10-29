@@ -4,7 +4,7 @@
 // chose is now a session they can open, under the name they recognised it by.
 import { useState } from 'react';
 import { describe, expect, it } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ResumeDialog } from '../../src/components/ResumeDialog';
 import { SessionHistoryView } from '../../src/components/SessionHistoryView';
@@ -60,6 +60,44 @@ function ResumeFlow({ onResumed }: { onResumed: (laneId: string) => void }): JSX
 }
 
 describe('capability: resume a conversation', () => {
+  it('contains review focus, restores the opener and locks dismissal during an explicit start', async () => {
+    const machine = localMachine();
+    const daemon = installFakeDaemon([machine]);
+    useFakeMachines([machine]);
+    const user = userEvent.setup();
+    render(<ResumeFlow onResumed={() => {}} />);
+    const opener = screen.getByRole('button', { name: 'Resume' });
+    await user.click(opener);
+    expect(screen.getByRole('dialog', { name: 'Resume a conversation' })).toHaveFocus();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(opener).toHaveFocus();
+    await user.click(opener);
+    await user.click(await screen.findByRole('button', { name: /Thursday migration plan/ }));
+    expect(daemon.adopted).toEqual([]);
+    const originalFetch = globalThis.fetch;
+    let release!: () => void;
+    const pending = new Promise<void>((resolve) => { release = resolve; });
+    globalThis.fetch = async (...args) => {
+      if (String(args[0]).includes('/api/recovery/adopt')) await pending;
+      return originalFetch(...args);
+    };
+    try {
+      const start = await screen.findByRole('button', { name: 'Start Claude (Fable 5)' });
+      await user.click(start);
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Starting…' })).toBeDisabled());
+      await user.keyboard('{Escape}');
+      fireEvent.mouseDown(screen.getByRole('dialog').parentElement!);
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      release();
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+      expect(daemon.adopted).toEqual([PROVIDER_UUID]);
+    } finally {
+      release();
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it('reopens the chosen conversation as a session in the list', async () => {
     const machine = localMachine();
     const daemon = installFakeDaemon([machine]);

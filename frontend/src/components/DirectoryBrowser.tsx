@@ -1,3 +1,5 @@
+import { Input } from './ui/Field';
+import { Button } from './ui/Button';
 import { useEffect, useState, useCallback } from 'react';
 import { listFs, type FsListing } from '../api/sessionsd';
 
@@ -67,8 +69,8 @@ export function DirectoryBrowser({ value, onChange, serverId }: Props): JSX.Elem
   return (
     <div className="dir-browser">
       <div className="dir-browser-toolbar">
-        <input
-          className="dir-browser-path"
+        <Input
+          className="dir-browser-path" aria-label="Folder path"
           type="text"
           value={draftPath}
           onChange={(e) => setDraftPath(e.target.value)}
@@ -94,7 +96,7 @@ export function DirectoryBrowser({ value, onChange, serverId }: Props): JSX.Elem
 
       <div className="dir-browser-list">
         {listing?.parent !== null && listing?.parent !== undefined ? (
-          <button
+          <Button
             type="button"
             className="dir-browser-row is-parent"
             onClick={() => void load(listing.parent!)}
@@ -103,7 +105,7 @@ export function DirectoryBrowser({ value, onChange, serverId }: Props): JSX.Elem
             <span className="dir-browser-icon" aria-hidden>↑</span>
             <span className="dir-browser-name">Up one folder</span>
             <span className="dir-browser-meta">{listing.parent}</span>
-          </button>
+          </Button>
         ) : null}
         {loading && !listing ? (
           <div className="dir-browser-empty">Loading…</div>
@@ -116,7 +118,7 @@ export function DirectoryBrowser({ value, onChange, serverId }: Props): JSX.Elem
         {visibleEntries.map((en) => {
           const isDir = en.kind === 'dir';
           return (
-            <button
+            <Button
               key={en.name}
               type="button"
               className={`dir-browser-row${en.hidden ? ' is-hidden' : ''}${isDir ? ' is-dir' : ' is-file'}`}
@@ -140,7 +142,7 @@ export function DirectoryBrowser({ value, onChange, serverId }: Props): JSX.Elem
               {!isDir ? (
                 <span className="dir-browser-meta">{en.kind}</span>
               ) : null}
-            </button>
+            </Button>
           );
         })}
       </div>
@@ -149,15 +151,15 @@ export function DirectoryBrowser({ value, onChange, serverId }: Props): JSX.Elem
         <span className="dir-browser-current" title={listing?.path}>
           {listing ? `Selected: ${listing.path}` : 'No directory selected'}
         </span>
-        <button
+        <Button
           type="button"
-          className="btn btn-primary dir-browser-select"
+          variant="primary" className="dir-browser-select"
           onClick={() => listing && onChange(listing.path, true)}
           disabled={!listing || loading || draftPath.trim() !== listing.path}
           title={listing && draftPath.trim() !== listing.path ? 'Press Enter to open this path before selecting it' : undefined}
         >
           Select
-        </button>
+        </Button>
       </div>
     </div>
   );

@@ -1,3 +1,6 @@
+import { Actions } from './ui/Layout';
+import { Field, Input, Select } from './ui/Field';
+import { Button } from './ui/Button';
 import { useEffect, useRef, useState } from 'react';
 import {
   cancelContinuationJob,
@@ -140,10 +143,10 @@ function ContinuationProgress({
         />
       ) : null}
       <div className="continuation-progress-actions">
-        {delayed ? <button type="button" className="btn btn-secondary" onClick={onKeepWaiting}>Keep waiting</button> : null}
-        <button type="button" className="btn btn-ghost" disabled={canceling} onClick={onCancel}>
+        {delayed ? <Button type="button" onClick={onKeepWaiting}>Keep waiting</Button> : null}
+        <Button type="button" variant="ghost" disabled={canceling} onClick={onCancel}>
           {canceling ? 'Ending new session…' : 'Cancel'}
-        </button>
+        </Button>
       </div>
     </section>
   );
@@ -176,7 +179,7 @@ function HistoryTransferOptions({
       <fieldset className="continuation-history-choice" disabled={disabled}>
         <legend>History to send</legend>
         <label><input type="radio" checked={historyChoice === 'all'} onChange={() => onHistoryChoice('all')} /> <span>The whole conversation</span></label>
-        <label><input type="radio" checked={historyChoice === 'last'} onChange={() => onHistoryChoice('last')} /> <span>Only the last <input type="number" min="1" max={preview?.totalMessageCount || undefined} value={lastMessages} disabled={disabled || historyChoice !== 'last'} onChange={(event) => onLastMessages(Math.max(1, Number(event.currentTarget.value) || 1))} /> messages</span></label>
+        <label><input type="radio" checked={historyChoice === 'last'} onChange={() => onHistoryChoice('last')} /> <span>Only the last <Input aria-label="Number of recent messages" type="number" min="1" max={preview?.totalMessageCount || undefined} value={lastMessages} disabled={disabled || historyChoice !== 'last'} onChange={(event) => onLastMessages(Math.max(1, Number(event.currentTarget.value) || 1))} /> messages</span></label>
       </fieldset>
       {overThreshold ? (
         <label className="continuation-threshold"><input type="checkbox" checked={confirmed} disabled={disabled} onChange={(event) => onConfirmed(event.currentTarget.checked)} /><span><strong>Send the whole history anyway</strong><small>This is above the {formatTokenEstimate(preview?.thresholdTokens ?? 0)} token warning level.</small></span></label>
@@ -284,13 +287,13 @@ export function ResumeActions({
       {same.partialResult ? (
         <div className="dialog-warning" role="status" aria-live="assertive">
           <div><strong>The conversation is open, but Sessions could not finish its record.</strong><span>{adoptionWarning(same.partialResult)}</span></div>
-          {same.partialResult.repair ? <button type="button" className="btn btn-primary" onClick={() => void same.repair()} disabled={same.busy}>{same.busy ? 'Finishing record…' : 'Finish record'}</button> : null}
+          {same.partialResult.repair ? <Button type="button" variant="primary" onClick={() => void same.repair()} disabled={same.busy}>{same.busy ? 'Finishing record…' : 'Finish record'}</Button> : null}
         </div>
       ) : null}
-      <footer className="resume-dialog-foot">
-        <button type="button" className="btn btn-ghost" onClick={onStartNew} disabled={working}>+ New session instead</button>
-        <button type="button" className="btn btn-ghost" onClick={onClose} disabled={working}>Close</button>
-        {!continuation.job ? <button type="button" className="btn btn-primary continuation-start" onClick={() => {
+      <Actions className="resume-dialog-foot">
+        <Button type="button" variant="ghost" onClick={onStartNew} disabled={working}>+ New session instead</Button>
+        <Button type="button" variant="ghost" onClick={onClose} disabled={working}>Close</Button>
+        {!continuation.job ? <Button type="button" variant="primary" className="continuation-start" onClick={() => {
           if (!selected) return;
           if (crossProvider) void continuation.start({
             target: selected.sessionId, historyId: selected.historyId,
@@ -299,21 +302,21 @@ export function ResumeActions({
             confirmWholeHistory: confirmed
           });
           else void same.resume();
-        }} disabled={working || !selected || !plan.ready || Boolean(same.partialResult) || (crossProvider && !canStartCross)}>{primaryText}</button> : null}
-      </footer>
+        }} disabled={working || !selected || !plan.ready || Boolean(same.partialResult) || (crossProvider && !canStartCross)}>{primaryText}</Button> : null}
+      </Actions>
     </>
   );
 }
 
 function ResumePermissions({ value, kept, onChange, disabled }: { value: 'constrained' | 'full'; kept: boolean; onChange: (value: 'constrained' | 'full') => void; disabled: boolean }): JSX.Element {
-  return <label className="field-label">Permissions
-    <select aria-label="Resume permissions" value={value} disabled={disabled} onChange={(event) => onChange(event.target.value === 'full' ? 'full' : 'constrained')}>
+  return <Field label="Permissions">
+    <Select aria-label="Resume permissions" value={value} disabled={disabled} onChange={(event) => onChange(event.target.value === 'full' ? 'full' : 'constrained')}>
       <option value="constrained">Restricted — ask before sensitive actions</option>
       <option value="full">Full access (YOLO) — skip permission prompts</option>
-    </select>
+    </Select>
     {value === 'full' ? <small>The agent can run commands and change files without asking.</small> : null}
     {kept ? <small>Same access as this conversation’s last run.</small> : null}
-  </label>;
+  </Field>;
 }
 
 function useSameProviderResume(

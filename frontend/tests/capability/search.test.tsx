@@ -89,6 +89,7 @@ describe('capability: search', () => {
     );
     await user.click(screen.getByRole('button', { name: 'Search' }));
 
-    expect(await screen.findByText('No matching conversations.')).toBeInTheDocument();
+    expect(await screen.findByText('No matching conversations')).toBeInTheDocument();
+    expect(screen.getByText('Try another phrase or broaden your filters.')).toBeInTheDocument();
   });
 });

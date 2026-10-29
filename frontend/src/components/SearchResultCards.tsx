@@ -1,3 +1,5 @@
+import { Surface } from './ui/Layout';
+import { Button } from './ui/Button';
 import {
   compactMachineName,
   compactPath,
@@ -50,12 +52,12 @@ export function SearchConversationCard({
   const hits = rollup ? Math.max(rollup.hits, messageMatches.length) : null;
   const span = formatHitSpan(rollup?.firstHitAt ?? null, rollup?.lastHitAt ?? null);
   return (
-    <article className={`search-result-card${provider ? ` is-${provider}` : ''}`}>
+    <Surface data-history-key={group.key} className={`search-result-card${provider ? ` is-${provider}` : ''}`}>
       <span className="search-result-provider" aria-label={provider ? `${provider} conversation` : 'Saved conversation'}>
         <ParserIcon icon={provider === 'claude' ? '🟠' : provider === 'codex' ? '🟢' : '⬛'} size={24} />
       </span>
       <span className="search-result-body">
-        <button type="button" className="search-result-main" onClick={() => onView(result)}>
+        <Button type="button" variant="ghost" className="search-result-main" onClick={() => onView(result)}>
           <span className="search-result-source">
             <strong>{group.title}</strong>
             {titleMatched ? <span className="search-title-match">Title match</span> : null}
@@ -72,18 +74,18 @@ export function SearchConversationCard({
               : 'Named conversation'}
             {group.sourceSessionIds.length > 1 ? ` · opened ${group.sourceSessionIds.length} times in Sessions` : ''}
           </span>
-        </button>
+        </Button>
         <span className="search-conversation-matches">
           {messageMatches.slice(0, 2).map((match) => (
-            <button
+            <Button
               type="button"
-              className="search-conversation-match"
+              variant="ghost" className="search-conversation-match"
               key={`${match.session_id}:${match.message_id || match.message_index}`}
               onClick={() => onView(match)}
             >
               <span>{searchSpeakerLabel(match, provider)}</span>
               <span className="search-snippet"><SearchSnippet value={match.snippet} /></span>
-            </button>
+            </Button>
           ))}
           {messageMatches.length > 2 ? (
             <span className="search-conversation-more">+ {messageMatches.length - 2} more matches</span>
@@ -100,16 +102,16 @@ export function SearchConversationCard({
             {ranked && !titleMatched ? <span>{rankedMatchLabel(result.score)}</span> : null}
           </span>
           <span className="search-result-actions">
-            <button type="button" onClick={() => onView(result)}>{promptHistoryOnly ? 'View retained prompts' : 'Open conversation'} <span aria-hidden>→</span></button>
+            <Button type="button" onClick={() => onView(result)}>{promptHistoryOnly ? 'View retained prompts' : 'Open conversation'} <span aria-hidden>→</span></Button>
             {onResume ? (
-              <button type="button" className="is-resume" disabled={resumePending} onClick={() => { void onResume(); }}>
+              <Button type="button" className="is-resume" disabled={resumePending} onClick={() => { void onResume(); }}>
                 {resumePending ? 'Opening details…' : 'Continue conversation…'}
-              </button>
+              </Button>
             ) : null}
           </span>
         </span>
       </span>
-    </article>
+    </Surface>
   );
 }
 
@@ -129,12 +131,12 @@ export function SearchRollupCard({
   const span = formatHitSpan(entry.first_hit_at ?? null, entry.last_hit_at ?? null);
   const snippets = (entry.snippets ?? []).filter((snippet) => snippet.trim()).slice(0, 2);
   return (
-    <article className={`search-result-card is-rollup-only${provider ? ` is-${provider}` : ''}`}>
+    <Surface data-history-key={`rollup:${entry.serverId}:${entry.session_id}`} className={`search-result-card is-rollup-only${provider ? ` is-${provider}` : ''}`}>
       <span className="search-result-provider" aria-label={provider ? `${provider} conversation` : 'Saved conversation'}>
         <ParserIcon icon={provider === 'claude' ? '🟠' : provider === 'codex' ? '🟢' : '⬛'} size={24} />
       </span>
       <span className="search-result-body">
-        <button type="button" className="search-result-main" onClick={onView}>
+        <Button type="button" variant="ghost" className="search-result-main" onClick={onView}>
           <span className="search-result-source">
             <strong>{entry.name.trim() || 'Saved conversation'}</strong>
             {entry.title_match ? <span className="search-title-match">Title match</span> : null}
@@ -142,7 +144,7 @@ export function SearchRollupCard({
           <span className="search-conversation-match-count">
             {`${countsArePartial ? 'at least ' : ''}${plural(entry.hits, 'matching message')} · none shown here`}
           </span>
-        </button>
+        </Button>
         {snippets.length > 0 ? (
           <span className="search-conversation-matches">
             {snippets.map((snippet, index) => (
@@ -161,11 +163,11 @@ export function SearchRollupCard({
             {span ? <time className="search-session-span" title={span.title}>{span.label}</time> : null}
           </span>
           <span className="search-result-actions">
-            <button type="button" onClick={onView}>Open conversation <span aria-hidden>→</span></button>
+            <Button type="button" onClick={onView}>Open conversation <span aria-hidden>→</span></Button>
           </span>
         </span>
       </span>
-    </article>
+    </Surface>
   );
 }
 

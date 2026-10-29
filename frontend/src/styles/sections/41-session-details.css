@@ -274,12 +274,6 @@ button.session-parent-breadcrumb:hover, button.session-parent-breadcrumb:focus-v
   margin-top: 7px;
 }
 .session-history-message.is-user .session-history-message-actions { align-self: flex-end; }
-.session-history-message-actions > .btn {
-  min-height: 26px;
-  padding: 3px 8px;
-  color: var(--fg-faint);
-  font-size: 12px;
-}
 .session-history-fork-picker {
   display: flex;
   flex-wrap: wrap;
@@ -298,7 +292,6 @@ button.session-parent-breadcrumb:hover, button.session-parent-breadcrumb:focus-v
   font-size: 12px;
   line-height: 1.45;
 }
-.session-history-fork-picker .btn { min-height: 30px; }
 .remote-message-fork {
   position: relative;
   display: flex;
@@ -362,7 +355,7 @@ button.session-parent-breadcrumb:hover, button.session-parent-breadcrumb:focus-v
 .session-ended-summary .session-ended-read-only { color: var(--fg-faint); font-size: 12px; }
 .session-ended-summary > .session-ended-actions { grid-column: 1; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; min-width: 0; max-width: 100%; }
 .session-ended-actions > span { color: var(--fg-dim); font-size: 12px; line-height: 1.45; text-align: right; }
-.session-ended-actions .btn { min-height: 32px; max-width: 100%; white-space: nowrap; }
+.session-ended-actions .btn { max-width: 100%; white-space: nowrap; }
 .session-ended-summary.is-attention { border-color: color-mix(in srgb, var(--warn) 24%, var(--border)); }
 .session-history-action-error { margin: -16px 0 22px; padding: 9px 11px; border: 1px solid color-mix(in srgb, var(--warn) 30%, var(--border)); border-radius: 8px; color: var(--fg-dim); font-size: 12px; }
 .session-view.view-details .session-remote-pane { display: none; }

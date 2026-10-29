@@ -1,3 +1,5 @@
+import { Section } from './ui/Layout';
+import { Button } from './ui/Button';
 import { useEffect, useState } from 'react';
 import { fetchServerHistoryTranscript, type HistoryMessage, type ResumableSession } from '../api/sessionsd';
 import { harnessDisplay } from '../lib/harnessContent';
@@ -31,11 +33,10 @@ export function ResumePreview({ selected }: { selected: ResumableSession | null 
     return () => { controller.abort(); budget.release(); };
   }, [selected?.historyId, selected?.sessionId, server, selected, retry]);
   if (!selected) return null;
-  return <section className="resume-preview" aria-label="Read-only conversation preview">
-    <h3>Recent conversation <small>Read only · no agent started</small></h3>
+  return <div className="resume-preview"><Section title="Recent conversation" level={3} description="Read only · no agent started">
     {loading ? <p role="status">Reading recent messages…</p> : null}
     {!server ? <p>No connection is configured. The conversation has not been restarted.</p> : null}
-    {error ? <><p role="status">Preview unavailable: {error}</p><button type="button" className="btn btn-ghost" onClick={() => setRetry((current) => current + 1)}>Retry preview</button></> : null}
+    {error ? <><p role="status">Preview unavailable: {error}</p><Button type="button" variant="ghost" onClick={() => setRetry((current) => current + 1)}>Retry preview</Button></> : null}
     {!loading && server && !error && messages.length === 0 ? <p>No readable recent messages. The saved conversation is unchanged.</p> : null}
     {messages.map((message, index) => {
       const display = harnessDisplay(message.text, message.role);
@@ -44,5 +45,5 @@ export function ResumePreview({ selected }: { selected: ResumableSession | null 
         <p>{display.text.slice(0, 1200)}{display.text.length > 1200 ? '…' : ''}</p>
       </div>;
     })}
-  </section>;
+  </Section></div>;
 }

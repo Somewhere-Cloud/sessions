@@ -383,12 +383,6 @@ select.field-input {
   align-items: center;
   gap: 12px;
 }
-.resume-dialog-title {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--fg);
-}
 .resume-dialog-view-toggle {
   display: inline-flex;
   background: var(--bg-elev-2);
@@ -396,58 +390,14 @@ select.field-input {
   border-radius: var(--radius-sm);
   padding: 2px;
 }
-.resume-view-btn {
-  background: transparent;
-  border: 0;
-  padding: 4px 10px;
-  font-size: 12px;
-  color: var(--fg-dim);
-  cursor: pointer;
-  font-family: inherit;
-  border-radius: 4px;
-}
-.resume-view-btn:hover { color: var(--fg); }
 .resume-view-btn.is-active {
   background: var(--bg-elev-3);
   color: var(--fg);
-}
-.resume-dialog-search {
-  width: 100%;
-  background: var(--bg-elev-1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 8px 12px;
-  color: var(--fg);
-  font-family: inherit;
-  font-size: 13px;
-  box-sizing: border-box;
-}
-.resume-dialog-search:focus {
-  outline: none;
-  border-color: var(--accent);
 }
 .resume-provider-filters {
   display: flex;
   gap: 6px;
   align-items: center;
-}
-.resume-provider-filters button {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  min-height: 32px;
-  padding: 5px 11px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--fg-dim);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-.resume-provider-filters button:hover {
-  color: var(--fg);
-  border-color: var(--border-strong);
 }
 .resume-provider-filters button.is-active {
   color: var(--fg);
@@ -599,17 +549,6 @@ select.field-input {
 .continuation-progress-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
 .continuation-start { max-width: 420px; line-height: 1.25; }
 
-.resume-empty {
-  padding: 32px 16px;
-  color: var(--fg-faint);
-  font-size: 13px;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-}
-.resume-empty p { margin: 0; }
 
 .resume-cards {
   display: flex;
@@ -659,7 +598,7 @@ select.field-input {
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal; overflow-wrap: anywhere;
 }
 .resume-card-msg {
   color: var(--fg-dim);
@@ -902,12 +841,9 @@ select.field-input {
   margin-top: 4px;
 }
 
-/* Why a conversation from another machine is not in the Resume list. */
-.resume-machines-note {
-  margin: 0;
-  padding: 6px 20px 8px;
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--fg-dim);
-}
-.resume-machines-note.is-offline { color: var(--warn, #e9b44c); }
+
+.resume-dialog-search { width: 100%; }
+.resume-dialog-title-row { flex-wrap: wrap; }
+.resume-card.ui-button { white-space: normal; justify-content: start; text-align: left; }
+.resume-card-content { min-width: 0; }
+.resume-preview .ui-header { align-items: flex-start; }

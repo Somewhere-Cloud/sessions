@@ -1,4 +1,8 @@
-import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
+import { ModalDialog } from './ui/ModalDialog';
+import { EmptyState, PageHeader, Status } from './ui/Layout';
+import { Input } from './ui/Field';
+import { Button } from './ui/Button';
+import { Suspense, lazy, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useSessions } from '../store/sessions';
 import {
   fetchResumableSessions,
@@ -105,17 +109,7 @@ export function ResumeDialog({
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  // Escape closes the picker like the Close button does, unless a resume is
-  // in flight; the request would still complete with nowhere to report to.
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || busy) return;
-      event.preventDefault();
-      onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [busy, onClose]);
+  const headingId = useId();
   const [view, setView] = useState<ViewMode>(readViewMode);
   const [providerFilter, setProviderFilter] = useState<ProviderFilter>('all');
   const [query, setQuery] = useState('');
@@ -262,51 +256,41 @@ export function ResumeDialog({
     : 0;
 
   return (
-    <div className="dialog-backdrop" onClick={onClose}>
-      <div
-        className="dialog dialog-wide resume-dialog"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-label="Resume an existing conversation in Sessions"
-      >
+    <ModalDialog className="dialog dialog-wide resume-dialog" labelledBy={headingId} onClose={onClose} dismissible={!busy}>
         <header className="resume-dialog-head">
           <div className="resume-dialog-title-row">
-            <div>
-              <span className="dialog-kicker">Your Claude and Codex history</span>
-              <h2 className="resume-dialog-title">Resume a conversation</h2>
-            </div>
+            <PageHeader title="Resume a conversation" titleId={headingId} level={2} eyebrow="Your Claude and Codex history" />
             <div className="resume-dialog-view-toggle" role="tablist" aria-label="Sort order">
-              <button
+              <Button
                 type="button"
                 role="tab"
                 aria-selected={view === 'flat'}
                 className={`resume-view-btn${view === 'flat' ? ' is-active' : ''}`}
                 onClick={() => switchView('flat')}
                 title="Newest first across all folders"
-              >Recent</button>
-              <button
+              >Recent</Button>
+              <Button
                 type="button"
                 role="tab"
                 aria-selected={view === 'grouped'}
                 className={`resume-view-btn${view === 'grouped' ? ' is-active' : ''}`}
                 onClick={() => switchView('grouped')}
                 title="One section per folder"
-              >By project folder</button>
+              >By project folder</Button>
             </div>
           </div>
-          <input
+          <Input
             type="text"
-            className="resume-dialog-search"
+            className="resume-dialog-search" aria-label="Filter saved conversations"
             placeholder={openCount > 0
               ? `Search titles, requests, or workspaces (${openCount} already open)…`
               : 'Search titles, requests, or workspaces…'}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            autoFocus
           />
           <div className="resume-provider-filters" role="tablist" aria-label="Agent">
             {(['all', 'claude', 'codex'] as const).map((provider) => (
-              <button
+              <Button
                 type="button"
                 role="tab"
                 aria-selected={providerFilter === provider}
@@ -316,7 +300,7 @@ export function ResumeDialog({
               >
                 {provider === 'all' ? 'All chats' : provider === 'claude' ? 'Claude' : 'Codex'}
                 <span>{loading ? '…' : providerCounts[provider]}</span>
-              </button>
+              </Button>
             ))}
           </div>
         </header>
@@ -328,21 +312,21 @@ export function ResumeDialog({
           <div className={`resume-discovery${selected ? ' has-preview' : ''}`}>
           <div className="resume-discovery-list">
           {loading ? (
-            <div className="resume-loading" role="status" aria-live="polite">
+            <Status>
               <strong>Finding your saved conversations…</strong>
               <span>Checking Sessions history and native Claude and Codex history.</span>
               <div className="resume-loading-cards" aria-hidden>
                 <i /><i /><i />
               </div>
-            </div>
+            </Status>
           ) : resumable === null ? (
-            <div className="resume-empty">
+            <EmptyState title="Saved conversations">
               <p>Sessions could not load saved conversations from this machine.</p>
               {loadError ? <small>{loadError}</small> : null}
-              <button type="button" className="btn btn-ghost" onClick={onClose}>Close</button>
-            </div>
+              <Button type="button" variant="ghost" onClick={onClose}>Close</Button>
+            </EmptyState>
           ) : flatList.length === 0 && delegatedList.length === 0 ? (
-            <div className="resume-empty">
+            <EmptyState title="Saved conversations">
               <p>
                 {query.trim()
                   ? `No ${providerFilter === 'all' ? 'chats' : providerFilter === 'claude' ? 'Claude chats' : 'Codex chats'} match "${query.trim()}".`
@@ -350,14 +334,14 @@ export function ResumeDialog({
                     ? 'All resumable conversations are already open in Sessions.'
                     : `No prior Claude or Codex conversations found on this Mac. ${resumeMachinesLine(otherMachines) ?? ''}`.trim()}
               </p>
-              <button
+              <Button
                 type="button"
-                className="btn btn-ghost"
+                variant="ghost"
                 onClick={onStartNew}
               >
                 + Start a new session
-              </button>
-            </div>
+              </Button>
+            </EmptyState>
           ) : view === 'flat' ? (
             <div className="resume-cards">
               {flatList.slice(0, limit).map((s) => (
@@ -365,14 +349,14 @@ export function ResumeDialog({
               ))}
               {delegatedList.length > 0 ? (
                 <section className="resume-delegated">
-                  <button
+                  <Button
                     type="button"
                     className="resume-delegated-toggle"
                     aria-expanded={showDelegated}
                     onClick={() => setShowDelegated((current) => !current)}
                   >
                     {showDelegated ? '▾' : '▸'} Work started for you elsewhere · {delegatedList.length} conversation{delegatedList.length === 1 ? '' : 's'}
-                  </button>
+                  </Button>
                   {showDelegated ? delegatedList.slice(0, limit).map((s) => (
                     <ResumeCard key={`${s.tool}:${s.sessionId}`} session={s} selected={selected?.sessionId === s.sessionId && selected.tool === s.tool} onPick={() => setSelected(s)} disabled={busy} />
                   )) : null}
@@ -407,7 +391,7 @@ export function ResumeDialog({
             </div>
           )}
           {available && (view === 'grouped' ? available.length > limit : flatList.length > limit || (showDelegated && delegatedList.length > limit)) ? (
-            <button type="button" className="btn btn-ghost" onClick={() => setLimit((current) => current + 20)}>Show more conversations</button>
+            <Button type="button" variant="ghost" onClick={() => setLimit((current) => current + 20)}>Show more conversations</Button>
           ) : null}
           </div>
           <ResumePreview selected={selected} />
@@ -428,8 +412,7 @@ export function ResumeDialog({
             onStartNew={onStartNew}
           />
         </Suspense>
-      </div>
-    </div>
+    </ModalDialog>
   );
 }
 
@@ -451,7 +434,7 @@ function ResumeCard({ session, selected, onPick, disabled, hideFolder }: CardPro
     ? `${Math.round(session.sizeBytes / 1024)} KB`
     : `${(session.sizeBytes / 1024 / 1024).toFixed(1)} MB`;
   return (
-    <button
+    <Button
       type="button"
       className={`resume-card${hideFolder ? ' resume-card-no-folder' : ''}${selected ? ' is-selected' : ''}`}
       onClick={onPick}
@@ -487,6 +470,6 @@ function ResumeCard({ session, selected, onPick, disabled, hideFolder }: CardPro
 				) : null}
       </div>
       <span className="resume-card-choice" aria-hidden>{selected ? '✓' : '›'}</span>
-    </button>
+    </Button>
   );
 }

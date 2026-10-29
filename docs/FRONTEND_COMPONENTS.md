@@ -145,7 +145,7 @@ Android Back finds its close button through that selector.
 The workspace EmptyState supports both first use and an unselected session;
 `hasSessions` changes its invitation without creating or resuming work. The
 launcher keeps its specialized model picker, draft and creation handlers.
-Navigator rows, menus, terminal/conversation content, search/history, settings,
+Navigator rows, menus, terminal/conversation content, settings,
 accounts and other unmigrated surfaces still have specialized or legacy styles.
 Shared controls do not imply that their entire containing screen has migrated.
 
@@ -180,3 +180,29 @@ Set `UI_SCREENSHOT_DIR` to an existing absolute directory to retain screenshots.
 The capability suite additionally checks IME/multiline sends and exact approval
 and model payloads. These Chromium fixtures do not establish native WebKit,
 installed-client, device or screen-reader acceptance.
+
+## History, search and resume
+
+Search, conversation browsing, saved-history headers and Resume compose shared
+headers, surfaces, fields, state messages and actions. Result title/snippet hit
+areas use shared ghost buttons; metadata retains the source machine and path.
+The read-only transcript reader keeps its specialized message renderer, anchor,
+range selection and pagination. Saved history retains its conversation renderer,
+lineage, recovery and fork controls. These are domain renderers, not alternate
+control systems.
+
+Resume uses ModalDialog for focus containment, Escape, focus return and locked
+dismissal while starting. Selecting a row reads a bounded preview; only the
+explicit Start action continues work. PaidStartPlan/ModelPicker, native radio
+and checkbox groups, provider badges, recovery cards, row grids and transcript
+styles remain specialized. DirectoryBrowser keeps filesystem navigation and
+selection behavior with shared controls. Other screens and legacy portals remain
+owned by their respective migrations.
+
+`npm run test:history-search-ui` renders real components over an in-process fake
+daemon in dark/light, desktop/375px, populated/empty/unavailable/loading states,
+expanded transcripts and resume review. It checks bounds, large text, keyboard
+focus return and no mutations from browsing. Set `UI_SCREENSHOT_DIR` to capture
+local evidence. Existing search-rollup, conversation-browser, resume-layout and
+capability suites cover operation payloads and content behavior. Chromium does
+not establish installed native, WebKit or assistive-technology acceptance.

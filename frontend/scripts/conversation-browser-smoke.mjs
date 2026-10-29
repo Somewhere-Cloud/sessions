@@ -369,7 +369,7 @@ localStorage.removeItem('sessions:search-state:v3');
   // is not applied at all this wait is what fails.
   await t.waitForFunction(
     page,
-    () => Boolean(document.querySelector('#surface-search .conversation-browser .usage-empty')),
+    () => Array.from(document.querySelectorAll('#surface-search .conversation-browser .ui-surface')).some((element) => element.textContent.includes('No conversation matches these filters')),
     'a workspace nothing was recorded under to empty the list — if this times out the filter is not being applied at all',
     { timeout: 5_000 }
   );

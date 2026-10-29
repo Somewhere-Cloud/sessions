@@ -1,3 +1,4 @@
+import { Status } from './ui/Layout';
 import type { OtherMachine } from '../hooks/useOtherMachines';
 
 function names(machines: OtherMachine[]): string {
@@ -26,6 +27,5 @@ export function resumeMachinesLine(machines: OtherMachine[]): string | null {
 export function ResumeMachinesNote({ machines }: { machines: OtherMachine[] }) {
   const line = resumeMachinesLine(machines);
   if (!line) return null;
-  const offline = machines.some((machine) => machine.reachability === 'unreachable');
-  return <p className={`resume-machines-note${offline ? ' is-offline' : ''}`}>{line}</p>;
+  return <Status live="off">{line}</Status>;
 }

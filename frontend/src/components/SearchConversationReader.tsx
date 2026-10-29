@@ -1,3 +1,5 @@
+import { PageHeader, Status } from './ui/Layout';
+import { Button } from './ui/Button';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { harnessDisplay } from '../lib/harnessContent';
 import { fetchServerHistoryTranscript } from '../api/sessionsd';
@@ -174,13 +176,13 @@ export function ConversationReader({
     <div className="search-view search-conversation-view">
       <div className="search-shell search-reader-shell">
         <div className="search-reader-chrome">
-          <button type="button" className="search-back" onClick={onBack}>← Back to results</button>
-          <header className="search-conversation-heading">
+          <Button type="button" autoFocus className="search-back" onClick={onBack}>← Back to results</Button>
+          <div className="search-conversation-heading">
             <div>
               <span className="search-conversation-kicker">
                 {promptHistoryOnly ? 'Claude prompt history only' : 'Read-only transcript'}{selected.matchCount === null ? '' : ` · ${plural(selected.matchCount, 'message match', 'message matches')}`} · {anchored ? `opened at message ${anchor + 1}` : 'opened from the start'}
               </span>
-              <h1>{readerTranscript?.session.name || selected.title || selected.sessionId.slice(0, 8)}</h1>
+              <PageHeader title={readerTranscript?.session.name || selected.title || selected.sessionId.slice(0, 8)} />
               <p>
                 {provider ? <ProviderBadge provider={provider} /> : null}
                 <span>{compactMachineName(server?.name ?? selected.serverName)}</span>
@@ -192,9 +194,9 @@ export function ConversationReader({
                 ? 'Sessions found the requests you sent Claude, but not the full conversation. You can reopen it only if Claude still has it.'
                 : 'Viewing does not change this conversation. Continue lets you choose the agent, model, and amount of history before anything is sent.'}</span>
               {canResume ? (
-                <button
+                <Button
                   type="button"
-                  className="btn btn-primary"
+                  variant="primary"
                   disabled={continuing}
                   onClick={() => { void onResumeConversation(
                     selected.serverId,
@@ -204,10 +206,10 @@ export function ConversationReader({
                   ); }}
                 >
                   {continuing ? 'Opening details…' : 'Continue conversation…'}
-                </button>
+                </Button>
               ) : null}
             </div>
-          </header>
+          </div>
 
           <div className="search-reader-toolbar">
             <div className="usage-segmented" role="tablist" aria-label="Transcript view">
@@ -226,14 +228,14 @@ export function ConversationReader({
                   : `${visibleMessages.length}${readerTranscript?.session.message_count ? ` of ${readerTranscript.session.message_count}` : ''} messages`}
               </span>
               {readerMode === 'full' && visibleMessages.length > 0 ? (
-                <button type="button" onClick={jumpToLatest}>Jump to latest ↓</button>
+                <Button type="button" onClick={jumpToLatest}>Jump to latest ↓</Button>
               ) : null}
             </div>
           </div>
         </div>
 
-        {continuationError ? <div className="search-errors">{continuationError}</div> : null}
-        {readerError ? <div className="search-errors">{readerError}</div> : null}
+        {continuationError ? <Status>{continuationError}</Status> : null}
+        {readerError ? <Status>{readerError}</Status> : null}
         {readerLoading ? <div className="usage-empty">Loading this transcript view…</div> : null}
         {readerTranscript && !readerLoading ? (
           <div className="search-transcript" ref={transcriptScrollRef}>
@@ -258,8 +260,8 @@ export function ConversationReader({
                     <span>
                       {message.role === 'user' ? (
                         <>
-                          <button type="button" onClick={() => chooseRangeStart(message.index)}>Start range</button>
-                          <button type="button" onClick={() => chooseRangeEnd(message.index)}>End range</button>
+                          <Button type="button" onClick={() => chooseRangeStart(message.index)}>Start range</Button>
+                          <Button type="button" onClick={() => chooseRangeEnd(message.index)}>End range</Button>
                         </>
                       ) : null}
                       <time>{message.timestamp ? relativeDate(message.timestamp) : ''}</time>
@@ -271,9 +273,9 @@ export function ConversationReader({
             })}
             {visibleMessages.length === 0 ? <div className="usage-empty">No messages in this view.</div> : null}
             {readerHasMore ? (
-              <button type="button" className="search-load-more" disabled={readerLoading} onClick={loadMore}>
+              <Button type="button" className="search-load-more" disabled={readerLoading} onClick={loadMore}>
                 {readerLoading ? 'Loading…' : `Load the next ${READER_PAGE_SIZE} message positions`}
-              </button>
+              </Button>
             ) : null}
             <div className="search-transcript-latest" aria-hidden />
           </div>
@@ -294,5 +296,5 @@ function ReaderButton({
   onClick: () => void;
   children: ReactNode;
 }): JSX.Element {
-  return <button type="button" disabled={disabled} className={active ? 'is-active' : ''} onClick={onClick}>{children}</button>;
+  return <Button type="button" disabled={disabled} className={active ? 'is-active' : ''} onClick={onClick}>{children}</Button>;
 }
