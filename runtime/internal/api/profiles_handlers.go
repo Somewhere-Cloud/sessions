@@ -9,6 +9,10 @@ import (
 	sessionruntime "github.com/somewhere-tech/sessions/runtime/internal/session"
 )
 
+type profileMetadataService interface {
+	ProfileMetadata(context.Context) ([]sessionruntime.ProfileStatus, error)
+}
+
 type profileService interface {
 	Profiles(context.Context) ([]sessionruntime.ProfileStatus, error)
 }
@@ -34,13 +38,14 @@ func (s *Server) handleProfilesRoute(response http.ResponseWriter, request *http
 	if s.handleAccountUsageRoute(response, request, corsOrigin) {
 		return true
 	}
-	if strings.HasPrefix(request.URL.Path, "/api/profiles/") {
+	metadata := request.URL.Path == "/api/profiles/metadata"
+	if strings.HasPrefix(request.URL.Path, "/api/profiles/") && !metadata {
 		return s.handleAccountRoute(response, request, corsOrigin)
 	}
-	if request.URL.Path != "/api/profiles" {
+	if request.URL.Path != "/api/profiles" && !metadata {
 		return false
 	}
-	if request.Method == http.MethodPost {
+	if request.Method == http.MethodPost && !metadata {
 		s.handleCreateAccount(response, request, corsOrigin)
 		return true
 	}
@@ -53,7 +58,16 @@ func (s *Server) handleProfilesRoute(response http.ResponseWriter, request *http
 		s.sendJSON(response, http.StatusNotImplemented, map[string]any{"error": "profile listing is unavailable"}, corsOrigin)
 		return true
 	}
-	profiles, err := service.Profiles(request.Context())
+	list := service.Profiles
+	if metadata {
+		scoped, supported := s.registry.(profileMetadataService)
+		if !supported {
+			s.sendJSON(response, http.StatusNotImplemented, map[string]string{"error": "update Sessions on this computer to read account metadata"}, corsOrigin)
+			return true
+		}
+		list = scoped.ProfileMetadata
+	}
+	profiles, err := list(request.Context())
 	if err != nil {
 		s.sendJSON(response, http.StatusInternalServerError, map[string]any{"error": err.Error()}, corsOrigin)
 		return true

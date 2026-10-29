@@ -703,8 +703,9 @@ export async function forgetAccount(
   return json<ForgottenAccount>(r);
 }
 
-async function profilesForServer(server: ServerConfig, signal?: AbortSignal): Promise<AccountProfile[]> {
-  const r = await serverFetch(server, `${httpBaseForServer(server)}/api/profiles`, { signal });
+async function profilesForServer(server: ServerConfig, signal?: AbortSignal, metadata = false): Promise<AccountProfile[]> {
+  const r = await serverFetch(server, `${httpBaseForServer(server)}/api/profiles${metadata ? "/metadata" : ""}`, { signal });
+  if (metadata && (r.status === 404 || r.status === 501)) throw new Error('Update Sessions on this computer to read limits for just this account.');
   if (r.status === 404 || r.status === 501) return [];
   const body = await json<{ profiles: AccountProfile[] }>(r);
   return body.profiles;
@@ -716,15 +717,16 @@ async function profilesForServer(server: ServerConfig, signal?: AbortSignal): Pr
  * answering from the daemon's short cache.
  */
 export async function fetchAccountUsage(
-  serverId: string | undefined, options: { refresh?: boolean; signal?: AbortSignal; tool?: 'claude' | 'codex'; name?: string } = {}
+  serverId: string | undefined, options: { refresh?: boolean; signal?: AbortSignal; tool?: 'claude' | 'codex'; name?: string; exact?: boolean } = {}
 ): Promise<AccountUsage[] | null> {
+  if (options.exact && !options.tool) throw new Error('Choose a provider to read account limits.');
   const server = requestedServer(serverId);
   const params = new URLSearchParams();
   if (options.refresh) params.set('refresh', '1');
   if (options.tool) params.set('tool', options.tool);
   if (options.name !== undefined) params.set('name', options.name);
   const query = params.toString() ? `?${params}` : '';
-  const r = await serverFetch(server, `${httpBaseForServer(server)}/api/account-usage${query}`, { signal: options.signal });
+  const r = await serverFetch(server, `${httpBaseForServer(server)}/api/account-usage${options.exact ? '/exact' : ''}${query}`, { signal: options.signal });
   if (r.status === 404 || r.status === 501) return null;
   // Only a local or paired client may make providers answer again; any other
   // client still gets the daemon's latest reading.
@@ -733,8 +735,8 @@ export async function fetchAccountUsage(
   return body.accounts ?? [];
 }
 
-export async function fetchProfiles(signal?: AbortSignal, serverId?: string): Promise<AccountProfile[]> {
-  return profilesForServer(requestedServer(serverId), signal);
+export async function fetchProfiles(signal?: AbortSignal, serverId?: string, metadata = false): Promise<AccountProfile[]> {
+  return profilesForServer(requestedServer(serverId), signal, metadata);
 }
 
 export async function listServerProfiles(

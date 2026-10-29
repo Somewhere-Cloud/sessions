@@ -88,10 +88,19 @@ func (m *Manager) prepareProfile(command, name string) (string, error) {
 }
 
 func (m *Manager) Profiles(ctx context.Context) ([]ProfileStatus, error) {
+	return m.profiles(ctx, true)
+}
+
+// ProfileMetadata lists homes without starting provider readers.
+func (m *Manager) ProfileMetadata(ctx context.Context) ([]ProfileStatus, error) {
+	return m.profiles(ctx, false)
+}
+
+func (m *Manager) profiles(ctx context.Context, readIdentity bool) ([]ProfileStatus, error) {
 	if m.config.UserStateRoot == "" {
 		return nil, errors.New("profile listing requires a configured Sessions user state root")
 	}
-	profiles := m.defaultProfiles(ctx)
+	profiles := m.defaultProfiles(ctx, readIdentity)
 	root := filepath.Join(m.config.UserStateRoot, "profiles")
 	for _, tool := range []string{"claude", "codex"} {
 		preferred, preferenceErr := m.preferredAccount(tool)

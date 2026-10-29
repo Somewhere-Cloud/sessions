@@ -17,8 +17,8 @@ const machines: FakeMachine[] = ['local', 'remote'].map((id, index) => ({
     { tool: 'claude', name: 'work', signed_in: true }
   ],
   accountUsage: { 'codex/work': { state: 'available', read_at: now, checked_at: now,
-    buckets: [{ limit_id: 'codex', windows: [{ kind: 'primary', window_minutes: 300, used_percent: index ? 77 : 12 },
-      { kind: 'secondary', window_minutes: 10080, used_percent: 31 }] }] } }
+    buckets: [{ limit_id: 'codex', windows: [{ kind: 'primary', window_minutes: 300, resets_at: now + 7200000, used_percent: index ? 77 : 12 },
+      { kind: 'secondary', window_minutes: 10080, resets_at: now + 345600000, used_percent: 31 }] }] } }
 }));
 const daemon = installFakeDaemon(machines);
 useFakeMachines(machines, 'local');
@@ -48,7 +48,7 @@ function Fixture(): JSX.Element {
   return <main className="operations-shell text-size-s" style={{ height: 'auto', minHeight: '100dvh', display: 'block', maxWidth: '650px', padding: '12px' }}>
     <InputBar sessionId={scope.sessionId} draftMachineId={scope.machineId} provider={scope.provider}
       usageScope={scope} connected send={async () => {}} submitMessage={async () => {}}
-      model="gpt-6.1-sol" onConfigureModel={async () => {}} />
+      model={scope.provider === 'codex' ? 'gpt-6.1-sol' : 'claude-opus-5-5'} onConfigureModel={async () => {}} />
     <Sidebar events={events} conversationId={conversationId} />
   </main>;
 }

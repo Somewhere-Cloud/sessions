@@ -124,17 +124,33 @@ func (c *accountUsageCache) clock() time.Time {
 // tool and name. Accounts whose provider has not answered by the time ctx ends
 // are reported as unavailable with any earlier reading, never omitted.
 func (m *Manager) AccountUsage(ctx context.Context, tool, name string, refresh bool) ([]AccountUsage, error) {
-	profiles, err := m.Profiles(ctx)
+	return m.readAccountUsage(ctx, tool, name, refresh, false)
+}
+
+// ExactAccountUsage selects one home, including the CLI default (empty name).
+func (m *Manager) ExactAccountUsage(ctx context.Context, tool, name string, refresh bool) ([]AccountUsage, error) {
+	if tool != "claude" && tool != "codex" {
+		return nil, errors.New("exact account usage requires tool claude or codex")
+	}
+	return m.readAccountUsage(ctx, tool, name, refresh, true)
+}
+
+func (m *Manager) readAccountUsage(ctx context.Context, tool, name string, refresh, exact bool) ([]AccountUsage, error) {
+	list := m.Profiles
+	if exact {
+		list = m.ProfileMetadata
+	}
+	profiles, err := list(ctx)
 	if err != nil {
 		return nil, err
 	}
 	selected := make([]ProfileStatus, 0, len(profiles))
 	for _, profile := range profiles {
-		if (tool == "" || profile.Tool == tool) && (name == "" || profile.Name == name) {
+		if (tool == "" || profile.Tool == tool) && ((!exact && name == "") || profile.Name == name) {
 			selected = append(selected, profile)
 		}
 	}
-	if name != "" && len(selected) == 0 {
+	if (exact || name != "") && len(selected) == 0 {
 		return nil, errors.New("unknown account; `sessions accounts` lists the accounts on this computer")
 	}
 	m.accountUsage.forget(profiles)

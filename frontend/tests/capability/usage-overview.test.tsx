@@ -40,8 +40,8 @@ describe('capability: understand usage without invented productivity claims', ()
     for (const label of ['Fresh input', 'Cache write', 'Cache read', 'Output']) {
       expect(screen.getByText(label)).toBeVisible();
     }
-    expect(screen.getByText(/not current context occupancy/)).toBeVisible();
-    expect(screen.getByText(/No cache expiry is reported/)).toBeVisible();
+    expect(screen.getByText(/not current context/)).toBeVisible();
+    expect(screen.getByText(/Cache expiry is unknown/)).toBeVisible();
   });
 
   it('does not invent a reuse percentage for an empty period', () => {

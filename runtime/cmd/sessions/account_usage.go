@@ -45,8 +45,9 @@ type accountUsage struct {
 func (a *app) cmdAccountsUsage(args []string) error {
 	tool, _ := pluck(&args, "--tool")
 	refresh := removeFirst(&args, "--refresh")
-	if len(args) > 1 || (tool != "" && tool != "claude" && tool != "codex") || (len(args) == 1 && tool == "") {
-		return fail(1, "usage: sessions accounts usage [<name> --tool claude|codex] [--tool claude|codex] [--refresh]")
+	exact := removeFirst(&args, "--exact")
+	if len(args) > 1 || (tool != "" && tool != "claude" && tool != "codex") || ((len(args) == 1 || exact) && tool == "") {
+		return fail(1, "usage: sessions accounts usage [<name> --tool claude|codex] [--tool claude|codex] [--exact --tool claude|codex] [--refresh]")
 	}
 	query := url.Values{}
 	if tool != "" {
@@ -59,6 +60,9 @@ func (a *app) cmdAccountsUsage(args []string) error {
 		query.Set("refresh", "1")
 	}
 	path := "/api/account-usage"
+	if exact {
+		path += "/exact"
+	}
 	if encoded := query.Encode(); encoded != "" {
 		path += "?" + encoded
 	}

@@ -659,14 +659,14 @@ export function installFakeDaemon(machines: FakeMachine[]): FakeDaemon {
     }
 
     // ── settings surfaces the views read on mount ───────────────────────
-    if (path === '/api/account-usage' && method === 'GET') {
+    if ((path === '/api/account-usage' || path === '/api/account-usage/exact') && method === 'GET') {
       if (machine.accountUsage === false) return jsonResponse({ error: 'not found' }, 404);
       if (machine.accountUsageRefreshForbidden && url.searchParams.get('refresh') === '1') {
         return jsonResponse({ error: 'refreshing account usage requires a local or paired Sessions client; omit refresh to read the latest reading' }, 403);
       }
       const readings = machine.accountUsage ?? {};
       return jsonResponse({
-        accounts: (machine.profiles ?? []).map((account): AccountUsage => ({
+        accounts: (machine.profiles ?? []).filter((account) => path !== '/api/account-usage/exact' || (account.tool === url.searchParams.get('tool') && account.name === (url.searchParams.get('name') ?? ''))).map((account): AccountUsage => ({
           tool: account.tool, name: account.name, label: account.label,
           ...(account.tool === 'claude'
             ? { state: 'unsupported', message: 'Claude usage is not connected in Sessions yet. Check Claude for your current limits.' }
@@ -677,7 +677,7 @@ export function installFakeDaemon(machines: FakeMachine[]): FakeDaemon {
         ttl_seconds: 60
       });
     }
-    if (path === '/api/profiles' && method === 'GET') {
+    if ((path === '/api/profiles' || path === '/api/profiles/metadata') && method === 'GET') {
       // Absent fields answer the way the daemon answers them, so a fixture can
       // name an account in one line without describing a whole home.
       return jsonResponse({

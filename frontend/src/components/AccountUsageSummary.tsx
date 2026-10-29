@@ -1,4 +1,5 @@
 import '../styles/account-usage.css';
+import { Stack } from './ui/Layout';
 import { bucketName, relativeTime, resetText, windowName } from '../lib/accountUsageDisplay';
 import type { AccountUsageWindow } from '../api/sessionsd';
 import { freshestReading, type AccountGroup, type AccountPlacement } from '../lib/accountRollup';
@@ -64,7 +65,7 @@ export function AccountUsageSummary({ group, label }: { group: AccountGroup; lab
   const others = group.placements.filter((placement) => placement.serverId !== reading.serverId);
   const unanswered = others.filter((placement) => placement.usage?.state !== 'available').map((placement) => placement.machineName);
   return (
-    <div className="account-usage" aria-label={`Usage for ${label}`} role="group">
+    <Stack className="account-usage" aria-label={`Usage for ${label}`} role="group">
       {buckets.length === 0 ? <p className="account-usage-missing">The provider reported no usage limits for this account.</p> : null}
       {buckets.map((bucket, index) => {
         const name = bucketName(bucket, buckets.length > 1);
@@ -81,6 +82,6 @@ export function AccountUsageSummary({ group, label }: { group: AccountGroup; lab
         {reading.usage.stale && reading.usage.message ? ` · ${reading.usage.message}` : ''}
         {unanswered.length > 0 ? ` · No reading from ${unanswered.join(', ')}` : ''}
       </span>
-    </div>
+    </Stack>
   );
 }

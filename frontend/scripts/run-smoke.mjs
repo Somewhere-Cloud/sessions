@@ -54,6 +54,7 @@ const GATE = [
   'account-login',
   'account-usage',
   'composer-usage',
+  'usage-dashboard',
   'storage',
   'account-choice',
   'account-freshness',

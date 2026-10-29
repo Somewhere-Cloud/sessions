@@ -82,10 +82,10 @@ describe('capability: Usage while its reports are still in flight', () => {
     slowFleet(machines, 3_000);
     render(<UsageDashboard />);
 
-    expect(screen.queryByText(/deduplicat/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/copied history/i)).not.toBeInTheDocument();
     // The fixture's daemon answers in the older shape: a report with no events.
-    await waitFor(() => expect(screen.getByText(/deduplicat/i)).toBeInTheDocument(), { timeout: 10_000 });
-    expect(screen.getByText(/deduplicat/i).textContent).toContain('This Mac');
+    await waitFor(() => expect(screen.getByText(/copied history/i)).toBeInTheDocument(), { timeout: 10_000 });
+    expect(screen.getByText(/copied history/i).textContent).toContain('This Mac');
     expect(screen.getByText(/Loading from/).textContent).toContain('Mac mini');
   }, 20_000);
 

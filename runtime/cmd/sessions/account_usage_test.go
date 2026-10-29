@@ -83,3 +83,48 @@ func TestAccountsUsageJSONAndRefreshOneAccount(t *testing.T) {
 		t.Fatal("a name without --tool was accepted")
 	}
 }
+
+func TestAccountsUsageExactDefaultAndNamed(t *testing.T) {
+	for _, name := range []string{"", "work"} {
+		var paths []string
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			paths = append(paths, r.URL.RequestURI())
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"accounts":[{"tool":"codex","name":"` + name + `","state":"unavailable"}]}`))
+		}))
+		t.Setenv("HOME", t.TempDir())
+		var out, stderr bytes.Buffer
+		args := []string{"--host", server.URL, "accounts", "usage", "--exact", "--tool", "codex", "--refresh", "--json"}
+		if name != "" {
+			args = append(args, name)
+		}
+		code := run(args, strings.NewReader(""), &out, &stderr)
+		server.Close()
+		want := "/api/account-usage/exact?refresh=1&tool=codex"
+		if name != "" {
+			want = "/api/account-usage/exact?name=work&refresh=1&tool=codex"
+		}
+		if code != 0 || len(paths) != 1 || paths[0] != want {
+			t.Fatalf("exact %q: code=%d paths=%v error=%s", name, code, paths, stderr.String())
+		}
+		var result []accountUsage
+		if err := json.Unmarshal(out.Bytes(), &result); err != nil || len(result) != 1 || result[0].Name != name {
+			t.Fatalf("JSON %s err=%v", out.String(), err)
+		}
+	}
+}
+
+func TestAccountsUsageExactOldDaemonDoesNotBroaden(t *testing.T) {
+	var paths []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.URL.Path)
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+	t.Setenv("HOME", t.TempDir())
+	var out, stderr bytes.Buffer
+	code := run([]string{"--host", server.URL, "accounts", "usage", "--exact", "--tool", "codex", "--refresh"}, strings.NewReader(""), &out, &stderr)
+	if code == 0 || len(paths) != 1 || paths[0] != "/api/account-usage/exact" {
+		t.Fatalf("broadened: code=%d paths=%v", code, paths)
+	}
+}

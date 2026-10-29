@@ -37,7 +37,7 @@ try {
   await page.goto(`http://127.0.0.1:${server.address().port}/`, { waitUntil: 'networkidle0' });
   await page.waitForFunction(() => document.querySelector('summary').textContent.includes('12%'));
   assert.deepEqual(await page.evaluate(() => {
-    const request = window.usageDaemon.requests.find((item) => item.path === '/api/account-usage');
+    const request = window.usageDaemon.requests.find((item) => item.path === '/api/account-usage/exact');
     const query = new URL(request.url).searchParams;
     return [query.get('tool'), query.get('name')];
   }), ['codex', 'work'], 'older WebViews must retain executing-account filters');
@@ -66,6 +66,13 @@ try {
   await page.waitForFunction(() => document.querySelector('summary').textContent.includes('unavailable'));
   await page.click('summary');
   assert.equal(await page.$$eval('[role="meter"]', nodes => nodes.length), 0);
+  if (process.env.ACCOUNT_SCREENSHOT_DIR) {
+    for (const [theme, width] of [['dark', 1280], ['dark', 375], ['light', 1280], ['light', 375]]) {
+      await page.evaluate(value => { document.documentElement.dataset.theme = value; document.querySelector('main').dataset.theme = value; }, theme);
+      await page.setViewport({ width, height: 900 });
+      await page.screenshot({ path: join(process.env.ACCOUNT_SCREENSHOT_DIR, `composer-unsupported-${theme}-${width}.png`), fullPage: true });
+    }
+  }
   // A late read cannot cross an account switch on the same host either.
   await page.evaluate(() => window.delayRead());
   await change(scope('local', 'work', 'codex', { sessionId: 'account-race' }));

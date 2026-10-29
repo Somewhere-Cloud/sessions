@@ -26,14 +26,14 @@ export function useComposerAccountUsage(scope: ComposerUsageScope) {
       return;
     }
     try {
-      const profiles = await fetchProfiles(signal, machineId);
+      const profiles = await fetchProfiles(signal, machineId, true);
       if (signal.aborted) return;
       const profile = sessionAccount({ sessionId, machineId, provider, profile: profileName, configDir }, profiles);
       if (!profile) {
         setReading({ loading: false, error: 'This session’s provider home could not be matched on its computer. Check Accounts there.' });
         return;
       }
-      const usage = await fetchAccountUsage(machineId, { tool: profile.tool, name: profile.name, refresh, signal });
+      const usage = await fetchAccountUsage(machineId, { tool: profile.tool, name: profile.name, exact: true, refresh, signal });
       if (!signal.aborted) setReading({ profile, usage, loading: false });
     } catch (error) {
       if (!signal.aborted) setReading({ loading: false, error: error instanceof Error ? error.message : 'Could not read account limits. Refresh to try again.' });

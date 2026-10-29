@@ -2,8 +2,8 @@
 .composer-usage > summary { cursor: pointer; padding: 7px 8px; border-radius: 8px; overflow-wrap: anywhere; }
 .composer-usage > summary:hover { background: var(--bg-elev-3); color: var(--fg); }
 .composer-usage > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.composer-usage > section { padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-elev-1); max-width: 100%; overflow-wrap: anywhere; }
-.composer-usage p { margin: 8px 0; }
+.composer-usage > section { padding: var(--space-3); max-width: 100%; overflow-wrap: anywhere; }
+.composer-usage p { margin: 0; }
 .input-composer-footer.has-account-usage { flex-wrap: wrap; }
 .composer-usage[open] { flex-basis: 100%; order: 5; }
 

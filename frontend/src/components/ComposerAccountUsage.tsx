@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useComposerAccountUsage } from '../hooks/useComposerAccountUsage';
 import { accountLabel } from '../lib/accountChoice';
-import { relativeTime } from '../lib/accountUsageDisplay';
 import { compactLimits, composerAccountGroup, type ComposerUsageScope } from '../lib/composerAccountUsage';
 import { serverDisplayName, useServers } from '../lib/servers';
+import { Button } from './ui/Button';
+import { Stack } from './ui/Layout';
 import { AccountUsageSummary } from './AccountUsageSummary';
 import '../styles/composer-usage.css';
 
@@ -20,21 +21,20 @@ function AccountLimits({ scope }: { scope: ComposerUsageScope }): JSX.Element {
   const label = reading.profile ? accountLabel(reading.profile) : scope.profile || 'Account unknown';
   const group = reading.profile && reading.usage !== undefined && scope.machineId
     ? composerAccountGroup(scope.machineId, machine, reading.profile, reading.usage, now) : undefined;
-  const readAt = group?.reading?.usage.read_at;
   const provider = scope.provider === 'codex' ? 'ChatGPT' : 'Claude';
   return <details className="composer-usage">
     <summary>
       <span>{reading.loading ? 'Reading limits…' : compactLimits(group)}</span>
-      <small>{provider} · {label} · {machine}{readAt ? ` · read ${relativeTime(readAt, now)}` : ''}</small>
+      <small>{provider} · {label} · {machine}</small>
     </summary>
     <section aria-label={`${provider} limits for this session`}>
-      <strong>{provider} · {label} · {machine}</strong>
-      <p>Limits for this session’s executing account. Windows are independent.</p>
-      {reading.error ? <p role="status">{reading.error}</p> : null}
-      {reading.loading ? <p role="status">Reading account limits…</p> : null}
-      {group ? <AccountUsageSummary group={group} label={label} /> : null}
-      {readAt ? <p>Observed {relativeTime(readAt, now)}. This is a snapshot, not a live balance.</p> : null}
-      <button type="button" className="btn btn-ghost" disabled={reading.loading || !server} onClick={reading.refresh}>Refresh limits</button>
+      <Stack>
+        <p>Each window is a separate limit.</p>
+        {reading.error ? <p role="status">{reading.error}</p> : null}
+        {reading.loading ? <p role="status">Reading account limits…</p> : null}
+        {group ? <AccountUsageSummary group={group} label={label} /> : null}
+        <Button variant="ghost" size="compact" disabled={reading.loading || !server} onClick={reading.refresh}>Refresh limits</Button>
+      </Stack>
     </section>
   </details>;
 }

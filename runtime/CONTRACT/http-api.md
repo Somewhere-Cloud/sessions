@@ -3647,3 +3647,18 @@ common CORS headers. Recognized extensions are HTML, JS, CSS, JSON, SVG, PNG,
 JPEG, WebP, ICO, webmanifest, WOFF/WOFF2, TTF, OTF, and WASM; everything else is
 `application/octet-stream`. A stream error is a JSON `{"error":"<message>"}`
 body with 500 only if headers have not already been sent.
+
+### `GET /api/account-usage/exact`
+
+Same response, authentication, refresh authorization, cache/coalescing and identity
+fencing as `/api/account-usage`. Requires `tool=claude|codex`; `name` selects
+exactly one home, with absent or empty name selecting only the CLI default. An
+unknown home returns 400. Legacy `/api/account-usage` retains absent/empty name
+as all accounts. Clients must never retry the exact route on the legacy route:
+older daemons return 404 (or 501 without support), before any usage read.
+Exact selection uses metadata-only profile enumeration. `GET /api/profiles/metadata`
+returns the profiles shape without starting provider readers; it still inspects
+local sign-in files, saved account sidecars, ledger and running-session metadata.
+The composer uses this route and never falls back to `/api/profiles` on older
+daemons. Legacy `/api/profiles` still discovers default identity through usage
+readers. Neither exact route promises zero unrelated filesystem metadata reads.

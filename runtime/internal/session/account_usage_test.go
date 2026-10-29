@@ -77,14 +77,14 @@ func TestAccountUsageCoalescesAndCachesProviderReads(t *testing.T) {
 		t.Fatalf("provider read %d times for concurrent requests, want 1", reads.Load())
 	}
 	clock.advance(accountUsageMinRefresh / 2)
-	if _, err := manager.AccountUsage(context.Background(), "codex", "work", true); err != nil || reads.Load() != 1 {
+	if _, err := manager.ExactAccountUsage(context.Background(), "codex", "work", true); err != nil || reads.Load() != 1 {
 		t.Fatalf("refresh inside the floor read the provider again: reads=%d err=%v", reads.Load(), err)
 	}
 	clock.advance(accountUsageMinRefresh)
-	if _, err := manager.AccountUsage(context.Background(), "codex", "work", false); err != nil || reads.Load() != 1 {
+	if _, err := manager.ExactAccountUsage(context.Background(), "codex", "work", false); err != nil || reads.Load() != 1 {
 		t.Fatalf("read inside the TTL asked the provider again: reads=%d err=%v", reads.Load(), err)
 	}
-	if _, err := manager.AccountUsage(context.Background(), "codex", "work", true); err != nil || reads.Load() != 2 {
+	if _, err := manager.ExactAccountUsage(context.Background(), "codex", "work", true); err != nil || reads.Load() != 2 {
 		t.Fatalf("explicit refresh past the floor did not read: reads=%d err=%v", reads.Load(), err)
 	}
 	clock.advance(accountUsageTTL)

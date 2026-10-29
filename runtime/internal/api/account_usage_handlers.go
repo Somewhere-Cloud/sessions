@@ -14,13 +14,18 @@ type accountUsageService interface {
 	AccountUsage(ctx context.Context, tool, name string, refresh bool) ([]sessionruntime.AccountUsage, error)
 }
 
+type exactAccountUsageService interface {
+	ExactAccountUsage(ctx context.Context, tool, name string, refresh bool) ([]sessionruntime.AccountUsage, error)
+}
+
 // accountUsageWait is how long one request waits for provider answers before
 // reporting the unanswered accounts as not answered yet.
 const accountUsageWait = 20 * time.Second
 
 // handleAccountUsageRoute serves GET /api/account-usage[?tool=&name=&refresh=1].
 func (s *Server) handleAccountUsageRoute(w http.ResponseWriter, r *http.Request, origin string) bool {
-	if r.URL.Path != "/api/account-usage" {
+	exact := r.URL.Path == "/api/account-usage/exact"
+	if r.URL.Path != "/api/account-usage" && !exact {
 		return false
 	}
 	if r.Method != http.MethodGet {
@@ -46,9 +51,22 @@ func (s *Server) handleAccountUsageRoute(w http.ResponseWriter, r *http.Request,
 		s.sendJSON(w, http.StatusBadRequest, map[string]string{"error": "tool must be claude or codex"}, origin)
 		return true
 	}
+	read := service.AccountUsage
+	if exact {
+		scoped, supported := s.registry.(exactAccountUsageService)
+		if !supported {
+			s.sendJSON(w, http.StatusNotImplemented, map[string]string{"error": "update Sessions on this computer to read exact account usage"}, origin)
+			return true
+		}
+		if tool == "" {
+			s.sendJSON(w, http.StatusBadRequest, map[string]string{"error": "exact account usage requires tool claude or codex"}, origin)
+			return true
+		}
+		read = scoped.ExactAccountUsage
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), accountUsageWait)
 	defer cancel()
-	accounts, err := service.AccountUsage(ctx, tool, query.Get("name"), refresh)
+	accounts, err := read(ctx, tool, query.Get("name"), refresh)
 	if err != nil {
 		s.sendJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()}, origin)
 		return true

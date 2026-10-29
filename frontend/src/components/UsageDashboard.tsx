@@ -5,6 +5,9 @@ import { getCachedUsage, requestUsageReport } from '../lib/usageCache';
 import { combineFleetUsage, type FleetUsageSource, type FleetUsageSummary } from '../lib/fleetUsage';
 import { classifyPeerFailure, peerBudget, peerReportText } from '../lib/fleetPeerBudget';
 import { useSessions } from '../store/sessions';
+import { Button } from './ui/Button';
+import { Field, Input, Select } from './ui/Field';
+import { PageHeader, Stack } from './ui/Layout';
 import { TagEditor } from './TagEditor';
 import { ProviderBadge, normalizeProvider } from './ProviderBadge';
 
@@ -264,66 +267,59 @@ export function UsageDashboard(): JSX.Element {
 
   return (
     <div className="usage-view">
-      <div className="usage-shell">
-        <header className="usage-heading">
-          <div>
-            <h1>Usage</h1>
-            <p>{scope === 'fleet' ? 'Claude and Codex usage across every configured machine.' : `Usage on ${report?.machine || 'the selected machine'}`} Reports are requested directly from each machine.</p>
-          </div>
-          <button type="button" className="btn btn-ghost" disabled={loading} onClick={() => setRefreshToken((value) => value + 1)}>
-            {loading ? 'Indexing…' : 'Refresh'}
-          </button>
-        </header>
+      <Stack className="usage-shell">
+        <PageHeader title="Usage" description={scope === 'fleet' ? 'Token traffic across your computers.' : `Token traffic on ${report?.machine || 'the selected computer'}.`}
+          actions={<Button variant="ghost" loading={loading} onClick={() => setRefreshToken((value) => value + 1)}>{loading ? 'Indexing…' : 'Refresh'}</Button>} />
 
         <div className="usage-saved-views">
-          <label>Saved view
-            <select value={activeSavedId} onChange={(event) => applySavedView(event.target.value)}>
+          <Field label="Saved view">
+            <Select value={activeSavedId} onChange={(event) => applySavedView(event.target.value)}>
               <option value="">Current filters</option>
               {savedViews.map((view) => <option value={view.id} key={view.id}>{view.name}</option>)}
-            </select>
-          </label>
-          <label>Name<input value={viewName} maxLength={60} onChange={(event) => setViewName(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); saveCurrentView(); } }} placeholder="This month by product" /></label>
-          <button type="button" className="btn btn-ghost" disabled={!viewName.trim()} onClick={saveCurrentView}>Save current</button>
-          {activeSavedId ? <button type="button" className="usage-delete-view" onClick={deleteActiveView}>Delete</button> : null}
+            </Select>
+          </Field>
+          <Field label="Name"><Input value={viewName} maxLength={60} onChange={(event) => setViewName(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); saveCurrentView(); } }} placeholder="This month by product" /></Field>
+          <Button size="compact" variant="ghost" type="button" disabled={!viewName.trim()} onClick={saveCurrentView}>Save current</Button>
+          {activeSavedId ? <Button size="compact" variant="ghost" type="button" onClick={deleteActiveView}>Delete</Button> : null}
         </div>
 
         <div className="usage-controls">
           <div className="usage-control-group">
             <span>Scope</span>
-            <div className="usage-segmented" role="tablist" aria-label="Usage scope">
-              <button type="button" className={scope === 'fleet' ? 'is-active' : ''} onClick={() => { setScope('fleet'); setActiveSavedId(''); }}>Entire fleet</button>
-              <button type="button" className={scope === 'machine' ? 'is-active' : ''} onClick={() => { setScope('machine'); setActiveSavedId(''); }}>Selected machine</button>
+            <div className="usage-segmented" role="group" aria-label="Usage scope">
+              <Button size="compact" variant="ghost" type="button" aria-pressed={scope === 'fleet'} className={scope === 'fleet' ? 'is-active' : ''} onClick={() => { setScope('fleet'); setActiveSavedId(''); }}>Entire fleet</Button>
+              <Button size="compact" variant="ghost" type="button" aria-pressed={scope === 'machine'} className={scope === 'machine' ? 'is-active' : ''} onClick={() => { setScope('machine'); setActiveSavedId(''); }}>Selected machine</Button>
             </div>
           </div>
           <div className="usage-control-group">
             <span>Time range</span>
-            <div className="usage-segmented" role="tablist" aria-label="Usage time range">
-              {PERIODS.map((item) => <button key={item.id} type="button" className={period === item.id ? 'is-active' : ''} onClick={() => { setPeriod(item.id); setActiveSavedId(''); }}>{item.label}</button>)}
+            <div className="usage-segmented" role="group" aria-label="Usage time range">
+              {PERIODS.map((item) => <Button size="compact" variant="ghost" key={item.id} type="button" aria-pressed={period === item.id} className={period === item.id ? 'is-active' : ''} onClick={() => { setPeriod(item.id); setActiveSavedId(''); }}>{item.label}</Button>)}
             </div>
           </div>
           <div className="usage-control-group">
             <span>Group by</span>
-            <div className="usage-segmented" role="tablist" aria-label="Usage grouping">
+            <div className="usage-segmented" role="group" aria-label="Usage grouping">
               {GROUPS.map((item) => (
-                <button key={item.id} type="button" className={group === item.id ? 'is-active' : ''} onClick={() => selectGroup(item.id)}>{item.label}</button>
+                <Button size="compact" variant="ghost" key={item.id} type="button" aria-pressed={group === item.id} className={group === item.id ? 'is-active' : ''} onClick={() => selectGroup(item.id)}>{item.label}</Button>
               ))}
             </div>
           </div>
-          <label>Provider
-            <select value={provider} onChange={(event) => { setProvider(event.target.value as Provider); setActiveSavedId(''); }}>
+          <Field label="Provider">
+            <Select value={provider} onChange={(event) => { setProvider(event.target.value as Provider); setActiveSavedId(''); }}>
               <option value="all">All</option><option value="claude">Claude</option><option value="codex">Codex</option>
-            </select>
-          </label>
-          <label>Cost
-            <select value={mode} onChange={(event) => { setMode(event.target.value as Mode); setActiveSavedId(''); }}>
+            </Select>
+          </Field>
+          <Field label="Cost">
+            <Select value={mode} onChange={(event) => { setMode(event.target.value as Mode); setActiveSavedId(''); }}>
               <option value="auto">Auto</option><option value="calculate">Calculate</option><option value="display">Recorded</option>
-            </select>
-          </label>
+            </Select>
+          </Field>
           {group === 'tag' ? (
-            <label>Tag key<input value={dimension} onChange={(event) => { setDimension(event.target.value); setActiveSavedId(''); }} placeholder="product" /></label>
+            <Field label="Tag key"><Input value={dimension} onChange={(event) => { setDimension(event.target.value); setActiveSavedId(''); }} placeholder="product" /></Field>
           ) : null}
-          {period === 'custom' ? <><label>Since<input type="date" value={since} onChange={(event) => { setSince(event.target.value); setActiveSavedId(''); }} /></label>
-          <label>Until<input type="date" value={until} onChange={(event) => { setUntil(event.target.value); setActiveSavedId(''); }} /></label></> : null}
+          {period === 'custom' ? <><Field label="Since"><Input type="date" value={since} onChange={(event) => { setSince(event.target.value); setActiveSavedId(''); }} /></Field>
+          <Field label="Until"><Input type="date" value={until} onChange={(event) => { setUntil(event.target.value); setActiveSavedId(''); }} /></Field></> : null}
         </div>
 
         {fleetSummary ? (
@@ -358,7 +354,7 @@ export function UsageDashboard(): JSX.Element {
             </footer>
           </>
         ) : loading ? <div className="usage-empty">Building the local usage index…</div> : null}
-      </div>
+      </Stack>
     </div>
   );
 }
@@ -372,16 +368,16 @@ function FleetUsageStatus(
       <strong>{fleet ? `${summary.reportingMachines} of ${summary.configuredMachines} machines reporting` : 'Selected machine'}</strong>
       {fleet && summary.reportingMachines > 0 ? (
         <span>{summary.exactDeduplication
-          ? `Copied history deduplicated${summary.duplicatesRemoved > 0 ? ` · ${summary.duplicatesRemoved} duplicate events removed` : ''}.`
+          ? `Copied history counted once${summary.duplicatesRemoved > 0 ? ` · ${summary.duplicatesRemoved} duplicates excluded` : ''}.`
           // Named, and only for machines that have answered: an older shape is
           // something a report shows, not something a silence implies.
-          : `${summary.olderHostMachines.join(', ')} sent machine totals; update ${summary.olderHostMachines.length > 1 ? 'them' : 'it'} for exact copied-history deduplication.`}</span>
+          : `Totals from ${summary.olderHostMachines.join(', ')} may include copied history. Update Sessions there to count it once.`}</span>
       ) : null}
       {summary.missingMachines.length > 0 ? (
         <span className="usage-fleet-missing">
           {summary.missingMachines.map((machine) => peerReportText(machine)).join(' · ')}
           {pendingOnly ? null : (
-            <button type="button" className="btn btn-ghost" onClick={onRetry}>Try again</button>
+            <Button size="compact" variant="ghost" type="button" onClick={onRetry}>Try again</Button>
           )}
         </span>
       ) : null}
@@ -406,7 +402,7 @@ export function UsageOverview(
   ];
   const stats = [
     { label: 'Tokens processed', value: compactNumber(total), detail: `${compactNumber(report.totals.entries)} recorded usage events` },
-    { label: 'Input served from cache', value: context > 0 ? `${percent(tokens.cacheReadTokens, context)}%` : '—', detail: context > 0 ? 'of input served from cache' : 'No input recorded yet' },
+    { label: 'Input served from cache', value: context > 0 ? `${percent(tokens.cacheReadTokens, context)}%` : '—', detail: context > 0 ? 'of recorded input' : 'No input recorded yet' },
     { label: 'Models used', value: String(models.length), detail: models.join(', ') || 'No model data yet' },
     { label: unpriced > 0 ? 'Partial cost estimate' : 'Estimated cost',
       value: unpriced > 0 && unpriced >= report.totals.entries ? 'Unavailable' : dollars(report.totals.costUSD),
@@ -429,7 +425,7 @@ export function UsageOverview(
       <div className="usage-token-legend">{parts.map((part) => <span key={part.label}>
         <i className={part.className} aria-hidden="true" />{part.label} <strong>{compactNumber(part.value)}</strong>
       </span>)}</div>
-      <p>Output includes {compactNumber(tokens.reasoningTokens)} reported reasoning tokens. Token volume measures usage, not work quality. Period totals are token traffic, not current context occupancy. No cache expiry is reported.</p>
+      <p>Output includes {compactNumber(tokens.reasoningTokens)} reported reasoning tokens. Token volume measures usage, not work quality. These totals are traffic, not current context. Cache expiry is unknown.</p>
     </div>
   </section>;
 }
@@ -457,8 +453,8 @@ function UsageReportRow({ row, maxTokens, editable, onTagsSaved }: { row: UsageR
       <div className="usage-row-number"><strong>{compactNumber(tokens)}</strong><span>tokens</span></div>
       <div className="usage-row-number"><strong>{dollars(row.costUSD)}</strong><span>cost</span></div>
       <div className="usage-row-actions">
-        <button type="button" onClick={() => setExpanded((value) => !value)}>{expanded ? 'Less' : 'Details'}</button>
-        {editable && row.sessionId ? <button type="button" onClick={() => setEditing((value) => !value)}>{editing ? 'Close tags' : 'Tags'}</button> : null}
+        <Button size="compact" variant="ghost" type="button" onClick={() => setExpanded((value) => !value)}>{expanded ? 'Less' : 'Details'}</Button>
+        {editable && row.sessionId ? <Button size="compact" variant="ghost" type="button" onClick={() => setEditing((value) => !value)}>{editing ? 'Close tags' : 'Tags'}</Button> : null}
       </div>
       {expanded ? (
         <div className="usage-row-detail">
@@ -476,10 +472,10 @@ function UsageReportRow({ row, maxTokens, editable, onTagsSaved }: { row: UsageR
           <TagEditor value={tags} onChange={setTags} disabled={saving} />
           {error ? <span className="tag-editor-error">{error}</span> : null}
           <div className="usage-tag-actions">
-            <button type="button" className="btn btn-primary" disabled={saving} onClick={() => {
+            <Button size="compact" variant="primary" type="button" loading={saving} onClick={() => {
               setSaving(true); setError(null);
               void updateTags(row.sessionId!, tags).then(() => { setEditing(false); onTagsSaved(); }).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'Could not save tags')).finally(() => setSaving(false));
-            }}>{saving ? 'Saving…' : 'Save tags'}</button>
+            }}>{saving ? 'Saving…' : 'Save tags'}</Button>
           </div>
         </div>
       ) : null}

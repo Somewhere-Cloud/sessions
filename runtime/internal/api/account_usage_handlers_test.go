@@ -107,3 +107,64 @@ func TestAccountUsageRouteThroughTheServer(t *testing.T) {
 		t.Fatalf("usage = %d %s", response.Code, response.Body.String())
 	}
 }
+
+type fakeExactUsage struct {
+	fakeAccountUsage
+	exactCalls int
+}
+
+func (f *fakeExactUsage) ExactAccountUsage(ctx context.Context, tool, name string, refresh bool) ([]sessionruntime.AccountUsage, error) {
+	f.exactCalls++
+	return f.fakeAccountUsage.AccountUsage(ctx, tool, name, refresh)
+}
+func TestExactUsageRouteNeverFallsBackAndKeepsAuthorization(t *testing.T) {
+	legacy := &fakeAccountUsage{}
+	response := usageRequest(t, &Server{registry: legacy}, "/api/account-usage/exact?tool=codex&refresh=1", authPrincipal{Local: true})
+	if response.Code != 501 || legacy.calls != 0 {
+		t.Fatalf("fallback: %d calls=%d", response.Code, legacy.calls)
+	}
+	service := &fakeExactUsage{}
+	server := &Server{registry: service}
+	for _, name := range []string{"", "work"} {
+		response = usageRequest(t, server, "/api/account-usage/exact?tool=codex&name="+name+"&refresh=1", authPrincipal{})
+		if response.Code != 403 || service.exactCalls != 0 {
+			t.Fatal("unauthorized exact refresh started a reader")
+		}
+	}
+	response = usageRequest(t, server, "/api/account-usage/exact?tool=codex&refresh=1", authPrincipal{HostAdmin: true})
+	if response.Code != 200 || service.exactCalls != 1 || service.name != "" || !service.refresh[0] {
+		t.Fatalf("default: %d %#v", response.Code, service)
+	}
+	response = usageRequest(t, server, "/api/account-usage/exact?tool=codex&name=work", authPrincipal{})
+	if response.Code != 200 || service.name != "work" || service.refresh[1] {
+		t.Fatal("exact named read changed selection")
+	}
+	response = usageRequest(t, server, "/api/account-usage/exact", authPrincipal{Local: true})
+	if response.Code != 400 || service.exactCalls != 2 {
+		t.Fatal("exact route accepted missing tool")
+	}
+}
+
+type fakeMetadataProfiles struct {
+	sessionService
+	metadataCalls int
+}
+
+func (f *fakeMetadataProfiles) Profiles(context.Context) ([]sessionruntime.ProfileStatus, error) {
+	panic("metadata must not start legacy profile identity discovery")
+}
+func (f *fakeMetadataProfiles) ProfileMetadata(context.Context) ([]sessionruntime.ProfileStatus, error) {
+	f.metadataCalls++
+	return []sessionruntime.ProfileStatus{{Tool: "codex", Name: "", DefaultProfile: true, Path: "/fake/default"}}, nil
+}
+func TestProfileMetadataRouteDoesNotUseIdentityDiscovery(t *testing.T) {
+	service := &fakeMetadataProfiles{}
+	response := usageRequest(t, &Server{registry: service}, "/api/profiles/metadata", authPrincipal{Local: true})
+	if response.Code != 200 || service.metadataCalls != 1 {
+		t.Fatalf("metadata: %d calls=%d", response.Code, service.metadataCalls)
+	}
+	response = usageRequest(t, &Server{registry: service}, "/api/profiles/metadata?refresh=1", authPrincipal{})
+	if response.Code != 200 || service.metadataCalls != 2 {
+		t.Fatal("metadata refresh query changed reader")
+	}
+}
