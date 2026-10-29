@@ -36,6 +36,7 @@ Exit codes: 0 satisfied · 1 usage · 2 daemon unreachable · 3 timed out ·
 document, including on failure, and its `code` matches the exit status.
 
 Daily workflows:
+  handoff                  prepare a durable bounded provider switch without a hidden prompt
   restart                  end one runtime and reopen its exact conversation
   new                      create an interactive session
   profiles                 list Claude and Codex login profiles
@@ -142,6 +143,25 @@ Global flags:
 Connection flags must precede the command. Arguments after `sessions run --` always belong to the child command.
 
 Run `sessions help <command>` for one command or `sessions docs` for the complete offline reference.
+```
+
+## `sessions handoff`
+
+```text
+Usage:
+  sessions handoff preview|start SOURCE --provider claude|codex [--model MODEL] [--effort EFFORT] [--history ID] [--operation-id UUID] | status OPERATION | list SESSION | send OPERATION --text TEXT
+
+prepare a durable bounded provider switch without a hidden prompt
+
+Preview is read-only. Start requires a retained UUID v4 and snapshots at most 24 KiB of complete authored text into a fresh structured provider segment. Source history and runners remain unchanged. Binary assets and tools are not transferred; textual file references remain references on this machine. Status separates target creation, context preparation, the explicit first request receipt and observed provider turn state. Send uses the ordinary durable submit receipt; an uncertain import or first request is never replayed automatically. Inspect uncertain outcomes before creating another operation. Existing native segments are independently inspectable; this command does not merge provider histories or migrate queued source work.
+
+Examples:
+  sessions --json handoff preview SESSION --provider codex --model MODEL
+  sessions --json handoff start SESSION --provider codex --operation-id UUID
+  sessions --json handoff status UUID
+  sessions --json handoff send UUID --text 'Continue the task'
+
+--json may appear before the command or among its options. --machine, --direct, --host, and --port must appear before the command. Arguments after `sessions run --` always belong to the child command.
 ```
 
 ## `sessions restart`

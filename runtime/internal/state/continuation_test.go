@@ -150,3 +150,37 @@ func TestContinuationAcceptsLongManagerHistoryButRemainsBounded(t *testing.T) {
 		t.Fatal("continuation larger than the hard allocation bound was accepted")
 	}
 }
+
+func TestHandoffSchemaAndCreationReceiptValidation(t *testing.T) {
+	c := ContinuationContext{SchemaVersion: 3, Handoff: true, SourceHistoryID: "source", SourceProvider: "claude", SourceCWD: "/work", DestinationProvider: "codex", Mode: ContinuationNativeImport, Messages: []ContinuationMessage{{Role: "user", Text: "fact"}}}
+	for _, phase := range []string{"creating", "created"} {
+		c.NativeCreation = phase
+		c.NativeTargetID = ""
+		if phase == "created" {
+			c.NativeTargetID = "native"
+		}
+		path := filepath.Join(t.TempDir(), "continuation.json")
+		if err := WriteContinuation(path, c); err != nil {
+			t.Fatal(err)
+		}
+		got, err := ReadContinuation(path)
+		if err != nil || got.NativeCreation != phase || got.NativeTargetID != c.NativeTargetID {
+			t.Fatalf("roundtrip %+v %v", got, err)
+		}
+	}
+	c.SchemaVersion = 1
+	if err := c.Validate(); err == nil {
+		t.Fatal("new semantics accepted legacy schema")
+	}
+	c.SchemaVersion = 3
+	c.NativeCreation = "created"
+	c.NativeTargetID = ""
+	if err := c.Validate(); err == nil {
+		t.Fatal("created without native identity")
+	}
+	c.NativeTargetID = "native"
+	c.Messages[0].Text = strings.Repeat("x", MaxHandoffTextBytes+1)
+	if err := c.Validate(); err == nil {
+		t.Fatal("unbounded handoff accepted")
+	}
+}

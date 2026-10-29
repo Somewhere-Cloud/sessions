@@ -47,3 +47,17 @@ func TestCreateRequestFingerprintCoversWorkNotAttemptIdentity(t *testing.T) {
 		t.Fatal("a shell command's --session-id argument was ignored")
 	}
 }
+
+func TestCreateFingerprintBindsHandoffArtifact(t *testing.T) {
+	c := ContinuationContext{SchemaVersion: 3, Handoff: true, SourceHistoryID: "source", Messages: []ContinuationMessage{{Role: "user", Text: "private inherited fact"}}}
+	request := CreateSessionRequest{Cmd: "codex", Kind: KindCodexAppServer, Continuation: &c}
+	before := CreateRequestFingerprint(request)
+	c.Messages[0].Text = "different source fact"
+	if CreateRequestFingerprint(request) == before {
+		t.Fatal("different handoff artifacts can reuse a creation receipt")
+	}
+	request.Continuation = nil
+	if CreateRequestFingerprint(request) == before {
+		t.Fatal("ordinary creation can collide with handoff creation")
+	}
+}

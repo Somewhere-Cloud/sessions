@@ -97,7 +97,10 @@ func runCodexAppServer(cfg config, paths state.Paths, logger *log.Logger) int {
 }
 
 func (r *codexAppRunner) start() error {
-	metadata, _ := state.ReadRunnerMetadata(r.paths.Meta)
+	metadata, readErr := state.ReadRunnerMetadata(r.paths.Meta)
+	if readErr != nil && !errors.Is(readErr, os.ErrNotExist) {
+		return fmt.Errorf("read Codex target metadata before startup: %w", readErr)
+	}
 	r.createdAt = metadata.Info.CreatedAt
 	if r.createdAt == 0 {
 		r.createdAt = time.Now().UnixMilli()
@@ -131,17 +134,19 @@ func (r *codexAppRunner) start() error {
 	if r.continuation != nil {
 		conversationOptions.DeveloperInstructions = codexContinuationInstructions(*r.continuation)
 	}
-	r.conversationID = metadata.Info.ConversationID
-	if r.conversationID == "" {
-		r.conversationID, err = client.NewConversation(r.ctx, conversationOptions)
-	} else {
-		_, err = client.ResumeConversation(r.ctx, r.conversationID, conversationOptions)
-	}
-	if err != nil {
+	if err := r.prepareNativeTarget(metadata.Info.ConversationID,
+		func() (string, error) { return client.NewConversation(r.ctx, conversationOptions) },
+		func(id string) error { _, err := client.ResumeConversation(r.ctx, id, conversationOptions); return err },
+	); err != nil {
 		_ = client.Close()
 		return err
 	}
 	r.remoteEndpoint = client.RemoteEndpoint()
+	// Persist native identity before history import, including a failed import.
+	if err := r.writeMetadata(); err != nil {
+		_ = client.Close()
+		return err
+	}
 
 	if err := r.prepareResumeHistory(); err != nil {
 		_ = client.Close()

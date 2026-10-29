@@ -33,6 +33,14 @@ func sdkQueryOptions(claudePath string, options TurnOptions) map[string]any {
 			extra[flag] = nil
 		}
 	}
+	if appendText, ok := extra["append-system-prompt"].(string); ok {
+		value["systemPrompt"].(map[string]string)["append"] = appendText
+		delete(extra, "append-system-prompt")
+	}
+	if options.AppendSystemPrompt != "" {
+		prompt := value["systemPrompt"].(map[string]string)
+		prompt["append"] = strings.TrimSpace(prompt["append"] + "\n\n" + options.AppendSystemPrompt)
+	}
 	value["extraArgs"] = extra
 	return value
 }

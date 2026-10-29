@@ -540,8 +540,8 @@ func (c *Client) InjectMessages(ctx context.Context, conversationID string, mess
 	}
 	items := make([]map[string]any, 0, len(messages))
 	for index, message := range messages {
-		text := strings.TrimSpace(message.Text)
-		if text == "" {
+		text := message.Text
+		if strings.TrimSpace(text) == "" {
 			return fmt.Errorf("%w: imported message %d is empty", ErrImportNotSent, index)
 		}
 		switch message.Role {

@@ -157,11 +157,7 @@ export function SessionDetails({ session, allSessions, onEnd, onResume }: Props)
           {session.continuedFromHistoryId ? (
             <>
               <Row label="Original agent" value={session.continuedFromProvider === 'codex' ? 'Codex' : 'Claude'} />
-              <Row label="Imported context" value={
-                session.continuationMode === 'native-import'
-                  ? `${session.importedMessageCount ?? 0} authored messages · native Codex history`
-                  : `${session.importedMessageCount ?? 0} authored messages · linked local history`
-              } />
+              <Row label="Imported context" value={continuationContextLabel(session)} />
             </>
           ) : null}
         </DetailsCard>
@@ -202,3 +198,11 @@ export function SessionDetails({ session, allSessions, onEnd, onResume }: Props)
 
 function DetailsCard({ title, children }: { title: string; children: React.ReactNode }): JSX.Element { return <article className="details-card"><h2>{title}</h2><div>{children}</div></article>; }
 function Row({ label, value, valueClassName = '' }: { label: string; value: string | number; valueClassName?: string }): JSX.Element { return <div className="details-row"><span>{label}</span><strong className={valueClassName} title={String(value)}>{value}</strong></div>; }
+
+function continuationContextLabel(session: SessionInfo): string {
+  const count = session.importedMessageCount ?? 0;
+  if (session.continuationMode === 'bounded-handoff') return `${count} authored text messages · bounded snapshot; see switch receipt`;
+  return session.continuationMode === 'native-import'
+    ? `${count} authored messages · native Codex history`
+    : `${count} authored messages · linked local history`;
+}

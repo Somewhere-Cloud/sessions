@@ -85,3 +85,14 @@ func TestForkInstructionsExplainIndependentLiveBranch(t *testing.T) {
 		}
 	}
 }
+
+func TestHandoffMetadataDoesNotClaimImportOrFirstTurn(t *testing.T) {
+	c := &state.ContinuationContext{Handoff: true, Mode: state.ContinuationNativeImport}
+	if continuationMode(c) != "bounded-handoff" {
+		t.Fatal("handoff metadata claimed native import before receipt")
+	}
+	c.Handoff = false
+	if continuationMode(c) != state.ContinuationNativeImport {
+		t.Fatal("legacy metadata changed")
+	}
+}

@@ -3662,3 +3662,60 @@ local sign-in files, saved account sidecars, ledger and running-session metadata
 The composer uses this route and never falls back to `/api/profiles` on older
 daemons. Legacy `/api/profiles` still discovers default identity through usage
 readers. Neither exact route promises zero unrelated filesystem metadata reads.
+
+## Durable provider handoffs
+
+`POST /api/handoffs/preview` and `POST /api/handoffs` take
+`sourceSessionId`, optional `historyId`, `destinationProvider` (`claude` or
+`codex`), optional `model`/`effort`, and (for start) `operationId`, a lowercase
+UUID v4. The source must be a structured Claude or Codex runtime. Preview only
+reads history and validates the model; it never creates a target or sends a
+turn. Start persists the chosen artifact and intent before invoking ordinary
+idempotent session creation. A repeated operation returns its saved result;
+different choices under the same ID return 409. A crash with pending intent
+means unknown, not permission to launch another target. Source work is never
+ended, reopened, or queued into the target.
+
+The artifact contains at most 24 KiB of complete authored message text, taking
+a contiguous suffix without splitting items or UTF-8. If the newest item alone
+exceeds the bound, preparation refuses and suggests a reviewed briefing. The
+coverage object reports included/omitted readable-text message counts, text bytes, known skipped-record warnings, and the
+explicit limitation: binary assets, tools, and provider internals are not
+transferred. Textual file references are preserved verbatim as references on
+the source machine. The captured artifact remains readable in the receipt even
+if the source exits; omitted history is not guaranteed retained by this receipt.
+Native model context-window fit is not claimed by the fixed byte bound.
+
+`GET /api/handoffs/:operationId` reads the durable operation;
+`GET /api/handoffs?sessionId=ID` lists source and target associations. Returned
+fields separate `creation` (pending/created/unknown), `context`
+(pending/applied/staged-for-first-request/sent-with-request/unknown), native
+target identity, the tracked first-request `prompt` delivery receipt, observed
+turn `activity`, and `response` (not-observed/assistant-observed). Assistant
+observation requires a non-imported timestamped assistant event after this
+request began; completed/idle alone is not a generated-response receipt.
+Observation uses retained events, so not-observed is not proof of no response.
+The original snapshot is returned under `artifact`; it is not a new native
+history or a merged timeline. These associations are local to this daemon.
+
+`POST /api/handoffs/:operationId/prompt` takes `{ "text": "..." }` and forwards
+the user's explicit first request through ordinary `/submit` with a stable
+operation derived from the handoff. It sends no comprehension-check turn.
+Content conflicts, duplicate requests, and ambiguous delivery keep the normal
+submit semantics. Messages sent directly to the target have their own receipts
+and are not retrospectively attributed to this tracked request. The target
+must have prepared context before this route can dispatch a new request.
+Claude stages the bounded snapshot as system context on each invocation (with
+its stable native resume identity); `sent-with-request` means local dispatch,
+not proof of model recall. Codex applies the authored text through native
+import before the target is ready. Unknown imports are never replayed.
+
+The matching CLI is `sessions --json handoff preview|start|status|list|send`.
+Older daemons answer unavailable rather than silently invoking the legacy
+continuation job. No runner frame or WebSocket version changes.
+
+Handoff preparation refuses source files larger than 32 MiB rather than treating
+a bounded file prefix as the newest conversation. Authored text whitespace is
+preserved; adjacent text blocks are concatenated without inserted separators.
+Unreadable saved handoff receipts make discovery fail explicitly with the
+receipt filename, rather than silently returning an incomplete operation list.

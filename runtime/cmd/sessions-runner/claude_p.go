@@ -181,7 +181,7 @@ func (r *claudeStructuredRunner) prepareContinuation() error {
 	if continuation.DestinationProvider != "claude" || continuation.Mode != state.ContinuationLinkedSearch {
 		return fmt.Errorf("continuation mode %q is not valid for Claude", continuation.Mode)
 	}
-	if continuation.ProviderContext == "applying" {
+	if continuation.ProviderContext == "applying" && !continuation.Handoff {
 		if r.initialized {
 			continuation.ProviderContext = "applied"
 		} else {
@@ -552,7 +552,8 @@ func (r *claudeStructuredRunner) runTurn(text string, attempt int, recordUser bo
 	cfg.args = append([]string(nil), r.cfg.args...)
 	continuation := r.continuation
 	r.mu.Unlock()
-	applyContinuation := continuation != nil && continuation.ProviderContext != "applied"
+	systemPrompt := ""
+	applyContinuation := continuation != nil && (continuation.Handoff || continuation.ProviderContext != "applied")
 	if applyContinuation {
 		updated := *continuation
 		updated.ProviderContext = "applying"
@@ -560,7 +561,7 @@ func (r *claudeStructuredRunner) runTurn(text string, attempt int, recordUser bo
 			r.recordTurnFailure(text, attempt, fmt.Errorf("prepare linked continuation: %w", err))
 			return
 		}
-		cfg.args = withContinuationSystemPrompt(cfg.args, continuationBridge(updated))
+		cfg.args, systemPrompt = claudeContinuationArgs(cfg.args, updated)
 	}
 	if r.approvalListener != nil {
 		if executable, err := os.Executable(); err == nil {
@@ -568,6 +569,7 @@ func (r *claudeStructuredRunner) runTurn(text string, attempt int, recordUser bo
 		}
 	}
 	stream, err := r.client.SendTurn(turnCtx, text, claudep.TurnOptions{
+		AppendSystemPrompt: systemPrompt, ContextDirectory: r.paths.Dir,
 		OperationID: id,
 		CWD:         cfg.cwd, SessionID: r.sessionID, Resume: resume,
 		Model: providerargs.Value(cfg.args, providerargs.ModelFlags()...), ExtraArgs: cfg.args,
@@ -587,7 +589,7 @@ func (r *claudeStructuredRunner) runTurn(text string, attempt int, recordUser bo
 	}
 	if applyContinuation {
 		updated := *continuation
-		updated.ProviderContext = "applied"
+		updated.ProviderContext = claudeContextDispatched(continuation)
 		if err := state.WriteContinuation(r.paths.Continuation, updated); err == nil {
 			r.mu.Lock()
 			r.continuation = &updated
@@ -826,4 +828,18 @@ func (r *claudeStructuredRunner) shutdownWithRestartPolicy(permanent bool, code 
 		r.streamMu.Unlock()
 		r.done <- code
 	})
+}
+
+func claudeContextDispatched(c *state.ContinuationContext) string {
+	if c.Handoff {
+		return "dispatched"
+	}
+	return "applied"
+}
+
+func claudeContinuationArgs(args []string, c state.ContinuationContext) ([]string, string) {
+	if c.Handoff {
+		return args, handoffInstructions(c)
+	}
+	return withContinuationSystemPrompt(args, continuationBridge(c)), ""
 }

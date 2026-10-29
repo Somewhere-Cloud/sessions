@@ -314,7 +314,7 @@ func (r *Registry) CreateWithLifecycle(
 		}
 		metadata.ContinuedFromHistoryID = continuation.SourceHistoryID
 		metadata.ContinuedFromProvider = continuation.SourceProvider
-		metadata.ContinuationMode = continuation.Mode
+		metadata.ContinuationMode = continuation.MetadataMode()
 		metadata.ImportedMessageCount = len(continuation.Messages)
 		if err := WriteContinuation(For(r.config.RunnerStateDir, runnerInfo.ID).Continuation, continuation); err != nil {
 			return SessionInfo{}, fmt.Errorf("write continuation sidecar: %w", err)

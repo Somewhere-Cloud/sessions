@@ -26,6 +26,7 @@ const createFingerprintVersion = "v1:"
 // waitReady, force, delegationKind) that a caller may legitimately vary
 // between retries.
 type createFingerprintFields struct {
+	ContinuationHash string               `json:"continuationHash,omitempty"`
 	Cmd              string               `json:"cmd"`
 	Args             []string             `json:"args"`
 	Cwd              string               `json:"cwd"`
@@ -61,6 +62,11 @@ func CreateRequestFingerprint(request CreateSessionRequest) string {
 		Worktree: request.Worktree, NoWorktree: request.NoWorktree, Base: request.Base,
 		ProviderTerminal: request.ProviderTerminal, Permissions: request.Permissions,
 		Lifecycle: request.Lifecycle, OnIdle: request.OnIdle,
+	}
+	if request.Continuation != nil {
+		encoded, _ := json.Marshal(request.Continuation)
+		sum := sha256.Sum256(encoded)
+		fields.ContinuationHash = hex.EncodeToString(sum[:])
 	}
 	if request.Claude != nil {
 		fields.Claude = *request.Claude

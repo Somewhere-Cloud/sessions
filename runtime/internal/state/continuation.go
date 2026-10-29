@@ -11,11 +11,14 @@ import (
 
 const (
 	ContinuationSchemaVersion = 1
+	MaxHandoffTextBytes       = 24 * 1024
 	// Older runners must reject briefings rather than silently reload their
 	// complete source transcript using the legacy linked-search instructions.
 	ContinuationBriefingSchemaVersion = 2
-	ContinuationNativeImport          = "native-import"
-	ContinuationLinkedSearch          = "linked-search"
+	// Native target creation receipts require a runner that understands replay safety.
+	ContinuationTargetSchemaVersion = 3
+	ContinuationNativeImport        = "native-import"
+	ContinuationLinkedSearch        = "linked-search"
 	// Authored histories are written to a private local sidecar, never placed
 	// on a command line or forwarded through the daemon HTTP request. Eight
 	// MiB rejected ordinary long-running manager conversations before their
@@ -61,6 +64,9 @@ type ContinuationContext struct {
 	ForkPointMessageID   string                `json:"forkPointMessageId,omitempty"`
 	Messages             []ContinuationMessage `json:"messages"`
 	LocalHistoryReady    bool                  `json:"localHistoryReady,omitempty"`
+	Handoff              bool                  `json:"handoff,omitempty"`
+	NativeCreation       string                `json:"nativeCreation,omitempty"`
+	NativeTargetID       string                `json:"nativeTargetId,omitempty"`
 	ProviderContext      string                `json:"providerContext,omitempty"`
 }
 
@@ -98,11 +104,14 @@ func (c ContinuationContext) Validate() error {
 			return err
 		}
 	}
-	if c.BriefingOnly && (c.SchemaVersion != ContinuationBriefingSchemaVersion || !c.Fork || len(c.Messages) != 1 || c.Messages[0].Role != "user") {
+	if c.BriefingOnly && ((c.SchemaVersion != ContinuationBriefingSchemaVersion && c.SchemaVersion != ContinuationTargetSchemaVersion) || !c.Fork || len(c.Messages) != 1 || c.Messages[0].Role != "user") {
 		return errors.New("a briefing must be one reviewed user message for a new collaborator")
 	}
-	if c.SchemaVersion != ContinuationSchemaVersion && c.SchemaVersion != ContinuationBriefingSchemaVersion {
+	if c.SchemaVersion != ContinuationSchemaVersion && c.SchemaVersion != ContinuationBriefingSchemaVersion && c.SchemaVersion != ContinuationTargetSchemaVersion {
 		return fmt.Errorf("unsupported continuation schema %d", c.SchemaVersion)
+	}
+	if err := c.validateNativeTarget(); err != nil {
+		return err
 	}
 	if strings.TrimSpace(c.SourceHistoryID) == "" {
 		return errors.New("continuation source history id is required")
@@ -210,4 +219,47 @@ func ReadContinuation(path string) (ContinuationContext, error) {
 		return ContinuationContext{}, err
 	}
 	return continuation, nil
+}
+
+func (c ContinuationContext) validateNativeTarget() error {
+	if c.Handoff {
+		if c.SchemaVersion != ContinuationTargetSchemaVersion || c.BriefingOnly {
+			return errors.New("handoff requires continuation schema 3 without briefing semantics")
+		}
+		size := 0
+		for _, message := range c.Messages {
+			size += len(message.Text)
+		}
+		if size > MaxHandoffTextBytes {
+			return errors.New("handoff text exceeds the bounded context limit")
+		}
+	}
+	if c.NativeCreation == "" && c.NativeTargetID == "" {
+		return nil
+	}
+	if c.SchemaVersion != ContinuationTargetSchemaVersion || c.DestinationProvider != "codex" || c.Mode != ContinuationNativeImport {
+		return errors.New("native target receipt requires schema 3 Codex native import")
+	}
+	switch c.NativeCreation {
+	case "creating":
+		if c.NativeTargetID != "" {
+			return errors.New("pending native creation cannot contain a target identity")
+		}
+	case "created":
+		if strings.TrimSpace(c.NativeTargetID) == "" {
+			return errors.New("created native target requires an identity")
+		}
+	default:
+		return fmt.Errorf("unsupported native creation state %q", c.NativeCreation)
+	}
+	return nil
+}
+
+// MetadataMode describes the snapshot without claiming import or turn delivery.
+// The sidecar Mode remains the provider execution mode.
+func (c ContinuationContext) MetadataMode() string {
+	if c.Handoff {
+		return "bounded-handoff"
+	}
+	return c.Mode
 }

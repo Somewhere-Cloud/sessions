@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"testing"
 	"time"
@@ -109,5 +110,83 @@ func TestImportLostAcknowledgementFromAppServer(t *testing.T) {
 				t.Fatal(serverErr)
 			}
 		})
+	}
+}
+
+func TestHandoffFakeNativeImportCarriesExactTextIntoFollowups(t *testing.T) {
+	c := &Client{pending: make(map[string]chan callResponse), turns: make(map[string]*turnState), convs: map[string]conversationDefaults{"target": {}}}
+	memory := ""
+	imports, turns := 0, 0
+	want := "  Inherited fact: octopus-42. File: '/tmp/design notes.md'\n"
+	c.transport = steeringBoundaryTransport{write: func(data []byte) error {
+		request, err := decodeJSONRPC(data)
+		if err != nil {
+			return err
+		}
+		switch request.Method {
+		case "thread/inject_items":
+			imports++
+			var p struct {
+				ThreadID string `json:"threadId"`
+				Items    []struct {
+					Content []struct {
+						Text string `json:"text"`
+					} `json:"content"`
+				} `json:"items"`
+			}
+			if err := json.Unmarshal(request.Params, &p); err != nil {
+				return err
+			}
+			if p.ThreadID != "target" || len(p.Items) != 1 || len(p.Items[0].Content) != 1 {
+				return errors.New("wrong import target/items")
+			}
+			memory = p.Items[0].Content[0].Text
+			if memory != want {
+				return errors.New("authored whitespace or file reference changed")
+			}
+			c.handleResponse(wireMessage{ID: request.ID, Result: json.RawMessage(`{}`)})
+		case "turn/start":
+			turns++
+			if memory != want {
+				return errors.New("followup lost inherited context")
+			}
+			var p TurnStartParams
+			if err := json.Unmarshal(request.Params, &p); err != nil {
+				return err
+			}
+			if p.ThreadID != "target" || len(p.Input) != 1 {
+				return errors.New("wrong followup target")
+			}
+			id := fmt.Sprintf("turn-%d", turns)
+			result, _ := json.Marshal(map[string]any{"turn": map[string]any{"id": id, "status": "inProgress", "items": []any{}}})
+			c.handleResponse(wireMessage{ID: request.ID, Result: result})
+			item, _ := json.Marshal(map[string]any{"threadId": "target", "turnId": id, "item": map[string]any{"id": "answer", "type": "agentMessage", "text": memory, "phase": "final"}})
+			c.handleNotification("item/completed", item)
+			completed, _ := json.Marshal(map[string]any{"threadId": "target", "turn": map[string]any{"id": id, "status": "completed", "items": []any{}}})
+			c.handleNotification("turn/completed", completed)
+		default:
+			return errors.New("unexpected fake native method")
+		}
+		return nil
+	}}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := c.InjectMessages(ctx, "target", []ImportedMessage{{Role: "user", Text: want}}); err != nil {
+		t.Fatal(err)
+	}
+	for _, text := range []string{"Continue.", "What was the inherited fact?"} {
+		stream, err := c.SendUserTurn(ctx, "target", text)
+		if err != nil {
+			t.Fatal(err)
+		}
+		result, err := stream.Result(ctx)
+		if err != nil || result.Message != want {
+			t.Fatalf("fake answer %+v %v", result, err)
+		}
+		for range stream.Events {
+		}
+	}
+	if imports != 1 || turns != 2 {
+		t.Fatalf("imports %d turns %d", imports, turns)
 	}
 }

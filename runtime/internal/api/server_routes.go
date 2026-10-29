@@ -300,6 +300,9 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 	if s.handleProvidersRoute(response, request, corsOrigin) {
 		return
 	}
+	if s.handleHandoffRoute(response, request, corsOrigin) {
+		return
+	}
 	if s.handleContinuationRoute(response, request, corsOrigin) {
 		return
 	}

@@ -1,3 +1,4 @@
+import { ProviderHandoff } from './ProviderHandoff';
 import { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTerminal } from '../hooks/useTerminal';
 import { useSessionSidebar } from '../hooks/useSessionSidebar';
@@ -649,6 +650,7 @@ function SessionViewInner({ sessionId, onStatusChange, isActive = false, onResum
           {session ? <div className="session-actions-context"><AccountBadge session={session} /><span>{sessionModeName(session)}</span></div> : null}
           {session ? <SessionPopOutButton sessionId={session.id} label={resolvedSessionLabel(session)} /> : null}
           {session && onOpenSession && !lostConversation ? <RestartConversation session={session} onOpen={onOpenSession} onResume={onResume ? (row) => void onResume(row) : undefined} serverId={sourceServerId} /> : null}
+          {session && onOpenSession && sourceServerId ? <ProviderHandoff session={session} serverId={sourceServerId} onOpen={onOpenSession} /> : null}
           {session?.tool === 'claude-code' && sourceServerId ? <ClaudeRemoteControlLink key={`${sourceServerId}:${session.id}`} sessionId={session.id} serverId={sourceServerId} /> : null}
           {richSession && session?.tool === 'claude-code' && onResume && !lostConversation ?
             <ClaudeRuntimeControl working={session.working} onContinue={continueInTerminal} /> : null}
@@ -709,7 +711,9 @@ function SessionViewInner({ sessionId, onStatusChange, isActive = false, onResum
             Continued from {session.continuedFromProvider === 'codex' ? 'Codex' : 'Claude'}
           </strong>
           <span>
-            {session.continuationMode === 'native-import'
+            {session.continuationMode === 'bounded-handoff'
+              ? `${session.importedMessageCount ?? 0} authored text messages in the captured snapshot. Read Switch provider for creation, context and first-request status.`
+              : session.continuationMode === 'native-import'
               ? `${session.importedMessageCount ?? 0} authored messages were imported into this Codex conversation.`
               : `${session.importedMessageCount ?? 0} authored messages are shown here. Claude receives a local-search link on the first turn.`}
           </span>

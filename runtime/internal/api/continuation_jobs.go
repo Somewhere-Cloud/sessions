@@ -29,6 +29,7 @@ const (
 )
 
 type continuationRequest struct {
+	PreserveAuthored    bool   `json:"-"`
 	Target              string `json:"target"`
 	HistoryID           string `json:"historyId,omitempty"`
 	SourceSessionID     string `json:"sourceSessionId,omitempty"`
@@ -90,10 +91,11 @@ type continuationJobStore struct {
 }
 
 type preparedContinuation struct {
-	context  state.ContinuationContext
-	preview  continuationPreview
-	history  string
-	sourceID string
+	skippedRecords int
+	context        state.ContinuationContext
+	preview        continuationPreview
+	history        string
+	sourceID       string
 }
 
 func newContinuationJobStore() *continuationJobStore {
@@ -423,9 +425,11 @@ func (s *Server) prepareContinuation(
 	if history.PromptHistoryOnly || !history.ConversationAvailable {
 		return preparedContinuation{}, errors.New("the complete conversation is not available to continue with another agent")
 	}
-	transcript, err := s.integrationEndpoints.TranscriptLimitedContext(
-		ctx, candidates, history.ID, maxContinuationTranscriptBytes,
-	)
+	read := s.integrationEndpoints.TranscriptLimitedContext
+	if body.PreserveAuthored {
+		read = s.integrationEndpoints.AuthoredTranscriptContext
+	}
+	transcript, err := read(ctx, candidates, history.ID, maxContinuationTranscriptBytes)
 	if err != nil {
 		return preparedContinuation{}, fmt.Errorf("read the conversation: %w", err)
 	}
@@ -445,7 +449,7 @@ func (s *Server) prepareContinuation(
 	}
 	sourceID := continuationSourceID(candidates, history.ID, body.SourceSessionID)
 	preview := previewContinuation(continuation, len(allMessages))
-	return preparedContinuation{context: continuation, preview: preview, history: history.ProviderSessionID, sourceID: sourceID}, nil
+	return preparedContinuation{context: continuation, preview: preview, history: history.ProviderSessionID, sourceID: sourceID, skippedRecords: transcript.SkippedRecords}, nil
 }
 
 func limitContinuationMessages(messages []state.ContinuationMessage, limit int) []state.ContinuationMessage {

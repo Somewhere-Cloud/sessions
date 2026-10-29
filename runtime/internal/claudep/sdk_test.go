@@ -80,3 +80,16 @@ func TestSDKPreservesProfilePermissionAndIdentityOptions(t *testing.T) {
 		t.Fatal("elevated constrained session")
 	}
 }
+
+func TestSDKBoundedHandoffUsesModelVisibleSystemPrompt(t *testing.T) {
+	for _, args := range [][]string{{"--append-system-prompt", "source fact octopus-42"}, {"--append-system-prompt=source fact octopus-42"}} {
+		value := sdkQueryOptions("unused", TurnOptions{SessionID: "exact", ExtraArgs: args})
+		prompt := value["systemPrompt"].(map[string]string)
+		if prompt["append"] != "source fact octopus-42" || prompt["preset"] != "claude_code" {
+			t.Fatalf("context missing: %+v", value)
+		}
+		if _, duplicate := value["extraArgs"].(map[string]any)["append-system-prompt"]; duplicate {
+			t.Fatal("duplicate system flag passed to SDK")
+		}
+	}
+}

@@ -193,3 +193,20 @@ func continuationClaudeOptions(continuation state.ContinuationContext) *state.Cl
 		Model: model, Effort: effort, PermissionMode: state.ClaudePermissionManual,
 	}
 }
+
+// HandoffCreateRequest uses the normal durable creation boundary and records
+// the first request's delivery identity without sending a generated prompt.
+func HandoffCreateRequest(c state.ContinuationContext, operationID, promptID string) (state.CreateSessionRequest, error) {
+	if !c.Handoff {
+		return state.CreateSessionRequest{}, errors.New("handoff artifact is required")
+	}
+	if err := c.Validate(); err != nil {
+		return state.CreateSessionRequest{}, err
+	}
+	if err := state.ValidateStartOperationIDs(operationID, promptID); err != nil {
+		return state.CreateSessionRequest{}, err
+	}
+	request, err := continuationCreateRequest(c, c.SourceTitle, nil, false)
+	request.OperationID, request.PromptOperationID = operationID, promptID
+	return request, err
+}

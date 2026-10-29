@@ -26,12 +26,14 @@ type Options struct {
 }
 
 type TurnOptions struct {
-	OperationID string
-	CWD         string
-	SessionID   string
-	Resume      bool
-	Model       string
-	ExtraArgs   []string
+	AppendSystemPrompt string
+	ContextDirectory   string
+	OperationID        string
+	CWD                string
+	SessionID          string
+	Resume             bool
+	Model              string
+	ExtraArgs          []string
 }
 
 type Client struct {
@@ -64,23 +66,32 @@ func (c *Client) SendTurn(ctx context.Context, prompt string, options TurnOption
 	if prompt == "" {
 		return nil, errors.New("Claude prompt is required")
 	}
+	options, cleanup, err := printContextOptions(options)
+	if err != nil {
+		return nil, err
+	}
 	args := turnArgs(prompt, options)
 	command := exec.CommandContext(ctx, c.claudePath, args...)
 	command.Dir = options.CWD
 	command.Env = append([]string(nil), c.env...)
 	stdout, err := command.StdoutPipe()
 	if err != nil {
+		cleanup()
 		return nil, err
 	}
 	var stderr bytes.Buffer
 	command.Stderr = &stderr
 	if err := command.Start(); err != nil {
+		cleanup()
 		return nil, fmt.Errorf("start claude -p turn: %w", err)
 	}
 	events := make(chan Event, 128)
 	state := newTurnState()
 	stream := &TurnStream{Events: events, state: state}
-	go consumeTurn(command, stdout, &stderr, options.SessionID, events, state)
+	go func() {
+		defer cleanup()
+		consumeTurn(command, stdout, &stderr, options.SessionID, events, state)
+	}()
 	return stream, nil
 }
 

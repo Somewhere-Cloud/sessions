@@ -217,7 +217,7 @@ export interface SessionInfo {
   claudeSessionId?: string;
   continuedFromHistoryId?: string;
   continuedFromProvider?: 'claude' | 'codex';
-  continuationMode?: 'native-import' | 'linked-search';
+  continuationMode?: 'native-import' | 'linked-search' | 'bounded-handoff';
   importedMessageCount?: number;
   // Trusted daemon provenance. These values come from the append-only
   // creator ledger; the UI uses them for the manager/child tree but never

@@ -18,7 +18,7 @@ evidence, not the source or requested restart choices.
 Continuation sidecars for authored conversation copies retain schema 1.
 Reviewed-briefing sidecars use schema 2, with `briefingOnly: true`, one reviewed
 user message, optional `destinationProfile` (empty means default), and optional
-`mainCollaborator` display intent. Current runners read both schemas. Older
+`mainCollaborator` display intent. Current runners read schemas 1, 2 and 3. Older
 runners reject schema 2 rather than interpreting a briefing as an instruction
 to load the whole source transcript. Both schemas keep the source history ID
 for explicit lookups; neither changes the source provider history.
@@ -30,6 +30,36 @@ failed finish write leaves consumption unknown. Only a local refusal before
 request dispatch clears the marker. Inspect the target and source history
 before intentionally creating another continuation. This retains schemas 1 and
 2 and their existing marker meanings; absent markers remain readable.
+
+Handoff runner metadata uses the additive display mode `bounded-handoff`;
+its message count describes the captured snapshot, not proven native import
+or first-request delivery. The sidecar execution mode remains `native-import`
+or `linked-search`. Provider handoffs use continuation schema 3 with `handoff: true` and a fixed
+24 KiB authored-text bound. Older runners reject schema 3 before interpreting
+its context. Codex continuation target creation also upgrades legacy sidecars
+to schema 3 before `thread/new`: `nativeCreation: "creating"` is written before
+dispatch, then `nativeCreation: "created"` and `nativeTargetId` before import,
+followed by runner metadata. Restart with `creating` refuses another creation;
+a `created` receipt resumes the recorded target even if metadata was not
+written. Conflicting identities or legacy import evidence without any target
+identity refuse startup with inspection instructions. No creation reconciliation
+or filesystem power-loss guarantee is claimed.
+
+`handoffs/<UUID>.json` under the configured state root stores version 1,
+request choices, immutable bounded artifact/coverage, source display metadata,
+creation outcome and target runtime ID. Files are mode 0600 under a mode-0700
+directory, replaced through a synced temporary file and rename. Pending after
+restart is unknown; re-posting returns the same operation without creating a
+new target. The existing creation ledger and delivery store supply target and
+first-request receipts. Neither source history nor runner lifecycle is mutated.
+Claude print handoffs place model-visible context in a temporary mode-0600
+`.claude-context-*` file in the runner artifact directory and pass only its path
+on argv. Normal turn completion removes it; a crashed runner can leave a small
+private orphan file. SDK handoff context stays in the local bridge payload, not
+argv. Claude handoffs retain `providerContext: "dispatched"` after local process
+startup; `applying` is not cleared on restart. The bounded context is supplied
+on every invocation, while native resume and the message queue/delivery receipt
+control the user turn. Dispatch is not proof of provider acceptance or recall.
 
 ```text
 ~/.local/state/sessions/

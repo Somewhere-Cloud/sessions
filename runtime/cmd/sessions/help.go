@@ -27,6 +27,11 @@ const (
 // commandTable is the single source of truth for command discovery, dispatch,
 // top-level help, and per-command help. Keep the daily path first.
 var commandTable = []commandSpec{
+	{name: "handoff", usage: "handoff preview|start SOURCE --provider claude|codex [--model MODEL] [--effort EFFORT] [--history ID] [--operation-id UUID] | status OPERATION | list SESSION | send OPERATION --text TEXT",
+		summary: "prepare a durable bounded provider switch without a hidden prompt", group: dailyCommandGroup, localJSON: true,
+		longHelp: "Preview is read-only. Start requires a retained UUID v4 and snapshots at most 24 KiB of complete authored text into a fresh structured provider segment. Source history and runners remain unchanged. Binary assets and tools are not transferred; textual file references remain references on this machine. Status separates target creation, context preparation, the explicit first request receipt and observed provider turn state. Send uses the ordinary durable submit receipt; an uncertain import or first request is never replayed automatically. Inspect uncertain outcomes before creating another operation. Existing native segments are independently inspectable; this command does not merge provider histories or migrate queued source work.",
+		examples: []string{"sessions --json handoff preview SESSION --provider codex --model MODEL", "sessions --json handoff start SESSION --provider codex --operation-id UUID", "sessions --json handoff status UUID", "sessions --json handoff send UUID --text 'Continue the task'"}, run: (*app).cmdHandoff},
+
 	{
 		name: "restart", usage: "restart SESSION [--preview | --confirm EXACT-RUNTIME-ID --permissions constrained|full [--terminal|--structured] [--remote-control] [--claude-transport sdk|print]]",
 		summary: "end one runtime and reopen its exact conversation", group: dailyCommandGroup, localJSON: true,
