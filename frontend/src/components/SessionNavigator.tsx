@@ -621,7 +621,8 @@ export function SessionNavigator({
             <SessionRowMeta
               provider={providerName}
               machine={machine}
-              when={session.exited ? endedAtLabel(session) : relativeTime(messageTimeOf(session))}
+              when={session.exited ? endedAtLabel(session, true) : relativeTime(messageTimeOf(session))}
+              whenTitle={session.exited ? endedAtLabel(session) : undefined}
               project={projectLabel}
             />
           </span>
@@ -1007,10 +1008,11 @@ function SessionRowLines({ session, end, lostNote, resumedFrom, under }: {
 
 // The row's quiet line: who runs it, where, when it last said something — and,
 // in the flat list, which project it belongs to.
-function SessionRowMeta({ provider, machine, when, project }: {
+function SessionRowMeta({ provider, machine, when, whenTitle, project }: {
   provider: Provider | null;
   machine: string;
   when: string;
+  whenTitle?: string;
   project?: string;
 }): JSX.Element {
   return (
@@ -1019,7 +1021,7 @@ function SessionRowMeta({ provider, machine, when, project }: {
         ? <span className="session-nav-provider" title={provider === 'claude' ? 'Claude' : 'Codex'}><ProviderMark provider={provider} size={20} /></span>
         : <span className="session-nav-provider is-shell" title="Shell">⌘</span>}
       <MachineMark machine={machine} size={17} />
-      <span>{when}</span>
+      <span className="session-nav-time" title={whenTitle}>{when}</span>
       {project ? <span className="session-nav-project" title={`Project: ${project}`}>{project}</span> : null}
     </span>
   );

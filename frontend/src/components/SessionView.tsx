@@ -702,7 +702,7 @@ function SessionViewInner({ sessionId, onStatusChange, isActive = false, onResum
         <SessionStreamStatus notice={term.streamNotice} status={term.status} lostConversation={lostConversation} />
         {pickerNotice ? (
           <span className="status-picker-notice" aria-live="polite">
-            Switched to Terminal for picker — your draft is preserved in Sessions view
+            Showing a terminal prompt. Your draft is kept.
           </span>
         ) : null}
       </div>

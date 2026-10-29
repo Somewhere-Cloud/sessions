@@ -25,6 +25,15 @@ function sessionOfKind(kind: string, tool: SessionInfo['tool'], extra: Partial<S
 }
 
 describe('capability: what a session says its last message is', () => {
+  it('keeps an adopted reply at its output time rather than daemon restart time', () => {
+    const session = sessionOfKind('', 'claude-code', {
+      lastHumanMessageAt: EARLIER, lastDataAt: LATER,
+      idleReason: 'completed', idleSince: LATEST, lastSummary: 'Saved reply.'
+    });
+    expect(lastMessage(session)).toMatchObject({ kind: 'agent', at: LATER, text: 'Saved reply.' });
+    expect(lastMessage({ ...session, idleSince: LATEST + 60_000 }).at).toBe(LATER);
+  });
+
   it('shows the agent reply when the agent spoke last', () => {
     for (const [kind, tool] of [
       ['', 'claude-code'], ['claude-structured', 'claude-code'],

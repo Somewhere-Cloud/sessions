@@ -429,10 +429,14 @@ function endInitiatorLabel(session: SessionInfo, allSessions: SessionInfo[]): st
   return 'Ended';
 }
 
-export function endedAtLabel(session: SessionInfo): string {
+export function endedAtLabel(session: SessionInfo, compact = false): string {
   if (!session.exitedAt) return 'End time unavailable';
   const date = new Date(session.exitedAt);
   if (Number.isNaN(date.getTime())) return 'End time unavailable';
+  if (compact) return date.toDateString() === new Date().toDateString()
+    ? date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+    : date.toLocaleDateString(undefined, { month: 'short', day: 'numeric',
+      year: date.getFullYear() === new Date().getFullYear() ? undefined : 'numeric' });
   return date.toLocaleString(undefined, {
     month: 'short',
     day: 'numeric',

@@ -119,6 +119,9 @@ try {
     await page.waitForFunction(() => document.querySelectorAll('[data-session-id^="closed-agent"]').length === 5);
     assert.equal(await page.$$eval('[data-session-id^="closed-agent"]', rows => rows.length), 5, 'Closed filter shows all closed records, not the three-row preview');
     assert.equal(await page.$('[data-session-id="unavailable-0"]'), null, 'Closed cannot claim an unreachable agent stopped');
+    assert.equal(await page.$$eval('[data-session-id^="closed-agent"] .session-nav-time', nodes =>
+      nodes.length === 5 && nodes.every(el => el.scrollWidth <= el.clientWidth && Boolean(el.title))),
+      true, 'closed dates fit completely and expose their full timestamp');
     assert.equal(await page.evaluate(() => window.projectGroupDaemon.requests.filter((r) => r.method !== 'GET').length), 0);
   }
   assert.deepEqual(errors, []);

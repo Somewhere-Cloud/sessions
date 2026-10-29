@@ -537,6 +537,7 @@ button.session-tree-group-head { width: 100%; }
 .session-nav-meta > span:not(.provider-badge) { overflow: hidden; max-width: 80px; text-overflow: ellipsis; white-space: nowrap; }
 .session-nav-meta > span:last-child { max-width: 125px; }
 .session-nav-meta > span:not(.session-nav-project) { flex-shrink: 0; }
+.session-nav-meta > span.session-nav-time { max-width: none; overflow: visible; }
 /* In the flat list the row says which project it belongs to, since no header does. */
 .session-nav-project { color: var(--fg-dim); font-size: 12px; }
 .session-nav-meta > .session-nav-project { max-width: 125px; }

@@ -88,10 +88,28 @@ function hasGenericNumberedMenu(rawSnapshot: string): boolean {
   return optionCount >= 2 && (hasSelectionMarker || hasPickerLanguage);
 }
 
+function hasPromptBox(lines: string[]): boolean {
+  const bottom = lines.slice(-8);
+  const promptRule = /^\s*─{4,}.*─\s*$/;
+  return bottom.some((line, index) => (
+    /^\s*[❯›>]/.test(line)
+    && !/^\s*[❯›>]\s*\d+[.)]/.test(line)
+    && promptRule.test(bottom[index - 1] ?? '')
+    && promptRule.test(bottom[index + 1] ?? '')
+  ));
+}
+
 export function classifySnapshotComposerState(rawSnapshot: string): SnapshotComposerState {
   const tail = tailLines(rawSnapshot, 44);
   const tailText = tail.join('\n');
   const fullText = cleanSnapshot(rawSnapshot);
+
+  // A framed input prompt remains usable with routine update/permission
+  // status below it. Those footer words are not an interactive question.
+  if (hasPromptBox(tail)) return {
+    kind: 'normal-composer', title: 'Composer appears available',
+    description: 'The terminal input box is visible.'
+  };
 
   if (CLAUDE_APPEARANCE_PROMPT_RE.test(fullText) && CLAUDE_APPEARANCE_CHOICES_RE.test(fullText)) {
     return {

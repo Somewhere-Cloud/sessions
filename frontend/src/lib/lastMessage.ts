@@ -71,7 +71,11 @@ export function lastMessage(session: SessionInfo, sending?: string): LastMessage
   // result while deliberately retaining the older summary.
   const agentInputAt = session.lastAgentMessageAt ?? 0;
   const summary = spokenLine(session.lastSummary);
-  const replyAt = session.idleReason === 'completed' ? session.idleSince ?? 0 : 0;
+  // Re-adoption can restamp idleSince without producing another reply.
+  // A completion cannot be newer than the last observed provider output.
+  const completedAt = session.idleSince ?? 0;
+  const replyAt = session.idleReason === 'completed'
+    ? Math.min(completedAt, session.lastDataAt || completedAt) : 0;
   const faultAt = session.failureKind ? session.failureAt ?? 0 : 0;
 
   // A fault is the newest thing that happened only if it happened after both
