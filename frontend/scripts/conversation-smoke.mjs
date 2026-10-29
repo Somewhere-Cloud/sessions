@@ -10,6 +10,8 @@ import { closeBrowser, closeServer } from './lib/smoke.mjs';
 const work = await mkdtemp(join(tmpdir(), 'sessions-ui-'));
 let server;
 let browser;
+const networkTrace = [];
+const trace = (...entry) => { networkTrace.push([Date.now(), ...entry]); if (networkTrace.length > 80) networkTrace.shift(); };
 try {
   await build({ entryPoints: ['scripts/conversation-fixture.tsx'], bundle: true, outdir: work,
     entryNames: 'app', format: 'esm', platform: 'browser', jsx: 'automatic', external: ['/claude-icon.svg'],
@@ -17,6 +19,9 @@ try {
     loader: { '.svg': 'dataurl', '.png': 'dataurl' }, logLevel: 'silent' });
   await writeFile(join(work, 'index.html'), '<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="/app.css"></head><body><div id="root" style="height:100dvh"></div><script type="module" src="/app.js"></script></body></html>');
   server = createServer(async (req, res) => {
+    trace('http-request', req.url);
+    res.on('finish', () => trace('http-finish', req.url));
+    res.on('close', () => trace('http-close', req.url));
     const pathname = new URL(req.url, 'http://fixture.invalid').pathname;
     const name = pathname === '/' ? 'index.html' : pathname.slice(1);
     if (!['index.html', 'app.js', 'app.css', 'claude-icon.svg', 'openai-icon.svg', 'somewhere-logo.svg'].includes(name)) {
@@ -38,9 +43,18 @@ try {
   // All production IO is replaced in-process, and browser traffic is fixture-only.
   await page.setRequestInterception(true);
   const pendingRequests = new Set();
+  const network = await page.createCDPSession();
+  await network.send('Network.enable');
+  await network.send('Page.enable');
+  await network.send('Page.setLifecycleEventsEnabled', { enabled: true });
+  network.on('Network.responseReceived', (event) => trace('cdp-response', event.requestId, event.response.url, event.response.status));
+  network.on('Network.loadingFinished', (event) => trace('cdp-finished', event.requestId));
+  network.on('Page.lifecycleEvent', (event) => trace('cdp-lifecycle', event.name));
   page.on('request', (request) => {
     pendingRequests.add(request);
-    void (request.url().startsWith(root) || request.url().startsWith('data:') ? request.continue() : request.abort());
+    trace('intercept', request.url());
+    void (request.url().startsWith(root) || request.url().startsWith('data:') ? request.continue() : request.abort())
+      .then(() => trace('intercept-settled', request.url()), (error) => { errors.push(error.message); trace('intercept-error', request.url(), error.message); });
   });
   page.on('requestfinished', (request) => pendingRequests.delete(request));
   page.on('requestfailed', (request) => pendingRequests.delete(request));
@@ -53,11 +67,11 @@ try {
       await page.setViewport({ width, height: width === 375 ? 812 : 1000, isMobile: width === 375, hasTouch: width === 375 });
       for (const state of ['reading', 'streaming', 'queue', 'approval', 'fault', 'recovery', 'empty', 'loading', 'error', 'delivery', 'sending', 'steering', 'saved', 'terminal', 'session', 'details']) {
         const name = `conversation-${state}-${theme}-${width}`;
+        console.log('Conversation scenario', name);
         try {
           await page.goto(`${root}?theme=${theme}&state=${state}`, { waitUntil: 'networkidle0' });
         } catch (error) {
-          console.error('Navigation diagnostic', name, [...pendingRequests].map((request) => request.url()),
-            await page.evaluate(() => ({ ready: document.readyState, mounted: Boolean(document.querySelector('.operations-main')) })));
+          console.error('Navigation diagnostic', name, { url: page.url(), pending: [...pendingRequests].map((request) => request.url()), networkTrace });
           throw error;
         }
         await page.waitForSelector('.operations-main');
@@ -167,6 +181,7 @@ try {
   }
   for (const state of ['reading', 'approval', 'empty', 'details']) {
     await page.setViewport({ width: 375, height: 812, isMobile: true, hasTouch: true });
+    console.log('Conversation scenario', `${state}-light-375-large`);
     await page.goto(`${root}?state=${state}&theme=light&size=l`, { waitUntil: 'networkidle0' });
     await fits(`${state} large text`);
     if (await page.$('.remote-scroll')) await page.$eval('.remote-scroll', (el) => { el.scrollTop = 0; });
