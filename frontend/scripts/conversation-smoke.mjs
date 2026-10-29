@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
 import { createServer } from 'node:http';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -36,6 +37,20 @@ try {
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] });
   const page = await browser.newPage();
+  const browserSystem = await browser.target().createCDPSession();
+  // Sample only this fixture browser's processes, while the original timeout
+  // still runs. Never ask the potentially stalled renderer to evaluate code.
+  const sampleStall = (name) => setTimeout(() => {
+    if (process.platform !== 'darwin' || !process.env.SMOKE_DIAGNOSTIC_DIR) return;
+    void browserSystem.send('SystemInfo.getProcessInfo').then(({ processInfo }) => {
+      for (const proc of processInfo.filter((item) => ['renderer', 'GPU'].includes(item.type))) {
+        const path = join(process.env.SMOKE_DIAGNOSTIC_DIR, `${name}-${proc.type}-${proc.id}.sample.txt`);
+        execFile('/usr/bin/sample', [String(proc.id), '1', '-file', path], { timeout: 4000 }, (error) => {
+          console.error('Navigation process sample', name, proc.type, proc.id, error?.message || path);
+        });
+      }
+    }, (error) => console.error('Navigation process discovery failed', name, error.message));
+  }, 5000);
   await page.evaluateOnNewDocument(() => localStorage.clear());
   const errors = [];
   page.on('pageerror', (error) => { errors.push(error.message); console.error(error.message); });
@@ -68,12 +83,13 @@ try {
       for (const state of ['reading', 'streaming', 'queue', 'approval', 'fault', 'recovery', 'empty', 'loading', 'error', 'delivery', 'sending', 'steering', 'saved', 'terminal', 'session', 'details']) {
         const name = `conversation-${state}-${theme}-${width}`;
         console.log('Conversation scenario', name);
+        const stallTimer = sampleStall(name);
         try {
           await page.goto(`${root}?theme=${theme}&state=${state}`, { waitUntil: 'networkidle0' });
         } catch (error) {
           console.error('Navigation diagnostic', name, { url: page.url(), pending: [...pendingRequests].map((request) => request.url()), networkTrace });
           throw error;
-        }
+        } finally { clearTimeout(stallTimer); }
         await page.waitForSelector('.operations-main');
         if (state === 'session') await page.waitForSelector('.session-active-header');
         if (await page.$('.remote-scroll')) {

@@ -10,7 +10,7 @@ const status: SidebarProps = {
 describe('capability: provider-neutral activity footer', () => {
   it('uses the Codex icon, not a Claude star, while retaining readable metrics', () => {
     const { container } = render(<StatusSidebar {...status} />);
-    expect(screen.getByLabelText('Agent working')).toHaveTextContent('Working');
+    expect(screen.getByLabelText('In progress')).toHaveTextContent('In progress');
     expect(container.querySelector('.provider-mark.is-codex img')).toHaveAttribute('src', '/openai-icon.svg');
     expect(screen.queryByText('✻')).not.toBeInTheDocument();
     expect(screen.getByText('70.3k')).toBeInTheDocument();
