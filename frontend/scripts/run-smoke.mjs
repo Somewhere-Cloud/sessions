@@ -51,6 +51,7 @@ const GATE = [
   'project-groups',
   'launcher-layout',
   'ui-foundation',
+  'provider-handoff',
   'shell-ui',
   'settings-machines',
   'conversation-ui',

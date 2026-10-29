@@ -64,6 +64,7 @@
     "test:composer-usage": "node scripts/composer-usage-smoke.mjs",
     "test:shell-ui": "node scripts/shell-smoke.mjs",
     "test:settings-machines": "node scripts/settings-machines-smoke.mjs",
+    "test:provider-handoff": "node scripts/provider-handoff-smoke.mjs",
     "test:ui-foundation": "node scripts/ui-foundation-smoke.mjs",
     "test:conversation-ui": "node scripts/conversation-smoke.mjs",
     "test:history-search-ui": "node scripts/history-search-smoke.mjs"

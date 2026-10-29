@@ -1,0 +1,21 @@
+.handoff-dialog { width: min(540px, 92vw); gap: var(--space-4); }
+.handoff-dialog p { margin: 0; }
+.handoff-dialog summary { cursor: pointer; color: var(--fg-dim); padding: var(--space-2) 0; }
+.handoff-dialog details > .ui-stack { padding-top: var(--space-2); }
+.handoff-destination { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3); border: 1px solid var(--accent-border-soft); border-radius: var(--radius); background: var(--accent-bg-soft); }
+.handoff-destination > span { color: var(--fg-dim); }
+.handoff-coverage { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius); }
+.handoff-counts { display: flex; flex-wrap: wrap; gap: var(--space-3); color: var(--fg-dim); font-variant-numeric: tabular-nums; }
+.handoff-counts b { color: var(--fg); }
+.handoff-progress { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+.handoff-progress li { display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: var(--space-2); }
+.handoff-progress li > span { color: var(--fg-dim); }
+.handoff-progress strong { font-weight: 500; }
+.handoff-details dl { display: grid; gap: var(--space-1); margin: var(--space-2) 0; }
+.handoff-details dt { color: var(--fg-dim); }
+.handoff-details dd { margin: 0 0 var(--space-2); }
+.handoff-details, .handoff-dialog .ui-status { overflow-wrap: anywhere; }
+.handoff-compose { border-top: 1px solid var(--border); padding-top: var(--space-4); }
+.handoff-compose textarea { resize: vertical; min-height: 90px; font-family: var(--font-ui); }
+@media (pointer: coarse) { .handoff-dialog summary { min-height: var(--target-touch); display: flex; align-items: center; } }
+@media (max-width: 420px) { .handoff-dialog { padding: var(--space-4); } .handoff-progress li { grid-template-columns: 1fr; gap: 0; } }
