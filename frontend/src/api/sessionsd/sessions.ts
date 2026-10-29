@@ -58,9 +58,11 @@ export async function updateSessionName(
 
 export async function updateSetAside(
   sessionId: string,
-  setAside: boolean
+  setAside: boolean,
+  serverId?: string
 ): Promise<number | null> {
-  const r = await apiFetch(`${httpBase()}/api/sessions/${encodeURIComponent(sessionId)}/set-aside`, {
+  const server = requestedServer(serverId);
+  const r = await serverFetch(server, `${httpBaseForServer(server)}/api/sessions/${encodeURIComponent(sessionId)}/set-aside`, {
     method: 'PUT',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ setAside })

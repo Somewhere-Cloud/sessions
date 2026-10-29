@@ -24,13 +24,24 @@ Explicit lifecycle verbs stay literal:
 
 - **Close tab** removes only the open UI tab. The session remains in Live and
   keeps running.
-- **Set aside** closes its open tab and moves the session out of the default
-  Live working set. It does not stop the agent and remains reversible.
+- **Archive (keeps running)** uses the daemon’s reversible set-aside state
+  for a live session and closes its view. Find it under **Archived live
+  sessions**, grouped by its original project, and choose **Restore to active
+  list** after opening it. Restore sends no input and starts no process.
+  `sessions aside <id>` and `sessions aside <id> --clear` change the same state;
+  `sessions --json ls --aside` lists marked interactive sessions;
+  `sessions --json list -a` includes lane records too. Pins, current work,
+  attention and output observed after the mark keep a session in the active
+  list, including the manager path of an active descendant. Drafts remain saved
+  per machine and session. Closing a view alone never changes this mark.
+  Organization is manual; silence and a finished provider turn do not
+  automatically archive work. The inventory does not certify draft absence
+  or the absence of queued requests on another client.
 - **End session** asks the runner to stop its process tree and preserves the
   record.
 - **Continue** resumes supported provider history or creates an explicitly
   linked cross-provider continuation.
-- **Archive** removes a retained row from the routine list without deleting
+- **Archive** on an ended session removes a retained row from the routine list without deleting
   provider history.
 - **Remove integration** (`--remove-integration`, run by the Windows
   uninstaller and by hand on macOS) removes the per-user integration points the

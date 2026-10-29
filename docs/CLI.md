@@ -515,7 +515,7 @@ Usage:
 
 list interactive sessions
 
-List agent sessions known to the daemon. Each --json record is the daemon's record plus link, the sessions://lane URL that opens it in the Sessions app. --mine follows SESSIONS_OWNER_ID, then the SESSIONS_SESSION_ID descendant subtree, then the daemon OS user. The OS-user fallback is user-wide, not invocation-scoped. Set-aside sessions remain listed and marked; --aside selects only them, while --not-aside reproduces the native default working set.
+List agent sessions known to the daemon. Each --json record is the daemon's record plus link, the sessions://lane URL that opens it in the Sessions app. --mine follows SESSIONS_OWNER_ID, then the SESSIONS_SESSION_ID descendant subtree, then the daemon OS user. The OS-user fallback is user-wide, not invocation-scoped. Set-aside sessions remain listed and marked; --aside selects only them, while --not-aside omits marked live records. These filters describe persisted marks; the native active list also keeps pinned work and current activity or attention visible.
 
 Sessions you pinned with `sessions pin` come first, in both the table and --json, and a PIN column appears when any listed session carries the mark. Everything below the pinned ones keeps the order it already had.
 

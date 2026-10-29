@@ -33,6 +33,9 @@ function reconcileSessions(prev: SessionInfo[], fresh: SessionInfo[]): SessionIn
     if (
       old &&
       old.working === f.working &&
+      old.launching === f.launching &&
+      old.pendingApproval?.id === f.pendingApproval?.id &&
+      old.observations?.approval?.pending === f.observations?.approval?.pending &&
       old.exited === f.exited &&
       old.exitCode === f.exitCode &&
       old.exitSignal === f.exitSignal &&
@@ -234,6 +237,13 @@ function writeCache(serverId: string | null, sessions: SessionInfo[], activeId: 
   cacheMachineSessions(serverId, sessions, activeId);
 }
 
+function organizationUpdate(state: SessionsState, serverId: string, id: string, setAsideAt: number | null): Partial<SessionsState> {
+  if (state.serverId !== serverId) return state;
+  const sessions = state.sessions.map((session) => session.id === id ? { ...session, setAsideAt } : session);
+  writeCache(state.serverId, sessions, state.activeId);
+  return { sessions };
+}
+
 migrateLegacyCaches();
 
 const initial = readCache();
@@ -365,18 +375,13 @@ export const useSessions = create<SessionsState>((set, get) => ({
   },
 
   updateSetAside: async (id, setAside) => {
-    const setAsideAt = await api.updateSetAside(id, setAside);
-    set((state) => {
-      const sessions = state.sessions.map((session) => (
-        session.id === id ? { ...session, setAsideAt } : session
-      ));
-      writeCache(state.serverId, sessions, state.activeId);
-      return { sessions };
-    });
+    const serverId = get().serverId;
+    if (!serverId) throw new Error('Choose a computer before organizing its sessions.');
+    const setAsideAt = await api.updateSetAside(id, setAside, serverId);
+    set((state) => organizationUpdate(state, serverId, id, setAsideAt));
   },
 
-  // The daemon's answer is what lands in the store, not the requested value:
-  // a pin that was refused or changed on the way must not appear as applied.
+  // Paint only the daemon's persisted answer, never an optimistic pin.
   updatePinned: async (id, pinned) => {
     const stored = await api.updatePinned(id, pinned);
     set((state) => {

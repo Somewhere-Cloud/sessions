@@ -1,5 +1,8 @@
 import { lazy, Suspense, useEffect, useMemo, useState, type DragEvent } from 'react';
 import { createPortal } from 'react-dom';
+import { ArchivedLiveSessions } from './ArchivedLiveSessions';
+import { SessionArchiveButton } from './SessionArchiveButton';
+import { archivedLiveIds } from '../lib/sessionOrganization';
 import { RestartConversation } from './RestartConversation';
 import type { SessionInfo } from '../types';
 import { resolvedSessionLabel } from '../lib/tabLabels';
@@ -209,9 +212,10 @@ export function SessionNavigator({
   const remoteMachines = useMemo(() => configuredMachines.filter((server) => server.id !== activeMachineId), [configuredMachines, activeMachineId]);
   const remoteSnapshots = useFleetSessions(remoteMachines, showingAllMachines);
   const activeError = useSessions((state) => state.error);
+  const sessionsHydrated = useSessions((state) => state.hydrated);
   const activeLoading = useSessions((state) => state.loading && !state.hydrated);
   const fleetSnapshots = configuredMachines.map((server) => server.id === activeMachineId
-    ? { server, sessions, loading: activeLoading, error: activeError }
+    ? { server, sessions, loading: activeLoading || !sessionsHydrated, error: activeError }
     : remoteSnapshots.find((snapshot) => snapshot.server.id === server.id) ?? { server, sessions: [], loading: true, error: null });
   const { projects: fleetProjects, incomplete: incompleteProjects } = useFleetProjects(configuredMachines, showingAllMachines);
   const [primary, setPrimary] = useState<PrimaryFilter>('all');
@@ -360,7 +364,8 @@ export function SessionNavigator({
     return humanEngagementAt(b) - humanEngagementAt(a);
   }));
   const pinnedIds = useMemo(() => new Set(pins), [pins]);
-  const liveSessions = sortRoots(navigatorSessions.filter((session) => !session.exited && !pinnedIds.has(session.id)));
+  const archivedIds = activeError || !sessionsHydrated ? new Set<string>() : archivedLiveIds(sessions);
+  const liveSessions = sortRoots(navigatorSessions.filter((session) => !session.exited && !pinnedIds.has(session.id) && !archivedIds.has(session.id)));
   const liveIds = useMemo(
     () => new Set(liveSessions.map((session) => session.id)),
     [liveSessions]
@@ -665,17 +670,6 @@ export function SessionNavigator({
                 <button type="button" role="menuitem" onClick={() => { setActionMenuId(null); onOpen(session.id); }}>{session.exited ? 'View history' : 'Open in tab'}</button>
                 <RestartConversation session={session} onOpen={onOpen} onResume={(row) => onResumeSession(row, undefined, undefined, sourceServerId)} serverId={sourceServerId} appearance="menuitem" />
                 {openSessionIds.includes(session.id) ? <button type="button" role="menuitem" onClick={() => { setActionMenuId(null); onCloseView(session.id); }}>Close tab <small>keeps running</small></button> : null}
-                {/*
-                  * On an ended session the item is shown DISABLED rather than
-                  * hidden. The daemon refuses it with 409 in both directions
-                  * (`UpdatePinned` checks `Exited` before reading the value),
-                  * so hiding it would be honest about the API and dishonest
-                  * about the product: an absent item reads as "this app cannot
-                  * pin", which is exactly the report that started this. Disabled
-                  * with the daemon's own reason names the verb that does work,
-                  * and Archive is two items below. AGENTS.md #4: explain the
-                  * failed operation and the safe next action.
-                  */}
                 <button
                   type="button"
                   role="menuitem"
@@ -689,6 +683,7 @@ export function SessionNavigator({
                     : isPinned(session) ? 'Unpin' : 'Pin'}
                   {session.exited ? <small>ended · archive instead</small> : null}
                 </button>
+                {!session.exited ? <SessionArchiveButton session={session} appearance="menuitem" onArchived={(id) => { setActionMenuId(null); onCloseView(id); }} /> : null}
                 {end && canContinueSession(session) ? <button type="button" role="menuitem" onClick={() => { setActionMenuId(null); onResumeSession(session); }}>Continue conversation…</button> : null}
                 {providerName ? (
                   <details className="session-action-submenu">
@@ -880,6 +875,9 @@ export function SessionNavigator({
         {!showingAllMachines && primary !== 'ended' && filteredLiveSessions.length === 0 && inboxLayout.sections.length === 0 && !inboxLayout.other
           ? <div className="session-tree-empty is-compact">No matching live sessions.</div>
           : null}
+        <ArchivedLiveSessions snapshots={projectSnapshots.filter((snapshot) => showingAllMachines || snapshot.server.id === localServerId)}
+          projects={showingAllMachines ? fleetProjects : { [localServerId]: projectLookup.projects }} searching={query.trim() !== ''} matches={matches} activeMachineId={activeMachineId}
+          renderLocal={(row) => renderNode(row.session)} onOpen={onOpenMachineSession} />
         {!showingAllMachines && primary !== 'working' && primary !== 'needs' ? <div className="session-tree-group">
           <div className="session-tree-group-head">
             <button type="button" onClick={() => setEndedOpen((current) => !current)}><span className="session-group-disclosure"><DisclosureChevron open={endedOpen} /> Ended</span><strong>{visibleEnded.length}</strong></button>

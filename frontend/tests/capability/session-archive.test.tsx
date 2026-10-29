@@ -1,13 +1,4 @@
-// CAPABILITY: a person can put a session away from the session itself.
-//
-// Archiving shipped as a daemon route, a CLI verb and a row menu item, and the
-// person reading a finished conversation had no way to reach it from the thing
-// they were reading. It is never automatic: nothing archives on a timer, and a
-// session that went quiet stays exactly where it is.
-//
-// A live session cannot be archived — the daemon archives durably closed
-// records only — so the control for one says what it will do first, and says
-// that the work in progress stops.
+// Live organization and ended-record retention use separate daemon operations.
 import { describe, expect, it } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -58,34 +49,24 @@ describe('capability: archive a session from its own header', () => {
     expect(screen.getByText('This week')).toBeInTheDocument();
   }, 20_000);
 
-  it('asks before ending a live session, and says what that costs', async () => {
+  it('archives a live session without ending it and restores it without sending input', async () => {
     const live = makeSession({ id: 'mid-flight', name: 'Refactoring the parser', working: true });
     const machine = machineWith([live]);
     const daemon = installFakeDaemon([machine]);
     useFakeMachines([machine]);
     const user = userEvent.setup();
-
     render(<Workbench><SessionView sessionId={live.id} isActive /></Workbench>);
-
-    // No bare "Archive" on something that is running: the daemon would refuse
-    // it, so the button says what it actually does.
-    expect(screen.queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument();
-    await user.click(await screen.findByRole('button', { name: 'End and archive…' }));
-
-    const dialog = screen.getByRole('dialog');
-    expect(within(dialog).getByText(/work in progress will be interrupted/i)).toBeInTheDocument();
-    expect(within(dialog).getByText(/conversation is kept/i)).toBeInTheDocument();
-
-    // Backing out archives nothing and ends nothing.
-    await user.click(within(dialog).getByRole('button', { name: 'Keep working' }));
-    expect(daemon.ended).not.toContain(live.id);
-    expect(daemon.archived).not.toContain(live.id);
-
-    await user.click(screen.getByRole('button', { name: 'End and archive…' }));
-    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'End and archive' }));
-
-    await waitFor(() => expect(daemon.ended).toContain(live.id));
-    await waitFor(() => expect(daemon.archived).toContain(live.id));
+    await user.click(await screen.findByRole('button', { name: 'Archive (keeps running)' }));
+    await screen.findByRole('button', { name: 'Restore to active list' });
+    // Active work stays in the list despite the persisted manual mark.
+    expect(screen.getByText('Refactoring the parser', { selector: '.session-nav-title' })).toBeInTheDocument();
+    expect(daemon.ended).toEqual([]);
+    expect(daemon.archived).toEqual([]);
+    expect(machine.sessions[0].setAsideAt).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Restore to active list' }));
+    await waitFor(() => expect(machine.sessions[0].setAsideAt).toBeNull());
+    expect(daemon.requests.filter((r) => r.method !== 'GET').map((r) => r.path))
+      .toEqual(['/api/sessions/mid-flight/set-aside', '/api/sessions/mid-flight/set-aside']);
   }, 20_000);
 
   // The daemon answers per session and can refuse. Its reason is the only

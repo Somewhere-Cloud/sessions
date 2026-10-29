@@ -126,8 +126,10 @@ chips retain the full hierarchy and management controls.
 `SessionDetails.tsx` renders
 runtime, workspace, recovery, relationship, usage, and destructive controls;
 closing `SessionTabs.tsx` only closes a view. The navigator's row menu keeps
-that boundary literal: Close tab leaves the session in Live, Set aside moves it
-out of the default working set without stopping it, and ended-session
+that boundary literal: Close tab leaves the session in Live; Archive (keeps
+running) uses persisted set-aside state and exposes explicit restore under
+Archived live sessions. `sessionOrganization.ts` keeps observed activity and
+attention in focus without changing runner state. Ended-session
 cross-provider or cross-machine actions route through the existing audited
 continuation dialogs. `SessionHistoryView.tsx` is the
 explicit exited-session path: it fetches the bounded history preview and never

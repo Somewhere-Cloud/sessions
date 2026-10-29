@@ -1,7 +1,8 @@
 import type { ProjectView } from '../api/sessionsd';
 import type { SessionInfo } from '../types';
 import type { ServerConfig } from './servers';
-import { humanEngagementAt, isPinned } from './workingSet';
+import { collapseConversationRuntimes, humanEngagementAt, isPinned } from './workingSet';
+import { archivedLiveIds } from './sessionOrganization';
 import { navigatorSessions } from './sessionNavigation';
 import { resolvedSessionLabel } from './tabLabels';
 
@@ -69,17 +70,19 @@ export function matchesResolvedProject(session: SessionInfo, resolved: { id: str
 // Shared project tags and daemon-provided repository identities are explicit
 // cross-machine evidence; otherwise retain host-qualified identities.
 export function groupAgents(
-  snapshots: Array<{ server: ServerConfig; sessions: SessionInfo[]; error: string | null }>,
+  snapshots: Array<{ server: ServerConfig; sessions: SessionInfo[]; error: string | null; loading?: boolean }>,
   projects: Record<string, ProjectView[]>,
   saved: boolean,
-  matches: (session: SessionInfo, serverId: string) => boolean
+  matches: (session: SessionInfo, serverId: string) => boolean,
+  organization: 'active' | 'archived' = 'active'
 ): AgentProject[] {
   const groups = new Map<string, AgentProject>();
   for (const snapshot of snapshots) {
+    const archived = snapshot.error || snapshot.loading ? new Set<string>() : archivedLiveIds(snapshot.sessions);
     const membership = new Map((projects[snapshot.server.id] ?? []).flatMap((p) => p.session_ids.map((id) => [id, p] as const)));
-    for (const session of navigatorSessions(snapshot.sessions)) {
+    for (const session of organization === 'archived' ? collapseConversationRuntimes(snapshot.sessions) : navigatorSessions(snapshot.sessions)) {
       if (isSavedAgent(session) !== saved || !matches(session, snapshot.server.id)) continue;
-      if (!saved && session.setAsideAt && !isPinned(session)) continue;
+      if (!saved && archived.has(session.id) !== (organization === 'archived')) continue;
       const identity = projectIdentity(session, snapshot.server, membership.get(session.id));
       const group = groups.get(identity.id) ?? { ...identity, rows: [] };
       group.rows.push({ session, server: snapshot.server, unavailable: Boolean(snapshot.error) });

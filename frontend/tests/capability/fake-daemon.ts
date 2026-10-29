@@ -489,6 +489,7 @@ export function installFakeDaemon(machines: FakeMachine[]): FakeDaemon {
     }
     if (sessionRoute && sessionTail === '/set-aside' && method === 'PUT') {
       if (!target) return jsonResponse({ error: 'session not found' }, 404);
+      if (target.exited) return jsonResponse({ error: 'session ended; use archive to hide an ended record' }, 409);
       const setAside = (body as { setAside?: unknown })?.setAside === true;
       target.setAsideAt = setAside ? NOW : null;
       return jsonResponse({ setAsideAt: target.setAsideAt });
