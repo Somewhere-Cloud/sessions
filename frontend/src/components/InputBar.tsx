@@ -1,3 +1,5 @@
+import { Textarea } from './ui/Field';
+import { Button, IconButton } from './ui/Button';
 import { useEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent } from 'react';
 import { uploadFile } from '../api/sessionsd';
 import type { SessionTool } from '../types';
@@ -69,11 +71,11 @@ function SendControls({ disabled, submitting, feedback, steer, queue, submit }: 
   disabled: boolean; submitting: boolean; feedback: string;
   steer: boolean; queue: boolean; submit: (steer?: boolean) => Promise<void>;
 }): JSX.Element {
-  return <button type="button" className={`btn btn-primary input-send${steer ? ' is-steering' : ''}${feedback === 'sent' ? ' is-sent' : ''}`}
-    onClick={() => void submit(steer)} disabled={disabled || submitting} aria-label={steer ? 'Send follow-up' : 'Send'}
+  return <Button type="button" variant="primary" className={`input-send${steer || queue || submitting ? ' is-steering' : ''}${feedback === 'sent' ? ' is-sent' : ''}`}
+    onClick={() => void submit(steer)} loading={submitting} disabled={disabled || submitting} aria-label={steer ? 'Send follow-up' : queue ? 'Queue message' : 'Send'}
     title={submitting ? 'Sending…' : steer ? 'Send a new follow-up to the active turn (Enter)' : queue ? "Save for Claude's next turn (Enter). Its runner dispatches saved messages in order; nothing is sent now" : 'Send (Enter)'}>
-    {steer ? 'Send follow-up' : <span aria-hidden>↑</span>}
-  </button>;
+    {submitting ? 'Sending…' : steer ? 'Send follow-up' : queue ? 'Queue message' : <span aria-hidden>↑</span>}
+  </Button>;
 }
 
 function CodexTurnControl({ working, available, send }: {
@@ -96,10 +98,10 @@ function CodexTurnControl({ working, available, send }: {
     } finally { inFlight.current = false; }
   };
   return <span className="input-turn-control">
-    <button type="button" className="btn btn-ghost" disabled={!available || requested}
+    <Button type="button" variant="ghost" disabled={!available || requested}
       aria-label={requested ? 'Stop requested' : 'Stop current turn'}
       title={requested ? 'Waiting for this turn to finish. Accepted follow-ups are not resent; they may already have applied.' : 'Request interruption of the current turn. Accepted follow-ups are not resent.'}
-      onClick={() => void stop()}>{requested ? 'Stop requested' : 'Stop'}</button>
+      onClick={() => void stop()}>{requested ? 'Stop requested' : 'Stop'}</Button>
     {error ? <span role="alert">{error}</span> : null}
   </span>;
 }
@@ -266,6 +268,7 @@ export function InputBar({
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>): void => {
+    if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       void submit();
@@ -385,15 +388,13 @@ export function InputBar({
       {uploadError ? (
         <div className="input-bar-upload-state is-error">
           <span>Upload failed: {uploadError}</span>
-          {/* Dismiss button — the error auto-clears after 8s but users
-              shouldn't have to wait; also clears on next successful
-              submit or when the textarea is emptied. */}
-          <button
+          {/* Keep upload failures dismissible while preserving the draft. */}
+          <IconButton
             type="button"
             className="input-bar-upload-dismiss"
             aria-label="Dismiss upload error"
             onClick={() => setUploadError(null)}
-          >×</button>
+          >×</IconButton>
         </div>
       ) : null}
       {draftWarning || delivery.warning ? <div className="input-bar-upload-state is-error" role="alert">{draftWarning} {delivery.warning}</div> : null}
@@ -409,9 +410,9 @@ export function InputBar({
           </div>
           <div className="input-composer-notice-actions">
             {composerNotice.canContinueInTerminal && onContinueInTerminal ? (
-              <button
+              <Button
                 type="button"
-                className="btn btn-secondary"
+                variant="secondary"
                 disabled={providerWorking || continuingInTerminal}
                 title={providerWorking ? 'Available after the current turn finishes' : 'End this Rich runtime, then continue the same Claude conversation in Terminal'}
                 onClick={() => {
@@ -432,15 +433,12 @@ export function InputBar({
                   : continuingInTerminal
                     ? 'Preparing…'
                     : composerNotice.enableRemoteControl
-                      // Says what the button does, in the order it happens.
-                      // "Open Remote Control" implied this button turned it
-                      // on; it does not — this machine's Settings choice does,
-                      // and the handler checks it before ending anything.
+                      // The existing handler checks Settings before ending the runtime.
                       ? 'End Rich & continue in Terminal with Remote Control…'
                       : 'End Rich & continue in Terminal…'}
-              </button>
+              </Button>
             ) : null}
-            <button type="button" className="btn btn-ghost" onClick={() => setComposerNotice(null)}>Dismiss</button>
+            <Button type="button" variant="ghost" onClick={() => setComposerNotice(null)}>Dismiss</Button>
           </div>
         </div>
       ) : null}
@@ -456,9 +454,10 @@ export function InputBar({
             event.currentTarget.value = '';
           }}
         />
-        <textarea
+        <Textarea
           ref={taRef}
           className="input-textarea"
+          aria-label="Message"
           value={text}
           onChange={(e) => {
             setText(e.target.value);
@@ -479,15 +478,15 @@ export function InputBar({
           spellCheck
         />
         <div className={`input-composer-footer${usageScope && provider !== 'terminal' ? ' has-account-usage' : ''}`}>
-          <button
+          <Button
             type="button"
-            className="input-attach"
+            variant="ghost" size="compact" className="input-attach"
             disabled={!sendAvailable || uploading}
             onClick={() => fileInputRef.current?.click()}
             title="Attach files"
           >
             <span aria-hidden>＋</span><span>Attach</span>
-          </button>
+          </Button>
           <span className="input-composer-spacer" />
           {usageScope && provider !== 'terminal' ? <ComposerAccountUsage scope={usageScope} /> : null}
           {provider !== 'terminal' && onConfigureModel ? (

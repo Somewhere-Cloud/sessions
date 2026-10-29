@@ -156,3 +156,27 @@ operational mutations. Set `UI_SCREENSHOT_DIR` to an existing absolute directory
 to capture the composed screens and Daily loading/error states. It is part of
 the complete smoke gate. Native platform and assistive-technology acceptance
 remain separate from these Chromium fixtures.
+
+## Conversation compositions
+
+Conversation headers, terminal toolbar actions, composer controls, delivery
+reviews, permission choices and recovery actions use shared buttons. Session
+Details composes Surface/Section and an associated end-reason Field. The
+composer uses the shared Textarea while retaining durable drafts, attachment
+insertion, IME handling and acknowledged send/queue behavior. Model/effort
+review uses ModalDialog with the existing specialized ModelPicker, including
+its owned portal. Usage continues to compose ComposerAccountUsage.
+
+Messages retain the specialized RemoteView scroll/streaming implementation
+and WorkLog activity disclosures. Prose has a bounded reading column; wide
+code and tables scroll locally. Specialized renderers, xterm, native terminal
+sizing and provider operation handlers remain separate from presentation.
+
+`npm run test:conversation-ui` renders production conversation components with
+an in-process fake daemon in both themes at desktop and 375px, plus enlarged
+text. It exercises scroll anchors, model-dialog focus return, attachment
+insertion without sending, failed-send draft retention and permission choices.
+Set `UI_SCREENSHOT_DIR` to an existing absolute directory to retain screenshots.
+The capability suite additionally checks IME/multiline sends and exact approval
+and model payloads. These Chromium fixtures do not establish native WebKit,
+installed-client, device or screen-reader acceptance.

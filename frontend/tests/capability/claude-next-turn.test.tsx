@@ -78,7 +78,7 @@ describe('Claude next-turn acceptance', () => {
     render(<InputBar sessionId="old-runner" draftMachineId="local" provider="claude-code" richSession providerWorking connected
       send={async () => {}} submitMessage={submit} />);
     await user.type(screen.getByRole('textbox'), 'Do not lose this');
-    await user.click(screen.getByRole('button', { name: 'Send' }));
+    await user.click(screen.getByRole('button', { name: 'Queue message' }));
     expect(submit).toHaveBeenCalledOnce();
     expect(screen.getByRole('textbox')).toHaveValue('Do not lose this');
     expect(screen.getByRole('alert')).toHaveTextContent('Your draft is still here');

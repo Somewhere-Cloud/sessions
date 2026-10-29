@@ -37,8 +37,8 @@ export function RemoteEmptyState({ historyPending, providerIdentity, providerNam
           <h2>Start a {providerName} conversation</h2>
           <p className="remote-empty-hint">
             {terminalAvailable
-              ? 'Send the first request below. Conversation and Terminal stay connected to the same provider session.'
-              : 'Send the first request below. Rich sessions use the provider’s structured conversation interface.'}
+              ? 'Send a message below. You can open Terminal whenever you need it.'
+              : 'Send a message below to begin.'}
           </p>
         </>
       )}

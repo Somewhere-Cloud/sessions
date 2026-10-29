@@ -1,3 +1,4 @@
+import { Status } from './ui/Layout';
 // StatusSidebar — pure render. Data source is useSessionSidebar (which
 // reads the provider's persisted events). Component never touches the
 // data layer directly.
@@ -35,10 +36,10 @@ export default function StatusSidebar({
   return (
     <aside className={`status-sidebar${isWorking ? ' is-working' : ' is-idle'}`}>
       <section className="sidebar-section sidebar-metrics">
-        <span className="sidebar-run-state" aria-label={isWorking ? 'Agent working' : statusLabel}>
+        <div className="sidebar-run-state" aria-label={isWorking ? 'Agent working' : statusLabel}>
           {provider ? <ProviderMark provider={provider} size={14} /> : <span aria-hidden>·</span>}
-          {isWorking ? 'Working' : statusLabel}{!isWorking && finalElapsed ? ` · ${finalElapsed}` : ''}
-        </span>
+          <Status live="off">{isWorking ? 'Working' : statusLabel}</Status>{!isWorking && finalElapsed ? ` · ${finalElapsed}` : ''}
+        </div>
         {isWorking ? (
           <>
             <span className="sidebar-metric"><span className="sidebar-metric-label">elapsed</span>{timer || '—'}</span>

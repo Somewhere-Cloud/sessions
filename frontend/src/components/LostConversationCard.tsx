@@ -1,3 +1,5 @@
+import { Surface, Actions } from './ui/Layout';
+import { Button } from './ui/Button';
 import { useState } from 'react';
 
 interface Props {
@@ -23,14 +25,14 @@ export function LostConversationCard({ providerName, onResume, onClose }: Props)
   };
 
   return (
-    <div className="provider-control-card is-lost-conversation" role="group" aria-label="Lost conversation recovery">
+    <Surface className="provider-control-card is-lost-conversation" role="group" aria-label="Lost conversation recovery">
       <span className="provider-control-card-title">Conversation saved</span>
-      <p className="provider-control-card-text">The runner is gone. Your {providerName} conversation is saved.</p>
-      <div className="provider-control-card-choices" role="toolbar" aria-label="Lost conversation actions">
-        <button type="button" className="provider-control-card-action is-primary" disabled={!onResume || closing} onClick={() => void onResume?.()}>Resume conversation…</button>
-        <button type="button" className="provider-control-card-action" disabled={closing} onClick={() => void close()}>{closing ? 'Closing…' : 'Close'}</button>
-      </div>
+      <p className="provider-control-card-text">Your {providerName} conversation is saved. Resume it to keep going.</p>
+      <Actions className="provider-control-card-choices" role="toolbar" aria-label="Lost conversation actions">
+        <Button type="button" variant="primary" disabled={!onResume || closing} onClick={() => void onResume?.()}>Resume conversation…</Button>
+        <Button type="button" variant="secondary" disabled={closing} onClick={() => void close()}>{closing ? 'Closing…' : 'Close'}</Button>
+      </Actions>
       {error ? <span className="provider-control-card-hint is-error" role="alert">{error}</span> : null}
-    </div>
+    </Surface>
   );
 }

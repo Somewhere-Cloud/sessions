@@ -53,6 +53,7 @@ const GATE = [
   'ui-foundation',
   'shell-ui',
   'settings-machines',
+  'conversation-ui',
   'account-login',
   'account-usage',
   'composer-usage',

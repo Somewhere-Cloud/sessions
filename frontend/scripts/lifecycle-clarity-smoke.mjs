@@ -176,8 +176,8 @@ assert.doesNotMatch(view, /await endSession\([\s\S]*?Continuing the same Claude 
 assert.doesNotMatch(view, /Not available in 0\.2\.7/);
 assert.doesNotMatch(view, /↳ Delegate|resumed from seq/);
 assert.match(view, /This Codex session uses its terminal interface/);
-assert.match(view, />Okay<\/button>/);
-assert.match(view, />Don’t show again<\/button>/);
+assert.match(view, />Okay<\/Button>/);
+assert.match(view, />Don’t show again<\/Button>/);
 assert.match(view, /session\.tool === 'codex'[\s\S]*!richSession/);
 assert.doesNotMatch(view, /reading \{session\.tool === 'claude-code'/);
 assert.match(view, /<MachineMark machine=\{serverDisplayName\(getActiveServer\(\), true\)\} size=\{18\} \/>/);
@@ -214,7 +214,7 @@ assert.ok(input.includes("await submitMessage('\\x1b[200~' + submittedText + '\\
 assert.doesNotMatch(mux, /return msg\.type === 'input' \|\|/);
 assert.match(mux, /Sessions is reconnecting\. Your message was not sent\./);
 assert.doesNotMatch(remote, />retry<\/button>/);
-assert.match(deliveryStatus, />Restore draft<\/button>/);
+assert.match(deliveryStatus, />Restore draft<\/Button>/);
 assert.doesNotMatch(await source('src/hooks/useDispatch.ts'), /ENTER_RETRY_OFFSETS_MS|scheduleEnterRetries|send\('\\r'\)/);
 assert.match(input, /\/rename\(\?:\\s\|\$\)/);
 // The snapshot heuristic runs only for a terminal-backed session, and only
@@ -227,7 +227,7 @@ assert.match(providerControl, /if \(!terminalAvailable \|\| \(!failedSendKey && 
 assert.match(remote, /const failedSendKey = latestFailedSend/);
 assert.match(remote, /useProviderControl\(\{/);
 assert.match(remote, /richSession=\{!terminalAvailable\}/);
-assert.match(modelControl, /Next message/);
+assert.match(modelControl, /next message/i);
 assert.match(modelControl, /listSessionModelOptions\(sessionId\)/);
 assert.match(modelControl, /Applies to the next message\. Existing history is unchanged\./);
 assert.match(machineMark, /aria-label=\{machine\}/);

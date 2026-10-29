@@ -82,11 +82,11 @@ try {
   await t.waitForSelector(page, '#retrying-view .session-remote-pane .provider-control-card.is-provider-fault', 'the Rich provider fault card to render');
   const firstCountdown = await page.$eval('#retrying-view .session-remote-pane .provider-control-card-hint', (node) => node.textContent ?? '');
   assert.match(firstCountdown, /^Retrying in \d+s \(attempt 2 of 5\)$/);
-  assert.deepEqual(await page.$$eval('#retrying-view .session-remote-pane .provider-control-card-action', (buttons) => buttons.map((button) => button.textContent?.trim())), ['Retry now', 'Stop retrying']);
+  assert.deepEqual(await page.$$eval('#retrying-view .session-remote-pane .provider-control-card-choices button', (buttons) => buttons.map((button) => button.textContent?.trim())), ['Retry now', 'Stop retrying']);
   await new Promise((resolve) => setTimeout(resolve, 1_150));
   const secondCountdown = await page.$eval('#retrying-view .session-remote-pane .provider-control-card-hint', (node) => node.textContent ?? '');
   assert.ok(Number(/(\d+)s/.exec(secondCountdown)?.[1]) < Number(/(\d+)s/.exec(firstCountdown)?.[1]));
-  await page.$$eval('#retrying-view .session-remote-pane .provider-control-card-action', (buttons) => {
+  await page.$$eval('#retrying-view .session-remote-pane .provider-control-card-choices button', (buttons) => {
     buttons.find((button) => button.textContent?.trim() === 'Retry now')?.click();
   });
   await t.waitForFunction(page, () => window.__providerFaultFixture?.daemon?.retried?.includes('codex-retrying'), 'Retry now to hit /api/sessions/:id/retry');

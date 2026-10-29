@@ -1,3 +1,4 @@
+import { Button } from './ui/Button';
 import type { ComposerUsageScope } from '../lib/composerAccountUsage';
 import { Suspense, lazy, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch } from '../hooks/useDispatch';
@@ -463,30 +464,30 @@ export function RemoteView({
       {hasRecoverableLocalState && clearConfirm ? (
         <div className="remote-refresh-confirm">
           <span className="remote-refresh-confirm-label">Clear local sends?</span>
-          <button
+          <Button
             type="button"
             className="remote-refresh-confirm-yes"
             onClick={handleRefreshConfirm}
           >
             Clear
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             className="remote-refresh-confirm-no"
             onClick={handleRefreshCancel}
           >
             Cancel
-          </button>
+          </Button>
         </div>
       ) : hasRecoverableLocalState ? (
-        <button
+        <Button
           type="button"
           className="remote-refresh"
           onClick={handleRefresh}
           title="Clear pending or failed local sends; provider history remains unchanged"
         >
           reset sends
-        </button>
+        </Button>
       ) : null}
       <ChangedFilesStrip files={changedFiles} cwd={cwd} />
       <div
@@ -515,7 +516,7 @@ export function RemoteView({
           />
         ) : null}
         {hiddenCount > 0 || hasEarlierClaudeEvents ? (
-          <button
+          <Button
             type="button"
             className="remote-load-earlier"
             onClick={loadEarlier}
@@ -527,7 +528,7 @@ export function RemoteView({
             {hiddenCount > 0
               ? `↑ Load ${Math.min(hiddenCount, TAIL_WINDOW_STEP)} earlier ${hiddenCount === 1 ? 'message' : 'messages'} (${hiddenCount} hidden)`
               : (loadingEarlierClaudeEvents ? 'Loading earlier history…' : '↑ Load earlier history')}
-          </button>
+          </Button>
         ) : null}
         {forkMode ? (
           <div className="conversation-fork-mode-note" role="status">
@@ -722,8 +723,8 @@ function QueuedComposerStatus({ messages, providerName, sessionId, resumable, wo
       <span aria-hidden>⏳</span>
       <span>{messages.length} saved for {providerName}'s next turn · not dispatched yet</span>
       <details><summary>View saved messages</summary>{messages.map((message) => <p key={message.id} className="remote-queued-text">{message.content}</p>)}</details>
-      {resumable ? <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void resume()}
-        title="Ask Claude's runner to retry the failed turn, if any, or else to start the next saved message not yet dispatched. It refuses, and says why, while its turn is still open. A dispatched message is never sent again.">{busy ? 'Asking…' : 'Continue saved messages'}</button> : null}
+      {resumable ? <Button type="button" variant="secondary" className="" disabled={busy} onClick={() => void resume()}
+        title="Ask Claude's runner to retry the failed turn, if any, or else to start the next saved message not yet dispatched. It refuses, and says why, while its turn is still open. A dispatched message is never sent again.">{busy ? 'Asking…' : 'Continue saved messages'}</Button> : null}
       {resumable && working && !error ? <span className="remote-queued-hint">{providerName} may still be in a turn; its runner decides and says why if it cannot continue.</span> : null}
       {error ? <span role="alert">{error}</span> : null}
     </div>
@@ -863,13 +864,13 @@ function RemoteMessageInner({
             ) : null}
             <MessageDeliveryStatus message={m} restore={onRetry} remove={onDelete} />
             {m.status !== 'failed' ? (
-              <button
+              <Button
                 type="button"
                 className="remote-bubble-quickdelete"
                 onClick={onDelete}
                 title="Remove this entry from your local log."
                 aria-label="Delete message"
-              >×</button>
+              >×</Button>
             ) : null}
           </div>
           <footer className="remote-message-meta is-user">
@@ -945,18 +946,18 @@ function RemoteMessageInner({
       )}
       {onToggleFork ? (
         <div className={`remote-message-fork${isUser ? ' is-user' : ''}`}>
-          <button type="button" className="remote-message-fork-trigger" disabled={forkBusy} onClick={onToggleFork}>
+          <Button type="button" className="remote-message-fork-trigger" disabled={forkBusy} onClick={onToggleFork}>
             Fork here
-          </button>
+          </Button>
           {forkOpen ? (
             <div className="remote-message-fork-picker">
               <span>Start an independent copy through this message. This conversation keeps running.</span>
-              <button type="button" disabled={forkBusy} onClick={() => onFork?.(provider === 'claude' ? 'claude' : 'codex')}>
+              <Button type="button" disabled={forkBusy} onClick={() => onFork?.(provider === 'claude' ? 'claude' : 'codex')}>
                 {forkBusy ? 'Forking…' : `Fork in ${agentName}`}
-              </button>
-              <button type="button" disabled={forkBusy} onClick={() => onFork?.(provider === 'claude' ? 'codex' : 'claude')}>
+              </Button>
+              <Button type="button" disabled={forkBusy} onClick={() => onFork?.(provider === 'claude' ? 'codex' : 'claude')}>
                 Open copy in {provider === 'claude' ? 'Codex' : 'Claude'}
-              </button>
+              </Button>
               {forkError ? <small role="alert">{forkError}</small> : null}
             </div>
           ) : null}

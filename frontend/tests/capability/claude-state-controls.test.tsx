@@ -28,7 +28,7 @@ describe('structured Claude controls', () => {
     render(<InputBar {...props} providerWorking />);
     const input = screen.getByRole('textbox');
     await user.type(input, 'Please use my own words');
-    await user.click(screen.getByRole('button', { name: 'Send' }));
+    await user.click(screen.getByRole('button', { name: 'Queue message' }));
     expect(submitMessage).toHaveBeenCalledTimes(1);
     expect(screen.getByText('Saved for next turn')).toBeInTheDocument();
     expect(input).toHaveValue('');

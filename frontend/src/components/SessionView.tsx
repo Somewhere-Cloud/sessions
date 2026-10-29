@@ -1,4 +1,5 @@
 import { ProviderHandoff } from './ProviderHandoff';
+import { Button, IconButton } from './ui/Button';
 import { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTerminal } from '../hooks/useTerminal';
 import { useSessionSidebar } from '../hooks/useSessionSidebar';
@@ -95,7 +96,7 @@ function SessionStreamStatus({ notice, status, lostConversation }: {
   notice: string | null; status: string; lostConversation: boolean;
 }): JSX.Element | null {
   const message = lostConversation
-    ? 'Runner gone · conversation saved'
+    ? 'Conversation saved · resume to continue'
     : notice ?? (status !== 'open'
       ? status === 'connecting' || status === 'reconnecting' ? 'Live updates reconnecting…' : 'Live updates unavailable'
       : null);
@@ -136,7 +137,7 @@ function SessionHeaderNotes({ session, onOpenAccounts }: { session: SessionInfo;
   const startPhase = session.start?.phase;
   return (
     <>
-      {lost ? <span className="session-last-message is-fault" role="status">{lost}</span> : null}
+      {lost ? <span className="session-last-message" role="status">{lost}</span> : null}
       {startPhase && startPhase !== 'working' && startPhase !== 'completed' ? (
         <Suspense fallback={null}><StartReceiptNote session={session} onOpenAccounts={onOpenAccounts} /></Suspense>
       ) : null}
@@ -163,11 +164,11 @@ function ConversationPane({ children }: { children: ReactNode }): JSX.Element {
 function MobileTerminalKeys({ onSend }: { onSend: (data: string) => void }): JSX.Element {
   return (
     <div className="mobile-terminal-keys" role="toolbar" aria-label="Terminal keys">
-      <button type="button" onClick={() => onSend('\x1b')}>Esc</button>
-      <button type="button" onClick={() => onSend('\x1b\x1b')}>↶ Earlier</button>
-      <button type="button" onClick={() => onSend('\x1b[A')}>↑ Prev</button>
-      <button type="button" onClick={() => onSend('\x1b[B')}>↓ Next</button>
-      <button type="button" onClick={() => onSend('\x03')}>Ctrl-C</button>
+      <Button type="button" variant="ghost" size="compact" onClick={() => onSend('\x1b')}>Esc</Button>
+      <Button type="button" variant="ghost" size="compact" onClick={() => onSend('\x1b\x1b')}>↶ Earlier</Button>
+      <Button type="button" variant="ghost" size="compact" onClick={() => onSend('\x1b[A')}>↑ Prev</Button>
+      <Button type="button" variant="ghost" size="compact" onClick={() => onSend('\x1b[B')}>↓ Next</Button>
+      <Button type="button" variant="ghost" size="compact" onClick={() => onSend('\x03')}>Ctrl-C</Button>
     </div>
   );
 }
@@ -550,13 +551,13 @@ function SessionViewInner({ sessionId, onStatusChange, isActive = false, onResum
   return (
     <div ref={sessionViewRef} className={`session-view view-${effectiveView}${terminalDrawerOpen ? ' has-terminal-drawer' : ''}${terminalDrawerOpen && terminalExpanded ? ' terminal-drawer-expanded' : ''}${detailsOpen ? ' view-details' : ''}${subagentsOpen ? ' has-subagents-panel' : ''}${session?.continuedFromHistoryId ? ' has-continuation' : ''}`}>
       <header className="session-active-header is-conversation-header">
-        {onBack ? <button type="button" className="mobile-session-back" onClick={onBack} aria-label="Back to sessions">‹</button> : null}
+        {onBack ? <IconButton type="button" variant="ghost" className="mobile-session-back" onClick={onBack} aria-label="Back to sessions">‹</IconButton> : null}
         <div className="session-active-copy">
           {parent ? (
             onOpenSession ? (
-              <button type="button" className="session-parent-breadcrumb" onClick={() => onOpenSession(parent.id)} title={`Back to ${resolvedSessionLabel(parent)}`}>
+              <Button type="button" className="session-parent-breadcrumb" onClick={() => onOpenSession(parent.id)} title={`Back to ${resolvedSessionLabel(parent)}`}>
                 ‹ {resolvedSessionLabel(parent)} <span>/</span> {session && isAgentLedChild(session) ? 'lane' : session?.displayParentSessionId !== undefined ? 'grouped session' : 'child session'}
-              </button>
+              </Button>
             ) : (
               <span className="session-parent-breadcrumb">{resolvedSessionLabel(parent)} <span>/</span> {session?.displayParentSessionId !== undefined ? 'grouped session' : 'child session'}</span>
             )
@@ -600,8 +601,8 @@ function SessionViewInner({ sessionId, onStatusChange, isActive = false, onResum
                       Rich Codex sessions receive the same information through its app-server protocol.
                     </p>
                     <div className="terminal-runtime-notice-actions">
-                      <button type="button" className="btn btn-secondary" onClick={() => acknowledgeTerminalNotice()}>Okay</button>
-                      <button type="button" className="btn btn-ghost" onClick={dismissTerminalNoticeForProvider}>Don’t show again</button>
+                      <Button type="button" variant="secondary" onClick={() => acknowledgeTerminalNotice()}>Okay</Button>
+                      <Button type="button" variant="ghost" onClick={dismissTerminalNoticeForProvider}>Don’t show again</Button>
                     </div>
                     <small>Applies only to Codex terminal sessions.</small>
                   </aside>
@@ -613,7 +614,7 @@ function SessionViewInner({ sessionId, onStatusChange, isActive = false, onResum
         </div>
         <div className="session-active-actions">
           {subagents.length > 0 && onOpenSession && onReparent ? (
-            <button
+            <Button
               type="button"
               className={`subagents-panel-trigger${subagentsOpen ? ' is-active' : ''}`}
               aria-expanded={subagentsOpen}
@@ -633,20 +634,20 @@ function SessionViewInner({ sessionId, onStatusChange, isActive = false, onResum
               <strong>{subagents.length}</strong>
               {workingSubagents ? <small>· {workingSubagents} working</small> : null}
               <span aria-hidden>›</span>
-            </button>
+            </Button>
           ) : null}
           {session && parent && isAgentLedChild(session) && !session.exited && onOpenSession ? (
-            <button
+            <Button
               type="button"
-              className="btn btn-ghost session-handback-action"
+              variant="ghost" className="session-handback-action"
               disabled={handingBack}
               title={`Post this lane's latest result into ${resolvedSessionLabel(parent)} and go back to it`}
               onClick={() => void handBackToManager(parent.id)}
             >
               {handingBack ? 'Handing back…' : 'Hand back'}
-            </button>
+            </Button>
           ) : null}
-          <Suspense fallback={<button type="button" disabled aria-label="Loading conversation actions">•••</button>}><SessionActionsMenu>
+          <Suspense fallback={<Button type="button" disabled aria-label="Loading conversation actions">•••</Button>}><SessionActionsMenu>
           {session ? <div className="session-actions-context"><AccountBadge session={session} /><span>{sessionModeName(session)}</span></div> : null}
           {session ? <SessionPopOutButton sessionId={session.id} label={resolvedSessionLabel(session)} /> : null}
           {session && onOpenSession && !lostConversation ? <RestartConversation session={session} onOpen={onOpenSession} onResume={onResume ? (row) => void onResume(row) : undefined} serverId={sourceServerId} /> : null}
@@ -658,10 +659,10 @@ function SessionViewInner({ sessionId, onStatusChange, isActive = false, onResum
             const next = !forkMode; setForkMode(next);
             if (next) { setDetailsOpen(false); setTerminalExpanded(false); setViewMode('remote'); }
           }} /> : null}
-          {session ? <button type="button" className={`details-inspector-button${detailsOpen ? ' is-active' : ''}`} onClick={() => {
+          {session ? <Button type="button" className={`details-inspector-button${detailsOpen ? ' is-active' : ''}`} onClick={() => {
             if (!detailsOpen && supportsConversation) { setForkMode(false); setTerminalExpanded(false); setViewMode('remote'); }
             setDetailsOpen((current) => !current);
-          }}>{detailsOpen ? 'Close details' : 'Details'}</button> : null}
+          }}>{detailsOpen ? 'Close details' : 'Details'}</Button> : null}
           {session ? (
             <SessionArchiveButton
               session={session}
@@ -669,18 +670,18 @@ function SessionViewInner({ sessionId, onStatusChange, isActive = false, onResum
             />
           ) : null}
           </SessionActionsMenu></Suspense>
-          {onCloseView ? <button type="button" className="btn btn-ghost session-close-view" onClick={() => onCloseView(sessionId)} aria-label="Close tab" title="Close this tab. The agent keeps running.">×</button> : null}
+          {onCloseView ? <IconButton type="button" variant="ghost" className="session-close-view" onClick={() => onCloseView(sessionId)} aria-label="Close tab" title="Close this tab. The agent keeps running.">×</IconButton> : null}
         </div>
       </header>
 
       <div className="session-toolbar">
         <div className="view-toggle is-content-switch" aria-label="Conversation and terminal">
           {supportsConversation ? (
-            <button type="button" className="view-toggle-btn is-active" onClick={() => setViewMode('remote')} title="Structured conversation, activity, plans, and usage">Conversation</button>
+            <Button type="button" variant="ghost" size="compact" className="view-toggle-btn is-active" onClick={() => setViewMode('remote')} title="Structured conversation, activity, plans, and usage">Conversation</Button>
           ) : null}
-          {!richSession && <button
+          {!richSession && <Button
             type="button"
-            className={`view-toggle-btn terminal-drawer-toggle${effectiveView === 'terminal' ? ' is-active' : ''}`}
+            variant="ghost" size="compact" className={`view-toggle-btn terminal-drawer-toggle${effectiveView === 'terminal' ? ' is-active' : ''}`}
             onClick={() => {
               setForkMode(false);
               if (effectiveView === 'terminal' && supportsConversation) {
@@ -696,7 +697,7 @@ function SessionViewInner({ sessionId, onStatusChange, isActive = false, onResum
             title={lostConversation ? 'The runner is gone; resume the saved conversation to open a new terminal' : supportsConversation ? 'Show the exact provider terminal' : 'Terminal'}
           >
             {lostConversation ? 'Terminal unavailable' : effectiveView === 'terminal' && supportsConversation ? 'Hide terminal' : 'Terminal'}
-          </button>}
+          </Button>}
         </div>
         <SessionStreamStatus notice={term.streamNotice} status={term.status} lostConversation={lostConversation} />
         {pickerNotice ? (
@@ -729,15 +730,15 @@ function SessionViewInner({ sessionId, onStatusChange, isActive = false, onResum
             <header className="terminal-drawer-header">
               <span><strong>Terminal</strong>Exact provider view</span>
               <div>
-                <button
-                  type="button"
+                <IconButton
+                  type="button" variant="ghost"
                   onClick={() => setTerminalExpanded((current) => !current)}
                   aria-label={terminalExpanded ? 'Restore terminal drawer size' : 'Expand terminal drawer'}
                   title={terminalExpanded ? 'Restore drawer size' : 'Expand terminal'}
                 >
                   {terminalExpanded ? '↙' : '↗'}
-                </button>
-                <button type="button" onClick={() => { setTerminalExpanded(false); setViewMode('remote'); }} aria-label="Close terminal drawer">×</button>
+                </IconButton>
+                <IconButton type="button" variant="ghost" onClick={() => { setTerminalExpanded(false); setViewMode('remote'); }} aria-label="Close terminal drawer">×</IconButton>
               </div>
             </header>
           ) : null}
@@ -846,7 +847,7 @@ function SessionViewRouter(props: Props): JSX.Element {
         <span>Session unavailable</span>
         <h2>This session is no longer available here</h2>
         <p>It may have been archived, moved, or removed since this view opened.</p>
-        {props.onBack ? <button type="button" className="btn btn-secondary" onClick={props.onBack}>Back to Sessions</button> : null}
+        {props.onBack ? <Button type="button" variant="secondary" onClick={props.onBack}>Back to Sessions</Button> : null}
       </div>
     );
   }

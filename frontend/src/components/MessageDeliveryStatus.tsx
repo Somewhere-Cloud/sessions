@@ -1,3 +1,4 @@
+import { Button } from './ui/Button';
 import { useEffect, useRef, useState } from 'react';
 import type { DispatchMessage } from '../types';
 import type { DeliveryReview } from '../hooks/useDeliveryReview';
@@ -29,8 +30,8 @@ export function MessageDeliveryStatus({ message, restore, remove }: {
   if (message.status !== 'failed') return null;
   return <div className="remote-bubble-status message-delivery-status">
     <span title={message.failureReason}>Older local send · check the conversation</span>
-    <button type="button" className="remote-bubble-retry" onClick={restore}>Restore draft</button>
-    <button type="button" className="remote-bubble-delete" onClick={remove} title="Remove only this local entry, not provider history.">Remove entry</button>
+    <Button type="button" variant="ghost" size="compact" className="remote-bubble-retry" onClick={restore}>Restore draft</Button>
+    <Button type="button" variant="ghost" size="compact" className="remote-bubble-delete" onClick={remove} title="Remove only this local entry, not provider history.">Remove entry</Button>
   </div>;
 }
 
@@ -80,9 +81,9 @@ export function DeliveryReviewNotice({ review, machineId, sessionId, settled, re
       <details><summary>Message to review</summary><p className="delivery-review-text">{review.text}</p></details></div>
     <div className="input-composer-notice-actions">
       <CopyButton getText={review.text} label="Copy message" />
-      <button type="button" className="btn btn-secondary" disabled={checking} onClick={() => void check()}>{checking ? 'Checking…' : 'Check delivery'}</button>
-      <button type="button" className="btn btn-ghost" disabled={checking || (review.status === 'sending' && !confirmationTimedOut)} onClick={reviewed}
-        title="After inspecting the conversation, enable a new intentional send. Sending again may duplicate a message that already arrived.">I've checked — enable send</button>
+      <Button type="button" variant="secondary" disabled={checking} onClick={() => void check()}>{checking ? 'Checking…' : 'Check delivery'}</Button>
+      <Button type="button" variant="ghost" disabled={checking || (review.status === 'sending' && !confirmationTimedOut)} onClick={reviewed}
+        title="After inspecting the conversation, enable a new intentional send. Sending again may duplicate a message that already arrived.">I've checked — enable send</Button>
     </div>
   </div>;
 }

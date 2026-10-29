@@ -1,3 +1,4 @@
+import { Button } from './ui/Button';
 interface Props {
   active: boolean;
   onClick: () => void;
@@ -5,7 +6,7 @@ interface Props {
 
 export function ConversationForkButton({ active, onClick }: Props): JSX.Element {
   return (
-    <button
+    <Button
       type="button"
       className={`conversation-fork-toggle${active ? ' is-active' : ''}`}
       aria-pressed={active}
@@ -14,7 +15,7 @@ export function ConversationForkButton({ active, onClick }: Props): JSX.Element 
     >
       <ForkIcon />
       <span>{active ? 'Cancel fork' : 'Fork'}</span>
-    </button>
+    </Button>
   );
 }
 

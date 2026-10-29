@@ -1,3 +1,6 @@
+import { Field, Input } from './ui/Field';
+import { Section, Surface } from './ui/Layout';
+import { Button } from './ui/Button';
 import { useState } from 'react';
 import type { SessionInfo } from '../types';
 import { getActiveServer, serverDisplayName } from '../lib/servers';
@@ -114,7 +117,7 @@ export function SessionDetails({ session, allSessions, onEnd, onResume }: Props)
               <small>
                 {session.exited
                   ? PIN_UNAVAILABLE_WHEN_ENDED
-                  : 'Marks this as a user-driven workbench, keeps it at the top of every list, and excludes it from delegated-work cleanup suggestions.'}
+                  : 'Keeps this session at the top of your lists and out of cleanup suggestions.'}
               </small>
             </span>
             <input
@@ -177,26 +180,26 @@ export function SessionDetails({ session, allSessions, onEnd, onResume }: Props)
           <p>{session.exited ? 'The conversation is kept as read-only history.' : 'Stops the agent now. The conversation is kept and you can resume it later.'}</p>
         </div>
         {session.exited ? (
-          canContinueSession(session) ? <button type="button" className="btn btn-primary" onClick={() => onResume?.(session)}>Resume</button> : null
+          canContinueSession(session) ? <Button type="button" variant="primary" onClick={() => onResume?.(session)}>Resume</Button> : null
         ) : confirming ? (
           <div className="session-control-confirm">
             <p><strong>End this session?</strong> It will stop running. Its conversation is kept, and you can resume it later from Recently ended.</p>
-            <input value={endReason} maxLength={280} onChange={(event) => setEndReason(event.currentTarget.value)} placeholder="Why are you ending it? (optional)" aria-label="Reason for ending session" />
+            <Field label="Reason (optional)"><Input value={endReason} maxLength={280} onChange={(event) => setEndReason(event.currentTarget.value)} placeholder="Why are you ending it? (optional)" aria-label="Reason for ending session" /></Field>
             {endError ? <p className="session-control-error" role="alert">{endError}</p> : null}
             <div className="session-control-actions">
-              <button type="button" className="btn btn-ghost" disabled={ending} onClick={() => { setConfirming(false); setEndError(null); }}>Cancel</button>
-              <button type="button" className="btn btn-secondary" disabled={ending} onClick={() => void endNow()}>
+              <Button type="button" variant="ghost" disabled={ending} onClick={() => { setConfirming(false); setEndError(null); }}>Cancel</Button>
+              <Button type="button" variant="danger" disabled={ending} onClick={() => void endNow()}>
                 {ending ? 'Ending…' : endError ? 'Try again' : 'End session'}
-              </button>
+              </Button>
             </div>
           </div>
-        ) : <button type="button" className="btn btn-secondary" onClick={() => setConfirming(true)}>End session</button>}
+        ) : <Button type="button" variant="secondary" onClick={() => setConfirming(true)}>End session</Button>}
       </section>
     </div>
   );
 }
 
-function DetailsCard({ title, children }: { title: string; children: React.ReactNode }): JSX.Element { return <article className="details-card"><h2>{title}</h2><div>{children}</div></article>; }
+function DetailsCard({ title, children }: { title: string; children: React.ReactNode }): JSX.Element { return <Surface className="details-card"><Section title={title}><div className="details-card-rows">{children}</div></Section></Surface>; }
 function Row({ label, value, valueClassName = '' }: { label: string; value: string | number; valueClassName?: string }): JSX.Element { return <div className="details-row"><span>{label}</span><strong className={valueClassName} title={String(value)}>{value}</strong></div>; }
 
 function continuationContextLabel(session: SessionInfo): string {

@@ -1,4 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Button, IconButton } from './ui/Button';
+import { Field, Select } from './ui/Field';
+import { ModalDialog } from './ui/ModalDialog';
+import { useEffect, useId, useState } from 'react';
 import { listSessionModelOptions, type SessionModelOption } from '../api/sessionsd';
 import type { SessionTool } from '../types';
 import { CLAUDE_MODEL_OPTIONS, ModelPicker, type ModelPickerOption } from './ModelPicker';
@@ -47,22 +51,13 @@ export function ComposerModelControl({
   const [options, setOptions] = useState<SessionModelOption[]>([]);
   const [optionsLoading, setOptionsLoading] = useState(false);
   const [optionsError, setOptionsError] = useState<string | null>(null);
-  const rootRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
 
   useEffect(() => {
     if (open) return;
     setDraftModel(model ?? '');
     setDraftEffort(effort ?? '');
   }, [effort, model, open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const close = (event: PointerEvent): void => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    window.addEventListener('pointerdown', close);
-    return () => window.removeEventListener('pointerdown', close);
-  }, [open]);
 
   useEffect(() => {
     if (!open || !supported || provider !== 'codex') return;
@@ -99,12 +94,13 @@ export function ComposerModelControl({
   const providerName = provider === 'codex' ? 'Codex' : 'Claude';
   const modelOptions = pickerOptions(provider, options);
   return (
-    <div className="composer-model-control" ref={rootRef}>
-      <button
+    <div className="composer-model-control">
+      <Button
         type="button"
-        className="composer-model-trigger"
+        variant="ghost" size="compact" className="composer-model-trigger"
         onClick={() => { setError(null); setOpen((current) => !current); }}
         aria-expanded={open}
+        aria-haspopup="dialog"
         title={supported
           ? 'Choose the model and effort for the next message'
           : `Model changes are unavailable for this ${providerName} session`}
@@ -112,12 +108,12 @@ export function ComposerModelControl({
         <span>{compactModel(model)}</span>
         {effort ? <span>{effort}</span> : null}
         <span aria-hidden>⌄</span>
-      </button>
-      {open ? (
-        <section className="composer-model-popover" aria-label={`${providerName} model for next message`}>
+      </Button>
+      {open ? createPortal(
+        <ModalDialog className="dialog composer-model-dialog" labelledBy={titleId} onClose={() => setOpen(false)} dismissible={!saving}>
           <header>
-            <strong>Next message</strong>
-            <button type="button" aria-label="Close model selector" onClick={() => setOpen(false)}>×</button>
+            <h2 id={titleId}>{providerName} · next message</h2>
+            <IconButton variant="ghost" aria-label="Close model selector" disabled={saving} onClick={() => setOpen(false)}>×</IconButton>
           </header>
           {!supported ? (
             <p>Model changes are unavailable in this conversation. Choose a model when starting a new {providerName} session.</p>
@@ -138,17 +134,16 @@ export function ComposerModelControl({
                   compact
                 />
               </div>
-              <label>
-                <span>Effort</span>
-                <select value={draftEffort} onChange={(event) => setDraftEffort(event.currentTarget.value)}>
+              <Field label="Effort">
+                <Select value={draftEffort} onChange={(event) => setDraftEffort(event.currentTarget.value)}>
                   <option value="">Automatic</option>
                   <option value="low">Low</option>
                   <option value="medium">Medium</option>
                   <option value="high">High</option>
                   <option value="xhigh">Extra high</option>
                   {provider === 'claude-code' ? <option value="max">Max</option> : null}
-                </select>
-              </label>
+                </Select>
+              </Field>
               <p>
                 {working
                   ? `Wait for ${providerName} to finish this turn.`
@@ -159,17 +154,17 @@ export function ComposerModelControl({
                       : 'Applies to the next message. Existing history is unchanged.'}
               </p>
               {error ? <p className="composer-model-error" role="alert">{error}</p> : null}
-              <button
+              <Button
                 type="button"
-                className="btn btn-primary composer-model-save"
+                variant="primary" className="composer-model-save"
                 disabled={saving || working || !draftModel.trim()}
                 onClick={() => void save()}
               >
                 {saving ? 'Saving…' : 'Use for next message'}
-              </button>
+              </Button>
             </>
           )}
-        </section>
+        </ModalDialog>, document.body
       ) : null}
     </div>
   );

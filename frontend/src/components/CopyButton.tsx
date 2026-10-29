@@ -1,3 +1,4 @@
+import { Button } from './ui/Button';
 import { useState } from 'react';
 import { copyText } from '../lib/copyText';
 
@@ -26,7 +27,7 @@ export function CopyButton({ getText, className, label = 'Copy', iconOnly = fals
   };
 
   return (
-    <button
+    <Button variant="ghost" size="compact"
       type="button"
       className={`copy-btn ${state}${iconOnly ? ' is-icon-only' : ''} ${className ?? ''}`}
       onClick={onClick}
@@ -41,6 +42,6 @@ export function CopyButton({ getText, className, label = 'Copy', iconOnly = fals
           </svg>
         )
       ) : state === 'ok' ? '✓ Copied' : state === 'err' ? '× Failed' : label}
-    </button>
+    </Button>
   );
 }

@@ -8,6 +8,7 @@
  * xterm is always mounted; we never display:none its container directly,
  * because that zeroes the dims and FitAddon mis-sizes on toggle back. */
 .session-view {
+  --statusline-h: 36px;
   flex: 1;
   display: grid;
   grid-template-rows: var(--statusline-h) 1fr;
@@ -444,9 +445,9 @@
 .remote-history-loading > div { display: grid; gap: 10px; margin-top: 22px; padding: 18px; border: 1px solid var(--border); border-radius: 12px; }
 .remote-msg {
   display: flex;
-  width: min(900px, calc(100% - 36px));
+  width: min(820px, calc(100% - 40px));
   margin: 0 auto;
-  padding: 20px 6px;
+  padding: 20px 0;
   flex-direction: column;
   gap: 8px;
 }
@@ -492,16 +493,15 @@
 }
 .remote-bubble-user {
   width: auto;
-  max-width: min(700px, 88%);
+  max-width: min(640px, 92%);
   margin: 0;
   padding: 14px 17px;
-  background: var(--bg-elev-3);
-  border: 1px solid var(--border-strong);
+  background: var(--accent-bg-soft);
+  border: 0;
   border-radius: 16px;
   color: var(--fg);
   font-family: var(--font-ui);
   white-space: pre-wrap;
-  box-shadow: var(--shadow-1);
 }
 .remote-bubble-assistant {
   background: transparent;
@@ -525,6 +525,13 @@
   margin-top: 6px;
   font-size: 12px;
   color: var(--fg-faint);
-  font-family: var(--font-mono);
 }
 .remote-bubble-failed { color: var(--danger); }
+
+.view-toggle-btn.ui-button { white-space: nowrap; }
+.session-toolbar .view-toggle { flex-shrink: 0; }
+.session-toolbar .session-stream-status { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (pointer: coarse) { .session-view { --statusline-h: 48px; } }
+.mobile-terminal-keys .ui-button { padding: 4px 6px; white-space: nowrap; }
+
+.session-view > .session-toolbar { height: var(--statusline-h); min-height: var(--statusline-h); }

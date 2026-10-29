@@ -222,7 +222,7 @@ button.session-parent-breadcrumb:hover, button.session-parent-breadcrumb:focus-v
 .session-archive-action:hover { border-color: var(--accent-border-soft); color: var(--accent); }
 .session-archive-error { max-width: 240px; color: var(--warn); font-size: 12px; }
 .session-toolbar .view-toggle { order: -2; margin-left: 0; margin-right: auto; background: transparent; }
-.session-toolbar .view-toggle.is-content-switch { padding: 2px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--bg-base); }
+.session-toolbar .view-toggle.is-content-switch { padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; }
 .session-toolbar .view-toggle-btn { padding: 4px 11px; }
 .session-toolbar .view-toggle-btn.is-active { background: var(--accent-bg-soft); color: var(--accent); }
 .session-stream-status {
@@ -368,9 +368,9 @@ button.session-parent-breadcrumb:hover, button.session-parent-breadcrumb:focus-v
 .session-view.view-details .session-remote-pane { display: none; }
 .session-details-view { width: 100%; padding: 22px; overflow-y: auto; }
 .details-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.details-card { min-width: 0; padding: 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-elev-1); box-shadow: var(--shadow-1); }
-.details-card h2 { margin: 0 0 13px; color: var(--fg); font-size: 14px; }
-.details-card > div { display: grid; gap: 9px; }
+.details-card.ui-surface { min-width: 0; padding: var(--space-4); }
+.details-card h2 { margin: 0; font-size: var(--type-heading); }
+.details-card-rows { display: grid; gap: var(--space-3); }
 .details-row { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 10px; align-items: baseline; }
 .details-row span { color: var(--fg-dim); font-size: 13px; }
 .details-row strong { overflow: hidden; color: var(--fg); font-size: 13px; font-weight: 550; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
@@ -385,7 +385,7 @@ button.session-parent-breadcrumb:hover, button.session-parent-breadcrumb:focus-v
 .details-technical { margin-top: 14px; padding: 0 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-elev-1); }
 .details-technical > summary { padding: 13px 0; color: var(--fg-dim); font-size: 13px; font-weight: 650; cursor: pointer; }
 .details-technical[open] { padding-bottom: 14px; }
-.details-technical .details-card { background: var(--bg-base); box-shadow: none; }
+.details-technical .details-card.ui-surface { border: 0; background: transparent; }
 .details-technical .details-row strong { font-family: var(--font-mono); font-size: 12px; }
 .session-control {
   display: flex;

@@ -1,3 +1,5 @@
+import { Surface, Actions } from './ui/Layout';
+import { Button } from './ui/Button';
 import { useEffect, useState } from 'react';
 import { retryProviderSession, stopProviderRetry } from '../api/sessionsd';
 import type { ProviderFailureKind, ProviderRetry } from '../types';
@@ -74,7 +76,7 @@ export function ProviderFaultCard({
         <strong>{text}</strong>
         <span className="provider-fault-banner-hint">{guidance}</span>
         {failureKind === 'auth' && onConnectAccount ? (
-          <button type="button" className="provider-control-card-action is-primary" onClick={onConnectAccount}>Connect account</button>
+          <Button type="button" variant="primary" onClick={onConnectAccount}>Connect account</Button>
         ) : null}
         {evidence ? <ProviderFaultEvidence evidence={evidence} /> : null}
       </div>
@@ -82,30 +84,30 @@ export function ProviderFaultCard({
   }
 
   return (
-    <div className="provider-control-card is-provider-fault" role="group" aria-label="Provider trouble">
+    <Surface className="provider-control-card is-provider-fault" role="group" aria-label="Provider trouble">
       <span className="provider-control-card-title">Provider trouble</span>
       <p className="provider-control-card-text">{text}</p>
       {evidence ? <ProviderFaultEvidence evidence={evidence} /> : null}
       <span className="provider-control-card-hint" aria-live="polite">{guidance}</span>
-      <div className="provider-control-card-choices" role="toolbar" aria-label="Provider recovery">
+      <Actions className="provider-control-card-choices" role="toolbar" aria-label="Provider recovery">
         {failureKind === 'auth' && onConnectAccount ? (
-          <button type="button" className="provider-control-card-action is-primary" onClick={onConnectAccount}>Connect account</button>
+          <Button type="button" variant="primary" onClick={onConnectAccount}>Connect account</Button>
         ) : null}
         {failureKind === 'auth' && (!rich || !onConnectAccount) ? (
-          <button type="button" className={`provider-control-card-action${onConnectAccount ? '' : ' is-primary'}`} onClick={onOpenTerminal}>Open Terminal</button>
+          <Button type="button" variant={onConnectAccount ? 'secondary' : 'primary'} onClick={onOpenTerminal}>Open Terminal</Button>
         ) : rich ? (
-          <button type="button" className="provider-control-card-action is-primary" disabled={busy !== null} onClick={() => void act('retry')}>
+          <Button type="button" variant="primary" disabled={busy !== null} onClick={() => void act('retry')}>
             {busy === 'retry' ? 'Retrying…' : 'Retry now'}
-          </button>
+          </Button>
         ) : null}
         {retry ? (
-          <button type="button" className="provider-control-card-action" disabled={busy !== null} onClick={() => void act('stop')}>
+          <Button type="button" variant="secondary" disabled={busy !== null} onClick={() => void act('stop')}>
             {busy === 'stop' ? 'Stopping…' : 'Stop retrying'}
-          </button>
+          </Button>
         ) : null}
-      </div>
+      </Actions>
       {error ? <span className="provider-control-card-hint is-error" role="alert">{error}</span> : null}
-    </div>
+    </Surface>
   );
 }
 

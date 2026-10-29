@@ -1,3 +1,4 @@
+import { useSurfaceTheme } from './ui/useSurfaceTheme';
 import { useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { ModalScopeContext } from './ui/ModalDialog';
@@ -78,6 +79,7 @@ export function ModelPicker({
     setOpen(false);
     rootRef.current?.querySelector<HTMLButtonElement>('button')?.focus();
   }, []);
+  const surfaceTheme = useSurfaceTheme(popoverRef);
   const popoverStyle = useAnchoredPopover({ open, rootRef, popoverRef, focusRef: searchRef,
     layoutKey: `${query}:${orderedOptions.length}:${customValue}:${loading ? 'loading' : 'ready'}`, onClose: closePopover });
 
@@ -156,7 +158,7 @@ export function ModelPicker({
         <span className="model-picker-chevron" aria-hidden>⌄</span>
       </button>
       {open && popoverStyle ? createPortal((
-        <section ref={popoverRef} className="model-picker-popover" style={popoverStyle} data-modal-owner={modalScope}
+        <section ref={popoverRef} className="model-picker-popover" style={{ ...surfaceTheme, ...popoverStyle }} data-modal-owner={modalScope}
           onPointerDown={(event) => event.stopPropagation()}
           onClick={(event) => event.stopPropagation()}
           onKeyDown={onKeyDown} aria-label={`${providerName} model picker`}

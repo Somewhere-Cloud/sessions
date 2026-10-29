@@ -1,3 +1,4 @@
+import { Button } from './ui/Button';
 import { useEffect, useState } from 'react';
 import type { ActivityEntry, ToolCall } from '../types';
 import { renderContent } from '../lib/contentRender';
@@ -32,10 +33,10 @@ export function WorkLog({ entries, live, startedAt, showLiveHeader = false, cwd 
       {live && showLiveHeader ? (
         <LiveHeader startedAt={startedAt} />
       ) : !live && entries.length > 0 ? (
-        <button type="button" className="work-log-summary" aria-expanded={open} onClick={() => setManualOpen(!open)}>
+        <Button variant="ghost" size="compact" type="button" className="work-log-summary" aria-expanded={open} onClick={() => setManualOpen(!open)}>
           <span>{summarizeActivity(entries)}</span>
           <span className="work-log-caret" aria-hidden>{open ? '⌄' : '›'}</span>
-        </button>
+        </Button>
       ) : null}
       {open && entries.length > 0 ? (
         <ol className="work-log-rows">
@@ -82,11 +83,11 @@ function WorkLogRow({ entry, live, cwd, open, onToggle }: WorkLogRowProps): JSX.
     const thinking = entry.kind === 'thinking';
     return (
       <li className={`work-log-row is-${entry.kind}${open ? ' is-open' : ''}`}>
-        <button type="button" className="work-log-row-head" onClick={onToggle} aria-expanded={open}>
+        <Button variant="ghost" size="compact" type="button" className="work-log-row-head" onClick={onToggle} aria-expanded={open}>
           <WorkIcon kind={thinking ? 'thinking' : 'update'} />
           <span className={`work-log-row-label${open ? ' is-hidden' : ''}`}>{firstLine(entry.text)}</span>
           <span className="work-log-row-caret" aria-hidden>{open ? '▾' : '▸'}</span>
-        </button>
+        </Button>
         {open ? <div className="work-log-row-text md-content" dangerouslySetInnerHTML={{ __html: renderContent(entry.text, cwd) }} /> : null}
       </li>
     );
@@ -99,12 +100,12 @@ function WorkLogRow({ entry, live, cwd, open, onToggle }: WorkLogRowProps): JSX.
   return (
     <li className={`work-log-row is-tool${running ? ' is-running' : ''}${failed ? ' is-failed' : ''}${open ? ' is-open' : ''}`}>
       <div className="work-log-row-line">
-        <button type="button" className="work-log-row-head" onClick={onToggle} aria-expanded={open} title={call.name}>
+        <Button variant="ghost" size="compact" type="button" className="work-log-row-head" onClick={onToggle} aria-expanded={open} title={call.name}>
           <WorkIcon kind={running ? 'running' : lanes.length > 0 ? 'agent' : toolCategory(call)} />
           <span className="work-log-row-label">{toolActivityLabel(call, running)}</span>
           {failed ? <span className="work-log-row-badge">failed</span> : null}
           <span className="work-log-row-caret" aria-hidden>{open ? '▾' : '▸'}</span>
-        </button>
+        </Button>
         <LaneLinkButtons lanes={lanes} />
       </div>
       {open ? <ToolDetail call={call} running={running} /> : null}
@@ -118,7 +119,7 @@ export function LaneLinkButtons({ lanes }: { lanes: LaneLinkTarget[] }): JSX.Ele
   return (
     <span className="work-log-lanes">
       {lanes.map((lane, index) => (
-        <button
+        <Button variant="ghost" size="compact"
           key={lane.sessionId}
           type="button"
           className="work-log-lane"
@@ -126,7 +127,7 @@ export function LaneLinkButtons({ lanes }: { lanes: LaneLinkTarget[] }): JSX.Ele
           onClick={(event) => { event.stopPropagation(); requestOpenLane(lane); }}
         >
           {lanes.length > 1 ? `Open lane ${index + 1}` : 'Open lane'}
-        </button>
+        </Button>
       ))}
     </span>
   );

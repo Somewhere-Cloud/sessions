@@ -141,9 +141,9 @@ span.work-log-icon.is-running {
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-word;
-  border: 1px solid var(--border);
+  border: 0;
   border-radius: var(--radius-sm);
-  background: var(--bg-base);
+  background: var(--bg-elev-1);
   color: var(--fg);
   font-family: var(--font-mono);
   font-size: 12px;

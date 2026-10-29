@@ -571,7 +571,7 @@ button.session-tree-group-head { width: 100%; }
 }
 .session-row-continue:hover { color: color-mix(in srgb, var(--accent) 76%, white); }
 .session-row-continue span { margin-left: 2px; }
-.saved-recovery-resume { min-height: 44px; }
+.saved-recovery-resume.ui-button { min-height: 44px; }
 .resume-loading {
   display: grid;
   gap: 7px;

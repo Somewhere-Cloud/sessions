@@ -1,3 +1,4 @@
+import { Button } from './ui/Button';
 import { useServers } from '../lib/servers';
 import { openSessionWindow } from '../lib/tauriBridge';
 
@@ -13,9 +14,9 @@ export function SessionPopOutButton({ sessionId, label }: Props): JSX.Element | 
   if (alreadyPoppedOut) return null;
 
   return (
-    <button
+    <Button
       type="button"
-      className="btn btn-ghost session-popout-view"
+      variant="ghost" className="session-popout-view"
       aria-label={`Pop out ${label} into its own window`}
       title="Open this session in its own window"
       disabled={!machine}
@@ -26,6 +27,6 @@ export function SessionPopOutButton({ sessionId, label }: Props): JSX.Element | 
         <path d="M10.25 2.25h5.5v5.5M15.5 2.5 8.25 9.75" />
       </svg>
       <span>Pop out</span>
-    </button>
+    </Button>
   );
 }

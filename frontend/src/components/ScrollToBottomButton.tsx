@@ -1,3 +1,4 @@
+import { IconButton } from './ui/Button';
 interface Props {
   visible: boolean;
   onClick: () => void;
@@ -13,7 +14,7 @@ interface Props {
 export function ScrollToBottomButton({ visible, onClick, bottom }: Props): JSX.Element | null {
   if (!visible) return null;
   return (
-    <button
+    <IconButton variant="secondary"
       type="button"
       className="scroll-to-bottom"
       onClick={onClick}
@@ -33,6 +34,6 @@ export function ScrollToBottomButton({ visible, onClick, bottom }: Props): JSX.E
       >
         <polyline points="6 9 12 15 18 9" />
       </svg>
-    </button>
+    </IconButton>
   );
 }

@@ -1,3 +1,5 @@
+import { Surface, Actions } from './ui/Layout';
+import { Button } from './ui/Button';
 import { useState } from 'react';
 import type { SnapshotComposerState, TrustChoice } from '../lib/detectMultiChoice';
 import type { ApprovalDecision, PendingApproval } from '../types';
@@ -43,65 +45,65 @@ export function ProviderControlCard({ detail, blockingState, trustChoice, answer
     };
     const what = approval.kind === 'command' ? 'wants to run a command' : approval.kind === 'permissions' ? 'is asking for more access' : 'wants to change files';
     return (
-      <div className="provider-control-card is-approval" role="group" aria-label="Permission request">
+      <Surface className="provider-control-card is-approval" role="group" aria-label="Permission request">
         <span className="provider-control-card-title">Needs you</span>
-        <p className="provider-control-card-text">The lane {what}{approval.reason ? `: ${approval.reason}` : '.'}</p>
+        <p className="provider-control-card-text">This session {what}{approval.reason ? `: ${approval.reason}` : '.'}</p>
         {approval.command ? <pre className="provider-control-card-command">{approval.command}</pre> : null}
         {approval.cwd ? <span className="provider-control-card-hint">in {approval.cwd}</span> : null}
-        <div className="provider-control-card-choices" role="toolbar" aria-label="Answer the permission request">
-          <button type="button" className="provider-control-card-action is-primary" disabled={deciding !== null} onClick={() => void decide('allow')}>
+        <Actions className="provider-control-card-choices" role="toolbar" aria-label="Answer the permission request">
+          <Button type="button" variant="primary" disabled={deciding !== null} onClick={() => void decide('allow')}>
             {deciding === 'allow' ? 'Allowing…' : 'Allow once'}
-          </button>
-          <button type="button" className="provider-control-card-action" disabled={deciding !== null} onClick={() => void decide('allow-session')}>
+          </Button>
+          <Button type="button" variant="secondary" disabled={deciding !== null} onClick={() => void decide('allow-session')}>
             {deciding === 'allow-session' ? 'Allowing…' : 'Allow for this session'}
-          </button>
-          <button type="button" className="provider-control-card-action" disabled={deciding !== null} onClick={() => void decide('deny')}>
+          </Button>
+          <Button type="button" variant="secondary" disabled={deciding !== null} onClick={() => void decide('deny')}>
             {deciding === 'deny' ? 'Declining…' : 'Decline'}
-          </button>
-        </div>
+          </Button>
+        </Actions>
         {decideError ? <span className="provider-control-card-hint" role="alert">{decideError}</span> : null}
-      </div>
+      </Surface>
     );
   }
   const text = detail ?? blockingState?.description ?? 'The provider is waiting for a choice.';
   // No terminal control was detected: the lane asked a question in prose.
   const isQuestion = !blockingState && !answer;
   return (
-    <div className="provider-control-card" role="group" aria-label="Provider control">
+    <Surface className="provider-control-card" role="group" aria-label="Provider control">
       <span className="provider-control-card-title">Needs you</span>
       <p className="provider-control-card-text">{text}</p>
       {answer && blockingState?.kind === 'trust-prompt' && trustChoice ? (
-        <div className="provider-control-card-choices">
-          <button
+        <Actions className="provider-control-card-choices">
+          <Button
             type="button"
-            className="provider-control-card-action is-primary"
+            variant="primary"
             onClick={() => answer(trustChoice.selected === 'yes' ? ['\r'] : ['\x1b[B', '\r'])}
           >
             Yes, I trust this folder
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="provider-control-card-action"
+            variant="secondary"
             onClick={() => answer(trustChoice.selected === 'no' ? ['\r'] : ['\x1b[A', '\r'])}
           >
             No, exit
-          </button>
-        </div>
+          </Button>
+        </Actions>
       ) : answer ? (
-        <div className="provider-control-card-choices" role="toolbar" aria-label="Answer the provider control">
-          <button type="button" className="provider-control-card-action" onClick={() => answer(['\x1b[A'])} aria-label="Move up">↑</button>
-          <button type="button" className="provider-control-card-action" onClick={() => answer(['\x1b[B'])} aria-label="Move down">↓</button>
-          <button type="button" className="provider-control-card-action is-primary" onClick={() => answer(['\r'])}>Enter</button>
-          <button type="button" className="provider-control-card-action" onClick={() => answer(['\x1b'])}>Esc</button>
-        </div>
+        <Actions className="provider-control-card-choices" role="toolbar" aria-label="Answer the provider control">
+          <Button type="button" variant="secondary" onClick={() => answer(['\x1b[A'])} aria-label="Move up">↑</Button>
+          <Button type="button" variant="secondary" onClick={() => answer(['\x1b[B'])} aria-label="Move down">↓</Button>
+          <Button type="button" variant="primary" onClick={() => answer(['\r'])}>Enter</Button>
+          <Button type="button" variant="secondary" onClick={() => answer(['\x1b'])}>Esc</Button>
+        </Actions>
       ) : null}
       {isQuestion || !terminalAvailable ? (
         <span className="provider-control-card-hint">Reply in the message box below.</span>
       ) : (
-        <button type="button" className="provider-control-card-terminal" onClick={onOpenTerminal}>
+        <Button type="button" variant="ghost" onClick={onOpenTerminal}>
           {answer ? 'Show the exact terminal' : 'Open Terminal view to respond'}
-        </button>
+        </Button>
       )}
-    </div>
+    </Surface>
   );
 }

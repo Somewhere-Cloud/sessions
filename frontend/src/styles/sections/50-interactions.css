@@ -69,6 +69,8 @@
 .model-picker-trigger > span:nth-child(2) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .model-picker-chevron { margin-left: auto; color: var(--fg-faint); }
 .model-picker-popover {
+  color: var(--fg);
+  font-family: var(--font-ui);
   position: fixed;
   z-index: 220;
   display: grid;
@@ -120,8 +122,8 @@ button.model-picker-option { display: flex; align-items: center; justify-content
 .model-picker-option.is-focused { border-color: var(--border); background: var(--bg-elev-2); }
 .model-picker-option.is-selected { border-color: var(--accent-border-soft); background: var(--accent-bg-soft); }
 .model-picker-option-copy { display: grid; min-width: 0; gap: 3px; }
-.model-picker-option-copy strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
-.model-picker-option-copy small { overflow: hidden; color: var(--fg-faint); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.model-picker-option-copy strong { overflow: hidden; font-size: calc(var(--type-body) * var(--interface-scale, 1)); text-overflow: ellipsis; white-space: nowrap; }
+.model-picker-option-copy small { overflow: hidden; color: var(--fg-faint); font-size: calc(var(--type-caption) * var(--interface-scale, 1)); text-overflow: ellipsis; white-space: nowrap; }
 .model-picker-option-actions { display: flex; align-items: center; gap: 6px; padding-right: 8px; }
 .model-picker-option-actions kbd { padding: 3px 4px; }
 .model-picker-check { color: var(--accent); font-weight: 800; }
@@ -448,7 +450,7 @@ button.model-picker-option { display: flex; align-items: center; justify-content
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 36px;
+  height: var(--conversation-terminal-toolbar, 36px);
   padding: 0 10px 0 12px;
   border-bottom: 1px solid var(--border);
   background: var(--bg-elev-1);
@@ -456,9 +458,9 @@ button.model-picker-option { display: flex; align-items: center; justify-content
 .terminal-drawer-header > span { display: flex; align-items: baseline; gap: 8px; color: var(--fg-faint); font-size: 12px; }
 .terminal-drawer-header strong { color: var(--fg); font-size: 13px; }
 .terminal-drawer-header > div { display: flex; align-items: center; gap: 3px; }
-.terminal-drawer-header button { width: 27px; height: 27px; border: 0; border-radius: 6px; background: transparent; color: var(--fg-faint); font-size: 19px; cursor: pointer; }
-.terminal-drawer-header button:hover { background: var(--bg-elev-3); color: var(--fg); }
-.session-view.has-terminal-drawer .terminal-host { top: 36px; }
+.terminal-drawer-header .ui-icon-button { font-size: 19px; }
+.session-view.has-terminal-drawer .terminal-host { top: var(--conversation-terminal-toolbar, 36px); }
+@media (pointer: coarse) { .session-view.has-terminal-drawer { --conversation-terminal-toolbar: 44px; } }
 .session-view.has-terminal-drawer.terminal-drawer-expanded .session-terminal-pane {
   height: calc(100% - 24px);
 }
@@ -530,7 +532,9 @@ button.model-picker-option { display: flex; align-items: center; justify-content
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 7px 18px;
+  width: min(100%, 860px);
+  margin-inline: auto;
+  padding: 8px 16px;
   border-top: 1px solid var(--border);
   background: var(--bg-base);
   font-size: 12px;
@@ -562,7 +566,7 @@ button.model-picker-option { display: flex; align-items: center; justify-content
 .status-dot.idle    { background: var(--fg-faint); }
 .status-text { font-size: 12px; }
 .sidebar-metrics {
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 12px;
   color: var(--fg-dim);
 }
@@ -586,8 +590,6 @@ button.model-picker-option { display: flex; align-items: center; justify-content
 .sidebar-metric-label {
   color: var(--fg-faint);
   font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
 }
 .sidebar-metric-task {
   flex: 1;
@@ -633,3 +635,5 @@ button.model-picker-option { display: flex; align-items: center; justify-content
   overflow: hidden;
   background: radial-gradient(circle at 50% 45%, var(--accent-bg-soft), transparent 32rem);
 }
+
+.sidebar-run-state .ui-status { display: inline; border: 0; padding: 0; font-size: inherit; }

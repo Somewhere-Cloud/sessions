@@ -1,3 +1,4 @@
+import { Button } from './ui/Button';
 import { useState } from 'react';
 import type { SessionInfo } from '../types';
 import { useSessions } from '../store/sessions';
@@ -41,14 +42,14 @@ export function SessionArchiveButton({ session, onArchived, appearance }: Props)
     }
   };
   return <>
-    <button type="button" role={appearance} className="btn btn-ghost session-archive-action"
+    <Button type="button" role={appearance} variant="ghost" className="session-archive-action"
       disabled={busy}
       title={session.exited ? 'Remove this ended record. Its conversation stays in History.'
         : restoring ? 'Restore to the active list without resuming or sending anything.'
           : 'Move to Archived live sessions without stopping work. Drafts stay saved; activity and attention remain visible.'}
       onClick={() => void archiveNow()}>
       {busy ? 'Saving…' : restoring ? 'Restore to active list' : session.exited ? 'Archive' : 'Archive (keeps running)'}
-    </button>
+    </Button>
     {error ? <span className="session-archive-error" role="alert">{error}</span> : null}
   </>;
 }
