@@ -55,6 +55,6 @@ function shortUsage(summary: string): string {
   return summary.replace('Last known · ', 'Last · ').replace(/(\d+)-hour limit /, '$1h · ')
     .replace(/(\d+)-minute limit /, '$1m · ').replace('Weekly limit ', 'Week · ')
     .replace(' independent limits', ' limits').replace(' used', '').replace(' · +1 window', ' +1')
-    .replace('Limits unavailable', 'Unavailable').replace('Limits unknown', 'Unknown')
+    .replace('Limits unavailable', 'No data').replace('Limits unknown', 'Unknown')
     .replace('No selected account', 'No account').replace('Reading limits…', 'Reading…');
 }
