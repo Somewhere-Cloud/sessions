@@ -321,16 +321,19 @@
 	  .product-feedback-button > span:last-child,
 	  .somewhere-sidebar-link > span,
   .theme-toggle > span:last-child { display: none; }
+  .product-command-button.ui-button { display: flex; justify-content: center; padding: 0; }
+  .product-command-button > span, .product-command-button kbd { display: none; }
+  .product-command-button svg { flex: 0 0 18px; }
   .product-update-card { justify-items: center; padding: 5px; border-radius: 9px; }
   .product-update-card > div,
   .product-update-card > small { display: none; }
   .product-update-card button { width: 38px; min-height: 34px; padding: 0; font-size: 0; }
   .product-update-card button::before { content: '↥'; font-size: 17px; }
-	  .product-new-session,
-	  .product-nav-item,
-	  .product-feedback-button,
+	  .product-new-session.ui-button,
+	  .product-nav-item.ui-button,
+	  .product-feedback-button.ui-button,
 	  .somewhere-sidebar-link,
-  .theme-toggle { justify-content: center; padding-inline: 0; }
+  .theme-toggle.ui-button { justify-content: center; padding-inline: 0; }
   .session-active-header { gap: 10px; padding-inline: 14px; }
   .session-active-meta > span:last-child { display: none; }
 }

@@ -39,7 +39,6 @@ export function MobileNav({
   return (
     <>
       <nav className="mobile-nav" role="navigation" aria-label="Sessions">
-        <MobileDestination label="Home" icon={<HomeIcon />} active={layoutMode === 'home'} onClick={() => go('home')} />
         <MobileDestination label="Sessions" icon={<SessionsIcon />} active={layoutMode === 'tabs'} onClick={onShowSessions} detail={showingSessionDetail} />
         <MobileDestination label="Search" icon={<SearchIcon />} active={layoutMode === 'search'} onClick={() => go('search')} />
         <MobileDestination label="More" icon={<MoreIcon />} active={moreActive || moreOpen} onClick={() => setMoreOpen(true)} />
@@ -50,9 +49,8 @@ export function MobileNav({
             <div className="mobile-more-heading"><PageHeader title="More" titleId="mobile-more-title" level={2}
               actions={<Button variant="ghost" aria-label="Close" onClick={() => setMoreOpen(false)}>×</Button>} /></div>
             <div className="mobile-more-grid">
-              <MoreDestination title="Fleet" detail="Computers and remote agents" icon={<FleetIcon />} onClick={() => go('fleet')} />
               <MoreDestination title="Usage" detail="Tokens, cost, and projects" icon={<UsageIcon />} onClick={() => go('usage')} />
-              <MoreDestination title="Accounts" detail="Claude and ChatGPT sign-ins" icon={<AccountsIcon />} onClick={() => go('accounts')} />
+              <MoreDestination title="Accounts & computers" detail="Sign-ins, computers, and connections" icon={<AccountsIcon />} onClick={() => go('accounts')} />
               <MoreDestination title="Settings" detail="Agents, access, and appearance" icon={<SettingsIcon />} onClick={() => go('settings')} />
               <MoreDestination title="Connections" detail="Pair and manage machines" icon={<ConnectionsIcon />} onClick={() => go('connections')} />
             </div>
@@ -108,11 +106,11 @@ function MoreDestination({ title, detail, icon, onClick }: { title: string; deta
 function Icon({ children }: { children: ReactNode }): JSX.Element {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{children}</svg>;
 }
-function HomeIcon(): JSX.Element { return <Icon><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9 21v-7h6v7"/></Icon>; }
+
 function SessionsIcon(): JSX.Element { return <Icon><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 9h8M8 13h8M8 17h5"/></Icon>; }
 function SearchIcon(): JSX.Element { return <Icon><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></Icon>; }
 function MoreIcon(): JSX.Element { return <Icon><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></Icon>; }
-function FleetIcon(): JSX.Element { return <Icon><rect x="4" y="3" width="16" height="7" rx="2"/><rect x="4" y="14" width="16" height="7" rx="2"/><path d="M8 6.5h.01M8 17.5h.01"/></Icon>; }
+
 function UsageIcon(): JSX.Element { return <Icon><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></Icon>; }
 function AccountsIcon(): JSX.Element { return <Icon><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></Icon>; }
 function SettingsIcon(): JSX.Element { return <Icon><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.6-2-3.4-2.5 1A8 8 0 0 0 15 6l-.4-2.6h-4L10 6a8 8 0 0 0-1.4.8l-2.4-1-2 3.5 2 1.6a7 7 0 0 0 0 2.1l-2 1.6 2 3.4 2.4-1A8 8 0 0 0 10 18l.5 2.6h4L15 18a8 8 0 0 0 1.4-.8l2.5 1 2-3.5-2-1.6a7 7 0 0 0 .1-1.1Z"/></Icon>; }

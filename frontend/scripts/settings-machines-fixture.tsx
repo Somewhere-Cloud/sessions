@@ -13,6 +13,7 @@ import { Button } from '../src/components/ui/Button';
 import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import '../src/styles/globals.css';
+import { AccountsView } from '../src/components/AccountsView';
 import { AccountsPanel } from '../src/components/AccountsPanel';
 import type { AccountProfile } from '../src/api/sessionsd';
 import { installFakeDaemon, useFakeMachines, type FakeMachine } from '../tests/capability/fake-daemon';
@@ -90,6 +91,7 @@ function Fixture(): JSX.Element {
     {screen === 'remaining-cards' ? <div className="settings-page ui-stack"><NativeRuntimeStatusCard /><NotificationDeliveryCard hostName="Studio Mac" status={null} error="Computer unavailable. Delivery is unverified." /><IdleCompactionCard clientOnly hostName="Studio Mac" /><MachineRecoveryNotice machine="Studio Mac" local={false} discovering={false} recovered={0} expected={3} busy={false} detail="The connection was interrupted; saved sessions remain visible." onRecover={() => {}} /></div>
       : screen === 'network' ? <div className="settings-page"><LocalNetworkGuide /></div>
       : screen === 'menu' ? <SettingsMenu textSize="S" onTextSizeChange={() => {}} initiallyOpen />
+      : screen === 'account-workspace' ? <AccountsView hostName="This Mac" serverId="local" />
       : screen.startsWith('accounts') ? <AccountsPanel profiles={profiles} machineName="This Mac" serverId="local" onReload={setProfiles} />
       : screen === 'connections' ? <ConnectionsView />
       : screen === 'connect-mobile' ? <ConnectScreen clientOnly />

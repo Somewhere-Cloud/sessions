@@ -51,7 +51,7 @@ try {
         assert.ok(bounds.controls.every((r) => r.left >= 0 && r.right <= width), `${screen} controls fit at ${width}px`);
         if (width === 375) assert.ok(bounds.controls.every((r) => r.height >= 44), 'coarse pointer controls, including compact, have 44px targets');
         assert.equal(bounds.foreground, theme === 'light' ? 'rgb(23, 26, 31)' : 'rgb(232, 232, 232)', 'theme foreground follows portaled surfaces');
-        assert.equal(bounds.background, theme === 'light' ? 'rgb(255, 255, 255)' : 'rgb(20, 20, 20)', `${screen} follows ${theme} theme including body portals`);
+        assert.equal(bounds.background, theme === 'light' ? 'rgb(255, 255, 255)' : 'rgb(25, 29, 32)', `${screen} follows ${theme} theme including body portals`);
         if (process.env.UI_SCREENSHOT_DIR) await page.screenshot({ path: join(process.env.UI_SCREENSHOT_DIR, `${screen}-${theme}-${width}.png`), fullPage: true });
         if (screen === 'gallery' && process.env.UI_SCREENSHOT_DIR) {
           await page.$eval('.operations-shell', (el) => { el.scrollTop = el.scrollHeight; });

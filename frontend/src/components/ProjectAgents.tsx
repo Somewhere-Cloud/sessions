@@ -1,3 +1,4 @@
+import { SessionActivityGroups } from './SessionActivityGroups';
 import { Button, IconButton } from './ui/Button';
 import { Input } from './ui/Field';
 import { lazy, Suspense, useId, useState, type ReactNode } from 'react';
@@ -40,10 +41,10 @@ function AgentGroup({ group, activeMachineId, activeSessionId, compact = true, r
       <span className={`inbox-chevron${open ? ' is-open' : ''}`} aria-hidden>▸</span>
       <span className="agent-project-name">{group.name}</span><strong className="agent-project-count">{group.rows.length}</strong>
     </Button>{onAdd ? <IconButton size="compact" aria-label={`Add agent to ${group.name}`} onClick={() => onAdd(group.rows[0], group.name)}>＋</IconButton> : null}</header>
-    <div id={rowsId} hidden={!open}>{open ? rows.map((row) => <div key={`${row.server.id}:${row.session.id}`}>
+    <div id={rowsId} hidden={!open}>{open ? <SessionActivityGroups items={rows} sessionOf={(row) => row.session} renderItem={(row) => <div key={`${row.server.id}:${row.session.id}`}>
       {row.projectName ? <small className="session-nav-project">{row.projectName}</small> : null}
       <RemoteAgent row={row} onOpen={onOpen} onResume={onResume} localRow={row.server.id === activeMachineId ? renderLocal(row) : undefined} />
-    </div>) : null}
+    </div>} /> : null}
     {open && remaining > 0 ? <Button variant="ghost" size="compact" className="inbox-fold project-preview-toggle" aria-expanded={showAll} aria-controls={rowsId} onClick={() => setShowAll((current) => !current)}>
       {showAll ? 'Show fewer agents' : `Show ${remaining} remaining agents`}
     </Button> : null}</div>

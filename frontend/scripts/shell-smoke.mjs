@@ -34,13 +34,25 @@ try {
   const errors = [];
   page.on('pageerror', (error) => { errors.push(error.message); console.error(error.message); });
   for (const theme of ['dark', 'light']) {
-    for (const [width, height] of [[1440, 1000], [375, 812]]) {
+    for (const [width, height] of [[1440, 1000], [1100, 900], [375, 812]]) {
       await page.setViewport({ width, height, isMobile: width === 375, hasTouch: width === 375 });
       for (const screen of ['home', 'tabs', 'launcher', 'today']) {
         for (const empty of [false, true]) {
           await page.goto(`http://127.0.0.1:${server.address().port}/?theme=${theme}&screen=${screen}&empty=${empty ? 1 : 0}`, { waitUntil: 'networkidle0' });
           await page.waitForSelector('.operations-content');
           assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `${screen}/${theme}/${width} fits`);
+          if (width === 1100) {
+            for (const selector of ['.product-new-session', '.product-command-button', '.product-nav-item', '.theme-toggle']) {
+              const centered = await page.$eval(selector, (el) => {
+                const icon = el.querySelector('svg') ?? el.querySelector('span');
+                const box = el.getBoundingClientRect(), mark = icon.getBoundingClientRect();
+                return Math.abs((box.left + box.width / 2) - (mark.left + mark.width / 2)) < 2;
+              });
+              assert.equal(centered, true, `${selector} centers in compact rail`);
+            }
+            assert.equal(await page.$('.product-nav [aria-label="Home"]'), null);
+            assert.ok(await page.$('.product-sidebar-footer [aria-label="Usage"]'));
+          }
           if (process.env.UI_SCREENSHOT_DIR) await page.screenshot({ path: join(process.env.UI_SCREENSHOT_DIR, `${screen}-${theme}-${width}${empty ? '-empty' : ''}.png`), fullPage: true });
           if (screen === 'tabs' && !empty) {
             await page.waitForFunction(() => document.body.textContent.includes('Sessions Studio'));

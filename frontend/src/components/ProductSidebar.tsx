@@ -24,12 +24,9 @@ interface Props {
 }
 
 const ITEMS: Array<{ id: ProductView; label: string; icon: ReactNode }> = [
-  { id: 'home', label: 'Home', icon: <HomeIcon /> },
   { id: 'tabs', label: 'Sessions', icon: <SessionsIcon /> },
   { id: 'search', label: 'Search', icon: <SearchIcon /> },
-  { id: 'fleet', label: 'Fleet', icon: <FleetIcon /> },
-  { id: 'usage', label: 'Usage', icon: <UsageIcon /> },
-  { id: 'accounts', label: 'Accounts', icon: <AccountsIcon /> },
+  { id: 'accounts', label: 'Accounts & computers', icon: <AccountsIcon /> },
   { id: 'settings', label: 'Settings', icon: <SettingsIcon /> }
 ];
 
@@ -131,39 +128,15 @@ export function ProductSidebar({ active, theme, onNavigate, onNewSession, onOpen
 
   return (
     <aside className="product-sidebar">
-      <a className="product-brand" href="https://somewhere.tech" target="_blank" rel="noreferrer" aria-label="Open somewhere.tech">
-        <span className="product-brand-mark"><img src="/somewhere-logo.svg" alt="" /></span>
-        <span className="product-brand-name"><span>Somewhere</span><strong>Sessions</strong></span>
-      </a>
-
-      <Button variant="ghost" type="button" className="product-new-session" onClick={onNewSession}>
-        <span aria-hidden>＋</span><span>New Session</span>
-      </Button>
-
-      <Button variant="ghost" type="button" className="product-command-button" onClick={onOpenCommandPalette}>
-        <SearchIcon />
-        <span>Find or run…</span>
-        <kbd>⌘K</kbd>
-      </Button>
-
-      <nav className="product-nav" aria-label="Sessions">
-        {ITEMS.map((item) => (
-          <Button variant="ghost"
-            key={item.id}
-            type="button"
-            className={`product-nav-item${active === item.id ? ' is-active' : ''}`}
-            onClick={() => onNavigate(item.id)}
-            aria-current={active === item.id ? 'page' : undefined}
-          >
-            <span className="product-nav-icon" aria-hidden>{item.icon}</span>
-            <span>{item.label}</span>
-          </Button>
-        ))}
-      </nav>
+      <SidebarNavigation active={active} onNavigate={onNavigate} onNewSession={onNewSession} onOpenCommandPalette={onOpenCommandPalette} />
 
       <div className="product-sidebar-footer">
+        <Button variant="ghost" className={`product-nav-item${active === 'usage' ? ' is-active' : ''}`} aria-label="Usage" title="Usage" aria-current={active === 'usage' ? 'page' : undefined} onClick={() => onNavigate('usage')}>
+          <span className="product-nav-icon" aria-hidden><UsageIcon /></span><span>Usage</span>
+        </Button>
         <Button variant="ghost"
           type="button"
+          aria-label="Send feedback" title="Send feedback"
           className={`product-feedback-button${active === 'feedback' ? ' is-active' : ''}`}
           onClick={() => onNavigate('feedback')}
         >
@@ -199,13 +172,9 @@ export function ProductSidebar({ active, theme, onNavigate, onNewSession, onOpen
           </div>
         ) : null}
         {providerUpdateError ? <small className="product-update-error" role="alert">{providerUpdateError}</small> : null}
-        <a href="https://somewhere.tech" target="_blank" rel="noreferrer" className="somewhere-sidebar-link">
-          <img src="/somewhere-logo.svg" alt="" />
-          <span>somewhere.tech</span>
-        </a>
-        <Button variant="ghost" type="button" className="theme-toggle" onClick={onToggleTheme} title={`Use ${theme === 'dark' ? 'light' : 'dark'} mode`}>
-          <span aria-hidden>{theme === 'dark' ? '☾' : '☀'}</span>
-          <span>{theme === 'dark' ? 'Dark' : 'Light'}</span>
+        <Button variant="ghost" type="button" className="theme-toggle" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} onClick={onToggleTheme} title={`Use ${theme === 'dark' ? 'light' : 'dark'} mode`}>
+          <span className="product-nav-icon" aria-hidden>{theme === 'dark' ? <SunIcon /> : <MoonIcon />}</span>
+          <span>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
         </Button>
       </div>
     </aside>
@@ -215,11 +184,48 @@ export function ProductSidebar({ active, theme, onNavigate, onNewSession, onOpen
 function Icon({ children }: { children: ReactNode }): JSX.Element {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">{children}</svg>;
 }
-function HomeIcon(): JSX.Element { return <Icon><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9 21v-7h6v7"/></Icon>; }
 function SessionsIcon(): JSX.Element { return <Icon><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 9h8M8 13h8M8 17h5"/></Icon>; }
 function SearchIcon(): JSX.Element { return <Icon><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></Icon>; }
-function FleetIcon(): JSX.Element { return <Icon><rect x="4" y="3" width="16" height="7" rx="2"/><rect x="4" y="14" width="16" height="7" rx="2"/><path d="M8 6.5h.01M8 17.5h.01"/></Icon>; }
 function UsageIcon(): JSX.Element { return <Icon><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></Icon>; }
 function AccountsIcon(): JSX.Element { return <Icon><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></Icon>; }
 function FeedbackIcon(): JSX.Element { return <Icon><path d="M4 5.5h16v11H9l-5 4v-15Z"/><path d="M8 9h8M8 13h5"/></Icon>; }
 function SettingsIcon(): JSX.Element { return <Icon><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21H9.6v-.1A1.7 1.7 0 0 0 8.5 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3V9.6h.1A1.7 1.7 0 0 0 4.6 8.5a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.1A1.7 1.7 0 0 0 15.5 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.13.38.34.72.6 1 .3.3.68.5 1.1.6h.1v4h-.1A1.7 1.7 0 0 0 19.4 15Z"/></Icon>; }
+
+function SidebarNavigation({ active, onNavigate, onNewSession, onOpenCommandPalette }: Pick<Props, 'active' | 'onNavigate' | 'onNewSession' | 'onOpenCommandPalette'>): JSX.Element {
+  return <>
+      <button type="button" className="product-brand" onClick={() => onNavigate('tabs')} aria-label="Sessions workspace">
+        <span className="product-brand-mark"><img src="/somewhere-logo.svg" alt="" /></span>
+        <span className="product-brand-name"><span>Somewhere</span><strong>Sessions</strong></span>
+      </button>
+
+      <Button variant="ghost" type="button" className="product-new-session" aria-label="New session" title="New session" onClick={onNewSession}>
+        <span className="product-add-icon" aria-hidden><Icon><path d="M12 5v14M5 12h14" /></Icon></span><span>New Session</span>
+      </Button>
+
+      <Button variant="ghost" type="button" className="product-command-button" aria-label="Find or run a command" title="Find or run a command (⌘K)" onClick={onOpenCommandPalette}>
+        <SearchIcon />
+        <span>Find or run…</span>
+        <kbd>⌘K</kbd>
+      </Button>
+
+      <nav className="product-nav" aria-label="Sessions">
+        {ITEMS.map((item) => (
+          <Button variant="ghost"
+            key={item.id}
+            aria-label={item.label} title={item.label}
+            type="button"
+            className={`product-nav-item${active === item.id ? ' is-active' : ''}`}
+            onClick={() => onNavigate(item.id)}
+            aria-current={active === item.id ? 'page' : undefined}
+          >
+            <span className="product-nav-icon" aria-hidden>{item.icon}</span>
+            <span>{item.label}</span>
+          </Button>
+        ))}
+      </nav>
+
+  </>;
+}
+
+function SunIcon(): JSX.Element { return <Icon><circle cx="12" cy="12" r="4" /><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5" /></Icon>; }
+function MoonIcon(): JSX.Element { return <Icon><path d="M20 15.5A8.5 8.5 0 0 1 8.5 4 8.5 8.5 0 1 0 20 15.5Z" /></Icon>; }

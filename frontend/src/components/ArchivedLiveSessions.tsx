@@ -24,10 +24,10 @@ export function ArchivedLiveSessions({ snapshots, projects, matches, activeMachi
   if (!count) return null;
   return <section className="session-tree-group" aria-label="Archived live sessions">
     <button type="button" className="session-tree-group-head" aria-expanded={open} onClick={() => setExpanded(!open)}>
-      <span>Archived live sessions</span><strong>{count}</strong>
+      <span>Settled</span><strong>{count}</strong>
     </button>
     {open ? <>
-      <p className="session-tree-empty is-compact">Work keeps running. Open a conversation, then choose Restore to active list. Drafts stay saved.</p>
+      <p className="session-tree-empty is-compact">Conversations set aside manually or by auto archive. Open one to restore it. Runners and drafts stay intact.</p>
       <Suspense fallback={<p role="status">Loading archived sessions…</p>}>
         <ProjectAgents groups={groups} activeMachineId={activeMachineId} compact={false} renderLocal={renderLocal} onOpen={onOpen} />
       </Suspense>

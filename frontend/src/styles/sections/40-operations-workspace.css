@@ -768,3 +768,11 @@ button.session-tree-group-head { width: 100%; }
 @media (pointer: coarse) { .agent-rename.ui-button { opacity: 1; } }
 
 .product-nav-item.ui-button, .product-feedback-button.ui-button, .theme-toggle.ui-button { justify-content: flex-start; }
+
+.product-add-icon { display: inline-flex; flex: 0 0 20px; width: 20px; height: 20px; }
+.product-add-icon svg { width: 20px; height: 20px; }
+.theme-toggle.ui-button { color: var(--fg-dim); min-height: 38px; }
+.theme-toggle.ui-button:hover { color: var(--fg); }
+
+.session-activity-heading { display: flex; align-items: center; gap: 8px; padding: 10px 14px 4px; color: var(--fg-dim); font-size: 12px; font-weight: 600; }
+.session-activity-heading span { color: var(--fg-faint); }

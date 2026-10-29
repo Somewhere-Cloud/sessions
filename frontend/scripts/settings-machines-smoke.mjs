@@ -36,7 +36,7 @@ try {
   for (const theme of ['dark', 'light']) {
     for (const [width, height] of [[1280, 1000], [375, 812]]) {
       await page.setViewport({ width, height, isMobile: width === 375, hasTouch: width === 375 });
-      for (const screen of (process.env.UI_ONLY_REMAINING ? ['fleet', 'remaining-cards'] : ['remaining-cards', 'accounts', 'accounts-empty', 'general', 'agents', 'support', 'notifications', 'storage', 'connections', 'connect', 'connect-mobile', 'fleet', 'network', 'dialog'])) {
+      for (const screen of (process.env.UI_ONLY_REMAINING ? ['fleet', 'remaining-cards'] : ['account-workspace', 'remaining-cards', 'accounts', 'accounts-empty', 'general', 'agents', 'support', 'notifications', 'storage', 'connections', 'connect', 'connect-mobile', 'fleet', 'network', 'dialog'])) {
         await page.goto(`http://127.0.0.1:${server.address().port}/?theme=${theme}&screen=${screen}`, { waitUntil: 'networkidle0' });
         if (screen !== 'dialog') await page.waitForSelector('.ui-header');
         if (screen === 'remaining-cards') {

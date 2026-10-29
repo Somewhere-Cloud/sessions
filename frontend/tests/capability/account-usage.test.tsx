@@ -65,6 +65,7 @@ async function openAccounts(machines = fleet()) {
   useFakeMachines(machines, 'alpha');
   render(<AccountsView hostName="Alpha" serverId="alpha" />);
   const list = await screen.findByRole('list', { name: 'Accounts' });
+  for (const summary of within(list).getAllByText('Manage sign-ins')) await userEvent.click(summary);
   return { daemon, list, user: userEvent.setup() };
 }
 

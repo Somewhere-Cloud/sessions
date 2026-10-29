@@ -25,6 +25,7 @@ import { ProviderMark } from './ProviderBadge';
 // so a finished sign-in is not left above a new, unrelated form.
 
 interface Props {
+  embedded?: boolean;
   profiles: AccountProfile[];
   machineName: string;
   serverId?: string;
@@ -61,7 +62,7 @@ function useTargetedLogin(homeId: string, onProfiles: (id: string, profiles: Acc
   return { login, target, on };
 }
 
-export function AccountsPanel({ profiles, machineName, serverId, onReload }: Props): JSX.Element {
+export function AccountsPanel({ embedded = false, profiles, machineName, serverId, onReload }: Props): JSX.Element {
   const activeId = useServers((state) => state.activeId);
   const home = serverId ?? activeId ?? '';
   const fleet = useAccountFleet({ homeId: home, homeName: machineName, homeProfiles: profiles, onHomeReload: onReload });
@@ -95,7 +96,7 @@ export function AccountsPanel({ profiles, machineName, serverId, onReload }: Pro
 
   return (
     <section className="settings-page accounts-panel">
-      <AccountsIntroduction />
+      {!embedded ? <AccountsIntroduction /> : null}
       <Surface className="accounts-card"><Section title="Your accounts" actions={<Button variant="ghost" disabled={fleet.refreshing} onClick={() => void fleet.refreshUsage()}>{fleet.refreshing ? 'Reading usage…' : 'Refresh usage'}</Button>}>
         {coverageNotes(fleet.machines).map((note) => <Status key={note}>{note}</Status>)}
         {groups.length === 0 ? (
@@ -231,20 +232,20 @@ function AccountGroupRow(
   const details = [
     providerName(group.tool),
     nickname && group.identity?.email ? group.identity.email : null,
-    group.identity?.plan ? `${group.identity.plan} plan` : null,
-    group.identity?.organization
+    group.identity?.plan ? `${group.identity.plan} plan` : null
   ].filter(Boolean).join(' · ');
   return (
     <li className="accounts-row accounts-group">
       <ProviderMark provider={group.tool} size={32} />
       <div className="accounts-identity">
         <strong>{title}</strong>
-        <span className="accounts-details">{details}</span>
-        <AccountMatchNote group={group} />
+        <span className="accounts-details" title={group.identity?.organization}>{details}</span>
+
       </div>
       <div className="accounts-usage-area"><AccountUsageSummary group={group} label={title} /></div>
-      <div className="accounts-computers">
-        <span className="accounts-computers-heading">Computers</span>
+      <details className="accounts-computers">
+        <summary>{[...new Set(group.placements.map((placement) => placement.machineName))].join(' · ')} <span>Manage sign-ins</span></summary>
+        <AccountMatchNote group={group} />
         <ul className="accounts-placements" aria-label={`Computers for ${title}`}>
           {group.placements.map((placement) => (
             <AccountPlacementRow
@@ -260,7 +261,7 @@ function AccountGroupRow(
           ))}
         </ul>
         {addable.length > 0 ? <AddOnComputer title={title} provider={providerName(group.tool)} computers={addable} busy={busy} onAdd={onAddOn} /> : null}
-      </div>
+      </details>
     </li>
   );
 }

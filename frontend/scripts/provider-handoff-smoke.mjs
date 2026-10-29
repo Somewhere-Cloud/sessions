@@ -54,7 +54,7 @@ try {
         });
         assert.ok(bounds.left >= 0 && bounds.right <= width && bounds.top >= 0 && bounds.bottom <= height, JSON.stringify(bounds));
         assert.equal(bounds.overflow, false, 'no horizontal dialog overflow');
-        assert.equal(bounds.bg, theme === 'light' ? 'rgb(255, 255, 255)' : 'rgb(20, 20, 20)');
+        assert.equal(bounds.bg, theme === 'light' ? 'rgb(255, 255, 255)' : 'rgb(25, 29, 32)');
         await page.keyboard.press('Tab');
         assert.equal(await page.evaluate(() => document.querySelector('[data-modal-dialog]').contains(document.activeElement)), true);
         if (process.env.UI_SCREENSHOT_DIR) await page.screenshot({ path: join(process.env.UI_SCREENSHOT_DIR, `${screen}-${theme}-${width}.png`) });

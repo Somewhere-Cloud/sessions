@@ -64,7 +64,7 @@ try {
   assert.match(manifest, /android:windowSoftInputMode="adjustResize"/);
   assert.match(app, /useAndroidBackNavigation/);
   assert.match(app, /mobileSessionDetail[^\n]*setMobileSessionDetail\(false\)/);
-  assert.match(app, /effectiveLayout !== 'home'[^\n]*setLayoutMode\('home'\)/);
+  assert.match(app, /effectiveLayout !== 'tabs'[^\n]*setLayoutMode\('tabs'\)/);
   assert.match(appBack, /registerAndroidBackHandler/);
   assert.match(appBack, /mobile-more-heading button/);
   assert.match(mobileNav, /mobile-more-heading/);

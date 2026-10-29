@@ -53,8 +53,8 @@ describe('capability: Accounts is its own destination', () => {
         onNewSession={() => {}} onOpenCommandPalette={() => {}} onToggleTheme={() => {}} />
     );
     const rail = screen.getByRole('navigation', { name: 'Sessions' });
-    expect(within(rail).getAllByRole('button', { name: 'Accounts' })).toHaveLength(1);
-    await user.click(within(rail).getByRole('button', { name: 'Accounts' }));
+    expect(within(rail).getAllByRole('button', { name: 'Accounts & computers' })).toHaveLength(1);
+    await user.click(within(rail).getByRole('button', { name: 'Accounts & computers' }));
     expect(visited).toEqual(['accounts']);
     unmount();
 

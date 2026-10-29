@@ -1,3 +1,4 @@
+import { SessionActivityGroups } from './SessionActivityGroups';
 import { useId, useState, type JSX } from 'react';
 import type { SessionInfo } from '../types';
 import { type InboxLayout, type InboxSection, type ProviderFaultNotice, notConnectedReason } from '../lib/inboxSections';
@@ -148,7 +149,7 @@ function RecentList({ section, renderNode, projectLabelOf }: {
     renderNode(session, ended, projectLabelOf?.(session));
   return (
     <div className="session-tree-group inbox-recent" role="group" aria-label="Sessions, most recent first">
-      {section.live.map((session) => row(session))}
+      <SessionActivityGroups items={section.live} sessionOf={(session) => session} renderItem={(session) => row(session)} />
       {section.live.length === 0 && section.notConnected.length === 0
         ? <div className="session-tree-empty is-compact">Nothing live here.</div>
         : null}
@@ -191,7 +192,7 @@ function ProjectSection({ section, activeSessionId, renderNode }: { section: Inb
       </button>
       <div id={rowsId} hidden={!open}>{open ? (
         <>
-          {(showAll ? section.live : preview).map((session) => renderNode(session))}
+          <SessionActivityGroups items={showAll ? section.live : preview} sessionOf={(session) => session} renderItem={(session) => renderNode(session)} />
           {remaining > 0 ? <button type="button" className="inbox-fold project-preview-toggle" aria-expanded={showAll} aria-controls={rowsId} onClick={() => setShowAll((current) => !current)}>
             {showAll ? 'Show fewer agents' : `Show ${remaining} remaining agents`}
           </button> : null}

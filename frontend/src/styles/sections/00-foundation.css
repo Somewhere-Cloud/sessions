@@ -3,15 +3,15 @@
    * (header is intentionally LIGHTER than body for chrome separation,
    * not darker — flips the "pit of inputs" feel). Text hierarchy in
    * three steps. Teal accent + warm coral for the listening/ok state. */
-  --bg-base:    #0a0a0a;   /* body */
-  --bg-elev-1:  #141414;   /* card / message hover */
-  --bg-elev-2:  #1e1e1e;   /* header / input field bg */
-  --bg-elev-3:  #262626;   /* hover / active */
-  --border:     #262626;   /* default 1px lines */
-  --border-strong: #3a3a3a;
+  --bg-base:    #111416;   /* body */
+  --bg-elev-1:  #191d20;   /* card / message hover */
+  --bg-elev-2:  #22272b;   /* header / input field bg */
+  --bg-elev-3:  #2c3338;   /* hover / active */
+  --border:     #343d43;   /* default 1px lines */
+  --border-strong: #47535b;
   --fg:         #e8e8e8;   /* text-primary */
   --fg-dim:     #b5b5b5;   /* text-secondary: 9.66:1 on the base */
-  --fg-faint:   #8c8c8c;   /* text-muted: 5.89:1 on the base */
+  --fg-faint:   #a3adb5;   /* text-muted */
   --accent:     #2dd4bf;
   --accent-hover: #5eead4;
   --accent-contrast: #0a0a0a;   /* text on a solid accent fill */

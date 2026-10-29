@@ -9,7 +9,6 @@ import { EmptyState } from './components/EmptyState';
 const NewSessionDialog = lazy(() => import('./components/NewSessionDialog').then((module) => ({ default: module.NewSessionDialog })));
 const ResumeDialog = lazy(() => import('./components/ResumeDialog').then((module) => ({ default: module.ResumeDialog })));
 const ForkConfirmationDialog = lazy(() => import('./components/ForkConfirmationDialog').then((module) => ({ default: module.ForkConfirmationDialog })));
-const FleetView = lazy(() => import('./components/FleetView').then((module) => ({ default: module.FleetView })));
 const UsageDashboard = lazy(() => import('./components/UsageDashboard').then((module) => ({ default: module.UsageDashboard })));
 const DailyView = lazy(() => import('./components/DailyView').then((module) => ({ default: module.DailyView })));
 const AccountsView = lazy(() => import('./components/AccountsView').then((module) => ({ default: module.AccountsView })));
@@ -22,7 +21,6 @@ import { ConnectionStatus } from './components/ConnectionStatus';
 import { GridView } from './components/GridView';
 import { ProductSidebar, type ProductView, type ThemeMode } from './components/ProductSidebar';
 import { SessionNavigator, focusTreeRow } from './components/SessionNavigator';
-import { HomeView } from './components/HomeView';
 import { CommandPalette } from './components/CommandPalette';
 import { SessionsWorkspaceSkeleton } from './components/LoadingShell';
 import { OnboardingDialog } from './components/OnboardingDialog';
@@ -84,7 +82,8 @@ const THEME_KEY = 'sessions:theme:v1';
 function readStoredLayout(): LayoutMode {
   try {
     const v = window.localStorage.getItem(LAYOUT_KEY);
-    if (v === 'home' || v === 'tabs' || v === 'today' || v === 'fleet' || v === 'search' || v === 'usage' || v === 'accounts' || v === 'settings' || v === 'feedback' || v === 'connections' || v === 'grid') return v;
+    if (v === 'home') return 'tabs';
+    if (v === 'tabs' || v === 'today' || v === 'fleet' || v === 'search' || v === 'usage' || v === 'accounts' || v === 'settings' || v === 'feedback' || v === 'connections' || v === 'grid') return v;
   } catch { /* ignore */ }
   return 'tabs';
 }
@@ -407,7 +406,7 @@ function ConnectedApp({ nativeClientOnly = false }: { nativeClientOnly?: boolean
   // useful on phones and narrow Mac windows, so the mobile nav keeps them.
   const [layoutMode, setLayoutMode] = useState<LayoutMode>(readStoredLayout);
   const [projectSeed, setProjectSeed] = useState<{ serverId: string; cwd: string; tags: Record<string, string> } | null>(null);
-  const effectiveLayout: LayoutMode = isMobile && layoutMode === 'grid' ? 'tabs' : layoutMode;
+  const effectiveLayout: LayoutMode = layoutMode === 'home' || (isMobile && layoutMode === 'grid') ? 'tabs' : layoutMode;
   const openNewSession = useCallback((): void => {
     setProjectSeed(null);
     setLayoutMode('tabs');
@@ -484,7 +483,7 @@ function ConnectedApp({ nativeClientOnly = false }: { nativeClientOnly?: boolean
   useEffect(() => {
     try { window.localStorage.setItem(LAYOUT_KEY, layoutMode); } catch { /* ignore */ }
   }, [layoutMode]);
-  useAndroidBackNavigation(() => commandPaletteOpen ? (setCommandPaletteOpen(false), true) : dialogOpen !== null ? (setDialogOpen(null), true) : mobileSessionDetail ? (setMobileSessionDetail(false), true) : effectiveLayout !== 'home' ? (setLayoutMode('home'), true) : false);
+  useAndroidBackNavigation(() => commandPaletteOpen ? (setCommandPaletteOpen(false), true) : dialogOpen !== null ? (setDialogOpen(null), true) : mobileSessionDetail ? (setMobileSessionDetail(false), true) : effectiveLayout !== 'tabs' ? (setLayoutMode('tabs'), true) : false);
   useEffect(() => {
     try { window.localStorage.setItem(THEME_KEY, theme); } catch { /* ignore */ }
   }, [theme]);
@@ -743,7 +742,7 @@ function ConnectedApp({ nativeClientOnly = false }: { nativeClientOnly?: boolean
       ? 'settings'
       : effectiveLayout as ProductView;
   const navigateProduct = (view: ProductView): void => {
-    setLayoutMode(view);
+    setLayoutMode(view === 'home' ? 'tabs' : view === 'fleet' ? 'accounts' : view);
     if (view === 'tabs') setMobileSessionDetail(false);
   };
 
@@ -831,10 +830,9 @@ function ConnectedApp({ nativeClientOnly = false }: { nativeClientOnly?: boolean
           <SessionsWorkspaceSkeleton />
         ) : sessionWorkspace && isMobile && !mobileSessionDetail ? (
           sessionNavigator
-        ) : effectiveLayout === 'home' ? (
-          <HomeView sessions={sessions} machine={machine} onOpen={openSession} onNew={openNewSession} onNavigate={(view) => setLayoutMode(view)} />
+
         ) : effectiveLayout === 'fleet' ? (
-          <Suspense fallback={null}><FleetView onOpenSession={openFleetSession} onOpenMachine={openFleetMachine} /></Suspense>
+          <Suspense fallback={null}><AccountsView hostName={machine} serverId={activeServerId ?? undefined} initialTab="computers" onOpenSession={openFleetSession} onOpenMachine={openFleetMachine} /></Suspense>
         ) : effectiveLayout === 'today' ? (
           <Suspense fallback={null}><DailyView /></Suspense>
         ) : effectiveLayout === 'search' ? (
@@ -845,7 +843,7 @@ function ConnectedApp({ nativeClientOnly = false }: { nativeClientOnly?: boolean
         ) : effectiveLayout === 'usage' ? (
           <Suspense fallback={null}><UsageDashboard /></Suspense>
         ) : effectiveLayout === 'accounts' ? (
-          <Suspense fallback={null}><AccountsView key={activeServerId ?? ''} hostName={machine} serverId={activeServerId ?? undefined} /></Suspense>
+          <Suspense fallback={null}><AccountsView key={activeServerId ?? ''} hostName={machine} serverId={activeServerId ?? undefined} onOpenSession={openFleetSession} onOpenMachine={openFleetMachine} /></Suspense>
         ) : effectiveLayout === 'settings' || effectiveLayout === 'feedback' || effectiveLayout === 'connections' ? (
           <Suspense fallback={null}><SettingsView clientOnly={nativeClientOnly} hostName={machine} theme={theme}
               onThemeChange={setTheme}

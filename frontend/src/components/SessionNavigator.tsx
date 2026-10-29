@@ -4,7 +4,7 @@ import { lazy, Suspense, useEffect, useMemo, useState, type DragEvent } from 're
 import { createPortal } from 'react-dom';
 import { ArchivedLiveSessions } from './ArchivedLiveSessions';
 import { SessionArchiveButton } from './SessionArchiveButton';
-import { archivedLiveIds } from '../lib/sessionOrganization';
+import { archivedLiveIds, usesClaudeRemoteControl } from '../lib/sessionOrganization';
 import { RestartConversation } from './RestartConversation';
 import type { SessionInfo } from '../types';
 import { resolvedSessionLabel } from '../lib/tabLabels';
@@ -221,6 +221,7 @@ export function SessionNavigator({
     : remoteSnapshots.find((snapshot) => snapshot.server.id === server.id) ?? { server, sessions: [], loading: true, error: null });
   const { projects: fleetProjects, incomplete: incompleteProjects } = useFleetProjects(configuredMachines, showingAllMachines);
   const [primary, setPrimary] = useState<PrimaryFilter>('all');
+  const [remoteOnly, setRemoteOnly] = useState(false);
   const [provider, setProvider] = useState<ProviderFilter>('all');
   const [project, setProject] = useState('all');
   const [date, setDate] = useState<DateFilter>('all');
@@ -386,7 +387,7 @@ export function SessionNavigator({
   const membership = resolvedProjects(showingAllMachines ? projectSnapshots : projectSnapshots.filter((snapshot) => snapshot.server.id === localServerId), showingAllMachines ? fleetProjects : { [localServerId]: projectLookup.projects });
   const projects = navigationProjectOptions(membership, configuredMachines);
   const counts = useMemo(() => ({
-    needs: scopedSessions.filter(sessionNeedsYou).length,
+    needs: scopedSessions.filter((session) => usesClaudeRemoteControl(session) === remoteOnly && sessionNeedsYou(session)).length,
     // Everything the working set is holding, pinned or not. This is the number
     // that answers "does this person have anything going on?", so it must not
     // drop when a session moves into the Pinned group: pinning your only live
@@ -396,11 +397,12 @@ export function SessionNavigator({
       : navigatorSessions.filter((session) => liveIds.has(session.id) || pinnedIds.has(session.id)).length,
     // The Live group's own rows. The pinned ones are counted under Pinned.
     liveGroup: navigatorSessions.filter((session) => liveIds.has(session.id)).length,
-    working: scopedSessions.filter((session) => session.working && !session.exited).length
-  }), [liveIds, navigatorSessions, pinnedIds, scopedSessions, showingAllMachines]);
+    working: scopedSessions.filter((session) => usesClaudeRemoteControl(session) === remoteOnly && session.working && !session.exited).length
+  }), [liveIds, navigatorSessions, pinnedIds, remoteOnly, scopedSessions, showingAllMachines]);
 
   const matches = (session: SessionInfo, serverId = localServerId): boolean => {
     if (!sessionMatchesWindowScope(session)) return false;
+    if (usesClaudeRemoteControl(session) !== remoteOnly) return false;
     if (primary === 'needs' && !sessionNeedsYou(session)) return false;
     if (primary === 'working' && (!session.working || session.exited)) return false;
     if (primary === 'ended' && !isSavedAgent(session)) return false;
@@ -765,6 +767,10 @@ export function SessionNavigator({
           if (tree && focusTreeRow(tree, null, 'first')) event.preventDefault();
         }}
       /></div>
+      {remoteOnly || scopedSessions.some(usesClaudeRemoteControl) ? <div className="session-grouping" role="group" aria-label="Conversation connection">
+        <Button variant="ghost" aria-pressed={!remoteOnly} onClick={() => setRemoteOnly(false)}>Conversations</Button>
+        <Button variant="ghost" aria-pressed={remoteOnly} onClick={() => setRemoteOnly(true)}>Claude Remote Control</Button>
+      </div> : null}
       <div className="session-filter-row" role="toolbar" aria-label="Session status filters">
         <FilterButton label="All" active={primary === 'all'} onClick={() => setPrimary('all')} />
         <FilterButton label={`Needs you${counts.needs ? ` ${counts.needs}` : ''}`} active={primary === 'needs'} onClick={() => setPrimary('needs')} />

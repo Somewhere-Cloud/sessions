@@ -28,3 +28,15 @@ export function archivedLiveIds(sessions: SessionInfo[]): Set<string> {
   }
   return hidden;
 }
+
+// Only recorded launch configuration qualifies. A Claude session without this
+// evidence stays in the ordinary list; provider defaults are not guessed.
+export function usesClaudeRemoteControl(session: SessionInfo): boolean {
+  if (session.tool !== 'claude-code') return false;
+  return session.args.some((arg, index, args) => {
+    if (arg === '--remote-control' || arg.startsWith('--remote-control=')) return true;
+    if (arg !== '--settings') return false;
+    try { return JSON.parse(args[index + 1] ?? '{}').remoteControlAtStartup === true; }
+    catch { return false; }
+  });
+}

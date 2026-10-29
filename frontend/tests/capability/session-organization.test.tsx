@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { archivedLiveIds } from '../../src/lib/sessionOrganization';
+import { archivedLiveIds, usesClaudeRemoteControl } from '../../src/lib/sessionOrganization';
 import { groupAgents } from '../../src/lib/projectAgents';
 import { SessionArchiveButton } from '../../src/components/SessionArchiveButton';
 import { InputBar } from '../../src/components/InputBar';
@@ -78,7 +78,7 @@ describe('reversible manual session organization', () => {
     const section = await screen.findByRole('region', { name: 'Archived live sessions' });
     expect(screen.queryByText('Parser review', { selector: '.session-nav-title' })).not.toBeInTheDocument();
     await user.type(screen.getByRole('textbox', { name: 'Filter sessions' }), 'Parser');
-    expect(within(section).getByRole('button', { name: /Archived live sessions/ })).toHaveAttribute('aria-expanded', 'true');
+    expect(within(section).getByRole('button', { name: /Settled/ })).toHaveAttribute('aria-expanded', 'true');
     await user.click(await within(section).findByText('Parser review', { selector: '.session-nav-title' }));
     expect(open).toHaveBeenCalledWith('quiet');
     expect(host.sessions[0].setAsideAt).toBeTruthy();
@@ -196,4 +196,12 @@ describe('reversible manual session organization', () => {
       expect(daemon.archived).toEqual([]);
     } finally { globalThis.fetch = fetch; }
   });
+});
+
+it('separates only recorded Claude Remote Control launches, never guessed provider defaults', () => {
+  expect(usesClaudeRemoteControl(makeSession({ id: 'remote-fixture', args: ['--remote-control'] }))).toBe(true);
+  expect(usesClaudeRemoteControl(makeSession({ id: 'remote-fixture', args: ['--settings', '{"remoteControlAtStartup":true}'] }))).toBe(true);
+  expect(usesClaudeRemoteControl(makeSession({ id: 'remote-fixture', args: ['--settings', '{"remoteControlAtStartup":false}'] }))).toBe(false);
+  expect(usesClaudeRemoteControl(makeSession({ id: 'remote-fixture', args: ['--settings', '/path/to/settings.json'] }))).toBe(false);
+  expect(usesClaudeRemoteControl(makeSession({ id: 'remote-fixture', tool: 'codex', args: ['--remote-control'] }))).toBe(false);
 });
