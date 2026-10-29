@@ -232,15 +232,15 @@ function AccountGroupRow(
   const details = [
     providerName(group.tool),
     nickname && group.identity?.email ? group.identity.email : null,
-    group.identity?.plan ? `${group.identity.plan} plan` : null
+    group.identity?.plan ? `${group.identity.plan} plan` : null,
+    group.identity?.organization
   ].filter(Boolean).join(' · ');
   return (
     <li className="accounts-row accounts-group">
       <ProviderMark provider={group.tool} size={32} />
       <div className="accounts-identity">
         <strong>{title}</strong>
-        <span className="accounts-details" title={group.identity?.organization}>{details}</span>
-
+        <span className="accounts-details">{details}</span>
       </div>
       <div className="accounts-usage-area"><AccountUsageSummary group={group} label={title} /></div>
       <details className="accounts-computers">
