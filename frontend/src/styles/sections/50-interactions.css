@@ -640,3 +640,7 @@ button.model-picker-option { display: flex; align-items: center; justify-content
 
 .new-session-modal { width: min(1040px, 92vw); min-width: 0; padding: 0; border: 0; background: transparent; box-shadow: none; }
 .new-session-modal > .new-session-launcher { width: 100%; max-height: none; overflow: visible; }
+
+@media (max-width: 480px) {
+  .new-session-modal .launcher-setup { grid-template-columns: minmax(0, 1fr); }
+}

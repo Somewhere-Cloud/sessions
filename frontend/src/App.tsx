@@ -1,3 +1,4 @@
+import { Button } from './components/ui/Button';
 import { readSingleWindow, singleWindowMachine } from './lib/singleWindow';
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RestartConversationHost } from './components/RestartConversation';
@@ -895,9 +896,9 @@ function ConnectedApp({ nativeClientOnly = false }: { nativeClientOnly?: boolean
                 className={`session-view-host${s.id === activeId ? '' : ' is-hidden'}`}
               >
                 {s.id === activeId && transientView ? <div className="session-drilldown" role="group" aria-label="Temporary view">
-                  {activeManagerId && activeManagerId !== s.id ? <button type="button" className="btn btn-secondary" onClick={() => returnToManager(activeManagerId)}>Back to manager</button> : <span>Parent unavailable</span>}
-                  <button type="button" className="btn btn-secondary" onClick={() => keepViewOpen(s.id)}>Keep view open</button>
-                  <button type="button" className="btn btn-secondary" onClick={() => closeTab(s.id)}>Close view</button>
+                  {activeManagerId && activeManagerId !== s.id ? <Button type="button" variant="secondary" onClick={() => returnToManager(activeManagerId)}>Back to manager</Button> : <span>Parent unavailable</span>}
+                  <Button type="button" variant="secondary" onClick={() => keepViewOpen(s.id)}>Keep view open</Button>
+                  <Button type="button" variant="secondary" onClick={() => closeTab(s.id)}>Close view</Button>
                 </div> : null}
                 <SessionView
                   sessionId={s.id}

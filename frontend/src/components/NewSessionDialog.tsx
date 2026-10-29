@@ -685,8 +685,8 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
               </div>
             </div>
           </div>
-          {tool !== 'shell' ? <span className="field-help" id="launcher-access-help">{access === 'full' ? 'Full access: runs commands and edits files without asking.' : access === 'plan' ? 'Plan: reads and plans without making changes.' : 'Ask me: asks before running commands or changing files.'}</span> : null}
           <span className="launcher-send-hint">Enter sends · Shift+Enter adds a line</span>
+          {tool !== 'shell' ? <span className="field-help" id="launcher-access-help">{access === 'full' ? 'Full access: runs commands and edits files without asking.' : access === 'plan' ? 'Plan: reads and plans without making changes.' : 'Ask me: asks before running commands or changing files.'}</span> : null}
           {requiresProviderLogin ? <span className="field-help">Finish the new account login first. Sessions will keep this request here instead of sending it into a login screen.</span> : null}
           {isDelegate ? (
             <div className="launcher-inherited"><span>Runs with its parent</span><strong>{cwd}</strong><small>{serverDisplayName(getActiveServer(), true)} · grouped under {parentSession ? sessionLabel(parentSession) : 'the current session'}</small></div>

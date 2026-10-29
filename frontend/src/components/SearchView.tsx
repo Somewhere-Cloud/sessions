@@ -644,7 +644,7 @@ export function SearchView({ onResumeConversation, onOpenLiveSession }: SearchVi
       : totals
         ? `${countsArePartial ? 'at least ' : ''}${plural(totals.sessions, 'conversation')} · ${plural(totals.hits, 'match', 'matches')}${totals.sessions > rows.length ? ` · ${rows.length} shown` : ''}`
         : plural(rows.length, 'conversation')
-    : `${servers.length} machines ready`;
+    : `${servers.length} ${servers.length === 1 ? 'machine' : 'machines'} ready`;
   const searchBusy = planning || loading;
   const showCountCaveat = countsArePartial
     && !loading
