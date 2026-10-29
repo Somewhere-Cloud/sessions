@@ -856,7 +856,7 @@ export function SessionNavigator({
           {endedOpen ? (
             <>
               <p className="session-tree-empty is-compact">These agents have stopped. Open saved output or resume a conversation.</p>
-              <Suspense fallback={<div className="session-tree-empty is-compact">Loading saved conversations…</div>}><ProjectAgents organizeWorking={false} groups={savedGroups.map((group) => ({ ...group, rows: showAllEnded ? group.rows : group.rows.slice(0, 3) }))} activeMachineId={activeMachineId} compact={false}
+              <Suspense fallback={<div className="session-tree-empty is-compact">Loading saved conversations…</div>}><ProjectAgents organizeWorking={false} groups={savedGroups.map((group) => ({ ...group, rows: browsingAllEnded ? group.rows : group.rows.slice(0, 3) }))} activeMachineId={activeMachineId} compact={false}
                 renderLocal={(row) => renderNode(row.session, true)} onOpen={onOpenMachineSession} onResume={(row) => onResumeSession(row.session, undefined, undefined, row.server.id)} /></Suspense>
               <button type="button" className="session-all-ended" onClick={onContinue}>Find and resume any conversation →</button>
             </>

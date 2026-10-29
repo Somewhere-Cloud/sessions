@@ -116,7 +116,8 @@ try {
     }
     if (screenshots) await page.screenshot({ path: join(screenshots, `connection-states-${scope}.png`), fullPage: true });
     await page.select('[aria-label="Session status"]', 'ended');
-    await page.waitForFunction(() => document.body.textContent.includes('Closed agent'));
+    await page.waitForFunction(() => document.querySelectorAll('[data-session-id^="closed-agent"]').length === 5);
+    assert.equal(await page.$$eval('[data-session-id^="closed-agent"]', rows => rows.length), 5, 'Closed filter shows all closed records, not the three-row preview');
     assert.equal(await page.$('[data-session-id="unavailable-0"]'), null, 'Closed cannot claim an unreachable agent stopped');
     assert.equal(await page.evaluate(() => window.projectGroupDaemon.requests.filter((r) => r.method !== 'GET').length), 0);
   }

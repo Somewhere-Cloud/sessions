@@ -22,6 +22,8 @@ if (new URLSearchParams(location.search).has('connectionStates')) {
     tags: { project: 'Sessions' }, unreachable: true, runnerGone: true, pid: 0,
   })), makeSession({ id: 'closed-agent', name: 'Closed agent', cwd: '/work/Sessions',
     tags: { project: 'Sessions' }, exited: true, exitCode: 0, exitedAt: now }));
+  sessions.push(...Array.from({ length: 4 }, (_, index) => makeSession({ id: `closed-agent-${index}`, name: `Closed agent ${index + 2}`,
+    cwd: '/work/Sessions', tags: { project: 'Sessions' }, exited: true, exitCode: 0, exitedAt: now })));
 }
 const machines: FakeMachine[] = [{ id: 'fixture', name: 'Fixture Mac', host: 'localhost', port: 8787, isDefault: true, sessions,
   projects: names.map((name, index) => ({ id: `project-${index}`, name, implicit: false, roots: [`/work/${name}`],
