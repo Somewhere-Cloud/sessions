@@ -1,3 +1,4 @@
+import { Button } from './ui/Button';
 import { useEffect, useState, type ReactNode } from 'react';
 import {
   checkForNativeUpdate,
@@ -135,19 +136,19 @@ export function ProductSidebar({ active, theme, onNavigate, onNewSession, onOpen
         <span className="product-brand-name"><span>Somewhere</span><strong>Sessions</strong></span>
       </a>
 
-      <button type="button" className="product-new-session" onClick={onNewSession}>
+      <Button variant="ghost" type="button" className="product-new-session" onClick={onNewSession}>
         <span aria-hidden>＋</span><span>New Session</span>
-      </button>
+      </Button>
 
-      <button type="button" className="product-command-button" onClick={onOpenCommandPalette}>
+      <Button variant="ghost" type="button" className="product-command-button" onClick={onOpenCommandPalette}>
         <SearchIcon />
         <span>Find or run…</span>
         <kbd>⌘K</kbd>
-      </button>
+      </Button>
 
       <nav className="product-nav" aria-label="Sessions">
         {ITEMS.map((item) => (
-          <button
+          <Button variant="ghost"
             key={item.id}
             type="button"
             className={`product-nav-item${active === item.id ? ' is-active' : ''}`}
@@ -156,25 +157,25 @@ export function ProductSidebar({ active, theme, onNavigate, onNewSession, onOpen
           >
             <span className="product-nav-icon" aria-hidden>{item.icon}</span>
             <span>{item.label}</span>
-          </button>
+          </Button>
         ))}
       </nav>
 
       <div className="product-sidebar-footer">
-        <button
+        <Button variant="ghost"
           type="button"
           className={`product-feedback-button${active === 'feedback' ? ' is-active' : ''}`}
           onClick={() => onNavigate('feedback')}
         >
           <span className="product-nav-icon" aria-hidden><FeedbackIcon /></span>
           <span>Send feedback</span>
-        </button>
+        </Button>
         {updateInfo ? (
           <div className="product-update-card">
             <div><span>Sessions {updateInfo.version}</span><strong>Update available</strong></div>
-            <button type="button" disabled={updateBusy} onClick={() => void installUpdate()}>
+            <Button variant="ghost" type="button" disabled={updateBusy} onClick={() => void installUpdate()}>
               {updateBusy ? 'Updating…' : 'Update app'}
-            </button>
+            </Button>
             <small className="product-update-safe">Your sessions will keep running during the update.</small>
             {updateError ? <small role="alert">{updateError}</small> : null}
           </div>
@@ -182,14 +183,14 @@ export function ProductSidebar({ active, theme, onNavigate, onNewSession, onOpen
         {providerUpdate ? (
           <div className="product-update-card is-provider">
             <div><span>{providerUpdate.name} {providerUpdate.latestVersion}</span><strong>Update available</strong></div>
-            <button
+            <Button variant="ghost"
               type="button"
               aria-label={`Update ${providerUpdate.name} on ${providerTarget}`}
               disabled={providerBusy !== null}
               onClick={() => void installProviderUpdate(providerUpdate)}
             >
               {providerBusy === providerUpdate.id ? 'Installing…' : 'Update'}
-            </button>
+            </Button>
             <small>
               {providerBusy === providerUpdate.id
                 ? `${providerTarget} · This can take a few minutes.`
@@ -202,10 +203,10 @@ export function ProductSidebar({ active, theme, onNavigate, onNewSession, onOpen
           <img src="/somewhere-logo.svg" alt="" />
           <span>somewhere.tech</span>
         </a>
-        <button type="button" className="theme-toggle" onClick={onToggleTheme} title={`Use ${theme === 'dark' ? 'light' : 'dark'} mode`}>
+        <Button variant="ghost" type="button" className="theme-toggle" onClick={onToggleTheme} title={`Use ${theme === 'dark' ? 'light' : 'dark'} mode`}>
           <span aria-hidden>{theme === 'dark' ? '☾' : '☀'}</span>
           <span>{theme === 'dark' ? 'Dark' : 'Light'}</span>
-        </button>
+        </Button>
       </div>
     </aside>
   );

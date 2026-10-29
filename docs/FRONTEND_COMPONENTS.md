@@ -132,3 +132,27 @@ shared compositions, remove its superseded selectors, and run the relevant
 behavior tests plus rendered narrow/theme fixtures. Do not move operational
 authority into a visual component. Keep CLI/JSON parity for new operations and
 keep entry/deferred bundles within the existing limits.
+
+## Shell compositions
+
+Home composes PageHeader, Section, Surface, Stack and shared buttons. Daily
+uses the same heading, state and control APIs while keeping its activity data
+and timeline. Product navigation, project controls and launcher selections use
+shared native controls. CommandPalette and mobile More use ModalDialog for
+focus containment and focus return. Keep the mobile More heading wrapper:
+Android Back finds its close button through that selector.
+
+The workspace EmptyState supports both first use and an unselected session;
+`hasSessions` changes its invitation without creating or resuming work. The
+launcher keeps its specialized model picker, draft and creation handlers.
+Navigator rows, menus, terminal/conversation content, search/history, settings,
+accounts and other unmigrated surfaces still have specialized or legacy styles.
+Shared controls do not imply that their entire containing screen has migrated.
+
+`npm run test:shell-ui` renders production shell components with an in-process
+fake daemon at desktop and 375px in both themes, populated and empty. It checks
+filtering, modal keyboard focus and return, bounds and navigation without
+operational mutations. Set `UI_SCREENSHOT_DIR` to an existing absolute directory
+to capture the composed screens and Daily loading/error states. It is part of
+the complete smoke gate. Native platform and assistive-technology acceptance
+remain separate from these Chromium fixtures.

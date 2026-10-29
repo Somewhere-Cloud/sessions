@@ -873,7 +873,7 @@ function ConnectedApp({ nativeClientOnly = false }: { nativeClientOnly?: boolean
           recoveryVisible ? (
             <SessionsWorkspaceSkeleton />
           ) : sessions.length > 0 ? (
-            <div className="session-workspace-empty"><span>Operations inbox</span><h1>Select a session</h1><p>Choose a manager or child from the navigator. It will open here without resuming or restarting anything.</p><button type="button" className="btn btn-primary" onClick={openNewSession}>＋ New Session</button></div>
+            <EmptyState hasSessions onNew={openNewSession} />
           ) : (
             <EmptyState onNew={openNewSession} />
           )

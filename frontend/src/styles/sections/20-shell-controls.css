@@ -412,11 +412,6 @@
 .bottom-sheet-status-dot.working { background: var(--ok); animation: pulse 1.2s ease-in-out infinite; }
 .bottom-sheet-empty { color: var(--fg-faint); padding: 12px; text-align: center; }
 .mobile-more-sheet { gap: 14px; padding: 10px 16px calc(env(safe-area-inset-bottom, 0) + 22px); }
-.mobile-more-heading { display: flex; align-items: center; justify-content: space-between; }
-.mobile-more-heading > div { display: grid; gap: 2px; }
-.mobile-more-heading span { color: var(--accent); font-size: 12px; font-weight: 750; letter-spacing: .1em; text-transform: uppercase; }
-.mobile-more-heading h2 { margin: 0; font-size: 25px; letter-spacing: -.04em; }
-.mobile-more-heading > button { width: 38px; height: 38px; border: 1px solid var(--border); border-radius: 50%; background: var(--bg-elev-2); color: var(--fg); font-size: 22px; cursor: pointer; }
 .mobile-more-grid { display: grid; gap: 7px; }
 .mobile-more-grid > button {
   display: grid;
@@ -479,3 +474,5 @@
   color: var(--fg-dim);
 }
 .btn-ghost:hover:not(:disabled) { background: var(--bg-elev-2); color: var(--fg); }
+
+.mobile-more-sheet.dialog { display: grid; gap: var(--space-4); }

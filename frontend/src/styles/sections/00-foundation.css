@@ -912,9 +912,9 @@ button:active:not(:disabled),
   white-space: nowrap;
   color: var(--fg-dim);
   font-size: 12px;
-  font-family: var(--font-mono);
-  align-self: end;
-  height: 32px;
+  font-family: var(--font-ui);
+  align-self: center;
+  min-height: var(--control-height);
   margin-bottom: -1px;
 }
 .tab:hover { background: var(--bg-elev-2); color: var(--fg); }
@@ -957,19 +957,8 @@ button:active:not(:disabled),
   max-width: 14ch;
   min-width: 8ch;
 }
-.tab-close {
-  background: transparent;
-  border: 0;
-  color: var(--fg-faint);
-  cursor: pointer;
-  padding: 0 2px;
-  font-size: 12px;
-  line-height: 1;
-  border-radius: 4px;
-  opacity: 0.7;
-}
-.tab-close { font-size: 14px; }
-.tab-close:hover { color: var(--danger); background: var(--bg-elev-3); }
+.tab-close.ui-button { color: var(--fg-faint); }
+.tab-close.ui-button:hover { color: var(--fg); background: var(--bg-elev-3); }
 
 /* Primary destinations. Tabs and Grid are intentionally grouped beneath
  * Sessions so they read as two presentations of the same object. */

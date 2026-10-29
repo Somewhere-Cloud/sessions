@@ -1,3 +1,4 @@
+import { IconButton } from './ui/Button';
 import { useEffect, useRef, useState } from 'react';
 import type { SessionInfo } from '../types';
 import { ParserIcon } from './ParserIcon';
@@ -195,23 +196,22 @@ export function SessionTabs({
                     {shortLabel(s)}
                   </span>
                 )}
-                <button
-                  type="button"
+                <IconButton variant="ghost" size="compact"
                   className="tab-close"
                   aria-label={`Close ${shortLabel(s)} tab`}
                   title="Close tab — the session keeps running"
                   onClick={(e) => { e.stopPropagation(); void onClose(s.id); }}
                 >
                   ×
-                </button>
+                </IconButton>
               </div>
             );
           })
         )}
       </div>
-      <button type="button" className="tab-new" aria-label="New session" title="New session" onClick={onAdd}>
+      <IconButton variant="ghost" className="tab-new" aria-label="New session" title="New session" onClick={onAdd}>
         +
-      </button>
+      </IconButton>
     </div>
   );
 }

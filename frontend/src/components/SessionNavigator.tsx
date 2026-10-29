@@ -1,3 +1,5 @@
+import { Input, Select } from './ui/Field';
+import { Button, IconButton } from './ui/Button';
 import { lazy, Suspense, useEffect, useMemo, useState, type DragEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { ArchivedLiveSessions } from './ArchivedLiveSessions';
@@ -740,8 +742,8 @@ export function SessionNavigator({
       <header className="session-navigator-head">
         <div><strong>{grouping === 'recent' ? 'Most recent' : 'Projects'}</strong></div>
         <div className="session-navigator-actions">
-          <button type="button" className="session-continue-action" onClick={onContinue}>Resume</button>
-          <button type="button" className="session-new-action" onClick={onNew} aria-label="New session" title="Add an agent"><span aria-hidden>＋</span></button>
+          <Button size="compact" className="session-continue-action" onClick={onContinue}>Resume</Button>
+          <IconButton size="compact" variant="primary" className="session-new-action" onClick={onNew} aria-label="New session" title="Add an agent"><span aria-hidden>＋</span></IconButton>
         </div>
       </header>
       <GroupingControl grouping={grouping} onChange={selectGrouping} />
@@ -751,7 +753,7 @@ export function SessionNavigator({
         showingAll={showingAllMachines}
         onSelect={selectMachineScope}
       />
-      <div className="session-nav-search"><span aria-hidden>⌕</span><input
+      <div className="session-nav-search"><span aria-hidden>⌕</span><Input
         value={query}
         onChange={(event) => setQuery(event.currentTarget.value)}
         placeholder="Find a project or agent"
@@ -770,10 +772,10 @@ export function SessionNavigator({
         <details className="session-more-filters">
           <summary aria-label="More filters">⋯</summary>
           <div className="session-filter-popover">
-            <label>Provider<select value={provider} onChange={(event) => setProvider(event.currentTarget.value as ProviderFilter)}><option value="all">All providers</option><option value="claude">Claude</option><option value="codex">Codex</option><option value="shell">Shell</option></select></label>
-            <label>Computer<select value={machineScope} onChange={(event) => selectMachineScope(event.currentTarget.value)}><option value={ALL_MACHINES_SCOPE}>All machines</option>{configuredMachines.map((configured) => <option key={configured.id} value={configured.id}>{serverDisplayName(configured, true)}</option>)}</select></label>
-            <label>Project<select value={project} onChange={(event) => setProject(event.currentTarget.value)}><option value="all">All projects</option>{projects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-            <label>Date<select value={date} onChange={(event) => setDate(event.currentTarget.value as DateFilter)}><option value="all">Any time</option><option value="today">Today</option><option value="week">Past 7 days</option></select></label>
+            <label>Provider<Select value={provider} onChange={(event) => setProvider(event.currentTarget.value as ProviderFilter)}><option value="all">All providers</option><option value="claude">Claude</option><option value="codex">Codex</option><option value="shell">Shell</option></Select></label>
+            <label>Computer<Select value={machineScope} onChange={(event) => selectMachineScope(event.currentTarget.value)}><option value={ALL_MACHINES_SCOPE}>All machines</option>{configuredMachines.map((configured) => <option key={configured.id} value={configured.id}>{serverDisplayName(configured, true)}</option>)}</Select></label>
+            <label>Project<Select value={project} onChange={(event) => setProject(event.currentTarget.value)}><option value="all">All projects</option>{projects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></label>
+            <label>Date<Select value={date} onChange={(event) => setDate(event.currentTarget.value as DateFilter)}><option value="all">Any time</option><option value="today">Today</option><option value="week">Past 7 days</option></Select></label>
           </div>
         </details>
       </div>
@@ -946,20 +948,20 @@ function GroupingControl({ grouping, onChange }: {
 }): JSX.Element {
   return (
     <div className="session-grouping-control" role="group" aria-label="Group sessions">
-      <button
+      <Button variant="ghost" size="compact"
         type="button"
         className={grouping === 'project' ? 'is-active' : undefined}
         aria-pressed={grouping === 'project'}
         title="Group sessions by the project they belong to"
         onClick={() => onChange('project')}
-      >By project</button>
-      <button
+      >By project</Button>
+      <Button variant="ghost" size="compact"
         type="button"
         className={grouping === 'recent' ? 'is-active' : undefined}
         aria-pressed={grouping === 'recent'}
         title="One list, newest first, with each row's project on the row"
         onClick={() => onChange('recent')}
-      >Most recent</button>
+      >Most recent</Button>
     </div>
   );
 }
@@ -972,7 +974,7 @@ function MachineScopeFilter({ machines, scope, showingAll, onSelect }: {
 }): JSX.Element {
   return (
     <details className="session-machine-options"><summary>Computers</summary><div className="session-machine-filter" role="toolbar" aria-label="Connected computers">
-      <button
+      <Button variant="ghost" size="compact"
         type="button"
         className={showingAll ? 'is-active' : undefined}
         aria-pressed={showingAll}
@@ -981,9 +983,9 @@ function MachineScopeFilter({ machines, scope, showingAll, onSelect }: {
       >
         <span className="session-all-machines-mark" aria-hidden><i /><i /><i /></span>
         <span>All machines</span>
-      </button>
+      </Button>
       {machines.map((configured) => (
-        <button
+        <Button variant="ghost" size="compact"
           type="button"
           key={configured.id}
           className={configured.id === scope ? 'is-active' : undefined}
@@ -993,7 +995,7 @@ function MachineScopeFilter({ machines, scope, showingAll, onSelect }: {
         >
           <MachineMark machine={serverDisplayName(configured, true)} size={16} />
           <span>{serverDisplayName(configured, true)}</span>
-        </button>
+        </Button>
       ))}
     </div></details>
   );
@@ -1042,7 +1044,7 @@ function SessionRowMeta({ provider, machine, when, project }: {
 }
 
 function FilterButton({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }): JSX.Element {
-  return <button type="button" className={active ? 'is-active' : ''} onClick={onClick}>{label}</button>;
+  return <Button variant="ghost" size="compact" aria-pressed={active} className={active ? 'is-active' : ''} onClick={onClick}>{label}</Button>;
 }
 
 function DisclosureChevron({ open }: { open: boolean }): JSX.Element {

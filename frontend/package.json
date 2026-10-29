@@ -62,6 +62,7 @@
     "test:storage": "node scripts/storage-smoke.mjs",
     "test:usage-dashboard": "node scripts/usage-dashboard-smoke.mjs",
     "test:composer-usage": "node scripts/composer-usage-smoke.mjs",
+    "test:shell-ui": "node scripts/shell-smoke.mjs",
     "test:ui-foundation": "node scripts/ui-foundation-smoke.mjs"
   },
   "dependencies": {

@@ -38,7 +38,6 @@
   gap: 32px;
   margin-bottom: 28px;
 }
-.today-heading h1,
 .connections-heading h1 {
   margin: 6px 0 8px;
   color: #f2f2ed;
@@ -47,7 +46,6 @@
   letter-spacing: -0.055em;
   line-height: 0.95;
 }
-.today-heading p,
 .connections-heading p {
   max-width: 620px;
   margin: 0;
@@ -55,7 +53,6 @@
   font-size: 14px;
   line-height: 1.55;
 }
-.today-eyebrow,
 .connections-heading > div > span,
 .today-section-kicker,
 .connections-section-kicker {
@@ -66,7 +63,6 @@
   letter-spacing: 0.11em;
   text-transform: uppercase;
 }
-.today-eyebrow::before,
 .connections-heading > div > span::before,
 .today-section-kicker::before,
 .connections-section-kicker::before {
@@ -87,21 +83,9 @@
   padding: 6px;
   border: 1px solid var(--border-strong);
   border-radius: 13px;
-  background: rgba(20, 20, 20, 0.84);
+  background: var(--bg-elev-1);
   box-shadow: var(--shadow-1);
 }
-.today-date-control button {
-  width: 44px;
-  height: 48px;
-  border: 0;
-  border-radius: 9px;
-  background: transparent;
-  color: var(--fg-dim);
-  font-size: 20px;
-  cursor: pointer;
-}
-.today-date-control button:hover:not(:disabled) { color: var(--fg); background: var(--bg-elev-3); }
-.today-date-control button:disabled { opacity: 0.28; cursor: default; }
 .today-date-control label {
   position: relative;
   display: flex;
@@ -147,7 +131,6 @@
   cursor: pointer;
 }
 .today-jump:hover { color: var(--accent-hover); }
-.today-error,
 .connections-message {
   margin: 0 0 18px;
   padding: 11px 14px;
@@ -172,20 +155,17 @@
   padding: 17px 18px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: rgba(20, 20, 20, 0.82);
-  box-shadow: var(--shadow-1);
+  background: var(--bg-elev-1);
 }
 .today-kpi > span {
   color: var(--fg-dim);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-family: var(--font-ui);
+  font-size: var(--type-caption);
 }
 .today-kpi > strong {
   margin: auto 0 2px;
-  color: #f2f2ed;
-  font-size: clamp(23px, 3vw, 34px);
+  color: var(--fg);
+  font-size: 28px;
   font-weight: 620;
   letter-spacing: -0.04em;
 }
@@ -217,7 +197,7 @@
   font-weight: 620;
   letter-spacing: -0.025em;
 }
-.today-activity-card > header > span { color: var(--fg-faint); font-family: var(--font-mono); font-size: 12px; }
+.today-activity-card > header > span { color: var(--fg-faint); font-size: var(--type-caption); }
 .connection-inline input,
 .pair-device-controls input {
   min-height: 34px;
@@ -230,11 +210,6 @@
 }
 .connection-inline input:focus,
 .pair-device-controls input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
-.today-empty {
-  padding: 36px 24px;
-  text-align: center;
-  color: var(--fg-dim);
-}
 .today-timeline { padding: 6px 0; }
 .today-activity {
   --activity-depth: 0;
@@ -244,7 +219,7 @@
   gap: 12px;
   margin-left: calc(var(--activity-depth) * 22px);
   padding: 14px 20px;
-  border-bottom: 1px solid rgba(38, 38, 38, 0.72);
+  border-bottom: 1px solid var(--border);
 }
 .today-activity:last-child { border-bottom: 0; }
 .today-activity:hover { background: rgba(45, 212, 191, 0.035); }
@@ -266,7 +241,7 @@
 .today-activity-main > header time { flex-shrink: 0; color: var(--fg-faint); font-family: var(--font-mono); font-size: 12px; }
 .today-activity-main > p { max-width: 850px; margin: 5px 0 7px; color: var(--fg-dim); font-size: 13px; line-height: 1.5; }
 .today-activity-meta { display: flex; flex-wrap: wrap; gap: 5px; }
-.today-activity-meta span {
+.today-activity-meta > span {
   overflow: hidden;
   max-width: 38ch;
   padding: 2px 6px;
@@ -755,7 +730,6 @@
   .connections-shell { width: min(100% - 24px, 1180px); padding: 28px 0 88px; }
   .today-heading,
   .connections-heading { align-items: flex-start; flex-direction: column; gap: 18px; }
-  .today-heading h1,
   .connections-heading h1 { font-size: 46px; }
   .today-date-panel { width: 100%; align-items: stretch; }
   .today-date-control { width: 100%; justify-content: space-between; }
@@ -803,3 +777,9 @@
 .connection-advanced summary { font-family: var(--font-ui); letter-spacing: normal; text-transform: none; }
 .connection-card { background: var(--bg-elev-1); }
 .connection-card:hover { transform: none; }
+
+.today-view { background: var(--bg-base); }
+.today-heading { align-items: stretch; }
+.today-activity-card { background: var(--bg-elev-1); box-shadow: none; }
+.today-section-kicker { font-family: var(--font-ui); letter-spacing: normal; text-transform: none; color: var(--fg-faint); }
+.today-section-kicker::before { content: none; }

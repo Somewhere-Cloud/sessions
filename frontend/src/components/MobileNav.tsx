@@ -1,4 +1,7 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { ModalDialog } from './ui/ModalDialog';
+import { PageHeader } from './ui/Layout';
+import { Button } from './ui/Button';
+import { useState, type ReactNode } from 'react';
 
 type MobileLayout = 'home' | 'tabs' | 'today' | 'fleet' | 'search' | 'usage' | 'accounts' | 'settings' | 'connections';
 
@@ -22,17 +25,11 @@ export function MobileNav({
   onShowSessions
 }: Props): JSX.Element {
   const [moreOpen, setMoreOpen] = useState(false);
-  const sheetRef = useRef<HTMLDivElement>(null);
   const moreActive = layoutMode === 'fleet'
     || layoutMode === 'usage'
     || layoutMode === 'accounts'
     || layoutMode === 'settings'
     || layoutMode === 'connections';
-
-  useEffect(() => {
-    if (!moreOpen) return;
-    window.requestAnimationFrame(() => sheetRef.current?.focus());
-  }, [moreOpen]);
 
   const go = (mode: MobileLayout): void => {
     setMoreOpen(false);
@@ -49,24 +46,9 @@ export function MobileNav({
       </nav>
 
       {moreOpen ? (
-        <div className="bottom-sheet-backdrop" onClick={() => setMoreOpen(false)}>
-          <div
-            ref={sheetRef}
-            className="bottom-sheet mobile-more-sheet"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="mobile-more-title"
-            tabIndex={-1}
-            onClick={(event) => event.stopPropagation()}
-            onKeyDown={(event) => {
-              if (event.key === 'Escape') setMoreOpen(false);
-            }}
-          >
-            <div className="bottom-sheet-handle" />
-            <header className="mobile-more-heading">
-              <div><span>Sessions</span><h2 id="mobile-more-title">More</h2></div>
-              <button type="button" onClick={() => setMoreOpen(false)} aria-label="Close">×</button>
-            </header>
+        <ModalDialog className="dialog mobile-more-sheet" labelledBy="mobile-more-title" onClose={() => setMoreOpen(false)}>
+            <div className="mobile-more-heading"><PageHeader title="More" titleId="mobile-more-title" level={2}
+              actions={<Button variant="ghost" aria-label="Close" onClick={() => setMoreOpen(false)}>×</Button>} /></div>
             <div className="mobile-more-grid">
               <MoreDestination title="Fleet" detail="Computers and remote agents" icon={<FleetIcon />} onClick={() => go('fleet')} />
               <MoreDestination title="Usage" detail="Tokens, cost, and projects" icon={<UsageIcon />} onClick={() => go('usage')} />
@@ -79,8 +61,7 @@ export function MobileNav({
               <span><strong>somewhere.tech</strong><small>Cloud and backup for Sessions</small></span>
               <span aria-hidden>↗</span>
             </a>
-          </div>
-        </div>
+        </ModalDialog>
       ) : null}
     </>
   );
@@ -100,7 +81,7 @@ function MobileDestination({
   detail?: boolean;
 }): JSX.Element {
   return (
-    <button
+    <Button variant="ghost"
       type="button"
       className={`mn-btn mn-destination${active ? ' is-active' : ''}`}
       onClick={onClick}
@@ -110,17 +91,17 @@ function MobileDestination({
       <span className="mn-destination-icon" aria-hidden>{icon}</span>
       <span>{label}</span>
       {detail ? <span className="mn-detail-dot" aria-hidden /> : null}
-    </button>
+    </Button>
   );
 }
 
 function MoreDestination({ title, detail, icon, onClick }: { title: string; detail: string; icon: ReactNode; onClick: () => void }): JSX.Element {
   return (
-    <button type="button" onClick={onClick}>
+    <Button variant="ghost" type="button" onClick={onClick}>
       <span className="mobile-more-icon" aria-hidden>{icon}</span>
       <span><strong>{title}</strong><small>{detail}</small></span>
       <span aria-hidden>›</span>
-    </button>
+    </Button>
   );
 }
 

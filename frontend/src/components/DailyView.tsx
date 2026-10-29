@@ -1,3 +1,5 @@
+import { Button, IconButton } from './ui/Button';
+import { EmptyState, PageHeader, Status, Surface } from './ui/Layout';
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { type DailyDay } from '../api/sessionsd';
 import {
@@ -82,27 +84,23 @@ export function DailyView(): JSX.Element {
   return (
     <div className="today-view">
       <div className="today-shell">
-        <header className="today-heading">
-          <div>
-            <span className="today-eyebrow">Private work journal</span>
-            <h1>Daily</h1>
-            <p>Sessions and provider logs supply local activity and usage facts. No model call is made.</p>
-          </div>
+        <div className="today-heading">
+          <PageHeader title="Daily" eyebrow="Your work, day by day" description="Activity and usage from your local history." />
           <div className="today-date-panel">
             <div className="today-date-control">
-              <button type="button" onClick={() => setDate(shiftDate(date, -1))} aria-label="Previous day">←</button>
+              <IconButton variant="ghost" onClick={() => setDate(shiftDate(date, -1))} aria-label="Previous day">←</IconButton>
               <label>
                 <span>{date === today ? 'Today' : 'Selected day'}</span>
                 <strong>{readableDate(date)}</strong>
                 <input type="date" value={date} max={today} onChange={(event) => setDate(event.currentTarget.value)} aria-label="Choose a day" />
               </label>
-              <button type="button" disabled={date >= today} onClick={() => setDate(shiftDate(date, 1))} aria-label="Next day">→</button>
+              <IconButton variant="ghost" disabled={date >= today} onClick={() => setDate(shiftDate(date, 1))} aria-label="Next day">→</IconButton>
             </div>
-            {date !== today ? <button type="button" className="today-jump" onClick={() => setDate(today)}>Jump to today</button> : null}
+            {date !== today ? <Button variant="ghost" size="compact" className="today-jump" onClick={() => setDate(today)}>Jump to today</Button> : null}
           </div>
-        </header>
+        </div>
 
-        {error ? <div className="today-error" role="alert">{error}</div> : null}
+        {error ? <Status tone="warning">Could not load this day. Choose another day, then return to retry. {error}</Status> : null}
         {loading && !day ? <DailySkeleton /> : day ? (
           <>
             <section className="today-kpis" aria-label="Daily totals">
@@ -121,8 +119,8 @@ export function DailyView(): JSX.Element {
             </section>
 
             <section className="today-activity-card">
-              <header><div><span className="today-section-kicker">Local evidence</span><h2>What was worked on</h2></div><span>{managedCount} Sessions · {observedCount} outside</span></header>
-              {activityRoots.length === 0 ? <div className="today-empty">No Sessions or locally observed provider activity was recorded for this day.</div> : (
+              <header><div><span className="today-section-kicker">Activity</span><h2>Work across your projects</h2></div><span>{managedCount} Sessions · {observedCount} outside</span></header>
+              {activityRoots.length === 0 ? <EmptyState title="A quiet day">No activity was recorded for this day.</EmptyState> : (
                 <div className="today-timeline">
                   {activityRoots.map((activity) => (
                     <article className="today-activity" key={activity.id} style={{ '--activity-depth': Math.min(activity.depth, 3) } as CSSProperties}>
@@ -137,7 +135,7 @@ export function DailyView(): JSX.Element {
                           {activity.source === 'provider' ? <span className="today-observed-source" title="This conversation has not been brought into Sessions">Outside Sessions</span> : null}
                           {activity.origin && activity.origin !== 'Codex' && activity.origin !== 'Claude Code' ? <span>{activity.origin}</span> : null}
                           <span>{activity.branch || activity.sourceRepo || activity.cwd.replace(/^\/Users\/[^/]+/, '~')}</span>
-                          {activity.parentSessionId ? <span>child lane</span> : null}
+                          {activity.parentSessionId ? <span>Linked session</span> : null}
                           {Object.entries(activity.tags ?? {}).map(([key, value]) => <span className="today-tag" key={key}>{key}={value}</span>)}
                         </div>
                       </div>
@@ -147,14 +145,14 @@ export function DailyView(): JSX.Element {
               )}
             </section>
           </>
-        ) : <DailySkeleton />}
+        ) : error ? null : <DailySkeleton />}
       </div>
     </div>
   );
 }
 
 function DailyKPI({ label, value, detail }: { label: string; value: string; detail: string }): JSX.Element {
-  return <div className="today-kpi"><span>{label}</span><strong>{value}</strong><small>{detail}</small></div>;
+  return <Surface className="today-kpi"><span>{label}</span><strong>{value}</strong><small>{detail}</small></Surface>;
 }
 
 function DailySkeleton(): JSX.Element {

@@ -1,3 +1,6 @@
+import { Button, IconButton } from './ui/Button';
+import { Field, Select } from './ui/Field';
+import { PageHeader } from './ui/Layout';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSessions } from '../store/sessions';
 import { DirectoryBrowser } from './DirectoryBrowser';
@@ -196,7 +199,7 @@ function AccountChoice(
     <label className="launcher-setup-field is-account">
       <span>Account</span>
       <span className="launcher-intent-control is-account" title={title}>
-        <select value={value} onChange={(event) => onChange(event.currentTarget.value)} aria-label="Account" disabled={disabled}>
+        <Select value={value} onChange={(event) => onChange(event.currentTarget.value)} aria-label="Account" disabled={disabled}>
           <option value="">{profiles.find((profile) => profile.default_profile) ? accountLabel(profiles.find((profile) => profile.default_profile)!) : 'CLI default'}</option>
           {unlisted ? (
             <option value={selected}>{selected}{inherited === selected ? ' · from this session' : ''}</option>
@@ -207,7 +210,7 @@ function AccountChoice(
             </option>
           ))}
           <option value={NEW_PROFILE}>Add an account…</option>
-        </select>
+        </Select>
       </span>
     </label>
   );
@@ -554,15 +557,15 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
           </div>
           <div className="launcher-head-actions">
             {onOpenResume && !isDelegate && selectedProfile === '' ? (
-              <button type="button" className="dialog-head-link" onClick={() => onOpenResume()}>Resume chat</button>
+              <Button variant="ghost" size="compact" className="dialog-head-link" onClick={() => onOpenResume()}>Resume chat</Button>
             ) : null}
-            <button type="button" className="launcher-close" onClick={onClose} aria-label="Close new session">×</button>
+            <IconButton variant="ghost" className="launcher-close" onClick={onClose} aria-label="Close new session">×</IconButton>
           </div>
         </header>
         <div className="dialog-body">
-          <section className="launcher-hero">
-            <h2>{isDelegate ? 'Delegate a task' : 'What would you like to work on?'}</h2>
-            <p>{isDelegate ? 'Give it one focused job. It stays linked to its parent.' : 'Choose your project folder, then an agent to work with.'}</p>
+          <section className="launcher-hero"><PageHeader level={2}
+            title={isDelegate ? 'Delegate a task' : 'What would you like to work on?'}
+            description={isDelegate ? 'Give it one focused job. It stays linked to its parent.' : 'Choose a project and an agent. Make something yours.'} />
           </section>
           <div className="launcher-setup" role="group" aria-label="Session setup">
             <div className="launcher-setup-field is-folder">
@@ -577,9 +580,9 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
               <span>Agent</span>
               <span className="launcher-intent-control is-agent">
                 <AgentMark tool={tool} size={17} />
-                <select value={tool} onChange={(event) => chooseTool(event.currentTarget.value as NewSessionTool)} aria-label="Agent">
+                <Select value={tool} onChange={(event) => chooseTool(event.currentTarget.value as NewSessionTool)} aria-label="Agent">
                   {TOOLS.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-                </select>
+                </Select>
               </span>
             </label>
             {!isDelegate && (
@@ -587,11 +590,11 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
                 <span>Computer</span>
                 <span className="launcher-intent-control is-machine" title={machineTitle}>
                   <MachineMark machine={machineTitle} size={16} />
-                  <select value={machineId} onChange={(event) => chooseMachine(event.currentTarget.value)} aria-label="Computer">
+                  <Select value={machineId} onChange={(event) => chooseMachine(event.currentTarget.value)} aria-label="Computer">
                     {configuredMachines.map((machine) => (
                       <option key={machine.id} value={machine.id}>{serverDisplayName(machine, true)}</option>
                     ))}
-                  </select>
+                  </Select>
                 </span>
               </label>
             )}
@@ -650,14 +653,14 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
                     </div>
                     <label className="launcher-effort-chip" data-label="Effort">
                       <span className="sr-only">Effort</span>
-                      <select value={selectedEffort} onChange={(event) => selectEffort(event.currentTarget.value)} aria-label="Reasoning effort">
+                      <Select value={selectedEffort} onChange={(event) => selectEffort(event.currentTarget.value)} aria-label="Reasoning effort">
                         <option value="">Default effort</option>
                         {effortChoices.map((effort) => <option key={effort} value={effort}>{effortLabel(effort)}</option>)}
-                      </select>
+                      </Select>
                     </label>
                     <label className="launcher-permissions-chip" data-label="Access">
                       <span className="sr-only">Access</span>
-                      <select
+                      <Select
                         value={access}
                         onChange={(event) => {
                           setAccess(event.currentTarget.value as AccessChoice);
@@ -668,15 +671,15 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
                         <option value="full">Full access</option>
                         <option value="ask">Ask me</option>
                         <option value="plan">Plan</option>
-                      </select>
+                      </Select>
                     </label>
                   </>
                 ) : null}
               </div>
               <div className="launcher-composer-actions">
-                <button type={createdWithDeliveryError ? 'button' : 'submit'} className="btn btn-primary launcher-composer-start is-wide" disabled={!createdWithDeliveryError && (busy || !cwd.trim() || !profileValid)} onClick={createdWithDeliveryError ? onClose : undefined} aria-label={createdWithDeliveryError ? 'View session' : 'Start session'} title={createdWithDeliveryError ? 'View session' : 'Start session'}>
+                <Button variant="primary" type={createdWithDeliveryError ? 'button' : 'submit'} className="btn btn-primary launcher-composer-start is-wide" disabled={!createdWithDeliveryError && (busy || !cwd.trim() || !profileValid)} onClick={createdWithDeliveryError ? onClose : undefined} aria-label={createdWithDeliveryError ? 'View session' : 'Start session'} title={createdWithDeliveryError ? 'View session' : 'Start session'}>
                   {createdWithDeliveryError ? 'View session' : busy ? 'Starting…' : 'Start session'}
-                </button>
+                </Button>
               </div>
             </div>
           </div>
@@ -718,39 +721,35 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
                 <details className="launcher-advanced-subsection">
                   <summary>Claude options <span>Uses Settings by default</span></summary>
                   <div className="launcher-claude-options">
-                    <label><span>Use Chrome</span><select value={claudeOptions.chrome ?? ''} onChange={(event) => setClaudeOptions((current) => ({ ...current, chrome: event.currentTarget.value as ClaudeSessionOptions['chrome'] }))}>
+                    <label><span>Use Chrome</span><Select value={claudeOptions.chrome ?? ''} onChange={(event) => setClaudeOptions((current) => ({ ...current, chrome: event.currentTarget.value as ClaudeSessionOptions['chrome'] }))}>
                       <option value="">Use Settings</option><option value="inherit">Claude default</option><option value="on">On</option><option value="off">Off</option>
-                    </select></label>
-                    <label><span>Somewhere tools</span><select value={claudeOptions.somewhereMcp ?? ''} onChange={(event) => setClaudeOptions((current) => ({ ...current, somewhereMcp: event.currentTarget.value as ClaudeSessionOptions['somewhereMcp'] }))}>
+                    </Select></label>
+                    <label><span>Somewhere tools</span><Select value={claudeOptions.somewhereMcp ?? ''} onChange={(event) => setClaudeOptions((current) => ({ ...current, somewhereMcp: event.currentTarget.value as ClaudeSessionOptions['somewhereMcp'] }))}>
                       <option value="">Use Settings</option><option value="inherit">Use Claude configuration</option><option value="ensure">Make available</option>
-                    </select></label>
+                    </Select></label>
                     <div className="launcher-claude-option-note"><strong>Remote Control</strong><small>Uses this machine’s consent choice from Settings. A session cannot turn it on by itself.</small></div>
                   </div>
                 </details>
               ) : null}
               {tool === 'codex' ? (
-                <div className="field launcher-advanced-card launcher-experience-field">
-                  <span className="field-label">Experience</span>
-                  <select className="field-input" value={runtimeMode} onChange={(event) => {
+                <Field label="Experience" className="launcher-advanced-card launcher-experience-field" hint="Conversation is the normal Sessions view. Terminal opens Codex exactly as it appears in a shell.">
+                  <Select className="field-input" value={runtimeMode} onChange={(event) => {
                     const nextMode = event.currentTarget.value as RuntimeMode;
                     setRuntimeMode(nextMode);
                   }} aria-label="Session experience">
                     <option value="rich">Conversation</option>
                     <option value="terminal">Terminal</option>
-                  </select>
-                  <span className="field-help">Conversation is the normal Sessions view. Terminal opens Codex exactly as it appears in a shell.</span>
-                </div>
+                  </Select>
+                </Field>
               ) : tool === 'claude-code' ? (
-                <div className="field launcher-advanced-card launcher-experience-field">
-                  <span className="field-label">Experience</span>
-                  <select className="field-input" value={runtimeMode} onChange={(event) => {
+                <Field label="Experience" className="launcher-advanced-card launcher-experience-field" hint="Conversation shows Claude's work live. Terminal runs Claude's own interactive app, which claude.ai and mobile Remote Control need; you can switch a conversation to it later.">
+                  <Select className="field-input" value={runtimeMode} onChange={(event) => {
                     setRuntimeMode(event.currentTarget.value as RuntimeMode);
                   }} aria-label="Session experience">
                     <option value="rich">Conversation</option>
                     <option value="terminal">Terminal (Remote Control)</option>
-                  </select>
-                  <span className="field-help">Conversation shows Claude's work live. Terminal runs Claude's own interactive app, which claude.ai and mobile Remote Control need; you can switch a conversation to it later.</span>
-                </div>
+                  </Select>
+                </Field>
               ) : null}
               {tool === 'claude-code' ? (
                 <details className="launcher-advanced-subsection launcher-troubleshooting">

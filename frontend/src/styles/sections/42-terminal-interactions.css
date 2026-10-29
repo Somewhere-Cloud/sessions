@@ -428,8 +428,17 @@
   .session-control-confirm { width: 100%; }
   .session-control > .btn { align-self: flex-start; }
   .home-view { padding: 24px 14px 90px; }
-  .home-hero { align-items: flex-start; flex-direction: column; }
-  .home-stat-grid { grid-template-columns: 1fr; }
+
+  .home-stat-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); }
+  .home-stat-grid .ui-button { padding: var(--space-3); }
+  .home-stat-grid span { white-space: normal; }
+  .home-stat-grid small { display: none; }
+  .home-recent { padding: var(--space-3); }
+  .home-session-list > .ui-button { display: grid; grid-template-columns: 8px minmax(0, 1fr) auto; gap: var(--space-1) var(--space-2); padding-block: var(--space-3); }
+  .home-session-dot { grid-row: 1 / 3; }
+  .home-session-copy { grid-column: 2 / 4; }
+  .home-session-list .provider-badge { grid-column: 2; justify-self: start; }
+  .home-session-time { grid-column: 3; }
   .settings-view { grid-template-columns: 1fr; padding-bottom: 70px; overflow-y: auto; }
   .settings-sections { min-height: auto; padding: 16px; border-right: 0; border-bottom: 1px solid var(--border); }
   .operations-content:has(> .client-onboarding-note) .settings-sections { padding-top: 16px; }

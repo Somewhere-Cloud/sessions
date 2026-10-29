@@ -51,6 +51,7 @@ const GATE = [
   'project-groups',
   'launcher-layout',
   'ui-foundation',
+  'shell-ui',
   'account-login',
   'account-usage',
   'composer-usage',

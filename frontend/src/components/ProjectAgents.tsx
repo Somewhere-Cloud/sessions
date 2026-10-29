@@ -1,3 +1,5 @@
+import { Button, IconButton } from './ui/Button';
+import { Input } from './ui/Field';
 import { lazy, Suspense, useId, useState, type ReactNode } from 'react';
 import type { AgentProject, Agent } from '../lib/projectAgents';
 import { resolvedSessionLabel } from '../lib/tabLabels';
@@ -34,17 +36,17 @@ function AgentGroup({ group, activeMachineId, activeSessionId, compact = true, r
   const remaining = group.rows.length - preview.length;
   const rows = showAll ? group.rows : preview;
   return <section className="agent-project" aria-label={group.name}>
-    <header><button type="button" className="session-tree-group-head agent-project-disclosure" aria-expanded={open} aria-controls={rowsId} onClick={() => setOpen((current) => !current)}>
+    <header><Button variant="ghost" className="session-tree-group-head agent-project-disclosure" aria-expanded={open} aria-controls={rowsId} onClick={() => setOpen((current) => !current)}>
       <span className={`inbox-chevron${open ? ' is-open' : ''}`} aria-hidden>▸</span>
       <span className="agent-project-name">{group.name}</span><strong className="agent-project-count">{group.rows.length}</strong>
-    </button>{onAdd ? <button type="button" aria-label={`Add agent to ${group.name}`} onClick={() => onAdd(group.rows[0], group.name)}>＋</button> : null}</header>
+    </Button>{onAdd ? <IconButton size="compact" aria-label={`Add agent to ${group.name}`} onClick={() => onAdd(group.rows[0], group.name)}>＋</IconButton> : null}</header>
     <div id={rowsId} hidden={!open}>{open ? rows.map((row) => <div key={`${row.server.id}:${row.session.id}`}>
       {row.projectName ? <small className="session-nav-project">{row.projectName}</small> : null}
       <RemoteAgent row={row} onOpen={onOpen} onResume={onResume} localRow={row.server.id === activeMachineId ? renderLocal(row) : undefined} />
     </div>) : null}
-    {open && remaining > 0 ? <button type="button" className="inbox-fold project-preview-toggle" aria-expanded={showAll} aria-controls={rowsId} onClick={() => setShowAll((current) => !current)}>
+    {open && remaining > 0 ? <Button variant="ghost" size="compact" className="inbox-fold project-preview-toggle" aria-expanded={showAll} aria-controls={rowsId} onClick={() => setShowAll((current) => !current)}>
       {showAll ? 'Show fewer agents' : `Show ${remaining} remaining agents`}
-    </button> : null}</div>
+    </Button> : null}</div>
   </section>;
 }
 
@@ -73,9 +75,9 @@ function RemoteAgent({ row, onOpen, onResume, localRow }: { row: Agent; onOpen: 
       <span className="session-fleet-provider">{provider ? <ProviderMark provider={provider} size={18} /> : '⌘'}</span>
       <span className="session-fleet-copy"><strong>{label}</strong><small>{row.unavailable ? 'Computer unavailable · saved view' : status.label}</small></span>
     </button>{onResume ? <Suspense fallback={null}><SavedRecoveryAction row={row} onResume={onResume} /></Suspense> : null}</>}
-    <button type="button" className="agent-rename" aria-label={`Rename ${label}`} onClick={() => { setDraft(label); setEditing(true); }}>✎</button>
+    <IconButton size="compact" className="agent-rename" aria-label={`Rename ${label}`} onClick={() => { setDraft(label); setEditing(true); }}>✎</IconButton>
     {editing ? <form className="agent-rename-form" onSubmit={(event) => { event.preventDefault(); void save(); }}>
-      <input autoFocus aria-label="Agent name" value={draft} onChange={(event) => setDraft(event.target.value)} disabled={busy} />
+      <Input autoFocus aria-label="Agent name" value={draft} onChange={(event) => setDraft(event.target.value)} disabled={busy} />
       <button type="submit" disabled={busy || !draft.trim()}>Save</button><button type="button" disabled={busy} onClick={() => setEditing(false)}>Cancel</button>
     </form> : null}
     {error ? <p role="alert">{error}</p> : null}

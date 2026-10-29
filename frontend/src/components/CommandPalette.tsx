@@ -1,3 +1,7 @@
+import { Button } from './ui/Button';
+import { Input } from './ui/Field';
+import { EmptyState } from './ui/Layout';
+import { ModalDialog } from './ui/ModalDialog';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { SessionInfo } from '../types';
 import { resolvedSessionLabel } from '../lib/tabLabels';
@@ -26,7 +30,7 @@ interface PaletteAction {
 }
 
 const VIEW_ACTIONS: Array<{ view: ProductView; label: string; detail: string; keywords: string }> = [
-  { view: 'home', label: 'Home', detail: 'Agent operations overview', keywords: 'dashboard overview' },
+  { view: 'home', label: 'Home', detail: 'Your recent work at a glance', keywords: 'dashboard overview' },
   { view: 'tabs', label: 'Sessions', detail: 'Running and recently ended work', keywords: 'agents conversations lanes' },
   { view: 'today', label: 'Daily', detail: 'Today’s local work journal', keywords: 'journal activity today' },
   { view: 'search', label: 'Conversation history', detail: 'Browse or search every Claude and Codex conversation', keywords: 'resume recall history search find codex claude' },
@@ -64,12 +68,12 @@ export function CommandPalette({
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
-  const dialogRef = useRef<HTMLElement>(null);
 
   const actions = useMemo<PaletteAction[]>(() => {
     const closeThen = (action: () => void): (() => void) => () => {
       onClose();
-      action();
+      // Let ModalDialog release focus before an action focuses another surface.
+      window.requestAnimationFrame(action);
     };
     return [
       {
@@ -145,16 +149,14 @@ export function CommandPalette({
     setActiveIndex((current) => Math.min(current, Math.max(0, visibleActions.length - 1)));
   }, [visibleActions.length]);
 
+  useEffect(() => {
+    if (open) document.getElementById(`sessions-command-palette-option-${activeIndex}`)?.scrollIntoView({ block: 'nearest' });
+  }, [activeIndex, open]);
+
   if (!open) return null;
   return (
-    <div className="command-palette-backdrop" role="presentation" onPointerDown={onClose}>
-      <section
-        ref={dialogRef}
-        className="command-palette"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Sessions commands"
-        onPointerDown={(event) => event.stopPropagation()}
+    <ModalDialog className="dialog command-palette" labelledBy="sessions-command-title" onClose={onClose}>
+      <div className="command-palette-content"
         onKeyDown={(event) => {
           if (event.key === 'Escape') {
             event.preventDefault();
@@ -168,26 +170,12 @@ export function CommandPalette({
           } else if (event.key === 'Enter' && visibleActions[activeIndex]) {
             event.preventDefault();
             visibleActions[activeIndex].run();
-          } else if (event.key === 'Tab') {
-            const focusable = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>(
-              'input:not([disabled]), button:not([disabled]), [tabindex]:not([tabindex="-1"])'
-            ) ?? []);
-            if (focusable.length === 0) return;
-            const first = focusable[0];
-            const last = focusable[focusable.length - 1];
-            if (event.shiftKey && document.activeElement === first) {
-              event.preventDefault();
-              last?.focus();
-            } else if (!event.shiftKey && document.activeElement === last) {
-              event.preventDefault();
-              first?.focus();
-            }
           }
         }}
       >
         <div className="command-palette-input">
-          <span aria-hidden>⌕</span>
-          <input
+          <label id="sessions-command-title" htmlFor="sessions-command-query">Find or run</label>
+          <Input
             ref={inputRef}
             value={query}
             onChange={(event) => {
@@ -196,6 +184,7 @@ export function CommandPalette({
             }}
             placeholder="Find a session or action…"
             aria-label="Find a session or action"
+            id="sessions-command-query"
             role="combobox"
             aria-autocomplete="list"
             aria-expanded="true"
@@ -211,7 +200,7 @@ export function CommandPalette({
             return (
               <div key={action.id} className="command-palette-result-wrap">
                 {showGroup ? <span className="command-palette-group">{action.group}</span> : null}
-                <button
+                <Button variant="ghost"
                   id={`sessions-command-palette-option-${index}`}
                   type="button"
                   role="option"
@@ -223,16 +212,16 @@ export function CommandPalette({
                   <span className="command-palette-result-icon">{action.icon ?? <span aria-hidden>→</span>}</span>
                   <span><strong>{action.label}</strong><small>{action.detail}</small></span>
                   {action.group === 'Sessions' ? <span className="command-palette-open">Open</span> : null}
-                </button>
+                </Button>
               </div>
             );
           })}
           {visibleActions.length === 0 ? (
-            <div className="command-palette-empty">No matching session or action</div>
+            <EmptyState title="No matches">Try a project name, session title, or action.</EmptyState>
           ) : null}
         </div>
         <footer><span>↑↓ navigate</span><span>↵ open</span><span>⌘K close</span></footer>
-      </section>
-    </div>
+      </div>
+    </ModalDialog>
   );
 }
