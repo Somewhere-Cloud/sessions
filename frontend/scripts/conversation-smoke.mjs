@@ -37,7 +37,13 @@ try {
   const root = `http://127.0.0.1:${server.address().port}/`;
   // All production IO is replaced in-process, and browser traffic is fixture-only.
   await page.setRequestInterception(true);
-  page.on('request', (request) => request.url().startsWith(root) || request.url().startsWith('data:') ? request.continue() : request.abort());
+  const pendingRequests = new Set();
+  page.on('request', (request) => {
+    pendingRequests.add(request);
+    void (request.url().startsWith(root) || request.url().startsWith('data:') ? request.continue() : request.abort());
+  });
+  page.on('requestfinished', (request) => pendingRequests.delete(request));
+  page.on('requestfailed', (request) => pendingRequests.delete(request));
   const capture = async (name) => {
     if (process.env.UI_SCREENSHOT_DIR) await page.screenshot({ path: join(process.env.UI_SCREENSHOT_DIR, `${name}.png`), fullPage: true });
   };
@@ -47,7 +53,13 @@ try {
       await page.setViewport({ width, height: width === 375 ? 812 : 1000, isMobile: width === 375, hasTouch: width === 375 });
       for (const state of ['reading', 'streaming', 'queue', 'approval', 'fault', 'recovery', 'empty', 'loading', 'error', 'delivery', 'sending', 'steering', 'saved', 'terminal', 'session', 'details']) {
         const name = `conversation-${state}-${theme}-${width}`;
-        await page.goto(`${root}?theme=${theme}&state=${state}`, { waitUntil: 'networkidle0' });
+        try {
+          await page.goto(`${root}?theme=${theme}&state=${state}`, { waitUntil: 'networkidle0' });
+        } catch (error) {
+          console.error('Navigation diagnostic', name, [...pendingRequests].map((request) => request.url()),
+            await page.evaluate(() => ({ ready: document.readyState, mounted: Boolean(document.querySelector('.operations-main')) })));
+          throw error;
+        }
         await page.waitForSelector('.operations-main');
         if (state === 'session') await page.waitForSelector('.session-active-header');
         if (await page.$('.remote-scroll')) {
