@@ -36,9 +36,9 @@ export default function StatusSidebar({
   return (
     <aside className={`status-sidebar${isWorking ? ' is-working' : ' is-idle'}`}>
       <section className="sidebar-section sidebar-metrics">
-        <div className="sidebar-run-state" aria-label={isWorking ? 'Agent working' : statusLabel}>
+        <div className="sidebar-run-state" aria-label={isWorking ? 'In progress' : statusLabel}>
           {provider ? <ProviderMark provider={provider} size={14} /> : <span aria-hidden>·</span>}
-          <Status live="off">{isWorking ? 'Working' : statusLabel}</Status>{!isWorking && finalElapsed ? ` · ${finalElapsed}` : ''}
+          <Status live="off">{isWorking ? 'In progress' : statusLabel}</Status>{!isWorking && finalElapsed ? ` · ${finalElapsed}` : ''}
         </div>
         {isWorking ? (
           <>

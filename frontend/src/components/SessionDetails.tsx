@@ -16,17 +16,17 @@ import { PIN_UNAVAILABLE_WHEN_ENDED } from '../lib/workingSet';
 const STATE_DETAIL: Record<SessionStatusState, string> = {
   reconnecting: 'Sessions is reconnecting to this agent; its work keeps running',
   unavailable: 'Sessions cannot currently reach this agent; its saved conversation remains available',
-  'needs-recovery': 'This agent stayed paused after restart; open it or send a message and Sessions wakes it',
+  'needs-recovery': 'This agent is paused after restart; open its saved conversation to review recovery options',
   failed: 'The runtime stopped unexpectedly; saved history is still available',
   'provider-down': 'The provider did not complete this turn; Sessions has preserved the conversation',
   'auth-needed': 'The provider needs you to log in before this session can continue',
   ended: 'The runtime is no longer running',
   'needs-you': 'Waiting for your response',
-  working: 'Agent is working',
+  working: 'A request is in progress',
   limited: 'The agent is alive; one optional capability is unavailable',
   finished: 'The provider run finished; the runtime is still live',
   'not-started': 'The runtime has not produced output yet',
-  ready: 'Ready'
+  ready: 'Ready for a message'
 };
 
 interface Props {
