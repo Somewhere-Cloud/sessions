@@ -104,10 +104,12 @@ describe('capability: choose how the navigator groups sessions', () => {
     expect(rowTitles(recentList())).toEqual(['Older conversation', 'Newer conversation']);
 
     // Ended work is still folded away rather than mixed into the live list.
-    const finished = within(recentList()).getByRole('button', { name: /Closed\s*1/ });
+    const finished = screen.getByRole('button', { name: /Closed\s*1/ });
+    expect(screen.getAllByRole('button', { name: /Closed\s*1/ })).toHaveLength(1);
     expect(rowTitles(recentList())).not.toContain('Finished conversation');
     await userEvent.setup().click(finished);
-    await waitFor(() => expect(rowTitles(recentList())).toContain('Finished conversation'));
+    await screen.findByText('Finished conversation');
+    expect(rowTitles(recentList())).not.toContain('Finished conversation');
   }, 20_000);
 
   it('remembers the choice on this device', async () => {

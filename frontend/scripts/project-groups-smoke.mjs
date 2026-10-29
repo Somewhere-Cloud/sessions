@@ -99,6 +99,14 @@ try {
     await page.setViewport({ width: 1100, height: 900 });
     await page.goto(`http://127.0.0.1:${address.port}/?scope=${scope}&connectionStates=1`, { waitUntil: 'networkidle0' });
     await page.waitForFunction(() => document.body.textContent.includes('Unavailable agents'));
+    const titleLayout = await page.$eval('[data-session-id="project-0-agent-18"] .session-nav-title', (el) => ({
+      height: el.getBoundingClientRect().height, fullHeight: el.scrollHeight,
+      fits: el.scrollWidth <= el.clientWidth,
+    }));
+    assert.ok(titleLayout.height > 20 && titleLayout.height < 40 && titleLayout.fullHeight <= titleLayout.height + 1 && titleLayout.fits,
+      `a normal long session name should fit on two lines without truncation: ${JSON.stringify(titleLayout)}`);
+    assert.equal(await page.$$eval('.session-nav-meta > span:not(.session-nav-project)', (nodes) =>
+      nodes.every((el) => el.scrollWidth <= el.clientWidth)), true, 'timestamps and provider marks do not get squeezed by project names');
     if (scope === 'fixture') {
       assert.deepEqual(await page.$eval('.inbox-fold-label', (el) => {
         const bounds = el.getBoundingClientRect();

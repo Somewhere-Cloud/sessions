@@ -16,6 +16,7 @@ const sessions = names.flatMap((name, project) => Array.from({ length: 20 }, (_,
   tags: { project: name }
 })));
 if (new URLSearchParams(location.search).has('connectionStates')) {
+  sessions[18].name = 'Opus · Managed Claude terminal hooks';
   sessions.push(...Array.from({ length: 39 }, (_, index) => makeSession({
     id: `unavailable-${index}`, name: `Unavailable agent ${index + 1}`, cwd: '/work/Sessions',
     tags: { project: 'Sessions' }, unreachable: true, runnerGone: true, pid: 0,

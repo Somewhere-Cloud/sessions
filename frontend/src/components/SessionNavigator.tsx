@@ -426,7 +426,8 @@ export function SessionNavigator({
   const unavailableGroups = arrange(groupAgents(projectSnapshots, fleetProjects, true, (session, serverId) => !session.exited && matches(session, serverId)));
   const inboxLayout = useMemo(() => buildInboxLayout({
     live: filteredLiveSessions,
-    ended: navigatorSessions.filter((session) => session.exited && matches(session)),
+    // Closed records have one shelf below the project/recency list.
+    ended: [],
     attention: sessions.filter((session) => !session.exited && matches(session)),
     lastActivity,
     projectFor: (session) => projectLookup.bySession.get(session.id) ?? null,
@@ -903,7 +904,7 @@ export function SessionNavigator({
           </div>
           {endedOpen ? (
             <>
-              {visibleEnded.map((session) => renderNode(session, true))}
+              {visibleEnded.map((session) => renderNode(session, true, projectLabelOf(session)))}
               {!browsingAllEnded && hasOlderEnded ? <button type="button" className="session-all-ended" onClick={() => setShowAllEnded(true)}>All closed sessions →</button> : null}
               {showAllEnded && primary !== 'ended' && query.trim() === '' ? <button type="button" className="session-all-ended" onClick={() => setShowAllEnded(false)}>Show recent only</button> : null}
               {visibleEnded.length === 0 ? <div className="session-tree-empty is-compact">No closed sessions yet.</div> : null}
