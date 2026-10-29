@@ -174,7 +174,7 @@ button.model-picker-option { display: flex; align-items: center; justify-content
 .launcher-hero { display: grid; gap: 8px; }
 
 
-.launcher-setup { display: grid; grid-template-columns: 1.7fr 1fr 1.3fr 1.2fr; gap: 12px; }
+.launcher-setup { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 12px; }
 .launcher-setup-field { display: grid; min-width: 0; gap: 7px; }
 .launcher-setup-field > span:first-child { color: var(--fg-dim); font-size: 12px; font-weight: 600; }
 .launcher-folder-change { margin-left: auto; color: var(--fg-dim); font-size: 12px; font-weight: 400; }
