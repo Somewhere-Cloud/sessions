@@ -95,7 +95,7 @@ try {
       }
     }
   }
-  for (const screen of ['fleet', 'remaining-cards']) {
+  for (const screen of ['fleet', 'remaining-cards', 'general', 'agents']) {
     await page.goto(`http://127.0.0.1:${server.address().port}/?theme=light&screen=${screen}&size=l`, {waitUntil:'networkidle0'});
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `${screen} large text fits`);
     if (process.env.UI_SCREENSHOT_DIR) await page.screenshot({ path: join(process.env.UI_SCREENSHOT_DIR, `${screen}-light-375-large.png`), fullPage: true });

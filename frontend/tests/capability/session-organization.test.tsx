@@ -69,7 +69,7 @@ describe('reversible manual session organization', () => {
     </Workbench>);
     const draft = await screen.findByPlaceholderText(/Message Claude/);
     fireEvent.change(draft, { target: { value: 'Still editing this draft' } });
-    await user.click(screen.getByRole('button', { name: 'Archive (keeps running)' }));
+    await user.click(screen.getByRole('button', { name: 'Set aside' }));
     await waitFor(() => expect(close).toHaveBeenCalledWith('quiet'));
     expect(readDraft(draftStorageKey('local', 'quiet')).text).toBe('Still editing this draft');
     view.unmount();
@@ -164,14 +164,14 @@ describe('reversible manual session organization', () => {
     const close = vi.fn();
     const view = render(<SessionArchiveButton session={{ ...local.sessions[0] }} onArchived={close} />);
     try {
-      fireEvent.click(screen.getByRole('button', { name: 'Archive (keeps running)' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Set aside' }));
       await waitFor(() => expect(daemon.requests.some((r) => r.path.endsWith('/set-aside'))).toBe(true));
       act(() => { useServers.getState().setActive('remote'); });
       await act(async () => { await useSessions.getState().refresh('remote'); });
       expect(useSessions.getState().serverId).toBe('remote');
       view.rerender(<SessionArchiveButton session={remote.sessions[0]} onArchived={close} />);
       await act(async () => { release(); await gate; });
-      await waitFor(() => expect(screen.getByRole('button', { name: 'Archive (keeps running)' })).toBeEnabled());
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Set aside' })).toBeEnabled());
       expect(useSessions.getState().sessions[0].setAsideAt).toBeUndefined();
       expect(remote.sessions[0].setAsideAt).toBeUndefined();
       expect(close).not.toHaveBeenCalled();
@@ -189,7 +189,7 @@ describe('reversible manual session organization', () => {
     const close = vi.fn();
     try {
       render(<SessionArchiveButton session={host.sessions[0]} onArchived={close} />);
-      fireEvent.click(screen.getByRole('button', { name: 'Archive (keeps running)' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Set aside' }));
       expect(await screen.findByRole('alert')).toHaveTextContent(/update|unavailable|support/i);
       expect(close).not.toHaveBeenCalled();
       expect(daemon.ended).toEqual([]);

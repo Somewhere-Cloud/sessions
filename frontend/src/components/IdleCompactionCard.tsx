@@ -5,6 +5,7 @@ import { fetchIdleCompaction, updateIdleCompaction, type IdleCompactionStatus } 
 interface Props {
   clientOnly: boolean;
   hostName: string;
+  showHostChoice?: boolean;
 }
 
 function plannedSummary(status: IdleCompactionStatus): string | null {
@@ -18,7 +19,7 @@ function plannedSummary(status: IdleCompactionStatus): string | null {
 
 // The machine-wide idle compaction default. Each lane's own choice is set with
 // `sessions compaction on|off|default --lane SESSION`.
-export function IdleCompactionCard({ clientOnly, hostName }: Props): JSX.Element {
+export function IdleCompactionCard({ clientOnly, hostName, showHostChoice = true }: Props): JSX.Element {
   const [status, setStatus] = useState<IdleCompactionStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -61,7 +62,7 @@ export function IdleCompactionCard({ clientOnly, hostName }: Props): JSX.Element
         Sessions sends <code>/compact</code> to an idle Claude session of at least 100,000 tokens two minutes before its
         cache expires, so coming back reads a summary instead of the whole conversation uncached.
       </p>
-      {clientOnly ? <div className="settings-host-choice">Chosen on {hostName}</div> : null}
+      {clientOnly && showHostChoice ? <div className="settings-host-choice">Chosen on {hostName}</div> : null}
       <label className="settings-toggle">
         <span>
           <strong>Compact before the cache expires (beta)</strong>

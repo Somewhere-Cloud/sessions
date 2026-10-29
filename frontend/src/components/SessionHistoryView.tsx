@@ -9,9 +9,9 @@ import type { SessionInfo } from '../types';
 import { ProviderBadge, normalizeProvider } from './ProviderBadge';
 import { SessionDetails } from './SessionDetails';
 import { canContinueSession, continuationSession, endedAtLabel, endedSummary, lostSessionNote } from '../lib/sessionStatus';
-import { sessionMode, sessionModeName, sessionModeShort } from '../lib/sessionMode';
+import { sessionModeName } from '../lib/sessionMode';
 import { SessionPopOutButton } from './SessionPopOutButton';
-import { SessionArchiveButton } from './SessionArchiveButton';
+import { SessionActionsMenu } from './SessionActionsMenu';
 import { ContinueElsewhereButton } from './ContinueElsewhereButton';
 import { ConversationForkButton } from './ConversationForkButton';
 import { WorkLog } from './WorkLog';
@@ -194,7 +194,7 @@ export function SessionHistoryView({ session, onResume, onFork, onCloseView, onO
         continuationIsLive={continuationIsLive} onBack={onBack} onCloseView={onCloseView} />
       <div className="session-toolbar">
         {supportsConversation ? <div className="view-toggle is-content-switch"><Button type="button" className="view-toggle-btn is-active">Conversation</Button></div> : <span className="history-shell-label">Shell session</span>}
-        <span className="status-text">{recoveryReason ? `${recoveryReason} Read-only history.` : hasContinuation ? `Original runtime ended ${endedAtLabel(session)} · ${continuationIsLive ? 'live continuation' : 'continued elsewhere'}` : `Ended ${endedAtLabel(session)} · read-only history`}</span>
+        <span className="status-text">Read-only history</span>
         {onFork && provider ? (
           <ConversationForkButton
             active={forkMode}
@@ -245,7 +245,7 @@ export function SessionHistoryView({ session, onResume, onFork, onCloseView, onO
                     : 'Shell sessions do not have an agent conversation to resume.'}</span>
                 )}
                 {canContinueSession(session) ? <ContinueElsewhereButton sessionId={session.id} label={label} /> : null}
-                <Button type="button" disabled={archiveBusy} onClick={() => void archiveFromInbox()}>{archiveBusy ? 'Archiving…' : 'Archive from list'}</Button>
+                <Button type="button" variant="ghost" disabled={archiveBusy} onClick={() => void archiveFromInbox()}>{archiveBusy ? 'Archiving…' : 'Archive from list'}</Button>
               </div>
             </Surface>
             {archiveError ? <div className="session-history-action-error" role="alert">{archiveError}</div> : null}
@@ -360,9 +360,8 @@ function HistoryPageHeader({ session, parent, label, lifecycleLabel, continuatio
         description={<>
           <div className="session-active-meta">
             <span className={`session-live-pill ${continuationIsLive ? 'is-completed' : 'is-finished'}`}>{lifecycleLabel}</span>
-            <span className={`session-runtime-badge${sessionMode(session) === 'terminal' && session.tool !== 'claude-code' ? ' is-terminal' : ''}`} title={sessionModeName(session)}>{sessionModeShort(session)}</span>
             {provider ? <ProviderBadge provider={provider} compact /> : <span className="provider-badge is-shell is-compact">⌘ Shell</span>}
-            <span>{session.profile || 'Default profile'}</span><span>Saved on {serverDisplayName(getActiveServer(), true)}</span><span title={session.cwd}>{session.cwd}</span>
+            <span>Saved on {serverDisplayName(getActiveServer(), true)}</span><span title={session.cwd}>{session.cwd}</span>
           </div>
         </>}
         actions={<>
@@ -374,9 +373,7 @@ function HistoryPageHeader({ session, parent, label, lifecycleLabel, continuatio
   );
 }
 
-// The saved conversation's own controls: open it in its own window, put it
-// away, or close the tab. Archiving is here because this is where a person
-// finishes with a conversation.
+// Resume and archive belong to the ended banner; window actions stay here.
 function HistoryHeaderActions({ session, label, onCloseView }: {
   session: SessionInfo;
   label: string;
@@ -384,15 +381,17 @@ function HistoryHeaderActions({ session, label, onCloseView }: {
 }): JSX.Element {
   return (
     <div className="session-active-actions">
-      <SessionPopOutButton sessionId={session.id} label={label} />
-      <SessionArchiveButton session={session} onArchived={(id) => onCloseView?.(id)} />
+      <SessionActionsMenu>
+        <div className="session-actions-context"><span>{sessionModeName(session)}</span><span>{session.profile || 'Default profile'}</span></div>
+        <SessionPopOutButton sessionId={session.id} label={label} />
+      </SessionActionsMenu>
       {onCloseView ? (
         <Button
           type="button"
           variant="ghost" className="session-close-view"
           onClick={() => onCloseView(session.id)}
           title="Close this tab. The saved conversation remains available."
-        ><span aria-hidden>×</span> Close tab</Button>
+         aria-label="Close tab"><span aria-hidden>×</span></Button>
       ) : null}
     </div>
   );

@@ -461,9 +461,9 @@ function AgentSettings(props: AgentSettingsProps): JSX.Element {
   return (
     <section className="settings-page">
       <PageHeader eyebrow={<>Local, explicit calls</>} title={<>Agents & models</>} description={<>Choose which already-authenticated local agent powers smart search.</>} />
+      {props.clientOnly ? <HostChoice hostName={props.hostName} /> : null}
       {!props.native ? <Status live="off">These controls are available only in the signed Sessions app.</Status> : null}
       <Surface><SettingsSection title={<>Claude session defaults</>} description={<>Applied only to sessions launched by Sessions. Claude’s own settings files remain untouched.</>}>
-        {props.clientOnly ? <HostChoice hostName={props.hostName} /> : null}
         <label className="settings-select-row"><span><strong>Remote Control</strong><small>When enabled, new Claude sessions connect directly to Anthropic and also appear on claude.ai and mobile. Sessions is not a relay.</small></span><Select value={props.claudeSettings.remoteControl === 'on' ? 'on' : 'off'} disabled={props.clientOnly || props.claudeBusy || !props.claudeAvailable} onChange={(event) => void props.onRemoteControl(event.currentTarget.value === 'on')}><option value="on">Enabled for new Claude sessions</option><option value="off">Keep sessions local</option></Select></label>
         <label className="settings-select-row"><span><strong>Permission mode</strong><small>Claude default preserves the provider’s normal prompts. Bypass gives new Claude sessions full access.</small></span><Select value={props.claudeSettings.permissionMode} disabled={props.clientOnly || props.claudeBusy || !props.claudeAvailable} onChange={(event) => void props.onClaudeSettings({ ...props.claudeSettings, permissionMode: event.currentTarget.value as ClaudeSettings['permissionMode'] })}><option value="inherit">Claude default</option><option value="manual">Manual</option><option value="acceptEdits">Accept edits</option><option value="auto">Auto</option><option value="plan">Plan</option><option value="dontAsk">Don’t ask</option><option value="bypassPermissions">Bypass permissions</option></Select></label>
         <label className="settings-select-row"><span><strong>Model</strong><small>Leave blank to use Claude’s selected default model.</small></span><Input value={props.claudeSettings.model} disabled={props.clientOnly || props.claudeBusy || !props.claudeAvailable} maxLength={128} placeholder="Provider default" onChange={(event) => props.onClaudeDraft({ ...props.claudeSettings, model: event.currentTarget.value })} onBlur={() => void props.onClaudeSettings(props.claudeSettings)} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }} /></label>
@@ -474,15 +474,13 @@ function AgentSettings(props: AgentSettingsProps): JSX.Element {
         {props.claudeMessage ? <Status>{props.claudeMessage}</Status> : null}
       </SettingsSection></Surface>
       <AutoArchiveCard hostName={props.hostName} />
-      <IdleCompactionCard clientOnly={props.clientOnly} hostName={props.hostName} />
+      <IdleCompactionCard clientOnly={props.clientOnly} hostName={props.hostName} showHostChoice={false} />
       <Surface><SettingsSection title={<>Delegated agent access</>} description={<>Applies only when one Sessions agent starts another. It never changes an existing session or lets a child escalate itself.</>}>
-        {props.clientOnly ? <HostChoice hostName={props.hostName} /> : null}
         <label className="settings-select-row"><span><strong>Child-agent permissions</strong><small>Inherited keeps each worker inside its manager’s access. Autonomous is an explicit opt-in for unattended delegated work.</small></span><Select value={props.delegatedAccess} disabled={props.clientOnly || props.delegationBusy || !props.delegationAvailable} onChange={(event) => void props.onDelegatedAccess(event.currentTarget.value as 'inherit' | 'autonomous')}><option value="inherit">Inherit manager permissions</option><option value="autonomous">Autonomous delegated work</option></Select></label>
         <Status live="off">Children stay open unless a caller creates an explicit bounded task. A final response never ends a runtime. Approval questions stay open as Needs you.</Status>
         {props.delegationMessage ? <Status>{props.delegationMessage}</Status> : null}
       </SettingsSection></Surface>
       <Surface><SettingsSection title={<>Smart search</>}>
-        {props.clientOnly ? <HostChoice hostName={props.hostName} /> : null}
         <label className="settings-select-row">
           <span><strong>Planning provider</strong><small>The natural-language query is sent; Sessions then searches its local index.</small></span>
           <Select

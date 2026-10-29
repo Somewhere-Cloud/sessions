@@ -49,6 +49,18 @@ try {
           }
           if (screen === 'search' && state === 'populated') await page.waitForSelector('.conversation-row');
           assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `${screen}/${theme}/${width}/${state} fits`);
+          if (screen === 'history') {
+            const archiveButtons = await page.$$eval('button', (nodes) => nodes.filter((el) => /Archive/.test(el.textContent)).length);
+            assert.equal(archiveButtons, 1, 'ended banner owns the single archive action');
+            assert.equal(await page.$('.session-active-header .session-runtime-badge'), null, 'mode lives in secondary details');
+            assert.equal(await page.$eval('.session-actions-menu', (el) => el.open), false);
+            await page.focus('.session-actions-menu > summary');
+            await page.keyboard.press('Enter');
+            assert.equal(await page.$eval('.session-actions-menu', (el) => el.open), true);
+            await page.keyboard.press('Escape');
+            assert.equal(await page.$eval('.session-actions-menu', (el) => el.open), false);
+            assert.equal(await page.$eval('.session-actions-menu > summary', (el) => el === document.activeElement), true);
+          }
           if (width === 375) {
             const shortTargets = await page.$$eval('.ui-button, .ui-control', (nodes) => nodes.filter((node) => {
               const rect = node.getBoundingClientRect();

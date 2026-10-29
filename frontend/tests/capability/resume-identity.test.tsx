@@ -94,7 +94,7 @@ describe('capability: resume the conversation on screen, not its neighbour', () 
     // conversation, so nothing about it is offered here.
     expect(await screen.findByText(`Opening line of ${endedAlone.id}`)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Open live continuation/ })).not.toBeInTheDocument();
-    expect(screen.getByText(/read-only history/)).toBeInTheDocument();
+    expect(screen.getByText(/read-only history/i)).toBeInTheDocument();
 
     await user.click(await screen.findByRole('button', { name: /Resume conversation/ }));
 

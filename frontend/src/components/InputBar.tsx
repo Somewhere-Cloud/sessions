@@ -458,6 +458,7 @@ export function InputBar({
           ref={taRef}
           className="input-textarea"
           aria-label="Message"
+          title="Enter sends · Shift+Enter adds a line"
           value={text}
           onChange={(e) => {
             setText(e.target.value);
@@ -469,7 +470,7 @@ export function InputBar({
           onKeyDown={onKeyDown}
           onPaste={onPaste}
           placeholder={sendAvailable
-            ? `Message ${provider === 'codex' ? 'Codex' : 'Claude'} — Enter sends, Shift+Enter for newline`
+            ? `Message ${provider === 'codex' ? 'Codex' : 'Claude'}`
             : 'This session is not connected, so messages cannot be sent.'}
           disabled={!sendAvailable}
           rows={Math.min(6, Math.max(1, text.split('\n').length))}

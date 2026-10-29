@@ -24,7 +24,7 @@ function machineWith(sessions: SessionInfo[], extra: Partial<FakeMachine> = {}):
   };
 }
 
-describe('capability: archive a session from its own header', () => {
+describe('capability: organize a session from its own view', () => {
   it('archives an ended session and takes it off the list', async () => {
     const ended = makeSession({ id: 'wrapped-up', name: 'Friday release prep', ...ENDED });
     const machine = machineWith([
@@ -37,7 +37,7 @@ describe('capability: archive a session from its own header', () => {
 
     render(<Workbench><SessionView sessionId={ended.id} isActive /></Workbench>);
 
-    const archive = await screen.findByRole('button', { name: 'Archive' });
+    const archive = await screen.findByRole('button', { name: 'Archive from list' });
     expect(screen.queryByRole('button', { name: 'End and archive…' })).not.toBeInTheDocument();
 
     await user.click(archive);
@@ -56,7 +56,7 @@ describe('capability: archive a session from its own header', () => {
     useFakeMachines([machine]);
     const user = userEvent.setup();
     render(<Workbench><SessionView sessionId={live.id} isActive /></Workbench>);
-    await user.click(await screen.findByRole('button', { name: 'Archive (keeps running)' }));
+    await user.click(await screen.findByRole('button', { name: 'Set aside' }));
     await screen.findByRole('button', { name: 'Restore to active list' });
     // Active work stays in the list despite the persisted manual mark.
     expect(screen.getByText('Refactoring the parser', { selector: '.session-nav-title' })).toBeInTheDocument();
@@ -81,7 +81,7 @@ describe('capability: archive a session from its own header', () => {
     const user = userEvent.setup();
 
     render(<Workbench><SessionView sessionId={ended.id} isActive /></Workbench>);
-    await user.click(await screen.findByRole('button', { name: 'Archive' }));
+    await user.click(await screen.findByRole('button', { name: 'Archive from list' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('runner is still live');
     expect(daemon.archived).not.toContain(ended.id);
@@ -106,7 +106,7 @@ describe('capability: an archived conversation is still findable', () => {
     const user = userEvent.setup();
 
     const session = render(<Workbench><SessionView sessionId={ended.id} isActive /></Workbench>);
-    await user.click(await screen.findByRole('button', { name: 'Archive' }));
+    await user.click(await screen.findByRole('button', { name: 'Archive from list' }));
     await waitFor(() => expect(screen.queryByText('Friday release prep')).not.toBeInTheDocument());
     session.unmount();
 

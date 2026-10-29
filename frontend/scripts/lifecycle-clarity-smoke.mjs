@@ -142,7 +142,7 @@ assert.match(details, />Session control</);
 assert.match(details, /The conversation is kept and you can resume it later/);
 assert.doesNotMatch(details, /Danger zone|Already ended|btn-danger/);
 assert.doesNotMatch(history, /Delegate/);
-assert.match(history, /read-only history/);
+assert.match(history, /read-only history/i);
 assert.doesNotMatch(history, /↻ Resume/);
 assert.match(history, /Archive from list/);
 assert.match(history, /continuationSession\(session, allSessions\)/);

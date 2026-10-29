@@ -46,9 +46,9 @@ export function SessionArchiveButton({ session, onArchived, appearance }: Props)
       disabled={busy}
       title={session.exited ? 'Remove this ended record. Its conversation stays in History.'
         : restoring ? 'Restore to the active list without resuming or sending anything.'
-          : 'Move to Archived live sessions without stopping work. Drafts stay saved; activity and attention remain visible.'}
+          : 'Set aside without stopping work. Drafts stay saved; activity and attention remain visible.'}
       onClick={() => void archiveNow()}>
-      {busy ? 'Saving…' : restoring ? 'Restore to active list' : session.exited ? 'Archive' : 'Archive (keeps running)'}
+      {busy ? 'Saving…' : restoring ? 'Restore to active list' : session.exited ? 'Archive' : 'Set aside'}
     </Button>
     {error ? <span className="session-archive-error" role="alert">{error}</span> : null}
   </>;

@@ -47,6 +47,23 @@ try {
           foreground: getComputedStyle(document.querySelector('[data-modal-dialog]') ?? document.querySelector('.ui-surface')).color,
           background: getComputedStyle(document.querySelector('[data-modal-dialog]') ?? document.querySelector('.ui-surface')).backgroundColor
         }));
+        if (screen === 'gallery') {
+          const contrast = await page.evaluate(() => {
+            const style = getComputedStyle(document.querySelector('.operations-shell'));
+            const luminance = (hex) => {
+              const rgb = hex.trim().slice(1).match(/../g).map((v) => parseInt(v, 16) / 255);
+              return rgb.map((v) => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4)
+                .reduce((sum, v, i) => sum + v * [.2126, .7152, .0722][i], 0);
+            };
+            return ['--fg', '--fg-dim', '--fg-faint'].flatMap((fg) =>
+              ['--bg-base', '--bg-elev-1', '--bg-elev-2', '--bg-elev-3'].map((bg) => {
+                const a = luminance(style.getPropertyValue(fg)), b = luminance(style.getPropertyValue(bg));
+                return { fg, bg, ratio: (Math.max(a, b) + .05) / (Math.min(a, b) + .05) };
+              }));
+          });
+          assert.ok(contrast.every((pair) => pair.ratio >= 4.5), `${theme} text tokens meet AA on every surface: ${JSON.stringify(contrast)}`);
+          assert.ok(await page.$eval('.ui-field .field-help', (el) => parseFloat(getComputedStyle(el).fontSize) >= 13), 'instructions stay at least 13px');
+        }
         assert.equal(bounds.overflow, false, `${screen} has no horizontal overflow at ${width}px`);
         assert.ok(bounds.controls.every((r) => r.left >= 0 && r.right <= width), `${screen} controls fit at ${width}px`);
         if (width === 375) assert.ok(bounds.controls.every((r) => r.height >= 44), 'coarse pointer controls, including compact, have 44px targets');

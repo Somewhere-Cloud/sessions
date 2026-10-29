@@ -3,7 +3,7 @@
    * (header is intentionally LIGHTER than body for chrome separation,
    * not darker — flips the "pit of inputs" feel). Text hierarchy in
    * three steps. Teal accent + warm coral for the listening/ok state. */
-  --bg-base:    #111416;   /* body */
+  --bg-base:    #131516;   /* body */
   --bg-elev-1:  #191d20;   /* card / message hover */
   --bg-elev-2:  #22272b;   /* header / input field bg */
   --bg-elev-3:  #2c3338;   /* hover / active */
@@ -11,7 +11,7 @@
   --border-strong: #47535b;
   --fg:         #e8e8e8;   /* text-primary */
   --fg-dim:     #b5b5b5;   /* text-secondary: 9.66:1 on the base */
-  --fg-faint:   #a3adb5;   /* text-muted */
+  --fg-faint:   #adb0af;   /* text-muted */
   --accent:     #2dd4bf;
   --accent-hover: #5eead4;
   --accent-contrast: #0a0a0a;   /* text on a solid accent fill */
@@ -37,7 +37,7 @@
   --radius-pill: 999px;
 
   --shadow-1: 0 1px 2px rgba(0,0,0,0.4);
-  --shadow-2: 0 8px 24px rgba(0,0,0,0.5);
+  --shadow-2: 0 8px 24px rgba(0,0,0,0.35);
 
   /* Standard transition + active-press scale for buttons. Apply via
    * .pressable-class so every button feels alive on tap/click. */

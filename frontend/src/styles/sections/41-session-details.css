@@ -504,3 +504,13 @@ button.session-parent-breadcrumb:hover, button.session-parent-breadcrumb:focus-v
 .settings-select-row input[type="checkbox"] { width: 20px; min-width: 20px; height: 20px; min-height: 20px; flex: 0 0 20px; accent-color: var(--accent); }
 
 .settings-sections .ui-button { justify-content: flex-start; }
+
+/* Surface steps group settings; editable controls retain their borders. */
+.settings-page > .ui-surface { border-color: transparent; padding: 20px; }
+.settings-page .ui-stack > p, .settings-page .settings-status-card > p { color: var(--fg-dim); font-size: var(--type-body); line-height: 1.55; }
+.settings-page :is(.settings-toggle, .settings-select-row, .settings-static-row) small { font-size: var(--type-body); line-height: 1.5; }
+.settings-page .view-size-glyph { border-color: transparent; }
+.settings-page .view-size-choice button.is-active { border-color: transparent; background: var(--accent-bg-medium); }
+.settings-page .settings-host-choice { font-size: var(--type-body); background: transparent; padding: 0; }
+.session-ended-summary:not(.is-attention) { border-color: transparent; box-shadow: var(--shadow-1); }
+.session-ended-summary .session-ended-read-only, .session-ended-summary .session-ended-actions > span { font-size: var(--type-body); }
