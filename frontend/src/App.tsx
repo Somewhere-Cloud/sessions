@@ -718,6 +718,7 @@ function ConnectedApp({ nativeClientOnly = false }: { nativeClientOnly?: boolean
   const sessionWorkspace = effectiveLayout === 'tabs' || effectiveLayout === 'grid';
   const openedSessions = sessions.filter((session) => openTabIds.includes(session.id));
   const activeSession = activeId ? sessions.find((session) => session.id === activeId) ?? null : null;
+  const footerUsageScope = activeSession ? { sessionId: activeSession.id, machineId: sessionsServerId ?? undefined, provider: activeSession.tool, profile: activeSession.profile, configDir: activeSession.configDir } : undefined;
   const activeManagerId = activeSession ? navigatorRowId(activeSession.id, sessions) : null;
   const transientView = activeSession && !openTabIds.includes(activeSession.id) && !retainViewedSession(activeSession);
   const activeManagerTabs = activeManagerId
@@ -771,7 +772,7 @@ function ConnectedApp({ nativeClientOnly = false }: { nativeClientOnly?: boolean
 
   return (
     <div className={`app-shell operations-shell text-size-${textSize.toLowerCase()}`} data-theme={theme} onClickCapture={handleExternalLinkClick}>
-      {!isMobile ? <ProductSidebar active={productView} theme={theme} onNavigate={navigateProduct} onNewSession={openNewSession} onOpenCommandPalette={() => setCommandPaletteOpen(true)} onToggleTheme={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')} /> : null}
+      {!isMobile ? <ProductSidebar usageScope={footerUsageScope} active={productView} theme={theme} onNavigate={navigateProduct} onNewSession={openNewSession} onOpenCommandPalette={() => setCommandPaletteOpen(true)} onToggleTheme={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')} /> : null}
       <div className="operations-frame">
         {sessionWorkspace && !isMobile ? sessionNavigator : null}
         <section className="operations-content">
@@ -918,7 +919,7 @@ function ConnectedApp({ nativeClientOnly = false }: { nativeClientOnly?: boolean
 
       {pendingFleetView && sessionsHydrated && !rawSessions.some((session) => session.id === pendingFleetView.sessionId) ? <div className="dialog-error" role="status">This session is not in this machine's current inventory. Choose another session or wait for it to reconnect.<button type="button" onClick={() => setPendingFleetView(null)}>Dismiss</button></div> : null}
       {exactResume.notice ? <div className="dialog-error" role="alert">{exactResume.notice}<button type="button" onClick={exactResume.dismiss}>Dismiss</button></div> : null}
-      <MobileNav
+      <MobileNav usageScope={footerUsageScope}
         layoutMode={effectiveLayout === 'grid' ? 'tabs' : effectiveLayout === 'feedback' ? 'settings' : effectiveLayout}
         showingSessionDetail={effectiveLayout === 'tabs' && mobileSessionDetail}
         onLayoutChange={(mode) => {

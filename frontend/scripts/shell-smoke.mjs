@@ -51,7 +51,7 @@ try {
               assert.equal(centered, true, `${selector} centers in compact rail`);
             }
             assert.equal(await page.$('.product-nav [aria-label="Home"]'), null);
-            assert.ok(await page.$('.product-sidebar-footer [aria-label="Usage"]'));
+            assert.ok(await page.$('.product-sidebar-footer .footer-usage > summary'));
           }
           if (screen === 'tabs' && !empty) {
             await page.waitForSelector('.session-nav-row');

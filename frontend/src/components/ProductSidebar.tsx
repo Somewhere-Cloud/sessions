@@ -1,3 +1,4 @@
+import { FooterUsage, type FooterUsageProps } from './FooterUsage';
 import { Button } from './ui/Button';
 import { useEffect, useState, type ReactNode } from 'react';
 import {
@@ -15,6 +16,7 @@ export type ProductView = 'home' | 'tabs' | 'today' | 'search' | 'fleet' | 'usag
 export type ThemeMode = 'dark' | 'light';
 
 interface Props {
+  usageScope?: FooterUsageProps['usageScope'];
   active: ProductView;
   theme: ThemeMode;
   onNavigate: (view: ProductView) => void;
@@ -35,7 +37,7 @@ const UPDATE_NOTIFIED_KEY = 'sessions:native-update-notified-version';
 const PROVIDER_UPDATE_NOTIFIED_KEY = 'sessions:provider-update-notified:';
 const UPDATE_CHECK_INTERVAL = 6 * 60 * 60 * 1000;
 
-export function ProductSidebar({ active, theme, onNavigate, onNewSession, onOpenCommandPalette, onToggleTheme }: Props): JSX.Element {
+export function ProductSidebar({ active, theme, onNavigate, onNewSession, onOpenCommandPalette, onToggleTheme, usageScope }: Props): JSX.Element {
   const activeServer = useServers((state) => state.servers.find((server) => server.id === state.activeId));
   const activeServerKey = activeServer
     ? `${activeServer.id}|${activeServer.scheme ?? 'http'}|${activeServer.host}|${activeServer.port}|${activeServer.token ?? ''}`
@@ -131,9 +133,7 @@ export function ProductSidebar({ active, theme, onNavigate, onNewSession, onOpen
       <SidebarNavigation active={active} onNavigate={onNavigate} onNewSession={onNewSession} onOpenCommandPalette={onOpenCommandPalette} />
 
       <div className="product-sidebar-footer">
-        <Button variant="ghost" className={`product-nav-item${active === 'usage' ? ' is-active' : ''}`} aria-label="Usage" title="Usage" aria-current={active === 'usage' ? 'page' : undefined} onClick={() => onNavigate('usage')}>
-          <span className="product-nav-icon" aria-hidden><UsageIcon /></span><span>Usage</span>
-        </Button>
+        <FooterUsage usageScope={usageScope} onOpenUsage={() => onNavigate('usage')} onOpenDaily={() => onNavigate('today')} />
         <Button variant="ghost"
           type="button"
           aria-label="Send feedback" title="Send feedback"
@@ -186,7 +186,6 @@ function Icon({ children }: { children: ReactNode }): JSX.Element {
 }
 function SessionsIcon(): JSX.Element { return <Icon><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 9h8M8 13h8M8 17h5"/></Icon>; }
 function SearchIcon(): JSX.Element { return <Icon><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></Icon>; }
-function UsageIcon(): JSX.Element { return <Icon><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></Icon>; }
 function AccountsIcon(): JSX.Element { return <Icon><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></Icon>; }
 function FeedbackIcon(): JSX.Element { return <Icon><path d="M4 5.5h16v11H9l-5 4v-15Z"/><path d="M8 9h8M8 13h5"/></Icon>; }
 function SettingsIcon(): JSX.Element { return <Icon><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21H9.6v-.1A1.7 1.7 0 0 0 8.5 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3V9.6h.1A1.7 1.7 0 0 0 4.6 8.5a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.1A1.7 1.7 0 0 0 15.5 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.13.38.34.72.6 1 .3.3.68.5 1.1.6h.1v4h-.1A1.7 1.7 0 0 0 19.4 15Z"/></Icon>; }

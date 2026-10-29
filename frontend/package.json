@@ -63,6 +63,7 @@
     "test:smoke": "node scripts/run-smoke.mjs",
     "test:storage": "node scripts/storage-smoke.mjs",
     "test:usage-dashboard": "node scripts/usage-dashboard-smoke.mjs",
+    "test:footer-usage": "node scripts/footer-usage-smoke.mjs",
     "test:composer-usage": "node scripts/composer-usage-smoke.mjs",
     "test:shell-ui": "node scripts/shell-smoke.mjs",
     "test:settings-machines": "node scripts/settings-machines-smoke.mjs",

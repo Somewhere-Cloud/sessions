@@ -1,3 +1,4 @@
+import { FooterUsage, type FooterUsageProps } from './FooterUsage';
 import { ModalDialog } from './ui/ModalDialog';
 import { PageHeader } from './ui/Layout';
 import { Button } from './ui/Button';
@@ -6,6 +7,7 @@ import { useState, type ReactNode } from 'react';
 type MobileLayout = 'home' | 'tabs' | 'today' | 'fleet' | 'search' | 'usage' | 'accounts' | 'settings' | 'connections';
 
 interface Props {
+  usageScope?: FooterUsageProps['usageScope'];
   layoutMode: MobileLayout;
   showingSessionDetail: boolean;
   onLayoutChange: (mode: MobileLayout) => void;
@@ -22,7 +24,7 @@ export function MobileNav({
   layoutMode,
   showingSessionDetail,
   onLayoutChange,
-  onShowSessions
+  onShowSessions, usageScope
 }: Props): JSX.Element {
   const [moreOpen, setMoreOpen] = useState(false);
   const moreActive = layoutMode === 'fleet'
@@ -41,6 +43,7 @@ export function MobileNav({
       <nav className="mobile-nav" role="navigation" aria-label="Sessions">
         <MobileDestination label="Sessions" icon={<SessionsIcon />} active={layoutMode === 'tabs'} onClick={onShowSessions} detail={showingSessionDetail} />
         <MobileDestination label="Search" icon={<SearchIcon />} active={layoutMode === 'search'} onClick={() => go('search')} />
+        <FooterUsage usageScope={usageScope} onOpenUsage={() => go('usage')} onOpenDaily={() => go('today')} />
         <MobileDestination label="More" icon={<MoreIcon />} active={moreActive || moreOpen} onClick={() => setMoreOpen(true)} />
       </nav>
 
@@ -49,10 +52,10 @@ export function MobileNav({
             <div className="mobile-more-heading"><PageHeader title="More" titleId="mobile-more-title" level={2}
               actions={<Button variant="ghost" aria-label="Close" onClick={() => setMoreOpen(false)}>×</Button>} /></div>
             <div className="mobile-more-grid">
-              <MoreDestination title="Usage" detail="Tokens, cost, and projects" icon={<UsageIcon />} onClick={() => go('usage')} />
               <MoreDestination title="Accounts & computers" detail="Sign-ins, computers, and connections" icon={<AccountsIcon />} onClick={() => go('accounts')} />
               <MoreDestination title="Settings" detail="Agents, access, and appearance" icon={<SettingsIcon />} onClick={() => go('settings')} />
               <MoreDestination title="Connections" detail="Pair and manage machines" icon={<ConnectionsIcon />} onClick={() => go('connections')} />
+              <MoreDestination title="Usage" detail="Tokens, cost, and projects" icon={<UsageIcon />} onClick={() => go('usage')} />
             </div>
             <a className="mobile-more-somewhere" href="https://somewhere.tech" target="_blank" rel="noreferrer">
               <img src="/somewhere-logo.svg" alt="" />
