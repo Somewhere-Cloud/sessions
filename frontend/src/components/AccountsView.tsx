@@ -1,3 +1,4 @@
+import { PageHeader, Status } from './ui/Layout';
 import { useEffect, useState } from 'react';
 import { fetchProfiles, type AccountProfile } from '../api/sessionsd';
 import { AccountsPanel } from './AccountsPanel';
@@ -26,7 +27,7 @@ export function AccountsView({ hostName, serverId }: { hostName: string; serverI
   return (
     <div className="accounts-view">
       {profiles === null ? (
-        <section className="settings-page accounts-panel"><p role="status">Reading the accounts on {hostName}…</p></section>
+        <section className="settings-page accounts-panel"><PageHeader title="Accounts" description={`Sign-ins on ${hostName}`} /><Status>Reading accounts…</Status></section>
       ) : (
         <>
           {error ? <p className="settings-page settings-message" role="status">Could not read the accounts on {hostName}: {error}</p> : null}

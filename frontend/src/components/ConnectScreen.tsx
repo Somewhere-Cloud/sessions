@@ -1,3 +1,7 @@
+import { PageHeader } from './ui/Layout';
+import { Field } from './ui/Field';
+import { Input } from './ui/Field';
+import { Button } from './ui/Button';
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { fetchServerHealth } from '../api/sessionsd';
 import { claimNativeMachinePairing, rememberServerEndpoint } from '../lib/hostedBootstrap';
@@ -135,17 +139,8 @@ export function ConnectScreen({
     <main className={`connect-screen${clientOnly ? ' connect-screen-client' : ''}`} data-testid="connect-screen">
       <section className="connect-panel" aria-labelledby="connect-title">
         <div className="connect-brand">Sessions</div>
-        <p className="connect-kicker">
-          {clientOnly ? 'this device → your Sessions machines' : 'native window → your daemon'}
-        </p>
-        <h1 id="connect-title">
-          {clientOnly ? 'Find your Sessions machines.' : 'Open your sessions from here.'}
-        </h1>
-        <p className="connect-lede">
-          {clientOnly
-            ? 'Scan a host pairing code to connect directly over your private network.'
-            : 'This is the complete Sessions app. Pick a daemon and this client talks straight to it — no relay, proxy, hosted terminal data, or analytics.'}
-        </p>
+        <PageHeader titleId="connect-title" title={clientOnly ? 'Find your Sessions machines' : 'Connect to your sessions'}
+          description={clientOnly ? 'Pair with a computer to reach your sessions over your private network.' : 'Choose the computer that runs your sessions. This client connects directly to its daemon.'} />
 
         {clientOnly ? (
           <>
@@ -165,7 +160,7 @@ export function ConnectScreen({
             <div className="connect-server-list">
               {remembered.map((server) => (
                 <div className="connect-server-row" key={server.id}>
-                  <button
+                  <Button
                     type="button"
                     className="connect-server-pick"
                     disabled={connectionDisabled}
@@ -174,8 +169,8 @@ export function ConnectScreen({
                     <span className="connect-server-name">{server.name}</span>
                     <span className="connect-server-endpoint">{formatServerEndpoint(server)}</span>
                     <span aria-hidden>{checkingId === server.id ? 'checking…' : 'connect →'}</span>
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
                     className="connect-server-remove"
                     disabled={connectionDisabled}
@@ -187,7 +182,7 @@ export function ConnectScreen({
                     }}
                   >
                     ×
-                  </button>
+                  </Button>
                 </div>
               ))}
             </div>
@@ -196,7 +191,7 @@ export function ConnectScreen({
 
         <div className="connect-actions">
           {!clientOnly ? (
-            <button
+            <Button
               type="button"
               className="connect-local-button"
               disabled={connectionDisabled}
@@ -208,7 +203,7 @@ export function ConnectScreen({
                 <small>{LOCAL_ENDPOINT}</small>
               </span>
               <span aria-hidden>→</span>
-            </button>
+            </Button>
           ) : null}
 
           <div className="connect-divider">
@@ -216,19 +211,17 @@ export function ConnectScreen({
           </div>
 
           <form className="connect-form" onSubmit={submit}>
-            <label>
-              <span>Name <small>optional</small></span>
-              <input
+            <Field label="Name (optional)">
+              <Input
                 type="text"
                 autoComplete="off"
                 placeholder="Studio Mac"
                 value={name}
                 onChange={(event) => setName(event.currentTarget.value)}
               />
-            </label>
-            <label>
-              <span>Endpoint</span>
-              <input
+            </Field>
+            <Field label="Endpoint">
+              <Input
                 type="url"
                 inputMode="url"
                 autoComplete="url"
@@ -237,20 +230,19 @@ export function ConnectScreen({
                 value={endpoint}
                 onChange={(event) => setEndpoint(event.currentTarget.value)}
               />
-            </label>
-            <label>
-              <span>Token <small>from the connect link</small></span>
-              <input
+            </Field>
+            <Field label="Token from the connect link">
+              <Input
                 type="password"
                 autoComplete="off"
                 placeholder="Optional on localhost"
                 value={token}
                 onChange={(event) => setToken(event.currentTarget.value)}
               />
-            </label>
-            <button type="submit" className="connect-submit" disabled={connectionDisabled || !endpoint.trim()}>
+            </Field>
+            <Button type="submit" className="connect-submit" disabled={connectionDisabled || !endpoint.trim()}>
               {credentialError ? 'Credentials unavailable' : busy ? 'Checking daemon…' : 'Connect to Sessions'}
-            </button>
+            </Button>
           </form>
         </div>
 
@@ -351,12 +343,12 @@ function ClientFleetSignIn({ onConnected }: { onConnected: () => void }): JSX.El
 		<section className="connect-account" aria-label="Somewhere fleet sign in">
 			<div><strong>{status.signedIn ? status.user?.email ?? 'Signed in to Somewhere' : 'See every machine'}</strong><small>{status.signedIn ? 'Same-account machines connect automatically.' : 'Sign in, or scan/enter an address below.'}</small></div>
 			{status.signedIn ? (
-				<div className="connect-account-actions"><button type="button" className="btn" disabled={busy} onClick={() => void sync()}>{busy ? 'Loading…' : 'Refresh fleet'}</button><button type="button" className="btn btn-ghost" disabled={busy} onClick={() => void signOut()}>Sign out</button></div>
+				<div className="connect-account-actions"><Button type="button" disabled={busy} onClick={() => void sync()}>{busy ? 'Loading…' : 'Refresh fleet'}</Button><Button type="button" variant="ghost" disabled={busy} onClick={() => void signOut()}>Sign out</Button></div>
 			) : (
 				<div className="connect-account-form">
-					<input type="email" value={email} disabled={busy || sent} placeholder="you@example.com" autoComplete="email" onChange={(event) => setEmail(event.currentTarget.value)} />
-					{sent ? <input value={code} disabled={busy} placeholder="Six-digit code or link token" autoComplete="one-time-code" onChange={(event) => setCode(event.currentTarget.value)} /> : null}
-					<button type="button" className="btn" disabled={busy || (sent ? !code.trim() : !email.trim())} onClick={() => void submit()}>{busy ? 'Waiting…' : sent ? 'Verify' : 'Sign in'}</button>
+					<Input aria-label="Somewhere account email" type="email" value={email} disabled={busy || sent} placeholder="you@example.com" autoComplete="email" onChange={(event) => setEmail(event.currentTarget.value)} />
+					{sent ? <Input aria-label="Sign-in code or link token" value={code} disabled={busy} placeholder="Six-digit code or link token" autoComplete="one-time-code" onChange={(event) => setCode(event.currentTarget.value)} /> : null}
+					<Button type="button" disabled={busy || (sent ? !code.trim() : !email.trim())} onClick={() => void submit()}>{busy ? 'Waiting…' : sent ? 'Verify' : 'Sign in'}</Button>
 				</div>
 			)}
 			{message ? <small className="connect-status" role="status">{message}</small> : null}
@@ -384,10 +376,10 @@ function PairingLinkPanel({ link, busy, checkingId, mobile, onChange, onScan, on
   return (
     <section className="connect-pair-link" aria-labelledby="pair-link-title">
       <div><span>One-time consent</span><h2 id="pair-link-title">Pair with a code</h2><p>Run <code>sessions pair</code> on the host, then scan or paste.</p></div>
-      {mobile ? <button type="button" className="connect-submit connect-scan" disabled={busy} onClick={onScan}>{checkingId === 'pairing-code' ? 'Scanning…' : 'Scan a pairing code'}</button> : null}
+      {mobile ? <Button type="button" className="connect-submit connect-scan" disabled={busy} onClick={onScan}>{checkingId === 'pairing-code' ? 'Scanning…' : 'Scan a pairing code'}</Button> : null}
       <form onSubmit={(event) => { event.preventDefault(); onConnect(); }}>
-        <input ref={input} type="url" inputMode="url" autoComplete="off" placeholder="Paste the Sessions pairing link" value={link} onChange={(event) => onChange(event.currentTarget.value)} onFocus={keepVisible} />
-        <button type="submit" className="connect-submit" disabled={busy || !link.trim()}>{checkingId === 'pairing-link' ? 'Connecting…' : 'Connect this device'}</button>
+        <Input aria-label="Sessions pairing link" ref={input} type="url" inputMode="url" autoComplete="off" placeholder="Paste the Sessions pairing link" value={link} onChange={(event) => onChange(event.currentTarget.value)} onFocus={keepVisible} />
+        <Button type="submit" className="connect-submit" disabled={busy || !link.trim()}>{checkingId === 'pairing-link' ? 'Connecting…' : 'Connect this device'}</Button>
       </form>
     </section>
   );

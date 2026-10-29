@@ -1,3 +1,6 @@
+import { PageHeader, Section as SettingsSection, Status, Surface } from './ui/Layout';
+import { Input, Select } from './ui/Field';
+import { Button } from './ui/Button';
 import { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import {
   fetchAISettings,
@@ -299,7 +302,7 @@ export function SettingsView({ clientOnly = false, hostName, theme, onThemeChang
   return (
     <div className="settings-view">
       <aside className="settings-sections">
-        <header><span>Preferences</span><h1>Settings</h1></header>
+        <PageHeader title="Settings" level={2} />
         {[
           ['general', 'General'],
           ['agents', 'Agents & models'],
@@ -309,7 +312,7 @@ export function SettingsView({ clientOnly = false, hostName, theme, onThemeChang
           ['notifications', 'Notifications & updates'],
           ['support', 'Help & feedback']
         ].map(([id, label]) => (
-          <button type="button" key={id} className={section === id ? 'is-active' : ''} onClick={() => setSection(id as Section)}>{label}</button>
+          <Button variant="ghost" type="button" key={id} aria-current={section === id ? 'page' : undefined} className={section === id ? 'is-active' : ''} onClick={() => setSection(id as Section)}>{label}</Button>
         ))}
       </aside>
       <main className="settings-panel">
@@ -350,9 +353,7 @@ export function SettingsView({ clientOnly = false, hostName, theme, onThemeChang
           <Suspense fallback={<p role="status">Loading storage…</p>}><StorageView key={activeServerId} /></Suspense>
         ) : section === 'cloud' ? (
           <section className="settings-page settings-cloud-page">
-            <span className="settings-kicker">Somewhere account</span>
-            <h1>Cloud & backup</h1>
-            <p>Encrypted local-first backup is available now. Hosted library, search, and worker controls are clearly staged below.</p>
+            <PageHeader eyebrow={<>Somewhere account</>} title={<>Cloud & backup</>} description={<>Encrypted local-first backup is available now. Hosted library, search, and worker controls are clearly staged below.</>} />
             <SomewhereCard clientOnly={clientOnly} hostName={machineName} />
           </section>
         ) : section === 'notifications' ? (
@@ -385,16 +386,12 @@ export function SettingsView({ clientOnly = false, hostName, theme, onThemeChang
 function GeneralSettings({ clientOnly = false, theme, onThemeChange, textSize, onTextSizeChange }: Props): JSX.Element {
   return (
     <section className="settings-page">
-      <span className="settings-kicker">Sessions app</span>
-      <h1>General</h1>
-      <p>Choose how the operations inbox looks and behaves on {clientOnly ? 'this device' : 'this Mac'}.</p>
+      <PageHeader eyebrow={<>Sessions app</>} title={<>General</>} description={<>Choose how the operations inbox looks and behaves on {clientOnly ? 'this device' : 'this Mac'}.</>} />
       {!clientOnly && <NativeRuntimeStatusCard />}
-      <div className="settings-card">
-        <h2>View</h2>
-        <p>Scale the complete interface, including navigation, conversations, settings, and controls.</p>
+      <Surface><SettingsSection title={<>View</>} description={<>Scale the complete interface, including navigation, conversations, settings, and controls.</>}>
         <div className="view-size-choice" role="radiogroup" aria-label="Interface size">
           {(['S', 'M', 'L'] as const).map((size) => (
-            <button
+            <Button
               type="button"
               role="radio"
               aria-checked={textSize === size}
@@ -404,15 +401,14 @@ function GeneralSettings({ clientOnly = false, theme, onThemeChange, textSize, o
             >
               <span className={`view-size-glyph is-${size.toLowerCase()}`} aria-hidden>Aa</span>
               <span>{sizeLabel(size)}</span>
-            </button>
+            </Button>
           ))}
         </div>
-      </div>
-      <div className="settings-card">
-        <h2>Appearance</h2>
+      </SettingsSection></Surface>
+      <Surface><SettingsSection title={<>Appearance</>}>
         <div className="theme-switch-row">
-          <button type="button" className={theme === 'light' ? 'is-active' : ''} onClick={() => onThemeChange('light')}>Light</button>
-          <button
+          <Button type="button" className={theme === 'light' ? 'is-active' : ''} onClick={() => onThemeChange('light')}>Light</Button>
+          <Button
             type="button"
             className="theme-switch"
             role="switch"
@@ -421,15 +417,14 @@ function GeneralSettings({ clientOnly = false, theme, onThemeChange, textSize, o
             onClick={() => onThemeChange(theme === 'dark' ? 'light' : 'dark')}
           >
             <span />
-          </button>
-          <button type="button" className={theme === 'dark' ? 'is-active' : ''} onClick={() => onThemeChange('dark')}>Dark</button>
+          </Button>
+          <Button type="button" className={theme === 'dark' ? 'is-active' : ''} onClick={() => onThemeChange('dark')}>Dark</Button>
         </div>
-      </div>
-      <div className="settings-card">
-        <h2>Session workspace</h2>
+      </SettingsSection></Surface>
+      <Surface><SettingsSection title={<>Session workspace</>}>
         <label className="settings-toggle"><span><strong>Collapse finished children</strong><small>Keeps manager sessions readable by grouping completed delegates.</small></span><input type="checkbox" checked readOnly /></label>
         <label className="settings-toggle"><span><strong>Five pinned managers</strong><small>Pin the conversations you use to coordinate everything else.</small></span><input type="checkbox" checked readOnly /></label>
-      </div>
+      </SettingsSection></Surface>
     </section>
   );
 }
@@ -464,45 +459,38 @@ function HostChoice({ hostName }: { hostName: string }): JSX.Element {
 function AgentSettings(props: AgentSettingsProps): JSX.Element {
   return (
     <section className="settings-page">
-      <span className="settings-kicker">Local, explicit calls</span>
-      <h1>Agents & models</h1>
-      <p>Choose which already-authenticated local agent powers smart search.</p>
-      {!props.native ? <div className="settings-message">These controls are available only in the signed Sessions app.</div> : null}
-      <div className="settings-card">
-        <h2>Claude session defaults</h2>
-        <p>Applied only to sessions launched by Sessions. Claude’s own settings files remain untouched.</p>
+      <PageHeader eyebrow={<>Local, explicit calls</>} title={<>Agents & models</>} description={<>Choose which already-authenticated local agent powers smart search.</>} />
+      {!props.native ? <Status live="off">These controls are available only in the signed Sessions app.</Status> : null}
+      <Surface><SettingsSection title={<>Claude session defaults</>} description={<>Applied only to sessions launched by Sessions. Claude’s own settings files remain untouched.</>}>
         {props.clientOnly ? <HostChoice hostName={props.hostName} /> : null}
-        <label className="settings-select-row"><span><strong>Remote Control</strong><small>When enabled, new Claude sessions connect directly to Anthropic and also appear on claude.ai and mobile. Sessions is not a relay.</small></span><select value={props.claudeSettings.remoteControl === 'on' ? 'on' : 'off'} disabled={props.clientOnly || props.claudeBusy || !props.claudeAvailable} onChange={(event) => void props.onRemoteControl(event.currentTarget.value === 'on')}><option value="on">Enabled for new Claude sessions</option><option value="off">Keep sessions local</option></select></label>
-        <label className="settings-select-row"><span><strong>Permission mode</strong><small>Claude default preserves the provider’s normal prompts. Bypass gives new Claude sessions full access.</small></span><select value={props.claudeSettings.permissionMode} disabled={props.clientOnly || props.claudeBusy || !props.claudeAvailable} onChange={(event) => void props.onClaudeSettings({ ...props.claudeSettings, permissionMode: event.currentTarget.value as ClaudeSettings['permissionMode'] })}><option value="inherit">Claude default</option><option value="manual">Manual</option><option value="acceptEdits">Accept edits</option><option value="auto">Auto</option><option value="plan">Plan</option><option value="dontAsk">Don’t ask</option><option value="bypassPermissions">Bypass permissions</option></select></label>
-        <label className="settings-select-row"><span><strong>Model</strong><small>Leave blank to use Claude’s selected default model.</small></span><input value={props.claudeSettings.model} disabled={props.clientOnly || props.claudeBusy || !props.claudeAvailable} maxLength={128} placeholder="Provider default" onChange={(event) => props.onClaudeDraft({ ...props.claudeSettings, model: event.currentTarget.value })} onBlur={() => void props.onClaudeSettings(props.claudeSettings)} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }} /></label>
-        <label className="settings-select-row"><span><strong>Effort</strong><small>Leave inherited unless you want every new Claude session to use the same effort.</small></span><select value={props.claudeSettings.effort} disabled={props.clientOnly || props.claudeBusy || !props.claudeAvailable} onChange={(event) => void props.onClaudeSettings({ ...props.claudeSettings, effort: event.currentTarget.value as ClaudeSettings['effort'] })}><option value="inherit">Inherit from Claude</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="xhigh">Extra high</option><option value="max">Max</option></select></label>
-        <label className="settings-select-row"><span><strong>Chrome integration</strong><small>Explicitly enable or disable Claude in Chrome for Sessions launches.</small></span><select value={props.claudeSettings.chrome} disabled={props.clientOnly || props.claudeBusy || !props.claudeAvailable} onChange={(event) => void props.onClaudeSettings({ ...props.claudeSettings, chrome: event.currentTarget.value as ClaudeSettings['chrome'] })}><option value="inherit">Inherit from Claude</option><option value="on">On</option><option value="off">Off</option></select></label>
-        <label className="settings-select-row"><span><strong>Somewhere MCP</strong><small>Adopts an existing equivalent registration; otherwise launches the local `somewhere mcp` adapter without copying its credential.</small></span><select value={props.claudeSettings.somewhereMcp} disabled={props.clientOnly || props.claudeBusy || !props.claudeAvailable} onChange={(event) => void props.onClaudeSettings({ ...props.claudeSettings, somewhereMcp: event.currentTarget.value as ClaudeSettings['somewhereMcp'] })}><option value="inherit">Use Claude configuration</option><option value="ensure">Ensure enabled</option></select></label>
-        <label className="settings-select-row"><span><strong>Remote Control name prefix</strong><small>Optional label prefix for sessions visible on claude.ai.</small></span><input value={props.claudeSettings.remoteControlNamePrefix} disabled={props.clientOnly || props.claudeBusy || !props.claudeAvailable} maxLength={64} placeholder="This Mac" onChange={(event) => props.onClaudeDraft({ ...props.claudeSettings, remoteControlNamePrefix: event.currentTarget.value })} onBlur={() => void props.onClaudeSettings(props.claudeSettings)} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }} /></label>
-        {props.claudeMessage ? <div className="settings-message" role="status">{props.claudeMessage}</div> : null}
-      </div>
+        <label className="settings-select-row"><span><strong>Remote Control</strong><small>When enabled, new Claude sessions connect directly to Anthropic and also appear on claude.ai and mobile. Sessions is not a relay.</small></span><Select value={props.claudeSettings.remoteControl === 'on' ? 'on' : 'off'} disabled={props.clientOnly || props.claudeBusy || !props.claudeAvailable} onChange={(event) => void props.onRemoteControl(event.currentTarget.value === 'on')}><option value="on">Enabled for new Claude sessions</option><option value="off">Keep sessions local</option></Select></label>
+        <label className="settings-select-row"><span><strong>Permission mode</strong><small>Claude default preserves the provider’s normal prompts. Bypass gives new Claude sessions full access.</small></span><Select value={props.claudeSettings.permissionMode} disabled={props.clientOnly || props.claudeBusy || !props.claudeAvailable} onChange={(event) => void props.onClaudeSettings({ ...props.claudeSettings, permissionMode: event.currentTarget.value as ClaudeSettings['permissionMode'] })}><option value="inherit">Claude default</option><option value="manual">Manual</option><option value="acceptEdits">Accept edits</option><option value="auto">Auto</option><option value="plan">Plan</option><option value="dontAsk">Don’t ask</option><option value="bypassPermissions">Bypass permissions</option></Select></label>
+        <label className="settings-select-row"><span><strong>Model</strong><small>Leave blank to use Claude’s selected default model.</small></span><Input value={props.claudeSettings.model} disabled={props.clientOnly || props.claudeBusy || !props.claudeAvailable} maxLength={128} placeholder="Provider default" onChange={(event) => props.onClaudeDraft({ ...props.claudeSettings, model: event.currentTarget.value })} onBlur={() => void props.onClaudeSettings(props.claudeSettings)} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }} /></label>
+        <label className="settings-select-row"><span><strong>Effort</strong><small>Leave inherited unless you want every new Claude session to use the same effort.</small></span><Select value={props.claudeSettings.effort} disabled={props.clientOnly || props.claudeBusy || !props.claudeAvailable} onChange={(event) => void props.onClaudeSettings({ ...props.claudeSettings, effort: event.currentTarget.value as ClaudeSettings['effort'] })}><option value="inherit">Inherit from Claude</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="xhigh">Extra high</option><option value="max">Max</option></Select></label>
+        <label className="settings-select-row"><span><strong>Chrome integration</strong><small>Explicitly enable or disable Claude in Chrome for Sessions launches.</small></span><Select value={props.claudeSettings.chrome} disabled={props.clientOnly || props.claudeBusy || !props.claudeAvailable} onChange={(event) => void props.onClaudeSettings({ ...props.claudeSettings, chrome: event.currentTarget.value as ClaudeSettings['chrome'] })}><option value="inherit">Inherit from Claude</option><option value="on">On</option><option value="off">Off</option></Select></label>
+        <label className="settings-select-row"><span><strong>Somewhere MCP</strong><small>Adopts an existing equivalent registration; otherwise launches the local `somewhere mcp` adapter without copying its credential.</small></span><Select value={props.claudeSettings.somewhereMcp} disabled={props.clientOnly || props.claudeBusy || !props.claudeAvailable} onChange={(event) => void props.onClaudeSettings({ ...props.claudeSettings, somewhereMcp: event.currentTarget.value as ClaudeSettings['somewhereMcp'] })}><option value="inherit">Use Claude configuration</option><option value="ensure">Ensure enabled</option></Select></label>
+        <label className="settings-select-row"><span><strong>Remote Control name prefix</strong><small>Optional label prefix for sessions visible on claude.ai.</small></span><Input value={props.claudeSettings.remoteControlNamePrefix} disabled={props.clientOnly || props.claudeBusy || !props.claudeAvailable} maxLength={64} placeholder="This Mac" onChange={(event) => props.onClaudeDraft({ ...props.claudeSettings, remoteControlNamePrefix: event.currentTarget.value })} onBlur={() => void props.onClaudeSettings(props.claudeSettings)} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }} /></label>
+        {props.claudeMessage ? <Status>{props.claudeMessage}</Status> : null}
+      </SettingsSection></Surface>
       <IdleCompactionCard clientOnly={props.clientOnly} hostName={props.hostName} />
-      <div className="settings-card">
-        <h2>Delegated agent access</h2>
-        <p>Applies only when one Sessions agent starts another. It never changes an existing session or lets a child escalate itself.</p>
+      <Surface><SettingsSection title={<>Delegated agent access</>} description={<>Applies only when one Sessions agent starts another. It never changes an existing session or lets a child escalate itself.</>}>
         {props.clientOnly ? <HostChoice hostName={props.hostName} /> : null}
-        <label className="settings-select-row"><span><strong>Child-agent permissions</strong><small>Inherited keeps each worker inside its manager’s access. Autonomous is an explicit opt-in for unattended delegated work.</small></span><select value={props.delegatedAccess} disabled={props.clientOnly || props.delegationBusy || !props.delegationAvailable} onChange={(event) => void props.onDelegatedAccess(event.currentTarget.value as 'inherit' | 'autonomous')}><option value="inherit">Inherit manager permissions</option><option value="autonomous">Autonomous delegated work</option></select></label>
-        <div className="settings-message">Agent-created children stay open by default. A caller can explicitly create a bounded task, but Sessions never treats a final response as permission to end a runtime. Approval questions stay open as Needs you.</div>
-        {props.delegationMessage ? <div className="settings-message" role="status">{props.delegationMessage}</div> : null}
-      </div>
-      <div className="settings-card">
-        <h2>Smart search</h2>
+        <label className="settings-select-row"><span><strong>Child-agent permissions</strong><small>Inherited keeps each worker inside its manager’s access. Autonomous is an explicit opt-in for unattended delegated work.</small></span><Select value={props.delegatedAccess} disabled={props.clientOnly || props.delegationBusy || !props.delegationAvailable} onChange={(event) => void props.onDelegatedAccess(event.currentTarget.value as 'inherit' | 'autonomous')}><option value="inherit">Inherit manager permissions</option><option value="autonomous">Autonomous delegated work</option></Select></label>
+        <Status live="off">Children stay open unless a caller creates an explicit bounded task. A final response never ends a runtime. Approval questions stay open as Needs you.</Status>
+        {props.delegationMessage ? <Status>{props.delegationMessage}</Status> : null}
+      </SettingsSection></Surface>
+      <Surface><SettingsSection title={<>Smart search</>}>
         {props.clientOnly ? <HostChoice hostName={props.hostName} /> : null}
         <label className="settings-select-row">
           <span><strong>Planning provider</strong><small>The natural-language query is sent; Sessions then searches its local index.</small></span>
-          <select
+          <Select
             value={props.aiProvider}
             disabled={props.clientOnly || !props.native || props.aiBusy || !props.aiAvailable}
             onChange={(event) => void props.onAIProvider(event.currentTarget.value as AIProvider)}
-          ><option value="codex">Codex</option><option value="claude">Claude</option></select>
+          ><option value="codex">Codex</option><option value="claude">Claude</option></Select>
         </label>
-        {props.aiMessage ? <div className="settings-message">{props.aiMessage}</div> : null}
-      </div>
+        {props.aiMessage ? <Status live="off">{props.aiMessage}</Status> : null}
+      </SettingsSection></Surface>
     </section>
   );
 }
@@ -530,12 +518,9 @@ function NotificationSettings(props: NotificationSettingsProps): JSX.Element {
   const serverId = useServers((state) => state.activeId);
   return (
     <section className="settings-page">
-      <span className="settings-kicker">Signed {props.clientOnly ? 'device' : 'desktop'} delivery</span>
-      <h1>Notifications & updates</h1>
-      <p>Sessions checks the signed release feed automatically, while installation always stays an explicit action.</p>
+      <PageHeader eyebrow={<>Signed {props.clientOnly ? 'device' : 'desktop'} delivery</>} title={<>Notifications & updates</>} description={<>Sessions checks the signed release feed automatically, while installation always stays an explicit action.</>} />
       <NotificationDeliveryStatus key={serverId} serverId={serverId} hostName={props.providerUpdateTarget} />
-      <div className="settings-card">
-        <h2>Sessions updates</h2>
+      <Surface><SettingsSection title={<>Sessions updates</>}>
         <div className="settings-static-row">
           <span>
             <strong>{props.updateInfo ? `Sessions ${props.updateInfo.version} is ready` : 'Signed release channel'}</strong>
@@ -548,25 +533,23 @@ function NotificationSettings(props: NotificationSettingsProps): JSX.Element {
             </small>
           </span>
           {props.updateInfo ? (
-            <button type="button" className="btn btn-primary" disabled={!props.native || props.updateBusy} onClick={() => void props.onInstall()}>
+            <Button type="button" variant="primary" disabled={!props.native || props.updateBusy} onClick={() => void props.onInstall()}>
               {props.workingAgents === null
                 ? 'Update client safely'
                 : props.workingAgents > 0
                 ? `Update safely · ${props.workingAgents} continue`
                 : 'Update now'}
-            </button>
+            </Button>
           ) : (
-            <button type="button" className="btn btn-ghost" disabled={!props.native || props.updateBusy} onClick={() => void props.onCheck()}>{props.updateBusy ? 'Checking…' : 'Check now'}</button>
+            <Button type="button" variant="ghost" disabled={!props.native || props.updateBusy} onClick={() => void props.onCheck()}>{props.updateBusy ? 'Checking…' : 'Check now'}</Button>
           )}
         </div>
-        {!props.native ? <div className="settings-message">Update controls are available only in Sessions.app.</div> : null}
-        {props.updateMessage ? <div className="settings-message" role="status">{props.updateMessage}</div> : null}
+        {!props.native ? <Status live="off">Update controls are available only in Sessions.app.</Status> : null}
+        {props.updateMessage ? <Status>{props.updateMessage}</Status> : null}
         {props.updateBusy && props.updateProgress?.totalBytes ? <progress value={props.updateProgress.downloadedBytes} max={props.updateProgress.totalBytes} aria-label="Update download progress" /> : null}
         {props.updateInfo?.notes ? <p>{props.updateInfo.notes}</p> : null}
-      </div>
-      <div className="settings-card">
-        <h2>Agent tools</h2>
-        <p>Sessions reads local version metadata only. It does not contact provider update servers until you click an update button.</p>
+      </SettingsSection></Surface>
+      <Surface><SettingsSection title={<>Agent tools</>} description={<>Sessions reads local version metadata only. It does not contact provider update servers until you click an update button.</>}>
         {props.clientOnly ? <HostChoice hostName={props.hostName} /> : null}
         {props.providers.map((provider) => (
           <div className="settings-static-row" key={provider.id}>
@@ -580,18 +563,18 @@ function NotificationSettings(props: NotificationSettingsProps): JSX.Element {
                   : `${provider.version || 'Installed'} · no locally reported update`}
               </small>
             </span>
-            <button type="button" className={provider.updateAvailable ? 'btn btn-primary' : 'btn btn-ghost'} disabled={props.clientOnly || !provider.installed || props.providerBusy !== null} onClick={() => void props.onProviderUpdate(provider)}>
+            <Button type="button" className={provider.updateAvailable ? 'btn btn-primary' : 'btn btn-ghost'} disabled={props.clientOnly || !provider.installed || props.providerBusy !== null} onClick={() => void props.onProviderUpdate(provider)}>
               {props.providerBusy === provider.id
                 ? `Updating on ${props.providerUpdateTarget}…`
                 : provider.updateAvailable
                 ? `Update ${provider.name} on ${props.providerUpdateTarget}`
                 : `Check & update on ${props.providerUpdateTarget}`}
-            </button>
+            </Button>
           </div>
         ))}
-        {props.providerMessage ? <div className="settings-message" role="status">{props.providerMessage}</div> : null}
-        <div className="settings-message">The action runs on {props.providerUpdateTarget} and replaces only that machine's CLI executable. Existing Claude and Codex processes continue unchanged; new sessions there use the updated version.</div>
-      </div>
+        {props.providerMessage ? <Status>{props.providerMessage}</Status> : null}
+        <Status live="off">The action runs on {props.providerUpdateTarget} and replaces only that machine's CLI executable. Existing Claude and Codex processes continue unchanged; new sessions there use the updated version.</Status>
+      </SettingsSection></Surface>
       <FleetProviderUpdates />
     </section>
   );
@@ -661,11 +644,8 @@ function SupportSettings({ native }: { native: boolean }): JSX.Element {
 
   return (
     <section className="settings-page support-page">
-      <span className="settings-kicker">Help shape Sessions</span>
-      <h1>Send feedback</h1>
-      <p>Tell us what you love, what would make Sessions better, or what went wrong.</p>
-      <div className="settings-card">
-        <h2>What would you like to share?</h2>
+      <PageHeader eyebrow={<>Help shape Sessions</>} title={<>Send feedback</>} description={<>Tell us what you love, what would make Sessions better, or what went wrong.</>} />
+      <Surface><SettingsSection title={<>What would you like to share?</>}>
         <label className="support-draft">
           <span>Optional draft</span>
           <textarea
@@ -677,18 +657,17 @@ function SupportSettings({ native }: { native: boolean }): JSX.Element {
           <small>{draft.length.toLocaleString()} / 4,000 · This stays in the app until you copy it.</small>
         </label>
         <div className="support-actions">
-          <button type="button" className="btn btn-primary" onClick={() => void copyAndOpen('feedback')}>Share an idea or win</button>
-          <button type="button" className="btn btn-ghost" onClick={() => void copyAndOpen('bug')}>Report a bug</button>
+          <Button type="button" variant="primary" onClick={() => void copyAndOpen('feedback')}>Share an idea or win</Button>
+          <Button type="button" variant="ghost" onClick={() => void copyAndOpen('bug')}>Report a bug</Button>
         </div>
         <p className="support-privacy">Tickets are public GitHub issues. Sessions copies your draft to the clipboard and opens the form; it does not submit for you.</p>
-      </div>
-      <div className="settings-card">
-        <h2>Optional diagnostic preview</h2>
+      </SettingsSection></Surface>
+      <Surface><SettingsSection title={<>Optional diagnostic preview</>}>
         <div className="settings-static-row">
           <span><strong>Small and deliberately redacted</strong><small>Only versions, OS/architecture, daemon readiness, and a session count. No logs, paths, IDs, titles, commands, or content.</small></span>
-          <button type="button" className="btn btn-ghost" disabled={!native || previewBusy} onClick={() => void loadPreview()}>{previewBusy ? 'Generating…' : preview ? 'Refresh preview' : 'Generate preview'}</button>
+          <Button type="button" variant="ghost" disabled={!native || previewBusy} onClick={() => void loadPreview()}>{previewBusy ? 'Generating…' : preview ? 'Refresh preview' : 'Generate preview'}</Button>
         </div>
-        {!native ? <div className="settings-message">Diagnostic previews are available in the signed Sessions app. You can still open a ticket.</div> : null}
+        {!native ? <Status live="off">Diagnostic previews are available in the signed Sessions app. You can still open a ticket.</Status> : null}
         {preview ? (
           <>
             <label className="settings-toggle support-include">
@@ -698,15 +677,14 @@ function SupportSettings({ native }: { native: boolean }): JSX.Element {
             <pre className="support-preview">{formatSupportPreview(preview)}</pre>
           </>
         ) : null}
-      </div>
-      <div className="settings-card">
-        <h2>Security issue</h2>
+      </SettingsSection></Surface>
+      <Surface><SettingsSection title={<>Security issue</>}>
         <div className="settings-static-row">
           <span><strong>Report privately</strong><small>Use GitHub’s private vulnerability-reporting channel instead of a public support ticket.</small></span>
-          <button type="button" className="btn btn-ghost" onClick={() => void openSupportPage('security')}>Open private report</button>
+          <Button type="button" variant="ghost" onClick={() => void openSupportPage('security')}>Open private report</Button>
         </div>
-      </div>
-      {message ? <div className="settings-message" role="status">{message}</div> : null}
+      </SettingsSection></Surface>
+      {message ? <Status>{message}</Status> : null}
     </section>
   );
 }

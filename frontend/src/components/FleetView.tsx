@@ -1,3 +1,6 @@
+import { PageHeader, Surface } from './ui/Layout';
+import { Input } from './ui/Field';
+import { Button, IconButton } from './ui/Button';
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { daemonErrorDisplay, fetchServerHealth, listServerProfiles, listServerSessions, type AccountProfile, type ServerHealth } from '../api/sessionsd';
 import { LocalNetworkGuide } from './LocalNetworkGuide';
@@ -173,25 +176,21 @@ export function FleetView({ onOpenSession, onOpenMachine }: FleetViewProps): JSX
 
   return (
     <div className="fleet-view" aria-label="Fleet sessions">
-      <div className="fleet-view-heading">
-        <div>
-          <h1>Fleet</h1>
-          <p>Configured machines stay visible, even offline.</p>
-        </div>
+      <div className="fleet-view-heading"><PageHeader title="Fleet" description="Your computers and their sessions, even when a machine is offline." actions={
         <div className="fleet-heading-actions">
           <label className="fleet-history-toggle">
             <input type="checkbox" checked={includeExited} onChange={(event) => setIncludeExited(event.target.checked)} />
             Show all records
           </label>
-          <button
+          <Button
             type="button"
-            className="btn fleet-find-machines"
+            className="fleet-find-machines"
             disabled={discoveryBusy || Boolean(discoveryBlocked)}
             onClick={() => void findMachines()}
           >
             <span aria-hidden>＋</span>{!isTauri() ? 'Find machines in Sessions.app' : discoveryBusy ? 'Searching…' : 'Find machines'}
-          </button>
-        </div>
+          </Button>
+        </div>} />
       </div>
       {discoveryBlocked ? <div className="fleet-permission-banner" role="status">{discoveryBlocked}</div> : null}
       <LocalNetworkGuide />
@@ -204,8 +203,8 @@ export function FleetView({ onOpenSession, onOpenMachine }: FleetViewProps): JSX
               <p>Sessions checks Tailscale and nearby networks, then verifies each computer.</p>
             </div>
             <div className="fleet-discovery-actions">
-              <button type="button" className="btn btn-ghost" disabled={discoveryBusy || accessRequest !== null} onClick={() => void findMachines()}>Search again</button>
-              <button type="button" className="fleet-discovery-close" aria-label="Close machine discovery" onClick={() => setDiscoveryOpen(false)}>×</button>
+              <Button type="button" variant="ghost" disabled={discoveryBusy || accessRequest !== null} onClick={() => void findMachines()}>Search again</Button>
+              <Button type="button" className="fleet-discovery-close" aria-label="Close machine discovery" onClick={() => setDiscoveryOpen(false)}>×</Button>
             </div>
           </header>
           <div className="fleet-discovery-scopes">
@@ -226,9 +225,9 @@ export function FleetView({ onOpenSession, onOpenMachine }: FleetViewProps): JSX
                         <strong>{peer.name}</strong>
                         <small>{peer.transport === 'tailnet' ? 'Tailscale · encrypted' : 'Nearby · unencrypted'} · {peer.endpoint.replace(/^https?:\/\//, '')}</small>
                       </div>
-                      <button type="button" className={configured || waiting ? 'btn btn-ghost' : 'btn'} disabled={configured || discoveryBusy || accessRequest !== null} onClick={() => void requestAccess(peer)}>
+                      <Button type="button" className={configured || waiting ? 'btn btn-ghost' : 'btn'} disabled={configured || discoveryBusy || accessRequest !== null} onClick={() => void requestAccess(peer)}>
                         {configured ? 'Already in Fleet' : waiting ? 'Waiting for approval…' : 'Request access'}
-                      </button>
+                      </Button>
                     </article>
                   );
                 })}
@@ -562,23 +561,23 @@ function FleetServerGroup({
   };
 
   return (
-    <section className={cardClasses}>
+    <section className={cardClasses}><Surface className="fleet-machine-surface">
       <header className="fleet-machine-header">
         <span className={`fleet-platform-mark is-${platform}`} aria-hidden><MachinePlatformIcon platform={platform} /></span>
         <div className="fleet-server-identity">
           <div className="fleet-machine-title">
             {renaming ? (
               <form className="fleet-machine-rename" onSubmit={(event) => { event.preventDefault(); void saveMachineName(); }}>
-                <input autoFocus value={machineName} maxLength={48} aria-label="Machine name" onChange={(event) => setMachineName(event.target.value)} />
-                <button type="submit">Save</button>
-                <button type="button" onClick={() => { setRenaming(false); setRenameError(null); setMachineName(server.customName ?? serverDisplayName(server)); }}>Cancel</button>
+                <Input autoFocus value={machineName} maxLength={48} aria-label="Machine name" onChange={(event) => setMachineName(event.target.value)} />
+                <Button type="submit">Save</Button>
+                <Button type="button" onClick={() => { setRenaming(false); setRenameError(null); setMachineName(server.customName ?? serverDisplayName(server)); }}>Cancel</Button>
               </form>
             ) : (
               <>
                 <h2 title={`${displayMachineName} · ${formatServerEndpoint(server)}`}>{displayMachineName}</h2>
-                <button type="button" className="fleet-machine-rename-button" aria-label={`Rename ${displayMachineName}`} title="Name this machine" onClick={() => setRenaming(true)}>
-                  <svg viewBox="0 0 24 24" aria-hidden><path d="M4 16.5V20h3.5L18 9.5 14.5 6 4 16.5Zm16.7-9.8a1 1 0 0 0 0-1.4l-2-2a1 1 0 0 0-1.4 0l-1.6 1.6 3.5 3.5 1.5-1.7Z" /></svg>
-                </button>
+                <IconButton size="compact" aria-label={`Rename ${displayMachineName}`} title="Name this machine" onClick={() => setRenaming(true)}>
+                  <svg viewBox="0 0 24 24" aria-hidden><path fill="currentColor" d="M4 16.5V20h3.5L18 9.5 14.5 6 4 16.5Zm16.7-9.8a1 1 0 0 0 0-1.4l-2-2a1 1 0 0 0-1.4 0l-1.6 1.6 3.5 3.5 1.5-1.7Z" /></svg>
+                </IconButton>
               </>
             )}
           </div>
@@ -615,11 +614,11 @@ function FleetServerGroup({
         unavailable={unavailable} onOpenSession={onOpenSession}
       />
 		{!unavailable && !server.directoryOnly ? (
-        <button type="button" className="fleet-open-machine" onClick={onOpenMachine}>
+        <Button type="button" className="fleet-open-machine" onClick={onOpenMachine}>
           Open all sessions on {displayMachineName}{visibleSessions.length > (includeExited ? 20 : 6) ? ` · ${visibleSessions.length - (includeExited ? 20 : 6)} more` : ''} <span aria-hidden>→</span>
-        </button>
+        </Button>
       ) : null}
-    </section>
+    </Surface></section>
   );
 }
 
@@ -804,7 +803,7 @@ function FleetSessionRow({
   const details = [label, session.cwd, session.profile].filter(Boolean).join(' · ');
 
   return (
-    <button
+    <Button
       type="button"
       className="fleet-session-row"
       disabled={disabled}
@@ -823,7 +822,7 @@ function FleetSessionRow({
         <span className="fleet-session-state-dot" aria-hidden />
         {stateLabel}
       </span>
-    </button>
+    </Button>
   );
 }
 

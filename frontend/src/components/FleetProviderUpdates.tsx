@@ -1,3 +1,5 @@
+import { Actions, Section, Surface } from './ui/Layout';
+import { Button } from './ui/Button';
 import { create } from 'zustand';
 import { updateProvider, type ProviderStatus } from '../api/sessionsd/operations';
 import { serverDisplayName, useServers, type ServerConfig } from '../lib/servers';
@@ -38,16 +40,14 @@ export function FleetProviderUpdates(): JSX.Element {
     finally { useUpdateJob.setState({ busy: false }); }
   };
   if (servers.length < 2) return <></>;
-  return <div className="settings-card">
-    <h2>Update across your computers</h2>
-    <p>Updates the provider tool on each paired computer. Running agents keep their current process; new chats use the new version. Offline computers report separately.</p>
-    <div className="dialog-actions">
-      <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void update('claude')}>Update Claude everywhere</button>
-      <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void update('codex')}>Update Codex everywhere</button>
-    </div>
+  return <Surface><Section title="Update across your computers" description="Updates the provider tool on each paired computer. Running agents keep their current process; new chats use the new version. Offline computers report separately.">
+    <Actions>
+      <Button type="button" disabled={busy} onClick={() => void update('claude')}>Update Claude everywhere</Button>
+      <Button type="button" disabled={busy} onClick={() => void update('codex')}>Update Codex everywhere</Button>
+    </Actions>
     <div role="status" aria-live="polite">{results.map((result) => <div className="settings-static-row" key={result.id}>
       <span><strong>{result.name}</strong><small>{result.detail}</small></span>
       <span>{result.status === 'unknown' ? 'Needs checking' : result.status}</span>
     </div>)}</div>
-  </div>;
+  </Section></Surface>;
 }

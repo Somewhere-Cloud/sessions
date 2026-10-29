@@ -52,6 +52,7 @@ const GATE = [
   'launcher-layout',
   'ui-foundation',
   'shell-ui',
+  'settings-machines',
   'account-login',
   'account-usage',
   'composer-usage',

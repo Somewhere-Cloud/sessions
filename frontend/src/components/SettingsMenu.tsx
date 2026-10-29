@@ -1,3 +1,5 @@
+import { Select, Input } from './ui/Field';
+import { Button } from './ui/Button';
 import { useEffect, useRef, useState } from 'react';
 import {
   fetchAISettings,
@@ -287,9 +289,10 @@ export function SettingsMenu({ clientOnly = false, hostName = 'this computer', t
 
   return (
     <div className="settings-menu" ref={wrapRef}>
-      <button
+      <Button
         type="button"
         className="settings-menu-trigger"
+        aria-label="Settings"
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
@@ -297,20 +300,20 @@ export function SettingsMenu({ clientOnly = false, hostName = 'this computer', t
       >
         ⚙
         {updateInfo ? <span className="settings-update-dot" aria-label={`Sessions ${updateInfo.version} available`} /> : null}
-      </button>
+      </Button>
       {open ? (
         <div className="settings-menu-popover" role="menu">
           {onNewSession ? (
-            <button
+            <Button
               type="button"
               className="settings-menu-row settings-menu-clickable"
               onClick={() => { setOpen(false); onNewSession(); }}
             >
               <span className="settings-menu-icon">+</span>
               <span className="settings-menu-label">New session</span>
-            </button>
+            </Button>
           ) : null}
-          <button
+          <Button
             type="button"
             className="settings-menu-row settings-menu-clickable"
             onClick={cycleSize}
@@ -319,13 +322,13 @@ export function SettingsMenu({ clientOnly = false, hostName = 'this computer', t
             <span className="settings-menu-icon">Aa</span>
             <span className="settings-menu-label">View size</span>
             <span className="settings-menu-value">{sizeLabel(textSize)}</span>
-          </button>
+          </Button>
           <div className="settings-menu-divider" />
           <div className="settings-menu-section" aria-label="Default new-session options">
             <div className="settings-menu-section-title">Default new-session options</div>
             <label className="settings-menu-field">
               <span>Tool</span>
-              <select
+              <Select
                 className="settings-menu-input"
                 value={sessionDefaults.tool}
                 onChange={(e) => {
@@ -337,7 +340,7 @@ export function SettingsMenu({ clientOnly = false, hostName = 'this computer', t
                 {NEW_SESSION_TOOL_OPTIONS.map((option) => (
                   <option key={option.id} value={option.id}>{option.label}</option>
                 ))}
-              </select>
+              </Select>
             </label>
             <label className="settings-menu-row settings-menu-toggle settings-menu-default-toggle">
               <input
@@ -350,7 +353,7 @@ export function SettingsMenu({ clientOnly = false, hostName = 'this computer', t
             </label>
             <label className="settings-menu-field">
               <span>Default cwd</span>
-              <input
+              <Input
                 className="settings-menu-input settings-menu-path-input"
                 type="text"
                 value={sessionDefaults.cwd}
@@ -364,7 +367,7 @@ export function SettingsMenu({ clientOnly = false, hostName = 'this computer', t
             <div className="settings-menu-field-row">
               <label className="settings-menu-field">
                 <span>Cols</span>
-                <input
+                <Input
                   className="settings-menu-input"
                   type="number"
                   min={NEW_SESSION_DIMENSIONS.minCols}
@@ -375,7 +378,7 @@ export function SettingsMenu({ clientOnly = false, hostName = 'this computer', t
               </label>
               <label className="settings-menu-field">
                 <span>Rows</span>
-                <input
+                <Input
                   className="settings-menu-input"
                   type="number"
                   min={NEW_SESSION_DIMENSIONS.minRows}
@@ -415,7 +418,7 @@ export function SettingsMenu({ clientOnly = false, hostName = 'this computer', t
                 {clientOnly ? <div className="settings-menu-status">Chosen on {hostName}</div> : null}
                 <label className="settings-menu-field">
                   <span>Provider</span>
-                  <select
+                  <Select
                     className="settings-menu-input"
                     value={aiSettings.provider}
                     disabled={clientOnly || aiBusy || !aiAvailable}
@@ -423,7 +426,7 @@ export function SettingsMenu({ clientOnly = false, hostName = 'this computer', t
                   >
                     <option value="codex">Codex · recommended</option>
                     <option value="claude">Claude</option>
-                  </select>
+                  </Select>
                 </label>
                 <span className="settings-menu-field-hint">Used only when you explicitly submit an AI action. Search sends the natural-language query—not transcripts—then searches the local index. Your CLI chooses its default model.</span>
                 {aiMessage ? <div className="settings-menu-status">{aiMessage}</div> : null}
@@ -436,7 +439,7 @@ export function SettingsMenu({ clientOnly = false, hostName = 'this computer', t
               <div className="settings-menu-section" aria-label="App updates">
                 <div className="settings-menu-section-title">Sessions updates</div>
                 {updateInfo ? (
-                  <button
+                  <Button
                     type="button"
                     className="settings-menu-row settings-menu-clickable"
                     disabled={updateBusy}
@@ -447,9 +450,9 @@ export function SettingsMenu({ clientOnly = false, hostName = 'this computer', t
                     <span className="settings-menu-value">
                       {workingAgents === null ? 'Agents keep running' : workingAgents > 0 ? `${workingAgents} continue` : 'No agents running'}
                     </span>
-                  </button>
+                  </Button>
                 ) : (
-                  <button
+                  <Button
                     type="button"
                     className="settings-menu-row settings-menu-clickable"
                     disabled={updateBusy}
@@ -458,7 +461,7 @@ export function SettingsMenu({ clientOnly = false, hostName = 'this computer', t
                     <span className="settings-menu-icon">↻</span>
                     <span className="settings-menu-label">Check for updates</span>
                     <span className="settings-menu-value">{updateBusy ? 'Checking…' : ''}</span>
-                  </button>
+                  </Button>
                 )}
                 {updateMessage ? (
                   <div className="settings-menu-status" role="status">{updateMessage}</div>
@@ -492,7 +495,7 @@ export function SettingsMenu({ clientOnly = false, hostName = 'this computer', t
           {onOpenConnections ? (
             <>
               <div className="settings-menu-divider" />
-              <button
+              <Button
                 type="button"
                 className="settings-menu-row settings-menu-clickable"
                 onClick={() => { setOpen(false); onOpenConnections(); }}
@@ -500,7 +503,7 @@ export function SettingsMenu({ clientOnly = false, hostName = 'this computer', t
                 <span className="settings-menu-icon">⌁</span>
                 <span className="settings-menu-label">Connections, Tailscale, and port</span>
                 <span className="settings-menu-value">Open</span>
-              </button>
+              </Button>
             </>
           ) : null}
           {/* Server selector — "this machine" + IP picker. Tucked into

@@ -1,3 +1,5 @@
+import { PageHeader, Surface } from './ui/Layout';
+import { Button } from './ui/Button';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchLANState, requestLocalNetworkAccess, type LANState } from '../api/sessionsd';
 import { connectionSettingsTarget } from '../lib/connectionSettingsTarget';
@@ -61,7 +63,7 @@ export function LocalNetworkGuide({ onState }: { onState?: (state: LANState) => 
     try { await openLocalNetworkSettings(); setMessage('After turning on Sessions, come back here and choose Check again.'); }
     catch { setMessage('Open System Settings yourself, then follow the steps below.'); }
   };
-  const checkAgain = <button className="btn btn-ghost" type="button" disabled={busy} onClick={() => void check()}>{busy ? 'Checking…' : 'Check again'}</button>;
+  const checkAgain = <Button variant="ghost" type="button" disabled={busy} onClick={() => void check()}>{busy ? 'Checking…' : 'Check again'}</Button>;
   const mode = localNetworkGuideMode({ status: state?.permission?.status, sawUnproven: sawUnproven.current, lastCheck });
   if (mode === 'hidden') return null;
   if (mode === 'confirmed') return <div className="local-network-guide is-resolved" role="status">Nearby access is working on {name}. You can return to your projects.</div>;
@@ -70,8 +72,8 @@ export function LocalNetworkGuide({ onState }: { onState?: (state: LANState) => 
     {message ? <p>{message}</p> : null}
     <div className="local-network-guide-actions">{checkAgain}</div>
   </div>;
-  return <section className="local-network-guide" aria-label={`Nearby access on ${name}`}>
-    <h2>Let Sessions find your other devices</h2>
+  return <Surface role="region" className="local-network-guide" aria-label={`Nearby access on ${name}`}>
+    <PageHeader level={3} title="Find nearby devices" />
     <p>Check Local Network access on <strong>{name}</strong>. It helps Sessions find and connect to computers on the same Wi-Fi. Your saved conversations stay here.</p>
     <ol>
       <li>On {name}, open <strong>System Settings → Privacy &amp; Security → Local Network</strong>.</li>
@@ -79,7 +81,7 @@ export function LocalNetworkGuide({ onState }: { onState?: (state: LANState) => 
       <li>Return to Sessions and choose <strong>Check again</strong>.</li>
     </ol>
     <div className="local-network-guide-actions">
-      {local ? <button className="btn" type="button" onClick={() => void openSettings()}>Open System Settings</button> : null}
+      {local ? <Button type="button" onClick={() => void openSettings()}>Open System Settings</Button> : null}
       {checkAgain}
     </div>
     {message ? <p role="status">{message}</p> : null}
@@ -89,5 +91,5 @@ export function LocalNetworkGuide({ onState }: { onState?: (state: LANState) => 
     <details><summary>Already on, but the check still fails?</summary>
       <p>A failed network check does not necessarily mean macOS blocked access. Leave the switch on. Try opening a saved computer in Fleet; if it connects, you can keep working. Otherwise, check that both devices are online and use the same private Wi-Fi or Tailscale.</p>
     </details>
-  </section>;
+  </Surface>;
 }

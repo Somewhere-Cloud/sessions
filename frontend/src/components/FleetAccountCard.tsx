@@ -1,3 +1,6 @@
+import { Input } from './ui/Field';
+import { PageHeader, Status, Surface } from './ui/Layout';
+import { Button } from './ui/Button';
 import { useCallback, useEffect, useState } from 'react';
 import {
   fetchFleetAccount,
@@ -69,29 +72,25 @@ export function FleetAccountCard({ clientOnly = false }: { clientOnly?: boolean 
 
 	if (clientOnly) return <ClientFleetAccountCard />;
   return (
-    <section className="pair-device-card fleet-account-card">
-      <div>
-        <span className="connections-section-kicker">Optional fleet directory</span>
-        <h2>Somewhere account</h2>
-        <p>Sign in to register this machine across your devices. Session content and provider credentials stay on this computer.</p>
-      </div>
+    <Surface className="pair-device-card fleet-account-card">
+      <PageHeader level={2} title="Somewhere account" eyebrow="Optional fleet directory" description={<>Sign in to register this machine across your devices. Session content and provider credentials stay on this computer.</>} />
       {account?.signed_in ? (
         <div className="fleet-account-signed-in">
           <div><strong>{account.user?.display_name || account.user?.email || 'Signed in'}</strong><small>{account.user?.display_name ? account.user.email : 'Somewhere fleet account'}</small></div>
-          <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => void signOut()}>{busy ? 'Signing out…' : 'Sign out'}</button>
+          <Button type="button" variant="ghost" disabled={busy} onClick={() => void signOut()}>{busy ? 'Signing out…' : 'Sign out'}</Button>
           {account.last_registration_at ? <small>Machine registered {new Date(account.last_registration_at).toLocaleString()}</small> : null}
           {account.last_registration_error ? <small>Registration pending: {account.last_registration_error}</small> : null}
         </div>
       ) : (
         <div className="fleet-account-form">
-          <input type="email" value={email} disabled={busy || sent} placeholder="you@example.com" autoComplete="email" onChange={(event) => setEmail(event.currentTarget.value)} />
-          {sent ? <input value={code} disabled={busy} placeholder="Six-digit code or link token" autoComplete="one-time-code" onChange={(event) => setCode(event.currentTarget.value)} onKeyDown={(event) => { if (event.key === 'Enter') void verify(); }} /> : null}
-          <button type="button" className="btn" disabled={busy || (sent ? !code.trim() : !email.trim())} onClick={() => void (sent ? verify() : submit())}>{busy ? 'Waiting…' : sent ? 'Verify code' : 'Sign in to Somewhere'}</button>
+          <Input aria-label="Somewhere account email" type="email" value={email} disabled={busy || sent} placeholder="you@example.com" autoComplete="email" onChange={(event) => setEmail(event.currentTarget.value)} />
+          {sent ? <Input aria-label="Sign-in code or link token" value={code} disabled={busy} placeholder="Six-digit code or link token" autoComplete="one-time-code" onChange={(event) => setCode(event.currentTarget.value)} onKeyDown={(event) => { if (event.key === 'Enter') void verify(); }} /> : null}
+          <Button type="button" disabled={busy || (sent ? !code.trim() : !email.trim())} onClick={() => void (sent ? verify() : submit())}>{busy ? 'Waiting…' : sent ? 'Verify code' : 'Sign in to Somewhere'}</Button>
         </div>
       )}
-      {message ? <div className="connections-message" role="status">{message}</div> : null}
+      {message ? <Status>{message}</Status> : null}
       <small>Skip it if you only need this network or your own tailnet.</small>
-    </section>
+    </Surface>
   );
 }
 
@@ -129,9 +128,9 @@ function ClientFleetAccountCard(): JSX.Element {
 			setMessage(reason instanceof Error ? reason.message : String(reason));
 		} finally { setBusy(false); }
 	};
-	return <section className="pair-device-card fleet-account-card">
-		<div><span className="connections-section-kicker">Optional fleet directory</span><h2>Somewhere account</h2><p>Sign this phone in to see and connect to every machine in the same account without pairing each one.</p></div>
-		{status.signedIn ? <div className="fleet-account-signed-in"><strong>{status.user?.display_name || status.user?.email || 'Signed in'}</strong><button type="button" className="btn btn-ghost" disabled={busy} onClick={() => void signOut()}>Sign out</button></div> : <div className="fleet-account-form"><input type="email" value={email} disabled={busy || sent} placeholder="you@example.com" autoComplete="email" onChange={(event) => setEmail(event.currentTarget.value)} />{sent ? <input value={code} disabled={busy} placeholder="Six-digit code or link token" autoComplete="one-time-code" onChange={(event) => setCode(event.currentTarget.value)} /> : null}<button type="button" className="btn" disabled={busy || (sent ? !code.trim() : !email.trim())} onClick={() => void submit()}>{busy ? 'Waiting…' : sent ? 'Verify code' : 'Sign in to Somewhere'}</button></div>}
-		{message ? <div className="connections-message" role="status">{message}</div> : null}
-	</section>;
+	return <Surface className="pair-device-card fleet-account-card">
+		<PageHeader level={2} title="Somewhere account" eyebrow="Optional fleet directory" description={<>Sign this phone in to see and connect to every machine in the same account without pairing each one.</>} />
+		{status.signedIn ? <div className="fleet-account-signed-in"><strong>{status.user?.display_name || status.user?.email || 'Signed in'}</strong><Button type="button" variant="ghost" disabled={busy} onClick={() => void signOut()}>Sign out</Button></div> : <div className="fleet-account-form"><Input aria-label="Somewhere account email" type="email" value={email} disabled={busy || sent} placeholder="you@example.com" autoComplete="email" onChange={(event) => setEmail(event.currentTarget.value)} />{sent ? <Input aria-label="Sign-in code or link token" value={code} disabled={busy} placeholder="Six-digit code or link token" autoComplete="one-time-code" onChange={(event) => setCode(event.currentTarget.value)} /> : null}<Button type="button" disabled={busy || (sent ? !code.trim() : !email.trim())} onClick={() => void submit()}>{busy ? 'Waiting…' : sent ? 'Verify code' : 'Sign in to Somewhere'}</Button></div>}
+		{message ? <Status>{message}</Status> : null}
+	</Surface>;
 }

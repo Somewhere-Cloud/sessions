@@ -55,7 +55,7 @@ assert.match(settings, /if \(clientOnly \|\| providerBusy\) return;/);
 assert.match(settingsMenu, /disabled=\{clientOnly \|\| aiBusy/);
 assert.match(connections, /isTauri\(\) && !clientOnly/);
 assert.match(connections, /disabled=\{clientOnly \|\| busy !== null\}/);
-assert.match(connections, /<h2>Paired machines<\/h2>/);
+assert.match(connections, /title=\{<>Paired machines<\/>\}/);
 assert.match(connections, /activeServer \? httpBaseForServer\(activeServer\) : window\.location\.origin/);
 assert.match(connections, /Current connection · \{activeEndpoint\}/);
 assert.match(connections, /\{native \? <div className="connection-endpoint">Sessions\.app configured endpoint/);

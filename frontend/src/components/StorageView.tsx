@@ -1,3 +1,6 @@
+import { EmptyState, PageHeader, Status, Surface } from './ui/Layout';
+import { Select } from './ui/Field';
+import { Button } from './ui/Button';
 import { useEffect, useRef, useState } from 'react';
 import { fetchStoragePreview, type StorageBytes, type StorageReport, type StorageRoot } from '../api/sessionsd/storage';
 import { serverDisplayName, useServers } from '../lib/servers';
@@ -47,20 +50,20 @@ export function StorageView(): JSX.Element {
     }
   };
   return <section className="settings-page storage-view">
-    <span className="settings-kicker">Selected computer</span>
-    <h1>Storage</h1>
-    <p>See storage on {server ? serverDisplayName(server, true) : 'this computer'}. Read-only · Files are kept.</p>
+    <PageHeader title="Storage" eyebrow={server ? serverDisplayName(server, true) : 'This computer'}
+      description="Review measured storage. Scanning is read-only; all files are kept." />
     <div className="storage-controls">
-      <button type="button" className="btn-primary" disabled={busy} onClick={() => void scan()}>{busy ? 'Scanning…' : 'Scan storage'}</button>
-      {busy && <button type="button" onClick={() => { request.current?.abort(); setBusy(false); setMessage('Scan canceled. The host may need time to finish a filesystem read.'); }}>Cancel scan</button>}
+      <Button type="button" variant="primary" disabled={busy} onClick={() => void scan()}>{busy ? 'Scanning…' : 'Scan storage'}</Button>
+      {busy && <Button type="button" onClick={() => { request.current?.abort(); setBusy(false); setMessage('Scan canceled. The host may need time to finish a filesystem read.'); }}>Cancel scan</Button>}
     </div>
-    {message && <p role="status">{message}</p>}
+    {message && <Status>{message}</Status>}
+    {!report && !busy && !message ? <EmptyState title="See where storage is used">Scan known repositories on the selected computer. Nothing is removed or changed.</EmptyState> : null}
     {report && <>
       <StorageSummary report={report} />
       {report.roots.length === 0 ? <p>{report.complete ? 'No known Git repositories found on this computer.' : 'No repository measurements available. See scan details.'}</p> : <>
-        <div className="storage-list-heading"><h2>Repositories</h2><label>Sort <select value={sort} onChange={(event) => setSort(event.target.value as 'size' | 'name')}>
+        <div className="storage-list-heading"><h2>Repositories</h2><label>Sort <Select value={sort} onChange={(event) => setSort(event.target.value as 'size' | 'name')}>
           <option value="size">Largest measured first</option><option value="name">Name</option>
-        </select></label></div>
+        </Select></label></div>
         <div className="storage-repositories">{sortedRoots(report.roots, sort).map((root) => <StorageRootCard key={root.path} root={root} />)}</div>
       </>}
     </>}
@@ -96,7 +99,7 @@ function repositoryStatus(root: StorageRoot): string {
   return 'Kept';
 }
 function StorageSummary({ report }: { report: StorageReport }): JSX.Element {
-  return <div className="settings-card storage-overview" aria-label="Storage summary">
+  return <Surface className="storage-overview" aria-label="Storage summary">
     <span className="storage-summary-label">Measured files on {report.machine_name}</span>
     <strong className="storage-summary-size">{measuredSize(report.totals)}</strong>
     <p>{report.roots.length} {report.roots.length === 1 ? 'repository' : 'repositories'} · {report.complete ? 'Scan complete' : 'Some measurements incomplete'}</p>
@@ -106,7 +109,7 @@ function StorageSummary({ report }: { report: StorageReport }): JSX.Element {
       <p>Sizes describe measured files, not space that can necessarily be freed. Shared repository sizes may overlap; the total comes from the host, not the sum of these rows.</p>
       {[...report.issues, ...report.limitations].map((item, index) => <p key={index}>{item}</p>)}
     </details>
-  </div>;
+  </Surface>;
 }
 function StorageRootCard({ root }: { root: StorageRoot }): JSX.Element {
   return <details className="storage-repository">

@@ -1,3 +1,4 @@
+import { Button } from './ui/Button';
 import type { AccountProfile } from '../api/sessionsd';
 import { accountLabel } from '../lib/accountChoice';
 import { AccountLoginState, SigningInCard, useGuidedAccountLogin } from './AccountSignIn';
@@ -73,15 +74,15 @@ export function FleetMachineAccounts(
         <span key={`${account.tool}:${account.name}`} className="fleet-account is-missing">
           <strong>{account.label}</strong>
           {account.tool === 'claude' ? 'Claude' : 'Codex'}
-          <button
+          <Button
             type="button"
-            className="btn btn-ghost"
+            variant="ghost"
             disabled={login.busy}
             title={`${account.machines.join(', ')} ${account.machines.length === 1 ? 'has' : 'have'} this account. Sessions will register it on ${machineName} and open ${account.tool === 'claude' ? 'Claude' : 'Codex'} there to sign in.`}
             onClick={() => void login.addAccount(account.tool, account.name, account.label)}
           >
             Log in here too
-          </button>
+          </Button>
         </span>
       ))}
       {login.signingInFor ? (

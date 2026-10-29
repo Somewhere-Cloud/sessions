@@ -1,3 +1,5 @@
+import { Input } from './ui/Field';
+import { Button } from './ui/Button';
 import { useId, useState, type FormEvent } from 'react';
 import { placementCheck, type AccountPlacement, type MachineAccounts, type PlacementCheck } from '../lib/accountRollup';
 import { relativeTime } from '../lib/accountUsageDisplay';
@@ -38,7 +40,7 @@ export function AccountPlacementRow(
         <span id={labelId} className="accounts-placement-name">{placement.machineName}{account.default_profile ? ' · CLI default' : ''}{unfinished ? ` · ${account.tool === 'claude' ? 'Claude' : 'ChatGPT'} · ${account.label || account.name}` : ''}</span>
         <PlacementStatus check={check} signedIn={account.signed_in} />
       </div>
-      {onDefaultChanged ? <button type="button" className="btn btn-ghost" disabled={busy || savingDefault || account.preferred}
+      {onDefaultChanged ? <Button type="button" variant="ghost" disabled={busy || savingDefault || account.preferred}
         onClick={async () => {
           setSavingDefault(true); setError(null);
           try {
@@ -46,7 +48,7 @@ export function AccountPlacementRow(
             await onDefaultChanged(placement.serverId);
           } catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not save default account.'); }
           finally { setSavingDefault(false); }
-        }}>{account.preferred ? 'Default for new sessions' : savingDefault ? 'Saving…' : 'Make default'}</button> : null}
+        }}>{account.preferred ? 'Default for new sessions' : savingDefault ? 'Saving…' : 'Make default'}</Button> : null}
       {error && !editing ? <span className="accounts-row-error" role="alert">{error}</span> : null}
       <details className="accounts-placement-details">
       <summary aria-label={`Manage ${title} on ${placement.machineName}`}>Manage sign-in</summary>
@@ -69,15 +71,15 @@ export function AccountPlacementRow(
       {account.default_profile ? <p className="field-help">This is the existing {account.tool === 'claude' ? 'Claude' : 'Codex'} CLI login on {placement.machineName}. Choose “CLI default” when starting a session. Refresh accounts to check its identity; changing it in the provider CLI does not switch existing sessions.</p> : null}
       {!editing && !account.default_profile ? (
         <div className="accounts-actions" role="group" aria-labelledby={labelId}>
-          <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => onSignIn(placement)}>
+          <Button type="button" variant="ghost" disabled={busy} onClick={() => onSignIn(placement)}>
             {check.kind === 'signed_in' || check.kind === 'verified' || check.kind === 'failed' ? 'Check account' : 'Sign in'}
-          </button>
-          <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => { setError(null); setEditing(true); }}>
+          </Button>
+          <Button type="button" variant="ghost" disabled={busy} onClick={() => { setError(null); setEditing(true); }}>
             Rename
-          </button>
-          <button type="button" className="btn btn-ghost accounts-remove" disabled={busy} onClick={() => onForget(placement)}>
+          </Button>
+          <Button type="button" variant="ghost" className="accounts-remove" disabled={busy} onClick={() => onForget(placement)}>
             Remove
-          </button>
+          </Button>
         </div>
       ) : null}
       </details>
@@ -157,7 +159,7 @@ function NicknameEditor(
   };
   return (
     <form className="accounts-rename" onSubmit={submit}>
-      <input
+      <Input
         value={draft}
         onChange={(event) => setDraft(event.currentTarget.value)}
         onKeyDown={(event) => { if (event.key === 'Escape') { event.preventDefault(); onCancel(); } }}
@@ -166,8 +168,8 @@ function NicknameEditor(
         aria-label={`Nickname for ${title}`}
         autoFocus
       />
-      <button type="submit" className="btn btn-primary" disabled={busy}>Save</button>
-      <button type="button" className="btn btn-ghost" disabled={busy} onClick={onCancel}>Cancel</button>
+      <Button type="submit" variant="primary" disabled={busy}>Save</Button>
+      <Button type="button" variant="ghost" disabled={busy} onClick={onCancel}>Cancel</Button>
     </form>
   );
 }
@@ -185,16 +187,16 @@ export function AddOnComputer(
   return (
     <div className="accounts-add-computer">
       {computers.map((machine) => (
-        <button
+        <Button
           key={machine.serverId}
           type="button"
-          className="btn btn-ghost"
+          variant="ghost"
           disabled={busy}
           title={`Adds ${title} to ${machine.machineName} and opens ${provider}’s own sign-in there. Sign in with the same account; credentials are never copied between computers.`}
           onClick={() => onAdd(machine)}
         >
           Add on {machine.machineName}
-        </button>
+        </Button>
       ))}
     </div>
   );

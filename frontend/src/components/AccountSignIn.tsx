@@ -1,3 +1,6 @@
+import { Button } from './ui/Button';
+import { Input } from './ui/Field';
+import { PageHeader, Surface } from './ui/Layout';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createAccount, fetchProfiles, type AccountProfile } from '../api/sessionsd';
 import { accountLoginRequest, type AccountLogin } from '../api/sessionsd/accountLogin';
@@ -132,24 +135,24 @@ export function SigningInCard({ account, operation, busy, machineName, onCode, o
   const [error, setError] = useState<string | null>(null);
   const provider = account.tool === 'codex' ? 'ChatGPT' : 'Claude';
   const connected = operation?.state === 'connected';
-  return <div className="settings-card accounts-signing-in" role="region" aria-label="Sign in to account">
-    <h2>{connected ? 'Account connected' : `Sign in to ${provider}`}{machineName ? ` on ${machineName}` : ''}</h2>
+  return <Surface className="accounts-signing-in" role="region" aria-label="Sign in to account">
+    <PageHeader level={2} title={<>{connected ? 'Account connected' : `Sign in to ${provider}`}{machineName ? ` on ${machineName}` : ''}</>} />
     {operation?.state === 'opening' ? <p role="status">Preparing secure sign-in…</p> : null}
     {operation?.state === 'waiting' ? <>
       <p>Sign in in your browser. Check that you choose the account you want to add; your other accounts stay signed in.</p>
       {operation.code ? <p>Enter this code on the provider’s page: <strong className="account-device-code">{operation.code}</strong></p> : null}
       {account.tool === 'codex' ? <DeviceSignInHelp /> : null}
-      <button className="btn btn-primary" type="button" onClick={() => {
+      <Button variant="primary" type="button" onClick={() => {
         if (operation.url) void openExternalURL(operation.url).catch(() => setError('Could not open your browser. Use the sign-in link below.'));
-      }}>Continue to {provider}</button>
+      }}>Continue to {provider}</Button>
       {error && operation.url ? <p><a href={operation.url} target="_blank" rel="noreferrer">Open provider sign-in</a></p> : null}
       {account.tool === 'claude' ? <div className="account-confirmation">
         <label>Paste the confirmation code from Claude
-          <input type="password" autoComplete="off" value={code} maxLength={2048} onChange={(event) => setCode(event.currentTarget.value)}
+          <Input type="password" autoComplete="off" value={code} maxLength={2048} onChange={(event) => setCode(event.currentTarget.value)}
             onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); if (code.trim() && !busy) void onCode(code.trim()).then(() => setCode('')); } }}
             aria-label="Claude confirmation code" />
         </label>
-        <button type="button" className="btn btn-primary" disabled={busy || !code.trim()} onClick={() => void onCode(code.trim()).then(() => setCode(''))}>Connect account</button>
+        <Button type="button" variant="primary" disabled={busy || !code.trim()} onClick={() => void onCode(code.trim()).then(() => setCode(''))}>Connect account</Button>
       </div> : <p role="status">Sessions will confirm your account automatically when sign-in finishes.</p>}
     </> : null}
     {connected ? <>
@@ -159,8 +162,8 @@ export function SigningInCard({ account, operation, busy, machineName, onCode, o
     </> : null}
     {operation?.message ? <p role="status">{operation.message}</p> : null}
     {error ? <p role="alert">{error}</p> : null}
-    <button className="btn btn-ghost" type="button" disabled={busy} onClick={() => { if (loginPending(operation)) void onCancel(); else onDone(); }}>
+    <Button variant="ghost" type="button" disabled={busy} onClick={() => { if (loginPending(operation)) void onCancel(); else onDone(); }}>
       {loginPending(operation) ? 'Cancel sign-in' : connected ? 'Done' : 'Close'}
-    </button>
-  </div>;
+    </Button>
+  </Surface>;
 }

@@ -1,3 +1,5 @@
+import { EmptyState, PageHeader, Section, Status, Surface } from './ui/Layout';
+import { Button } from './ui/Button';
 import { useEffect, useState } from 'react';
 import { forgetAccount, renameAccount, type AccountProfile } from '../api/sessionsd';
 import { useAccountFleet } from '../hooks/useAccountFleet';
@@ -94,19 +96,13 @@ export function AccountsPanel({ profiles, machineName, serverId, onReload }: Pro
   return (
     <section className="settings-page accounts-panel">
       <AccountsIntroduction />
-      <div className="settings-card accounts-card">
-        <div className="accounts-card-head">
-          <h2>Your accounts</h2>
-          <button type="button" className="btn btn-ghost accounts-refresh" disabled={fleet.refreshing} onClick={() => void fleet.refreshUsage()}>
-            {fleet.refreshing ? 'Reading usage…' : 'Refresh usage'}
-          </button>
-        </div>
-        {coverageNotes(fleet.machines).map((note) => <p key={note} className="settings-message" role="status">{note}</p>)}
+      <Surface className="accounts-card"><Section title="Your accounts" actions={<Button variant="ghost" disabled={fleet.refreshing} onClick={() => void fleet.refreshUsage()}>{fleet.refreshing ? 'Reading usage…' : 'Refresh usage'}</Button>}>
+        {coverageNotes(fleet.machines).map((note) => <Status key={note}>{note}</Status>)}
         {groups.length === 0 ? (
-          <p className="accounts-empty">
+          <EmptyState title="Accounts will appear here">
             {fleet.machines.some((machine) => machine.profiles === null && !machine.profilesError)
-              ? 'Reading accounts…' : 'No verified accounts in this list yet.'}
-          </p>
+              ? 'Reading accounts…' : 'Add an account to use your subscription on this computer.'}
+          </EmptyState>
         ) : (
           <ul className="accounts-list" aria-label="Accounts">
             {groups.map((group) => (
@@ -138,9 +134,9 @@ export function AccountsPanel({ profiles, machineName, serverId, onReload }: Pro
           </details>
         ) : null}
         {!signInPending ? (
-          <button type="button" className="btn btn-secondary accounts-add-button" aria-label="Add account" disabled={adding} onClick={startAdding}><span aria-hidden="true">+</span> Add account</button>
+          <Button type="button" className="accounts-add-button" aria-label="Add account" disabled={adding} onClick={startAdding}><span aria-hidden="true">+</span> Add account</Button>
         ) : null}
-      </div>
+      </Section></Surface>
 
       {adding && !login.signingInFor ? (
         <AddAccountDialog
@@ -210,12 +206,7 @@ function accountEdits(
 
 function AccountsIntroduction(): JSX.Element {
   return (
-    <header className="accounts-intro">
-      <h1>Accounts</h1>
-      <p>
-        See usage beside each account and where it is available. Each computer keeps its own sign-in.
-      </p>
-    </header>
+    <PageHeader title="Accounts" description="Usage and sign-ins across your computers. Each computer keeps its own credentials." />
   );
 }
 

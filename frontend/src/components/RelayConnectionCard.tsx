@@ -1,3 +1,6 @@
+import { Button } from './ui/Button';
+import { Field, Input } from './ui/Field';
+import { Section, Surface } from './ui/Layout';
 import { useEffect, useState } from 'react';
 import { fetchRelayState, setRelayURL } from '../api/sessionsd';
 
@@ -14,10 +17,9 @@ export function RelayConnectionCard(): JSX.Element {
   };
 
   return (
-    <section className="settings-card">
-      <h2>Relay fallback</h2>
-      <label><span>URL</span><input className="settings-menu-input" type="url" placeholder="https://relay" value={url} onChange={(event) => setURL(event.currentTarget.value)} /></label>
-      <button type="button" className="btn" onClick={save}>Save</button>
-    </section>
+    <Surface><Section title="Relay fallback">
+      <Field label="URL"><Input type="url" placeholder="https://relay" value={url} onChange={(event) => setURL(event.currentTarget.value)} /></Field>
+      <Button onClick={save}>Save</Button>
+    </Section></Surface>
   );
 }

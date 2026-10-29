@@ -29,6 +29,8 @@ it('wraps first and last controls and explains ChatGPT device-code setup before 
   render(<AddAccountDialog busy={false} computers={computers} initialComputer="local" error={null}
     onAdd={add} onCancel={() => {}} />);
   const close = screen.getByRole('button', { name: 'Close account picker' });
+  expect(screen.getByRole('dialog', { name: 'Add account' })).toHaveFocus();
+  await user.tab();
   expect(close).toHaveFocus();
   await user.click(screen.getByRole('button', { name: 'ChatGPT' }));
   expect(screen.getByRole('link', { name: /Open ChatGPT security settings/ })).toHaveAttribute('href', 'https://chatgpt.com/#settings/Security');

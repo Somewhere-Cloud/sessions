@@ -10,8 +10,8 @@
 .settings-static-row strong { font-size: 12px; }
 .settings-select-row small,
 .settings-static-row small { color: var(--fg-faint); font-size: 12px; line-height: 1.45; }
-.settings-select-row select,
-.settings-select-row input { min-width: 160px; height: 36px; padding: 0 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--bg-base); color: var(--fg); font-size: 12px; }
+.settings-select-row select:not(.ui-control),
+.settings-select-row input:not(.ui-control):not([type="checkbox"]) { min-width: 160px; height: 36px; padding: 0 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--bg-base); color: var(--fg); font-size: 12px; }
 .settings-message { padding: 10px 12px; border: 1px solid var(--accent-border-soft); border-radius: 8px; background: var(--accent-bg-soft); color: var(--accent); font-size: 12px; }
 .settings-host-choice { width: fit-content; padding: 5px 8px; border-radius: 999px; background: var(--bg-elev-2); color: var(--fg-dim); font-size: 12px; font-weight: 650; }
 
@@ -597,3 +597,6 @@
 .terminal-host .xterm-viewport {
   background-color: var(--bg-base) !important;
 }
+
+.settings-select-row > .ui-control { width: min(280px, 100%); flex-shrink: 0; }
+@media (max-width: 600px) { .settings-select-row { flex-wrap: wrap; } .settings-select-row > .ui-control { width: 100%; } }
