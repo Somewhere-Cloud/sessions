@@ -1,3 +1,4 @@
+import { Button } from './ui/Button';
 interface MachineRecoveryNoticeProps {
   machine: string;
   local: boolean;
@@ -61,11 +62,11 @@ export function MachineRecoveryNotice({
         {detail ? <details><summary>Technical details</summary><p>{detail}</p></details> : null}
       </div>
       <div className="machine-recovery-actions">
-        <button type="button" className="btn" onClick={reviewingPaused && onReview ? onReview : onRecover} disabled={busy}>
+        <Button type="button" onClick={reviewingPaused && onReview ? onReview : onRecover} disabled={busy}>
           {reviewingPaused ? 'Review sessions' : busy ? 'Recovering…' : local ? 'Recover sessions' : 'Check again'}
-        </button>
+        </Button>
         {!local && localAlternative && onStartLocal ? (
-          <button type="button" className="btn btn-primary" onClick={onStartLocal}>Start on {localAlternative}</button>
+          <Button type="button" variant="primary" onClick={onStartLocal}>Start on {localAlternative}</Button>
         ) : null}
       </div>
     </section>

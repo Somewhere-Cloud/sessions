@@ -86,12 +86,17 @@ describe('capability: each computer says which accounts it has', () => {
       expect(within(card).getAllByRole('button', { name: 'Log in here too' }).length).toBe(2);
       return card;
     });
+    // Offers stay discoverable without repeating sign-in actions on every card.
+    const user = userEvent.setup();
+    expect(within(beta).getByText('Work — team plan')).not.toBeVisible();
+    await user.click(within(beta).getByText('Accounts on other computers (2)'));
     // The offer carries the account's own label, and never claims Beta has it.
     expect(within(beta).getByText('Work — team plan')).toBeVisible();
     expect(within(beta).getAllByText('Identity not checked').length).toBe(1);
     // Alpha is missing Beta's account, so exactly one offer appears there.
     const alpha = cardFor('Alpha');
     expect(within(alpha).getAllByRole('button', { name: 'Log in here too' }).length).toBe(1);
+    await user.click(within(alpha).getByText('Accounts on other computers (1)'));
     expect(within(alpha).getByText('Shared build box')).toBeVisible();
   }, 20_000);
 
@@ -108,7 +113,8 @@ describe('capability: each computer says which accounts it has', () => {
       expect(within(card).getAllByRole('button', { name: 'Log in here too' }).length).toBe(2);
       return card;
     });
-    const offer = within(beta).getByText('Work — team plan').closest('span');
+    await user.click(within(beta).getByText('Accounts on other computers (2)'));
+    const offer = within(beta).getByText('Work — team plan').closest('.fleet-account');
     await user.click(within(offer as HTMLElement).getByRole('button', { name: 'Log in here too' }));
 
     // Registered on Beta, under the name and label its owner already chose.

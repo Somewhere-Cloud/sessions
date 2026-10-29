@@ -1,3 +1,7 @@
+import { NativeRuntimeStatusCard } from '../src/components/NativeRuntimeStatusCard';
+import { NotificationDeliveryCard } from '../src/components/NotificationDeliveryStatus';
+import { MachineRecoveryNotice } from '../src/components/MachineRecoveryNotice';
+import { IdleCompactionCard } from '../src/components/IdleCompactionCard';
 import { LocalNetworkGuide } from '../src/components/LocalNetworkGuide';
 import { SettingsMenu } from '../src/components/SettingsMenu';
 import { SettingsView } from '../src/components/SettingsView';
@@ -75,6 +79,7 @@ Object.assign(window, { accountDaemon: daemon });
 const params = new URLSearchParams(location.search);
 const theme = params.get('theme') === 'light' ? 'light' : 'dark';
 const screen = params.get('screen') ?? 'accounts';
+if (screen === 'remaining-cards') Object.assign(window, { __TAURI_INTERNALS__: { invoke: async (command: string) => { if (command !== 'runtime_status') throw new Error('Unexpected native operation'); return { state: 'error', detail: 'Update rejected; previous service restored. The attempted update did not complete.', runtimeVersion: 'previous-runtime' }; } } });
 const initial = machines[0]!.profiles!.map((account) => ({ path: '', sessions: [], last_used: 0, signed_in: false, ...account })) as AccountProfile[];
 function Fixture(): JSX.Element {
   const [profiles, setProfiles] = useState<AccountProfile[]>(initial);
@@ -82,7 +87,8 @@ function Fixture(): JSX.Element {
   const [busy, setBusy] = useState(false);
   return <div className={`operations-shell text-size-${params.get('size') ?? 's'}`} data-theme={theme}
     style={{ height: 'auto', minHeight: '100dvh', display: 'block' }}>
-    {screen === 'network' ? <div className="settings-page"><LocalNetworkGuide /></div>
+    {screen === 'remaining-cards' ? <div className="settings-page ui-stack"><NativeRuntimeStatusCard /><NotificationDeliveryCard hostName="Studio Mac" status={null} error="Computer unavailable. Delivery is unverified." /><IdleCompactionCard clientOnly hostName="Studio Mac" /><MachineRecoveryNotice machine="Studio Mac" local={false} discovering={false} recovered={0} expected={3} busy={false} detail="The connection was interrupted; saved sessions remain visible." onRecover={() => {}} /></div>
+      : screen === 'network' ? <div className="settings-page"><LocalNetworkGuide /></div>
       : screen === 'menu' ? <SettingsMenu textSize="S" onTextSizeChange={() => {}} initiallyOpen />
       : screen.startsWith('accounts') ? <AccountsPanel profiles={profiles} machineName="This Mac" serverId="local" onReload={setProfiles} />
       : screen === 'connections' ? <ConnectionsView />

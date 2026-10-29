@@ -1,3 +1,4 @@
+import { Surface, PageHeader } from './ui/Layout';
 import { useEffect, useRef, useState } from 'react';
 import { fetchIdleCompaction, updateIdleCompaction, type IdleCompactionStatus } from '../api/sessionsd';
 
@@ -53,8 +54,8 @@ export function IdleCompactionCard({ clientOnly, hostName }: Props): JSX.Element
 
   const summary = status ? plannedSummary(status) : null;
   return (
-    <div className="settings-card">
-      <h2>Compact idle Claude sessions</h2>
+    <Surface className="settings-card settings-status-card">
+      <PageHeader level={2} title="Compact idle Claude sessions" />
       <p>
         Claude’s prompt cache lasts about an hour on a subscription and five minutes with an API key. When this is on,
         Sessions sends <code>/compact</code> to an idle Claude session of at least 100,000 tokens two minutes before its
@@ -75,6 +76,6 @@ export function IdleCompactionCard({ clientOnly, hostName }: Props): JSX.Element
       </label>
       {summary ? <div className="settings-message" role="status">{summary}</div> : null}
       {message ? <div className="settings-message" role="status">{message}</div> : null}
-    </div>
+    </Surface>
   );
 }

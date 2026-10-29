@@ -60,20 +60,22 @@ export function FleetMachineAccounts(
 ): JSX.Element {
   const login = useGuidedAccountLogin({ serverId, onOpenSession, onReload });
   return (
-    <div className="fleet-machine-meta fleet-machine-accounts">
+    <div className="fleet-machine-accounts ui-stack">
       <strong>Accounts</strong>
       {profiles.length === 0 && elsewhere.length === 0 ? <span>Default account only</span> : null}
       {profiles.map((account) => (
-        <span key={`${account.tool}:${account.name}`} className="fleet-account">
-          <strong>{accountLabel(account)}</strong>
-          {account.tool === 'claude' ? 'Claude' : 'Codex'}
+        <div key={`${account.tool}:${account.name}`} className="fleet-account">
+          <div className="fleet-account-identity"><strong>{accountLabel(account)}</strong>
+          {account.tool === 'claude' ? 'Claude' : 'Codex'}</div>
           <AccountLoginState account={account} />
-        </span>
+        </div>
       ))}
+      {elsewhere.length ? <details className="fleet-account-offers"><summary>Accounts on other computers ({elsewhere.length})</summary>
+      <p>Choose an account to sign in on {machineName}.</p>
       {elsewhere.map((account) => (
-        <span key={`${account.tool}:${account.name}`} className="fleet-account is-missing">
-          <strong>{account.label}</strong>
-          {account.tool === 'claude' ? 'Claude' : 'Codex'}
+        <div key={`${account.tool}:${account.name}`} className="fleet-account is-missing">
+          <div className="fleet-account-identity"><strong>{account.label}</strong>
+          {account.tool === 'claude' ? 'Claude' : 'Codex'} · On {account.machines.join(', ')}</div>
           <Button
             type="button"
             variant="ghost"
@@ -83,8 +85,9 @@ export function FleetMachineAccounts(
           >
             Log in here too
           </Button>
-        </span>
+        </div>
       ))}
+      </details> : null}
       {login.signingInFor ? (
         <SigningInCard
           account={login.signingInFor}

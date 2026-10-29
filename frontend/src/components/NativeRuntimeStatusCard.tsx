@@ -1,3 +1,4 @@
+import { Surface, PageHeader } from './ui/Layout';
 import { useEffect, useState } from 'react';
 import { getNativeRuntimeStatus, isTauri, type NativeRuntimeStatus } from '../lib/tauriBridge';
 
@@ -26,8 +27,8 @@ export function NativeRuntimeStatusCard(): JSX.Element | null {
   }, [native]);
   if (!native) return null;
   return (
-    <div className="settings-card" aria-label="Local background service">
-      <h2>Background service on this computer</h2>
+    <Surface className="settings-card settings-status-card" aria-label="Local background service">
+      <PageHeader level={2} title="Background service on this computer" />
       <p>This is the app’s local installation status, even when you are viewing another computer.</p>
       <div role="status" aria-live="polite">
         {error ? <p>Installation status unavailable: {error}</p> : <>
@@ -36,6 +37,6 @@ export function NativeRuntimeStatusCard(): JSX.Element | null {
         </>}
       </div>
       <p>Checking this status does not restart the service or any lane.</p>
-    </div>
+    </Surface>
   );
 }

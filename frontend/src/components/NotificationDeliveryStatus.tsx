@@ -1,3 +1,4 @@
+import { Surface, PageHeader } from './ui/Layout';
 import { useEffect, useState } from 'react';
 import { fetchNotificationDeliveryStatus, type NotificationDeliveryStatus as DeliveryStatus } from '../api/sessionsd';
 
@@ -25,8 +26,8 @@ export function NotificationDeliveryStatus({ serverId, hostName }: { serverId: s
 export function NotificationDeliveryCard({ status, error, hostName }: { status: DeliveryStatus | null; error: string | null; hostName: string }): JSX.Element {
   const enabled = status ? [status.notify.done && 'Completed work', status.notify.waiting && 'Waiting for you', status.notify.lost && 'Lost contact'].filter(Boolean) : [];
   return (
-    <div className="settings-card" aria-label="Push delivery status">
-      <h2>Web push notifications</h2>
+    <Surface className="settings-card settings-status-card" aria-label="Push delivery status">
+      <PageHeader level={2} title="Web push notifications" />
       <p>Preferences and a receiving device are both needed for push alerts from {hostName}.</p>
       {error ? <p role="status">Could not check delivery: {error} No notification setting was changed.</p> : !status ? <p role="status">Checking preferences and receiving devices…</p> : (
         <>
@@ -37,6 +38,6 @@ export function NotificationDeliveryCard({ status, error, hostName }: { status: 
           {!status.subscribed ? <p>On the device that should receive alerts, open this computer’s Sessions web view over HTTPS, then turn on Push notifications in the settings menu and allow the browser’s notification request. Native app notifications are separate.</p> : null}
         </>
       )}
-    </div>
+    </Surface>
   );
 }

@@ -36,9 +36,14 @@ try {
   for (const theme of ['dark', 'light']) {
     for (const [width, height] of [[1280, 1000], [375, 812]]) {
       await page.setViewport({ width, height, isMobile: width === 375, hasTouch: width === 375 });
-      for (const screen of ['accounts', 'accounts-empty', 'general', 'agents', 'support', 'notifications', 'storage', 'connections', 'connect', 'connect-mobile', 'fleet', 'network', 'dialog']) {
+      for (const screen of (process.env.UI_ONLY_REMAINING ? ['fleet', 'remaining-cards'] : ['remaining-cards', 'accounts', 'accounts-empty', 'general', 'agents', 'support', 'notifications', 'storage', 'connections', 'connect', 'connect-mobile', 'fleet', 'network', 'dialog'])) {
         await page.goto(`http://127.0.0.1:${server.address().port}/?theme=${theme}&screen=${screen}`, { waitUntil: 'networkidle0' });
         if (screen !== 'dialog') await page.waitForSelector('.ui-header');
+        if (screen === 'remaining-cards') {
+          await page.waitForFunction(() => document.body.textContent.includes('previous service restored'));
+          assert.ok(await page.$('[aria-label="Local background service"]'));
+          assert.match(await page.$eval('body', el => el.textContent), /Delivery is unverified/);
+        }
         if (screen === 'dialog') {
           await page.click('button');
           await page.waitForSelector('[data-modal-dialog]');
@@ -58,11 +63,19 @@ try {
           }).map((el) => el.outerHTML));
           assert.deepEqual(small, [], `${screen} coarse targets`);
         }
-        if (process.env.UI_SCREENSHOT_DIR) {
+        if (process.env.UI_SCREENSHOT_DIR && (!process.env.UI_SCREENSHOT_SCREEN || screen === process.env.UI_SCREENSHOT_SCREEN)) {
           const contentHeight = await page.evaluate(() => Math.max(document.documentElement.scrollHeight, document.querySelector('.operations-shell').scrollHeight));
           await page.setViewport({ width, height: Math.min(contentHeight, 6000), isMobile: width === 375, hasTouch: width === 375 });
           await page.screenshot({ path: join(process.env.UI_SCREENSHOT_DIR, `${screen}-${theme}-${width}.png`), fullPage: true });
           await page.setViewport({ width, height, isMobile: width === 375, hasTouch: width === 375 });
+        }
+        if (screen === 'fleet') {
+          await page.focus('.fleet-account-offers summary');
+          await page.keyboard.press('Enter');
+          assert.equal(await page.$eval('.fleet-account-offers', el => el.open), true);
+          assert.ok(await page.$('.fleet-account.is-missing .ui-button'));
+          await page.keyboard.press('Enter');
+          assert.equal(await page.$eval('.fleet-account-offers', el => el.open), false);
         }
         if (screen === 'dialog') {
           await page.keyboard.press('Escape');
@@ -81,6 +94,11 @@ try {
         assert.deepEqual(mutations, [], 'fake visual inspection never changes account/provider/network state');
       }
     }
+  }
+  for (const screen of ['fleet', 'remaining-cards']) {
+    await page.goto(`http://127.0.0.1:${server.address().port}/?theme=light&screen=${screen}&size=l`, {waitUntil:'networkidle0'});
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `${screen} large text fits`);
+    if (process.env.UI_SCREENSHOT_DIR) await page.screenshot({ path: join(process.env.UI_SCREENSHOT_DIR, `${screen}-light-375-large.png`), fullPage: true });
   }
   // Large shell scaling follows portaled dialog, preserving keyboard containment.
   for (const size of ['m', 'l']) {
