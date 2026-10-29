@@ -1,6 +1,6 @@
 import { Select, Input } from './ui/Field';
 import { Button } from './ui/Button';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import {
   fetchAISettings,
   getPushVapidPublicKey,
@@ -108,6 +108,8 @@ export function SettingsMenu({ clientOnly = false, hostName = 'this computer', t
   const [aiAvailable, setAIAvailable] = useState(true);
   const [aiMessage, setAIMessage] = useState<string | null>(null);
   const [sessionDefaults, setSessionDefaults] = useState<NewSessionDefaults>(readNewSessionDefaults);
+  const panelId = useId();
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const aiGeneration = useRef(0);
 
@@ -288,13 +290,18 @@ export function SettingsMenu({ clientOnly = false, hostName = 'this computer', t
   };
 
   return (
-    <div className="settings-menu" ref={wrapRef}>
+    <div className="settings-menu" ref={wrapRef} onKeyDown={(event) => {
+      if (event.key === 'Escape' && open && !event.defaultPrevented) {
+        event.preventDefault(); event.stopPropagation(); setOpen(false); triggerRef.current?.focus();
+      }
+    }}>
       <Button
         type="button"
         className="settings-menu-trigger"
         aria-label="Settings"
         onClick={() => setOpen((v) => !v)}
-        aria-haspopup="menu"
+        ref={triggerRef}
+        aria-controls={open ? panelId : undefined}
         aria-expanded={open}
         title="Settings"
       >
@@ -302,7 +309,7 @@ export function SettingsMenu({ clientOnly = false, hostName = 'this computer', t
         {updateInfo ? <span className="settings-update-dot" aria-label={`Sessions ${updateInfo.version} available`} /> : null}
       </Button>
       {open ? (
-        <div className="settings-menu-popover" role="menu">
+        <div id={panelId} className="settings-menu-popover" role="group" aria-label="Settings">
           {onNewSession ? (
             <Button
               type="button"

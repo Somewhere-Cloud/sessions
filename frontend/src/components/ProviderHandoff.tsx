@@ -1,3 +1,4 @@
+import { Button } from './ui/Button';
 import { lazy, Suspense, useState } from 'react';
 import type { SessionInfo } from '../types';
 
@@ -9,7 +10,7 @@ export function ProviderHandoff({ session, serverId, onOpen }: {
   const [open, setOpen] = useState(false);
   if (!['claude-structured', 'codex-app-server'].includes(session.kind ?? '')) return null;
   return <>
-    <button type="button" className="view-toggle-btn" onClick={() => setOpen(true)}>Switch provider…</button>
+    <Button variant="ghost" size="compact" className="view-toggle-btn" onClick={() => setOpen(true)}>Switch provider…</Button>
     {open ? <Suspense fallback={<span role="status">Loading provider switch…</span>}>
       <HandoffDialog session={session} serverId={serverId} onOpen={onOpen} onClose={() => setOpen(false)} />
     </Suspense> : null}

@@ -84,13 +84,13 @@
   right: 0;
   z-index: 50;
   min-width: 260px;
-  width: min(420px, calc(100vw - 24px));
+  width: min(420px, calc(100vw * var(--interface-scale-inverse, 1) - 32px));
   background: var(--bg-elev-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
   padding: 8px;
-  max-height: calc(100vh - 56px);
+  max-height: calc(100dvh * var(--interface-scale-inverse, 1) - 72px);
   overflow-y: auto;
 }
 .settings-menu-row {

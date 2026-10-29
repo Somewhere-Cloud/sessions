@@ -50,6 +50,7 @@ const GATE = [
   'workspace-ux',
   'project-groups',
   'launcher-layout',
+  'launcher-onboarding',
   'ui-foundation',
   'provider-handoff',
   'shell-ui',

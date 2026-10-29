@@ -1,5 +1,6 @@
 import { Button, IconButton } from './ui/Button';
-import { Field, Select } from './ui/Field';
+import { ModalDialog } from './ui/ModalDialog';
+import { Field, Select, Textarea } from './ui/Field';
 import { PageHeader } from './ui/Layout';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSessions } from '../store/sessions';
@@ -270,15 +271,16 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
   const startIdsRef = useRef<StartOperationIds | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [createdWithDeliveryError, setCreatedWithDeliveryError] = useState<string | null>(null);
+
   useEffect(() => {
+    if (!embedded) return;
     const closeOnEscape = (event: KeyboardEvent): void => {
       if (event.key !== 'Escape' || event.defaultPrevented) return;
-      event.preventDefault();
-      onClose();
+      event.preventDefault(); onClose();
     };
     window.addEventListener('keydown', closeOnEscape);
     return () => window.removeEventListener('keydown', closeOnEscape);
-  }, [onClose]);
+  }, [embedded, onClose]);
 
   const profileTool = providerForTool(tool);
   const toolProfiles = profiles.filter((profile) => profile.tool === profileTool);
@@ -563,7 +565,7 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
           </div>
         </header>
         <div className="dialog-body">
-          <section className="launcher-hero"><PageHeader level={2}
+          <section className="launcher-hero"><PageHeader level={2} titleId="new-session-title"
             title={isDelegate ? 'Delegate a task' : 'What would you like to work on?'}
             description={isDelegate ? 'Give it one focused job. It stays linked to its parent.' : 'Choose a project and an agent. Make something yours.'} />
           </section>
@@ -620,7 +622,7 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
           ) : null}
           <div className="field launcher-task-field launcher-composer input-composer">
             <span className="sr-only">First request (optional)</span>
-            <textarea
+            <Textarea
               className="input-textarea"
               value={task}
               aria-label="First request (optional)"
@@ -665,7 +667,7 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
                         onChange={(event) => {
                           setAccess(event.currentTarget.value as AccessChoice);
                         }}
-                        aria-label="Access"
+                        aria-label="Access" aria-describedby="launcher-access-help"
                         title={access === 'full' ? 'Runs commands and edits files without asking' : access === 'plan' ? 'Reads and plans; makes no changes' : 'Asks you before running commands or changing files'}
                       >
                         <option value="full">Full access</option>
@@ -683,6 +685,7 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
               </div>
             </div>
           </div>
+          {tool !== 'shell' ? <span className="field-help" id="launcher-access-help">{access === 'full' ? 'Full access: runs commands and edits files without asking.' : access === 'plan' ? 'Plan: reads and plans without making changes.' : 'Ask me: asks before running commands or changing files.'}</span> : null}
           <span className="launcher-send-hint">Enter sends · Shift+Enter adds a line</span>
           {requiresProviderLogin ? <span className="field-help">Finish the new account login first. Sessions will keep this request here instead of sending it into a login screen.</span> : null}
           {isDelegate ? (
@@ -765,11 +768,11 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
               ) : null}
             </div>
           </details>
-          {error ? <div className="dialog-error">{error}</div> : null}
+          {error ? <div className="dialog-error" role="alert">{error}</div> : null}
         </div>
       </form>
   );
   return embedded
     ? <section className="new-session-surface">{launcher}</section>
-    : <div className="dialog-backdrop" onClick={onClose}>{launcher}</div>;
+    : <ModalDialog className="dialog new-session-modal" labelledBy="new-session-title" onClose={onClose}>{launcher}</ModalDialog>;
 }

@@ -206,3 +206,20 @@ focus return and no mutations from browsing. Set `UI_SCREENSHOT_DIR` to capture
 local evidence. Existing search-rollup, conversation-browser, resume-layout and
 capability suites cover operation payloads and content behavior. Chromium does
 not establish installed native, WebKit or assistive-technology acceptance.
+
+## Launcher and onboarding reviews
+
+The New session modal and onboarding gate use ModalDialog for keyboard focus,
+owned model portals and theme inheritance. The embedded launcher remains a
+workspace surface. Onboarding retains its explicit machine-consent choices and
+optional account step; shared buttons and labelled fields do not grant consent.
+PaidStartPlan keeps its specialized model picker with native radio groups for
+agent/runtime choices and the shared effort Select. Reviewing a plan starts no
+paid work. SettingsMenu contains a labelled form group with normal Tab navigation
+and Escape focus return; SessionActionsMenu retains its native disclosure.
+
+`npm run test:launcher-onboarding` mounts production components over the in-process
+fake daemon in dark/light, desktop/375px and enlarged text. It checks focus return,
+radio arrow keys, explicit consent payloads and absence of mutations while browsing.
+Set `UI_SCREENSHOT_DIR` to an existing directory for screenshots. Native/provider,
+OS permission prompts and assistive-technology acceptance remain unverified.

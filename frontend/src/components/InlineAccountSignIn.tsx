@@ -1,3 +1,4 @@
+import { Button } from './ui/Button';
 import type { AccountProfile } from '../api/sessionsd';
 import { SigningInCard, useGuidedAccountLogin } from './AccountSignIn';
 
@@ -15,10 +16,10 @@ export function InlineAccountSignIn({ tool, serverId, account, onReload, onConne
         if (login.operation?.state === 'connected') onConnected(login.signingInFor!.name);
         login.finishSignIn();
       }}
-    /> : <button type="button" className="btn btn-primary" disabled={login.busy}
+    /> : <Button type="button" variant="primary" className="btn btn-primary" disabled={login.busy}
       onClick={() => { if (account) void login.startLogin(account); else void login.addAccount(tool, '', ''); }}>
       {login.busy ? 'Preparing sign-in…' : `Sign in to ${tool === 'claude' ? 'Claude' : 'ChatGPT'}`}
-    </button>}
+    </Button>}
     {login.message ? <p role="status">{login.message}</p> : null}
   </div>;
 }

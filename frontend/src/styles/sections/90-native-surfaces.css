@@ -577,22 +577,12 @@
 /* First-run consent is a product boundary, not a dismissible marketing
  * modal. It deliberately covers the app until the user makes one explicit
  * machine-level choice. */
-.onboarding-gate {
-  position: fixed;
-  z-index: 10000;
-  inset: 0;
-  display: grid;
-  overflow-y: auto;
-  padding: clamp(24px, 6vw, 72px) 20px;
-  background:
-    radial-gradient(circle at 50% 12%, rgba(45, 212, 191, .14), transparent 32rem),
-    rgba(7, 9, 9, .96);
-  place-items: center;
-}
 .onboarding-card {
   display: flex;
   width: min(620px, 100%);
-  min-height: 610px;
+  min-height: min(610px, calc(100dvh - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
   padding: clamp(26px, 5vw, 48px);
   border: 1px solid var(--border-strong);
   border-radius: 22px;
@@ -631,15 +621,7 @@
   letter-spacing: .1em;
   text-transform: uppercase;
 }
-.onboarding-card h1 {
-  max-width: 520px;
-  margin: 10px 0 16px;
-  color: var(--fg);
-  font-size: clamp(34px, 5vw, 48px);
-  line-height: 1.04;
-  letter-spacing: -.04em;
-}
-.onboarding-lede { max-width: 530px; margin: 0; color: var(--fg-dim); font-size: 16px; line-height: 1.6; }
+.onboarding-card .ui-header { margin: 12px 0 16px; }
 .onboarding-facts { display: grid; gap: 10px; margin: 28px 0; }
 .onboarding-facts > div {
   display: grid;
@@ -655,18 +637,13 @@
 .onboarding-privacy-note { display: grid; gap: 7px; margin: 25px 0 18px; padding: 16px; border: 1px solid var(--accent-border-soft); border-radius: var(--radius-md); background: var(--accent-bg-soft); }
 .onboarding-privacy-note strong { color: var(--fg); font-size: 14px; }
 .onboarding-privacy-note span { color: var(--fg-dim); font-size: 14px; line-height: 1.5; }
-.onboarding-error { margin-bottom: 12px; padding: 10px 12px; border: 1px solid rgba(239, 68, 68, .35); border-radius: var(--radius); background: rgba(239, 68, 68, .08); color: #fca5a5; font-size: 13px; }
 .onboarding-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: auto; }
-.onboarding-actions .btn { min-height: 42px; }
-.onboarding-back { align-self: flex-start; margin-top: 14px; padding: 0; border: 0; background: transparent; color: var(--fg-dim); cursor: pointer; }
+.onboarding-back { align-self: flex-start; margin-top: 14px; border: 0; background: transparent; color: var(--fg-dim); cursor: pointer; }
 .onboarding-back:hover { color: var(--fg); }
 .onboarding-footnote { display: block; margin-top: 18px; color: var(--fg-faint); font-size: 12px; line-height: 1.5; }
-.onboarding-status { margin-bottom: 16px; color: var(--fg-dim); font-size: 13px; line-height: 1.45; }
 .onboarding-account-fields,
 .fleet-account-form { display: grid; gap: 9px; margin: 0 0 16px; }
-.onboarding-account-fields input,
 :where(.fleet-account-form) input { min-height: 40px; padding: 0 12px; border: 1px solid var(--border-strong); border-radius: var(--radius); outline: none; background: var(--bg-base); color: var(--fg); }
-.onboarding-account-fields input:focus,
 :where(.fleet-account-form) input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
 .fleet-account-card { display: grid; gap: 14px; padding: 20px; }
 .fleet-account-card p { margin: 7px 0 0; color: var(--fg-dim); font-size: 13px; line-height: 1.5; }
@@ -690,9 +667,7 @@
 }
 
 @media (max-width: 680px) {
-  .onboarding-gate { align-items: start; padding: 0; }
-  .onboarding-card { min-height: 100%; padding: 28px 22px; border: 0; border-radius: 0; }
-  .onboarding-card h1 { font-size: 36px; }
+  .onboarding-card { min-height: 0; padding: 28px 22px; border: 0; border-radius: 0; }
   .onboarding-facts > div { grid-template-columns: 1fr; gap: 5px; }
   .onboarding-actions { flex-direction: column; }
   .onboarding-actions .btn { width: 100%; }

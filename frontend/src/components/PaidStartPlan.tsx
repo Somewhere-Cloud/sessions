@@ -1,3 +1,5 @@
+import { useId } from 'react';
+import { Select } from './ui/Field';
 import type { ReactNode } from 'react';
 import type { SessionModelOption } from '../api/sessionsd';
 import type { PaidStartPlanState, PaidStartProvider } from '../hooks/usePaidStartPlan';
@@ -35,26 +37,34 @@ function PlanChoice({ label, children }: { label: string; children: ReactNode })
 }
 
 function AgentChoice({ plan, disabled }: { plan: PaidStartPlanState; disabled: boolean }): JSX.Element {
+  const name = useId();
   return (
     <PlanChoice label="Agent">
-      <div className="paid-start-segments" role="radiogroup" aria-label="Agent">
+      <fieldset className="paid-start-segments" aria-label="Agent">
         {(['claude', 'codex'] as const).map((provider) => (
-          <button type="button" role="radio" aria-checked={plan.destination === provider} className={plan.destination === provider ? 'is-active' : ''} disabled={disabled} onClick={() => plan.setDestination(provider)} key={provider}>
-            {paidStartProviderName(provider)}
-          </button>
+          <label className={plan.destination === provider ? 'is-active' : ''} key={provider}>
+            <input type="radio" name={name} checked={plan.destination === provider} disabled={disabled} onChange={() => plan.setDestination(provider)} />
+            <span>{paidStartProviderName(provider)}</span>
+          </label>
         ))}
-      </div>
+      </fieldset>
     </PlanChoice>
   );
 }
 
 function RuntimeChoice({ plan, disabled }: { plan: PaidStartPlanState; disabled: boolean }): JSX.Element {
+  const name = useId();
   return (
     <PlanChoice label="Runtime">
-      <div className="paid-start-segments" role="radiogroup" aria-label="Runtime">
-        <button type="button" role="radio" aria-checked={plan.runtime === 'rich'} className={plan.runtime === 'rich' ? 'is-active' : ''} disabled={disabled} onClick={() => plan.setRuntime('rich')}>Rich</button>
-        <button type="button" role="radio" aria-checked={plan.runtime === 'terminal'} className={plan.runtime === 'terminal' ? 'is-active' : ''} disabled={disabled || !plan.terminalAvailable} title={plan.terminalAvailable ? undefined : 'Copied history starts in Rich'} onClick={() => plan.setRuntime('terminal')}>Terminal</button>
-      </div>
+      <fieldset className="paid-start-segments" aria-label="Runtime">
+        <label className={plan.runtime === 'rich' ? 'is-active' : ''}>
+          <input type="radio" name={name} checked={plan.runtime === 'rich'} disabled={disabled} onChange={() => plan.setRuntime('rich')} /><span>Rich</span>
+        </label>
+        <label className={plan.runtime === 'terminal' ? 'is-active' : ''}>
+          <input type="radio" name={name} checked={plan.runtime === 'terminal'} disabled={disabled || !plan.terminalAvailable} onChange={() => plan.setRuntime('terminal')} /><span>Terminal</span>
+        </label>
+      </fieldset>
+      {!plan.terminalAvailable ? <small>This plan starts in Rich; Terminal is unavailable.</small> : null}
     </PlanChoice>
   );
 }
@@ -77,10 +87,10 @@ function ConfigurationRow({ plan, disabled, allowAgentChoice, compact }: {
       </PlanChoice>
       <PlanChoice label="Effort">
         {efforts.length > 0 ? (
-          <select aria-label="Effort" value={plan.effort} disabled={disabled} onChange={(event) => plan.setEffort(event.currentTarget.value)}>
+          <Select aria-label="Effort" value={plan.effort} disabled={disabled} onChange={(event) => plan.setEffort(event.currentTarget.value)}>
             {!selectedModel?.defaultReasoningEffort ? <option value="">Provider default</option> : null}
             {efforts.map((option) => <option value={option.reasoningEffort} key={option.reasoningEffort}>{option.reasoningEffort}</option>)}
-          </select>
+          </Select>
         ) : <strong>{plan.effort || 'Provider default'}</strong>}
       </PlanChoice>
       {!compact ? <RuntimeChoice plan={plan} disabled={disabled} /> : null}
