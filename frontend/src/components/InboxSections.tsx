@@ -1,4 +1,4 @@
-import { SessionActivityGroups } from './SessionActivityGroups';
+import { SessionActivityGroups, WorkingObservation, isObservedWorking } from './SessionActivityGroups';
 import { useId, useState, type JSX } from 'react';
 import type { SessionInfo } from '../types';
 import { type InboxLayout, type InboxSection, type ProviderFaultNotice, notConnectedReason } from '../lib/inboxSections';
@@ -30,7 +30,10 @@ interface Props {
 // navigator's own renderer so pins, drag, menus, and child folding behave the
 // same everywhere; this component only decides where each row sits.
 export function InboxSections({ layout, activeSessionId, renderNode, onOpen, onShowAllNeedsYou, folderOf, relativeTime, lastActivity, providerNotices = [], onOpenProviderFault, projectLabelOf }: Props) {
-  const sections = layout.other ? [...layout.sections, layout.other] : layout.sections;
+  const original = layout.flat ? [layout.flat] : layout.other ? [...layout.sections, layout.other] : layout.sections;
+  const working = original.flatMap((section) => section.live.filter(isObservedWorking).map((session) => ({ session, project: projectLabelOf?.(session) || section.name })));
+  const sections = original.map((section) => ({ ...section, live: section.live.filter((session) => !isObservedWorking(session)) }))
+    .filter((section) => section.live.length || section.notConnected.length || section.finished.length);
   return (
     <>
       <ProviderFaultBanners notices={providerNotices} onOpen={onOpenProviderFault} />
@@ -72,8 +75,11 @@ export function InboxSections({ layout, activeSessionId, renderNode, onOpen, onS
           ) : null}
         </div>
       ) : null}
+      <SessionActivityGroups items={working} sessionOf={(row) => row.session} renderItem={({ session, project }) => <div key={session.id}>
+        {renderNode(session, false, project)}<WorkingObservation session={session} />
+      </div>} />
       {layout.flat
-        ? <RecentList section={layout.flat} renderNode={renderNode} projectLabelOf={projectLabelOf} />
+        ? sections[0] ? <RecentList section={sections[0]} renderNode={renderNode} projectLabelOf={projectLabelOf} /> : null
         : sections.map((section) => (
           <ProjectSection key={section.id} section={section} activeSessionId={activeSessionId} renderNode={renderNode} />
         ))}
@@ -149,7 +155,7 @@ function RecentList({ section, renderNode, projectLabelOf }: {
     renderNode(session, ended, projectLabelOf?.(session));
   return (
     <div className="session-tree-group inbox-recent" role="group" aria-label="Sessions, most recent first">
-      <SessionActivityGroups items={section.live} sessionOf={(session) => session} renderItem={(session) => row(session)} />
+      {section.live.map((session) => row(session))}
       {section.live.length === 0 && section.notConnected.length === 0
         ? <div className="session-tree-empty is-compact">Nothing live here.</div>
         : null}
@@ -192,7 +198,7 @@ function ProjectSection({ section, activeSessionId, renderNode }: { section: Inb
       </button>
       <div id={rowsId} hidden={!open}>{open ? (
         <>
-          <SessionActivityGroups items={showAll ? section.live : preview} sessionOf={(session) => session} renderItem={(session) => renderNode(session)} />
+          {(showAll ? section.live : preview).map((session) => renderNode(session))}
           {remaining > 0 ? <button type="button" className="inbox-fold project-preview-toggle" aria-expanded={showAll} aria-controls={rowsId} onClick={() => setShowAll((current) => !current)}>
             {showAll ? 'Show fewer agents' : `Show ${remaining} remaining agents`}
           </button> : null}

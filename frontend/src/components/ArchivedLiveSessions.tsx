@@ -22,14 +22,14 @@ export function ArchivedLiveSessions({ snapshots, projects, matches, activeMachi
   const groups = groupAgents(snapshots, projects, false, matches, 'archived');
   const count = groups.reduce((sum, group) => sum + group.rows.length, 0);
   if (!count) return null;
-  return <section className="session-tree-group" aria-label="Archived live sessions">
+  return <section className="session-tree-group" aria-label="Set aside">
     <button type="button" className="session-tree-group-head" aria-expanded={open} onClick={() => setExpanded(!open)}>
-      <span>Settled</span><strong>{count}</strong>
+      <span>Set aside</span><strong>{count}</strong>
     </button>
     {open ? <>
-      <p className="session-tree-empty is-compact">Conversations set aside manually or by auto archive. Open one to restore it. Runners and drafts stay intact.</p>
+      <p className="session-tree-empty is-compact">Conversations set aside manually or by auto archive. Open one to pick up where you left off. Runners and drafts stay intact.</p>
       <Suspense fallback={<p role="status">Loading archived sessions…</p>}>
-        <ProjectAgents groups={groups} activeMachineId={activeMachineId} compact={false} renderLocal={renderLocal} onOpen={onOpen} />
+        <ProjectAgents organizeWorking={false} groups={groups} activeMachineId={activeMachineId} compact={false} renderLocal={renderLocal} onOpen={onOpen} />
       </Suspense>
     </> : null}
   </section>;

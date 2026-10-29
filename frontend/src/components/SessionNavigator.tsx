@@ -32,7 +32,7 @@ import {
 import { navigatorRowId, navigatorSessions as visibleNavigatorSessions } from '../lib/sessionNavigation';
 import { useSessions } from '../store/sessions';
 import { MachineMark } from './MachineMark';
-import { serverDisplayName, useServers, type ServerConfig } from '../lib/servers';
+import { serverDisplayName, useServers } from '../lib/servers';
 import { useFleetSessions, type FleetSessionSnapshot } from '../hooks/useFleetSessions';
 import { useProjects } from '../hooks/useProjects';
 import { buildInboxLayout, buildProviderFaultNotices, type ProviderFaultNotice, type SessionGrouping } from '../lib/inboxSections';
@@ -51,6 +51,7 @@ const RECENTLY_ENDED_DAYS = 7;
 const RECENTLY_ENDED_LIMIT = 20;
 const MACHINE_SCOPE_KEY = 'sessions:projects-machine-scope';
 const GROUPING_KEY = 'sessions:navigator-grouping';
+const CONNECTION_KEY = 'sessions:navigator-connection';
 const ALL_MACHINES_SCOPE = 'all-machines';
 
 type MachineScope = typeof ALL_MACHINES_SCOPE | string;
@@ -221,7 +222,12 @@ export function SessionNavigator({
     : remoteSnapshots.find((snapshot) => snapshot.server.id === server.id) ?? { server, sessions: [], loading: true, error: null });
   const { projects: fleetProjects, incomplete: incompleteProjects } = useFleetProjects(configuredMachines, showingAllMachines);
   const [primary, setPrimary] = useState<PrimaryFilter>('all');
-  const [remoteOnly, setRemoteOnly] = useState(false);
+  const [remoteOnly, setRemoteOnly] = useState(() => {
+    try { return window.localStorage.getItem(CONNECTION_KEY) === 'remote-control'; } catch { return false; }
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem(CONNECTION_KEY, remoteOnly ? 'remote-control' : 'conversations'); } catch { /* preference only */ }
+  }, [remoteOnly]);
   const [provider, setProvider] = useState<ProviderFilter>('all');
   const [project, setProject] = useState('all');
   const [date, setDate] = useState<DateFilter>('all');
@@ -231,7 +237,6 @@ export function SessionNavigator({
   const [movingId, setMovingId] = useState<string | null>(null);
   const [moveError, setMoveError] = useState<string | null>(null);
   const [pinnedOpen, setPinnedOpen] = useState(true);
-  const [runningOpen, setRunningOpen] = useState(true);
   const [endedOpen, setEndedOpen] = useState(false);
   const [showAllEnded, setShowAllEnded] = useState(false);
   const [selectingEnded, setSelectingEnded] = useState(false);
@@ -323,7 +328,6 @@ export function SessionNavigator({
   useEffect(() => {
     const searching = query.trim() !== '';
     if (searching || primary === 'needs' || primary === 'working') {
-      setRunningOpen(true);
       setPinnedOpen(true);
     }
     if (searching || primary === 'ended') setEndedOpen(true);
@@ -397,14 +401,14 @@ export function SessionNavigator({
       : navigatorSessions.filter((session) => liveIds.has(session.id) || pinnedIds.has(session.id)).length,
     // The Live group's own rows. The pinned ones are counted under Pinned.
     liveGroup: navigatorSessions.filter((session) => liveIds.has(session.id)).length,
-    working: scopedSessions.filter((session) => usesClaudeRemoteControl(session) === remoteOnly && session.working && !session.exited).length
+    working: scopedSessions.filter((session) => usesClaudeRemoteControl(session) === remoteOnly && classifySession(session).state === 'working').length
   }), [liveIds, navigatorSessions, pinnedIds, remoteOnly, scopedSessions, showingAllMachines]);
 
   const matches = (session: SessionInfo, serverId = localServerId): boolean => {
     if (!sessionMatchesWindowScope(session)) return false;
     if (usesClaudeRemoteControl(session) !== remoteOnly) return false;
     if (primary === 'needs' && !sessionNeedsYou(session)) return false;
-    if (primary === 'working' && (!session.working || session.exited)) return false;
+    if (primary === 'working' && classifySession(session).state !== 'working') return false;
     if (primary === 'ended' && !isSavedAgent(session)) return false;
     const normalized = normalizeProvider(session.tool);
     if (provider !== 'all' && (provider === 'shell' ? session.tool !== 'terminal' : normalized !== provider)) return false;
@@ -742,42 +746,44 @@ export function SessionNavigator({
   return (
     <aside className="session-navigator">
       <header className="session-navigator-head">
-        <div><strong>{grouping === 'recent' ? 'Most recent' : 'Projects'}</strong></div>
+        <div><strong>{remoteOnly ? 'Claude Remote Control' : grouping === 'recent' ? 'Most recent' : 'Projects'}</strong></div>
         <div className="session-navigator-actions">
-          <Button size="compact" className="session-continue-action" onClick={onContinue}>Resume</Button>
           <IconButton size="compact" variant="primary" className="session-new-action" onClick={onNew} aria-label="New session" title="Add an agent"><span aria-hidden>＋</span></IconButton>
         </div>
       </header>
-      <GroupingControl grouping={grouping} onChange={selectGrouping} />
-      <MachineScopeFilter
-        machines={configuredMachines}
-        scope={machineScope}
-        showingAll={showingAllMachines}
-        onSelect={selectMachineScope}
-      />
-      <div className="session-nav-search"><span aria-hidden>⌕</span><Input
-        value={query}
-        onChange={(event) => setQuery(event.currentTarget.value)}
-        placeholder="Find a project or agent"
-        aria-label="Filter sessions"
-        onKeyDown={(event) => {
-          // Down from the filter lands on the first matching row.
-          if (event.key !== 'ArrowDown') return;
-          const tree = event.currentTarget.closest('.session-navigator')?.querySelector<HTMLElement>('.session-tree');
-          if (tree && focusTreeRow(tree, null, 'first')) event.preventDefault();
-        }}
-      /></div>
-      {remoteOnly || scopedSessions.some(usesClaudeRemoteControl) ? <div className="session-grouping" role="group" aria-label="Conversation connection">
-        <Button variant="ghost" aria-pressed={!remoteOnly} onClick={() => setRemoteOnly(false)}>Conversations</Button>
-        <Button variant="ghost" aria-pressed={remoteOnly} onClick={() => setRemoteOnly(true)}>Claude Remote Control</Button>
-      </div> : null}
       <div className="session-filter-row" role="toolbar" aria-label="Session status filters">
         <FilterButton label="All" active={primary === 'all'} onClick={() => setPrimary('all')} />
         <FilterButton label={`Needs you${counts.needs ? ` ${counts.needs}` : ''}`} active={primary === 'needs'} onClick={() => setPrimary('needs')} />
         <FilterButton label={`Working${counts.working ? ` ${counts.working}` : ''}`} active={primary === 'working'} onClick={() => setPrimary('working')} />
-        <details className="session-more-filters">
-          <summary aria-label="More filters">⋯</summary>
+        <details className="session-more-filters" onKeyDown={(event) => {
+          if (event.key !== 'Escape') return;
+          event.currentTarget.open = false;
+          event.currentTarget.querySelector('summary')?.focus();
+          event.stopPropagation();
+        }}>
+          <summary aria-label="More filters" title="Search, grouping, computers and filters">{query || provider !== 'all' || project !== 'all' || date !== 'all' || remoteOnly ? '⋯ •' : '⋯'}</summary>
           <div className="session-filter-popover">
+            <div className="session-nav-search"><span aria-hidden>⌕</span><Input
+              value={query}
+              onChange={(event) => setQuery(event.currentTarget.value)}
+              placeholder="Find a project or agent"
+              aria-label="Filter sessions"
+              onKeyDown={(event) => {
+                // Down from the filter lands on the first matching row.
+                if (event.key !== 'ArrowDown') return;
+                const tree = event.currentTarget.closest('.session-navigator')?.querySelector<HTMLElement>('.session-tree');
+                if (tree && focusTreeRow(tree, null, 'first')) {
+                  event.currentTarget.closest('details')?.removeAttribute('open');
+                  event.preventDefault();
+                }
+              }}
+            /></div>
+            <GroupingControl grouping={grouping} onChange={selectGrouping} />
+            {remoteOnly || scopedSessions.some(usesClaudeRemoteControl) ? <div className="session-grouping" role="group" aria-label="Conversation connection">
+              <Button variant="ghost" aria-pressed={!remoteOnly} onClick={() => setRemoteOnly(false)}>Conversations</Button>
+              <Button variant="ghost" aria-pressed={remoteOnly} onClick={() => setRemoteOnly(true)}>Claude Remote Control</Button>
+            </div> : null}
+            <Button variant="ghost" size="compact" onClick={onContinue}>Resume a conversation…</Button>
             <label>Provider<Select value={provider} onChange={(event) => setProvider(event.currentTarget.value as ProviderFilter)}><option value="all">All providers</option><option value="claude">Claude</option><option value="codex">Codex</option><option value="shell">Shell</option></Select></label>
             <label>Computer<Select value={machineScope} onChange={(event) => selectMachineScope(event.currentTarget.value)}><option value={ALL_MACHINES_SCOPE}>All machines</option>{configuredMachines.map((configured) => <option key={configured.id} value={configured.id}>{serverDisplayName(configured, true)}</option>)}</Select></label>
             <label>Project<Select value={project} onChange={(event) => setProject(event.currentTarget.value)}><option value="all">All projects</option>{projects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></label>
@@ -821,13 +827,8 @@ export function SessionNavigator({
         ) : null}
         {showingAllMachines ? <ProviderFaultBanners notices={providerFaultNotices} onOpen={openProviderFault} /> : null}
         {showingAllMachines && primary !== 'ended' ? <div className="session-tree-group session-fleet-scope-group">
-          <button type="button" className="session-tree-group-head" onClick={() => setRunningOpen((current) => !current)}>
-            <span className="session-group-disclosure"><DisclosureChevron open={runningOpen} /> Agents</span>
-          </button>
-          {runningOpen ? (
-            <>
-              <Suspense fallback={<div className="session-tree-empty is-compact">Loading agents…</div>}><ProjectAgents groups={agentGroups} activeMachineId={activeMachineId} activeSessionId={activeRowId} compact={grouping === 'project'}
-                renderLocal={(row) => renderNode(row.session)} onOpen={onOpenMachineSession}
+          <Suspense fallback={<div className="session-tree-empty is-compact">Loading agents…</div>}><ProjectAgents groups={agentGroups} activeMachineId={activeMachineId} activeSessionId={activeRowId} compact={grouping === 'project'}
+                renderLocal={(row) => renderNode(row.session, false, row.projectName)} onOpen={onOpenMachineSession}
                 onAdd={grouping === 'project' && onAddProjectAgent ? (row) => onAddProjectAgent(row.server.id, row.session.cwd, { ...row.session.tags }) : undefined} /></Suspense>
               {fleetSnapshots.some((snapshot) => snapshot.loading) ? <div className="session-tree-empty is-compact">Loading agents…</div> : null}
               {incompleteProjects ? <p role="status" className="session-tree-empty is-compact">Some project names could not be refreshed. Known agents remain visible, grouped by folder where needed.</p> : null}
@@ -835,8 +836,6 @@ export function SessionNavigator({
               {agentGroups.length === 0 && fleetSnapshots.every((snapshot) => !snapshot.loading && !snapshot.error)
                 ? <div className="session-tree-empty is-compact">Add an agent to start working together. Saved conversations are under Resume.</div>
                 : null}
-            </>
-          ) : null}
         </div> : null}
         {showingAllMachines && primary !== 'working' && primary !== 'needs' ? <div className="session-tree-group session-fleet-scope-group">
           <button type="button" className="session-tree-group-head" onClick={() => setEndedOpen((current) => !current)}>
@@ -845,7 +844,7 @@ export function SessionNavigator({
           {endedOpen ? (
             <>
               <p className="session-tree-empty is-compact">Saved conversations, including agents that need reconnecting. Opening one does not restart it.</p>
-              <Suspense fallback={<div className="session-tree-empty is-compact">Loading saved conversations…</div>}><ProjectAgents groups={savedGroups.map((group) => ({ ...group, rows: showAllEnded ? group.rows : group.rows.slice(0, 3) }))} activeMachineId={activeMachineId} compact={false}
+              <Suspense fallback={<div className="session-tree-empty is-compact">Loading saved conversations…</div>}><ProjectAgents organizeWorking={false} groups={savedGroups.map((group) => ({ ...group, rows: showAllEnded ? group.rows : group.rows.slice(0, 3) }))} activeMachineId={activeMachineId} compact={false}
                 renderLocal={(row) => renderNode(row.session, true)} onOpen={onOpenMachineSession} onResume={(row) => onResumeSession(row.session, undefined, undefined, row.server.id)} /></Suspense>
               <button type="button" className="session-all-ended" onClick={onContinue}>Find and resume any conversation →</button>
             </>
@@ -969,41 +968,6 @@ function GroupingControl({ grouping, onChange }: {
         onClick={() => onChange('recent')}
       >Most recent</Button>
     </div>
-  );
-}
-
-function MachineScopeFilter({ machines, scope, showingAll, onSelect }: {
-  machines: ServerConfig[];
-  scope: MachineScope;
-  showingAll: boolean;
-  onSelect: (scope: MachineScope) => void;
-}): JSX.Element {
-  return (
-    <details className="session-machine-options"><summary>Computers</summary><div className="session-machine-filter" role="toolbar" aria-label="Connected computers">
-      <Button variant="ghost" size="compact"
-        type="button"
-        className={showingAll ? 'is-active' : undefined}
-        aria-pressed={showingAll}
-        title="Show sessions from every connected computer"
-        onClick={() => onSelect(ALL_MACHINES_SCOPE)}
-      >
-        <span className="session-all-machines-mark" aria-hidden><i /><i /><i /></span>
-        <span>All machines</span>
-      </Button>
-      {machines.map((configured) => (
-        <Button variant="ghost" size="compact"
-          type="button"
-          key={configured.id}
-          className={configured.id === scope ? 'is-active' : undefined}
-          aria-pressed={configured.id === scope}
-          title={`Show sessions on ${serverDisplayName(configured, true)}`}
-          onClick={() => onSelect(configured.id)}
-        >
-          <MachineMark machine={serverDisplayName(configured, true)} size={16} />
-          <span>{serverDisplayName(configured, true)}</span>
-        </Button>
-      ))}
-    </div></details>
   );
 }
 

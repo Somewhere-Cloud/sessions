@@ -63,10 +63,13 @@ try {
           count: group.querySelector('.agent-project-count, .inbox-project-head strong')?.textContent?.trim(),
           ids: Array.from(group.querySelectorAll('[data-session-id]'), (row) => row.getAttribute('data-session-id'))
         })), groups);
-        assert.deepEqual(initial.map((group) => group.rows).sort(), [3, 3, 3, 3, scope === 'all-machines' ? 5 : 4]);
+        assert.deepEqual(initial.map((group) => group.rows).sort(), [3, 3, 3, 3, 3]);
         const sessionGroup = initial.find((group) => group.name?.endsWith('Sessions'));
-        assert.match(sessionGroup.count, scope === 'all-machines' ? /20$/ : /19$/, 'local count excludes the separate Pinned group');
-        for (const index of [15, 16, 18, 19]) assert.ok(sessionGroup.ids.includes(`project-0-agent-${index}`));
+        assert.match(sessionGroup.count, scope === 'all-machines' ? /18$/ : /17$/, 'project count excludes Working rows and the separate local Pinned group');
+        for (const index of [16, 18]) assert.ok(sessionGroup.ids.includes(`project-0-agent-${index}`));
+        const workingIds = await page.$$eval('[aria-label="Working conversations"] [data-session-id]', (rows) => rows.map((row) => row.getAttribute('data-session-id')));
+        assert.deepEqual(workingIds.sort(), ['project-0-agent-15', 'project-0-agent-19']);
+        for (const id of workingIds) assert.ok(!sessionGroup.ids.includes(id), 'Working rows appear only once');
         assert.ok(await page.$('[data-session-id="project-0-agent-17"]'), 'pinned conversation remains visible');
         const layout = await page.$eval('.session-navigator', (node) => ({ width: node.getBoundingClientRect().width, scroll: node.scrollWidth, client: node.clientWidth }));
         assert.ok(layout.width <= viewport.width && layout.scroll <= layout.client + 1, 'navigator must not overflow horizontally');
@@ -74,7 +77,7 @@ try {
 
         t.scenario(`${viewport.name} ${scope} ${theme}: explicit reveal, fewer, keyboard collapse, no writes`);
         await page.$eval(`${groups} .project-preview-toggle`, (button) => button.click());
-        await t.waitForFunction(page, (selector) => document.querySelector(selector)?.querySelectorAll('.session-nav-row').length >= 19, 'the selected project to reveal its remaining rows', { timeout: 15_000 }, groups);
+        await t.waitForFunction(page, (selector) => document.querySelector(selector)?.querySelectorAll('.session-nav-row').length >= 17, 'the selected project to reveal its remaining rows', { timeout: 15_000 }, groups);
         await page.$eval(`${groups} .project-preview-toggle`, (button) => button.click());
         await page.focus(`${groups} ${head}`);
         await page.keyboard.press('Enter');

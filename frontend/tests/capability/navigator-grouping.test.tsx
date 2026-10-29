@@ -59,6 +59,7 @@ function mountNavigator(): FakeMachine {
   installFakeDaemon([machine]);
   useFakeMachines([machine]);
   render(<Workbench />);
+  screen.getByLabelText('More filters').click();
   return machine;
 }
 
@@ -122,6 +123,7 @@ describe('capability: choose how the navigator groups sessions', () => {
     installFakeDaemon([machine]);
     useFakeMachines([machine]);
     render(<Workbench />);
+    screen.getAllByLabelText('More filters')[1].click();
     await waitFor(() => {
       const controls = screen.getAllByRole('button', { name: 'Most recent' });
       expect(controls[controls.length - 1]).toHaveAttribute('aria-pressed', 'true');

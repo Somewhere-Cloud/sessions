@@ -53,6 +53,12 @@ try {
             assert.equal(await page.$('.product-nav [aria-label="Home"]'), null);
             assert.ok(await page.$('.product-sidebar-footer [aria-label="Usage"]'));
           }
+          if (screen === 'tabs' && !empty) {
+            await page.waitForSelector('.session-nav-row');
+            const firstTop = await page.$eval('.session-nav-row', (row) => row.getBoundingClientRect().top);
+            assert.ok(firstTop <= (width === 375 ? 150 : 120), `first conversation starts at ${firstTop}px on ${width}px`);
+            assert.equal(await page.$$eval('[aria-label="Working conversations"]', (groups) => groups.length), 1);
+          }
           if (process.env.UI_SCREENSHOT_DIR) await page.screenshot({ path: join(process.env.UI_SCREENSHOT_DIR, `${screen}-${theme}-${width}${empty ? '-empty' : ''}.png`), fullPage: true });
           if (screen === 'tabs' && !empty) {
             await page.waitForFunction(() => document.body.textContent.includes('Sessions Studio'));
@@ -64,6 +70,7 @@ try {
               await page.keyboard.press('Enter');
               await page.waitForFunction(() => document.activeElement?.getAttribute('role') === 'treeitem');
             }
+            await page.click('.session-more-filters > summary');
             await page.focus('[aria-label="Filter sessions"]');
             await page.keyboard.type('no matching project');
             assert.equal(await page.$$eval('.session-nav-row', (rows) => rows.length), 0);
@@ -115,7 +122,7 @@ try {
     if (process.env.UI_SCREENSHOT_DIR) await page.screenshot({ path: join(process.env.UI_SCREENSHOT_DIR, `daily-${state}.png`) });
   }
   assert.deepEqual(errors, [], 'no React/browser errors');
-  console.log('shell compositions: populated/empty Home, projects, launcher, Daily in dark/light desktop/375px; modal focus return; filter; no mutations');
+  console.log('shell compositions: populated/empty Sessions landing, projects, launcher, Daily in dark/light desktop/375px; modal focus return; filter; no mutations');
 } finally {
   await closeBrowser(browser);
   if (server) await closeServer(server);

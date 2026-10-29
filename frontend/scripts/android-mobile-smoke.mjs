@@ -151,7 +151,7 @@ try {
       }));
       assert.ok(nativeLayout.fonts.every((size) => size >= 16), `phone fields must not trigger focus zoom at ${width}px`);
       assert.equal(nativeLayout.headingTop, 59, 'the shell protects the complete in-flow view from the status bar');
-      assert.equal(nativeLayout.headingPadding, 12, 'the session heading must not count the safe area twice');
+      assert.equal(nativeLayout.headingPadding, 6, 'the compact session heading must not count the safe area twice');
       assert.equal(nativeLayout.shellBottom, 844, 'safe-area padding must stay inside the viewport height');
     }
     for (const width of [360, 390, 430]) {

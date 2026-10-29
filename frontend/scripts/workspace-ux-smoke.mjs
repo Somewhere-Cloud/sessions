@@ -5,7 +5,7 @@ import { closeBrowser } from './lib/smoke.mjs';
 import { readStylesheetTree } from './lib/source-styles.mjs';
 
 const source = async (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
-const [app, palette, picker, launcher, sessionView, preference, sidebar, navigator, fleetSessions, styles] = await Promise.all([
+const [app, palette, picker, launcher, sessionView, preference, sidebar, fleetSessions, styles] = await Promise.all([
   source('src/App.tsx'),
   source('src/components/CommandPalette.tsx'),
   source('src/components/ModelPicker.tsx'),
@@ -13,7 +13,6 @@ const [app, palette, picker, launcher, sessionView, preference, sidebar, navigat
   source('src/components/SessionView.tsx'),
   source('src/lib/sessionViewPreference.ts'),
   source('src/components/ProductSidebar.tsx'),
-  source('src/components/SessionNavigator.tsx'),
   source('src/hooks/useFleetSessions.ts'),
   readStylesheetTree(new URL('../src/styles/globals.css', import.meta.url))
 ]);
@@ -50,13 +49,9 @@ assert.match(preference, /Terminal is an escape hatch/);
 assert.match(sidebar, /Find or run…/);
 assert.match(app, /onClickCapture=\{handleExternalLinkClick\}/,
   'the native app shell must delegate external links to the operating system');
-assert.match(navigator, /aria-label="Connected computers"/);
-assert.match(navigator, />All machines</,
-  'the navigator must expose one aggregate fleet scope');
-assert.match(navigator, /onSelect=\{selectMachineScope\}/,
-  'the computer filter must still change the navigator\'s machine scope');
-assert.match(navigator, /onSelect\(configured\.id\)/,
-  'connected computers must remain visible as one-click session filters');
+// Navigator machine scope now lives in the compact menu. The rendered
+// navigator-activity capability test exercises scope changes and host identity;
+// shell-smoke checks the actual control geometry instead of this legacy mock.
 assert.match(await source('src/components/ProjectAgents.tsx'), /onOpen\(server\.id, session\.id\)/,
   'an aggregate row must retain its machine scope when opened');
 assert.match(fleetSessions, /listServerSessions\(server, controller\.signal\)/,

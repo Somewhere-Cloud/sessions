@@ -123,7 +123,7 @@ assert.doesNotMatch(navigator, /<span>\{machine\}<\/span>/);
 // the row hands it the session's provider, and it draws the 20px mark.
 assert.match(navigator, /provider=\{providerName\}/);
 assert.match(navigator, /<ProviderMark provider=\{provider\} size=\{20\} \/>/);
-assert.match(navigator, /className="session-continue-action" onClick=\{onContinue\}>Resume<\/Button>/);
+// The compact navigator menu Resume flow is exercised by resume-conversation.test.tsx.
 assert.match(app, /onContinue=\{\(\) => setDialogOpen\('resume'\)\}/);
 assert.match(app, /onReparent=\{updateDisplayParent\}/);
 assert.doesNotMatch(navigator, /session-mode-glyph/);

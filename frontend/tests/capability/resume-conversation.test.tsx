@@ -66,7 +66,8 @@ describe('capability: resume a conversation', () => {
     useFakeMachines([machine]);
     const user = userEvent.setup();
     render(<ResumeFlow onResumed={() => {}} />);
-    const opener = screen.getByRole('button', { name: 'Resume' });
+    await user.click(screen.getByLabelText('More filters'));
+    const opener = screen.getByRole('button', { name: 'Resume a conversation…' });
     await user.click(opener);
     expect(screen.getByRole('dialog', { name: 'Resume a conversation' })).toHaveFocus();
     await user.keyboard('{Escape}');
@@ -107,7 +108,8 @@ describe('capability: resume a conversation', () => {
     let resumedLaneId: string | null = null;
     render(<ResumeFlow onResumed={(laneId) => { resumedLaneId = laneId; }} />);
 
-    await user.click(screen.getByRole('button', { name: 'Resume' }));
+    await user.click(screen.getByLabelText('More filters'));
+    await user.click(screen.getByRole('button', { name: 'Resume a conversation…' }));
     await user.click(await screen.findByRole('button', { name: /Thursday migration plan/ }));
     await user.click(await screen.findByText('Change agent, model or permissions'));
     expect(await screen.findByRole('group', { name: 'Start plan' })).toHaveTextContent('Claude');
@@ -134,7 +136,8 @@ describe('capability: resume a conversation', () => {
     useFakeMachines([machine]);
     const user = userEvent.setup();
     render(<ResumeFlow onResumed={() => {}} />);
-    await user.click(screen.getByRole('button', { name: 'Resume' }));
+    await user.click(screen.getByLabelText('More filters'));
+    await user.click(screen.getByRole('button', { name: 'Resume a conversation…' }));
     await user.click(await screen.findByRole('button', { name: /Thursday migration plan/ }));
     await user.click(await screen.findByText('Change agent, model or permissions'));
     const permissions = screen.getByRole('combobox', { name: 'Resume permissions' });

@@ -75,10 +75,11 @@ describe('reversible manual session organization', () => {
     view.unmount();
     const open = vi.fn();
     render(<Workbench onOpen={open} />);
-    const section = await screen.findByRole('region', { name: 'Archived live sessions' });
+    const section = await screen.findByRole('region', { name: 'Set aside' });
     expect(screen.queryByText('Parser review', { selector: '.session-nav-title' })).not.toBeInTheDocument();
+    await user.click(screen.getByLabelText('More filters'));
     await user.type(screen.getByRole('textbox', { name: 'Filter sessions' }), 'Parser');
-    expect(within(section).getByRole('button', { name: /Settled/ })).toHaveAttribute('aria-expanded', 'true');
+    expect(within(section).getByRole('button', { name: /Set aside/ })).toHaveAttribute('aria-expanded', 'true');
     await user.click(await within(section).findByText('Parser review', { selector: '.session-nav-title' }));
     expect(open).toHaveBeenCalledWith('quiet');
     expect(host.sessions[0].setAsideAt).toBeTruthy();
@@ -106,7 +107,7 @@ describe('reversible manual session organization', () => {
     fireEvent.change(composer, { target: { value: 'Keep editing while organized' } });
     host.sessions[0] = { ...host.sessions[0], setAsideAt: 100 };
     await act(async () => { await useSessions.getState().refresh(); });
-    await screen.findByRole('region', { name: 'Archived live sessions' });
+    await screen.findByRole('region', { name: 'Set aside' });
     expect(composer).toBeInTheDocument();
     expect(composer).toHaveValue('Keep editing while organized');
     expect(readDraft(draftStorageKey('other-client-machine', 'automatic')).text).toBe('Another stored draft');
@@ -121,7 +122,7 @@ describe('reversible manual session organization', () => {
     const host = machine('local', [archived('provider-only')]);
     installFakeDaemon([host]); useFakeMachines([host]);
     render(<Workbench />);
-    await screen.findByRole('region', { name: 'Archived live sessions' });
+    await screen.findByRole('region', { name: 'Set aside' });
     host.sessions[0] = { ...host.sessions[0], observations: { version: 1,
       capabilities: { runtime: 'claude-structured', turn_boundaries: 'provider-stream', tool_records: 'provider-stream', terminal_output: false },
       runner: { state: 'reachable', since: null, exit_code: null }, working: null, turn: null, tools: null, observers: [],
@@ -138,12 +139,12 @@ describe('reversible manual session organization', () => {
     installFakeDaemon([host]);
     useFakeMachines([host]);
     render(<Workbench />);
-    await screen.findByRole('region', { name: 'Archived live sessions' });
+    await screen.findByRole('region', { name: 'Set aside' });
     expect(screen.queryByText('approval-only', { selector: '.session-nav-title' })).not.toBeInTheDocument();
     host.sessions[0] = { ...host.sessions[0], pendingApproval: { id: 'new-approval', kind: 'command', summary: 'Approve command' } };
     await act(async () => { await useSessions.getState().refresh(); });
     expect(await screen.findByText('approval-only', { selector: '.session-nav-title' })).toBeInTheDocument();
-    expect(screen.queryByRole('region', { name: 'Archived live sessions' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Set aside' })).not.toBeInTheDocument();
     expect(host.sessions[0].setAsideAt).toBe(100);
   });
 
