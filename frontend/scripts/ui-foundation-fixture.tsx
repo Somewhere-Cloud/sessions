@@ -41,6 +41,7 @@ function Gallery(): JSX.Element {
         <TagEditor value={tags} onChange={(value) => setTags(value as typeof tags)} />
         <Actions><Button variant="ghost">Cancel</Button><Button variant="primary">Save changes</Button></Actions>
       </Section></Surface>
+      <details className="fleet-refresh-notice"><summary>Some computers could not refresh. Saved connections are still available.</summary></details>
       <Section title="Control states"><Actions><IconButton aria-label="More actions">···</IconButton><Button size="compact">Compact</Button>
         <Button disabled>Unavailable</Button><Button loading>Saving…</Button><Button variant="danger">Remove project</Button></Actions>
         <Field label="Folder" error="Choose a folder on this computer."><Input defaultValue="/missing-folder" /></Field>

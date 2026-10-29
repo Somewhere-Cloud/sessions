@@ -61,6 +61,9 @@ try {
                 return { fg, bg, ratio: (Math.max(a, b) + .05) / (Math.min(a, b) + .05) };
               }));
           });
+          const notice = await page.$eval('.fleet-refresh-notice', (el) => ({ color: getComputedStyle(el).color, background: getComputedStyle(el).backgroundColor }));
+          assert.equal(notice.color, bounds.foreground, 'connection warning uses theme foreground');
+          assert.equal(notice.background, bounds.background, 'connection warning uses themed surface, not a dark fallback');
           assert.ok(contrast.every((pair) => pair.ratio >= 4.5), `${theme} text tokens meet AA on every surface: ${JSON.stringify(contrast)}`);
           assert.ok(await page.$eval('.ui-field .field-help', (el) => parseFloat(getComputedStyle(el).fontSize) >= 13), 'instructions stay at least 13px');
         }

@@ -319,7 +319,8 @@
   overflow: auto;
   border: 1px solid var(--border, #444);
   border-radius: 8px;
-  background: var(--bg, #181818);
+  background: var(--bg-elev-1);
+  color: var(--fg);
   font-size: 13px;
 }
 
