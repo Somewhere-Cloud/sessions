@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useComposerAccountUsage } from '../hooks/useComposerAccountUsage';
+import { CLAUDE_LIMITS_UNAVAILABLE } from '../lib/accountUsageDisplay';
 import { accountLabel } from '../lib/accountChoice';
 import { compactLimits, composerAccountGroup, type ComposerUsageScope } from '../lib/composerAccountUsage';
 import { serverDisplayName, useServers } from '../lib/servers';
@@ -40,5 +41,8 @@ function AccountLimits({ scope }: { scope: ComposerUsageScope }): JSX.Element {
 }
 
 export function ComposerAccountUsage({ scope }: { scope: ComposerUsageScope }): JSX.Element {
+  if (scope.provider === 'claude-code') return <details className="composer-usage">
+    <summary>Claude limits unavailable</summary><p>{CLAUDE_LIMITS_UNAVAILABLE}</p>
+  </details>;
   return <AccountLimits key={JSON.stringify(scope)} scope={scope} />;
 }

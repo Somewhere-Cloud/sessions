@@ -25,11 +25,11 @@ const titles = () => [...document.querySelectorAll('.session-nav-title')].map((r
 describe('navigator observed activity organization', () => {
   for (const localOnly of [true, false]) it(`shows one cross-project Working section and moves rows on inventory refresh (${localOnly ? 'local' : 'fleet'})`, async () => {
     const { machines, daemon } = mount(localOnly);
-    const working = await screen.findByRole('region', { name: 'Working conversations' });
-    expect(screen.getAllByRole('region', { name: 'Working conversations' })).toHaveLength(1);
+    const working = await screen.findByRole('region', { name: 'Conversations in progress' });
+    expect(screen.getAllByRole('region', { name: 'Conversations in progress' })).toHaveLength(1);
     expect(within(working).getByText('Atlas')).toBeInTheDocument();
     expect(within(working).getByText('Beacon')).toBeInTheDocument();
-    expect(within(working).getByText('Working · observed 1m ago')).toBeInTheDocument();
+    expect(within(working).getByText('Active · observed 1m ago')).toBeInTheDocument();
     expect(titles().filter((title) => title === 'First task')).toHaveLength(1);
     expect(titles().indexOf('Second task')).toBeLessThan(titles().indexOf('First task'));
     expect(screen.queryByText('Settled')).not.toBeInTheDocument();
@@ -97,9 +97,9 @@ it('uses provider-confirmed turn time for elapsed work and keeps terminal timing
     turn: { open: true, started_at: now - 240_000, started_by: 'sessions-dispatch', provider_confirmed_at: now - 120_000, ended_at: null, ended_by: null }, tools: null, observers: []
   } });
   const view = render(<WorkingObservation session={session} />);
-  expect(screen.getByText('Working 2m')).toHaveAttribute('title', 'Since the provider-confirmed turn start');
+  expect(screen.getByText('In progress 2m')).toHaveAttribute('title', 'Since the provider-confirmed turn start');
   view.rerender(<WorkingObservation session={{ ...session, observations: { ...session.observations!, turn: { ...session.observations!.turn!, provider_confirmed_at: null } } }} />);
-  expect(screen.getByText('Working · observed 1m ago')).toBeInTheDocument();
+  expect(screen.getByText('Active · observed 1m ago')).toBeInTheDocument();
   view.rerender(<WorkingObservation session={{ ...session, observations: undefined, lastDataUnknown: true }} />);
-  expect(screen.getByText('Working · time unavailable')).toBeInTheDocument();
+  expect(screen.getByText('Active · time unavailable')).toBeInTheDocument();
 });

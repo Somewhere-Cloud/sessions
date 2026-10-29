@@ -6,7 +6,7 @@
 .footer-usage > summary > svg { width: 20px; height: 20px; flex-shrink: 0; }
 .footer-usage-caption { display: grid; gap: 3px; min-width: 0; }
 .footer-usage-caption strong { font-size: 13px; font-weight: 500; }
-.footer-usage-caption small { font-size: 12px; overflow-wrap: anywhere; }
+.footer-usage-caption small { font-size: 12px; overflow-wrap: normal; }
 .footer-usage-rail-reading { display: none; }
 .footer-usage-popover { position: fixed; z-index: 150; left: 16px; bottom: 90px; width: min(380px, calc(100vw * var(--interface-scale-inverse, 1) - 32px)); max-height: min(650px, calc(100dvh * var(--interface-scale-inverse, 1) - 130px)); overflow: auto; padding: 18px; border: 1px solid var(--border); border-radius: 14px; background: var(--bg-elev-1); color: var(--fg); box-shadow: 0 8px 24px #0004; font-size: 13px; }
 .footer-usage-popover h2 { margin: 0 0 12px; font-size: 16px; }
@@ -16,7 +16,7 @@
 @media (min-width: 721px) and (max-width: 1180px) {
   .product-sidebar .footer-usage > summary { flex-direction: column; gap: 4px; padding: 8px 2px; }
   .product-sidebar .footer-usage-caption { display: none; }
-  .product-sidebar .footer-usage-rail-reading { display: block; font-size: 12px; text-align: center; overflow-wrap: anywhere; }
+  .product-sidebar .footer-usage-rail-reading { display: block; font-size: 12px; text-align: center; white-space: nowrap; }
 }
 .mobile-nav .footer-usage { flex: 1; min-width: 0; }
 .mobile-nav .footer-usage > summary { height: 100%; justify-content: center; gap: 4px; padding: 4px; }

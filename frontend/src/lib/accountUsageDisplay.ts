@@ -1,5 +1,7 @@
 import type { AccountUsageBucket, AccountUsageWindow } from '../api/sessionsd';
 
+export const CLAUDE_LIMITS_UNAVAILABLE = 'Claude limits aren’t available in Sessions yet.';
+
 export function relativeTime(at: number, now = Date.now()): string {
   const minutes = Math.round((now - at) / 60_000);
   if (minutes < 1) return 'just now';

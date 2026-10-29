@@ -75,6 +75,12 @@ try {
   assert.doesNotMatch(await text(), /12%/);
   await change(scope('remote', 'missing'));
   await page.waitForFunction(() => document.querySelector('summary .footer-usage-caption small').textContent.includes('unknown'));
+  await page.setViewport({ width: 1100, height: 900 });
+  assert.deepEqual(await page.$eval('.footer-usage-rail-reading', (el) => ({
+    label: el.textContent, fits: el.scrollWidth <= el.clientWidth,
+    wrapping: getComputedStyle(el).whiteSpace,
+  })), { label: 'Usage', fits: true, wrapping: 'nowrap' }, 'compact rail keeps a readable label; unknown limits stay in the disclosure');
+  await page.setViewport({ width: 1280, height: 900 });
   await page.click('summary');
   assert.match(await text(), /could not be matched/);
   assert.equal(await page.$$eval('[role="meter"]', nodes => nodes.length), 0);
@@ -83,9 +89,11 @@ try {
   await page.click('summary');
   assert.match(await text(), /could not be matched/);
   await change(scope('local', 'work', 'claude-code'));
-  await page.waitForFunction(() => document.querySelector('summary').textContent.includes('unavailable'));
+  await page.waitForFunction(() => document.querySelector('summary').textContent.includes('Claude: no data'));
   await page.click('summary');
   assert.equal(await page.$$eval('[role="meter"]', nodes => nodes.length), 0);
+  assert.match(await text(), /Claude limits aren’t available in Sessions yet/);
+  assert.doesNotMatch(await text(), /Load failed|Refresh limits/);
   if (process.env.ACCOUNT_SCREENSHOT_DIR) {
     for (const [theme, width] of [['dark', 1280], ['dark', 1100], ['dark', 375], ['light', 1280], ['light', 375]]) {
       await page.evaluate(value => { document.documentElement.dataset.theme = value; document.querySelector('main').dataset.theme = value; }, theme);

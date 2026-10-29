@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useRef } from 'react';
 import type { ComposerUsageScope } from '../lib/composerAccountUsage';
+import { CLAUDE_LIMITS_UNAVAILABLE } from '../lib/accountUsageDisplay';
 import { Button } from './ui/Button';
 import '../styles/footer-usage.css';
 
@@ -12,6 +13,9 @@ export interface FooterUsageProps {
 }
 
 export function FooterUsage(props: FooterUsageProps): JSX.Element {
+  if (props.usageScope?.provider === 'claude-code') return <UsageDisclosure {...props} summary="Claude: no data">
+    <p>{CLAUDE_LIMITS_UNAVAILABLE}</p>
+  </UsageDisclosure>;
   return props.usageScope && props.usageScope.provider !== 'terminal'
     ? <Suspense fallback={<UsageDisclosure {...props} summary="Reading limits…" />}><SelectedUsage key={JSON.stringify(props.usageScope)} {...props} scope={props.usageScope} /></Suspense>
     : <UsageDisclosure {...props} summary="No selected account" />;
@@ -38,7 +42,7 @@ export function UsageDisclosure({ summary, children, onOpenUsage, onOpenDaily }:
     <summary title={`Usage · ${summary}`} aria-label={`Usage · ${summary}`}>
       <svg aria-hidden viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></svg>
       <span className="footer-usage-caption"><strong>Usage</strong><small className="footer-usage-full">{summary}</small><small className="footer-usage-short">{shortUsage(summary)}</small></span>
-      <span className="footer-usage-rail-reading" aria-hidden>{shortUsage(summary)}</span>
+      <span className="footer-usage-rail-reading" aria-hidden>Usage</span>
     </summary>
     <section className="footer-usage-popover" aria-label="Account limits">
       <h2>Account limits</h2>

@@ -38,7 +38,7 @@ import { useProjects } from '../hooks/useProjects';
 import { buildInboxLayout, buildProviderFaultNotices, type ProviderFaultNotice, type SessionGrouping } from '../lib/inboxSections';
 import { InboxSections, ProviderFaultBanners } from './InboxSections';
 import { useFleetProjects } from '../hooks/useFleetProjects';
-import { groupAgents, isSavedAgent, recentAgents, resolvedProjects, projectMembershipKey, matchesResolvedProject, navigationProjectOptions } from '../lib/projectAgents';
+import { groupAgents, recentAgents, resolvedProjects, projectMembershipKey, matchesResolvedProject, navigationProjectOptions } from '../lib/projectAgents';
 
 const ContinueElsewhereButton = lazy(() => import('./ContinueElsewhereButton').then((module) => ({ default: module.ContinueElsewhereButton })));
 const ProjectAgents = lazy(() => import('./ProjectAgents').then((module) => ({ default: module.ProjectAgents })));
@@ -409,7 +409,7 @@ export function SessionNavigator({
     if (usesClaudeRemoteControl(session) !== remoteOnly) return false;
     if (primary === 'needs' && !sessionNeedsYou(session)) return false;
     if (primary === 'working' && classifySession(session).state !== 'working') return false;
-    if (primary === 'ended' && !isSavedAgent(session)) return false;
+    if (primary === 'ended' && !session.exited) return false;
     const normalized = normalizeProvider(session.tool);
     if (provider !== 'all' && (provider === 'shell' ? session.tool !== 'terminal' : normalized !== provider)) return false;
     const resolvedProject = membership.get(projectMembershipKey(serverId, session.id));
@@ -422,7 +422,8 @@ export function SessionNavigator({
   const filteredLiveSessions = liveSessions.filter((session) => matches(session));
   const arrange = grouping === 'recent' ? recentAgents : (groups: ReturnType<typeof groupAgents>) => groups;
   const agentGroups = arrange(groupAgents(projectSnapshots, fleetProjects, false, matches));
-  const savedGroups = arrange(groupAgents(projectSnapshots, fleetProjects, true, matches));
+  const savedGroups = arrange(groupAgents(projectSnapshots, fleetProjects, true, (session, serverId) => session.exited && matches(session, serverId)));
+  const unavailableGroups = arrange(groupAgents(projectSnapshots, fleetProjects, true, (session, serverId) => !session.exited && matches(session, serverId)));
   const inboxLayout = useMemo(() => buildInboxLayout({
     live: filteredLiveSessions,
     ended: navigatorSessions.filter((session) => session.exited && matches(session)),
@@ -752,9 +753,13 @@ export function SessionNavigator({
         </div>
       </header>
       <div className="session-filter-row" role="toolbar" aria-label="Session status filters">
-        <FilterButton label="All" active={primary === 'all'} onClick={() => setPrimary('all')} />
-        <FilterButton label={`Needs you${counts.needs ? ` ${counts.needs}` : ''}`} active={primary === 'needs'} onClick={() => setPrimary('needs')} />
-        <FilterButton label={`Working${counts.working ? ` ${counts.working}` : ''}`} active={primary === 'working'} onClick={() => setPrimary('working')} />
+        <Select className="session-status-select" aria-label="Session status" value={primary}
+          onChange={(event) => setPrimary(event.currentTarget.value as PrimaryFilter)}>
+          <option value="all">All sessions</option>
+          <option value="needs">Waiting for you ({counts.needs})</option>
+          <option value="working">In progress ({counts.working})</option>
+          <option value="ended">Closed sessions</option>
+        </Select>
         <details className="session-more-filters" onKeyDown={(event) => {
           if (event.key !== 'Escape') return;
           event.currentTarget.open = false;
@@ -837,13 +842,19 @@ export function SessionNavigator({
                 ? <div className="session-tree-empty is-compact">Add an agent to start working together. Saved conversations are under Resume.</div>
                 : null}
         </div> : null}
+        {showingAllMachines && primary === 'all' && unavailableGroups.length > 0 ? <details className="session-tree-group session-fleet-scope-group">
+          <summary className="session-tree-group-head">Unavailable agents</summary>
+          <p className="session-tree-empty is-compact">Cannot reach these agents. Open one for connection details.</p>
+          <Suspense fallback={<div className="session-tree-empty is-compact">Loading agents…</div>}><ProjectAgents organizeWorking={false} groups={unavailableGroups} activeMachineId={activeMachineId} compact={false}
+            renderLocal={(row) => renderNode(row.session)} onOpen={onOpenMachineSession} /></Suspense>
+        </details> : null}
         {showingAllMachines && primary !== 'working' && primary !== 'needs' ? <div className="session-tree-group session-fleet-scope-group">
           <button type="button" className="session-tree-group-head" onClick={() => setEndedOpen((current) => !current)}>
-            <span className="session-group-disclosure"><DisclosureChevron open={endedOpen} /> Recently closed</span>
+            <span className="session-group-disclosure"><DisclosureChevron open={endedOpen} /> Closed sessions</span>
           </button>
           {endedOpen ? (
             <>
-              <p className="session-tree-empty is-compact">Saved conversations, including agents that need reconnecting. Opening one does not restart it.</p>
+              <p className="session-tree-empty is-compact">These agents have stopped. Open saved output or resume a conversation.</p>
               <Suspense fallback={<div className="session-tree-empty is-compact">Loading saved conversations…</div>}><ProjectAgents organizeWorking={false} groups={savedGroups.map((group) => ({ ...group, rows: showAllEnded ? group.rows : group.rows.slice(0, 3) }))} activeMachineId={activeMachineId} compact={false}
                 renderLocal={(row) => renderNode(row.session, true)} onOpen={onOpenMachineSession} onResume={(row) => onResumeSession(row.session, undefined, undefined, row.server.id)} /></Suspense>
               <button type="button" className="session-all-ended" onClick={onContinue}>Find and resume any conversation →</button>
@@ -887,15 +898,15 @@ export function SessionNavigator({
           renderLocal={(row) => renderNode(row.session)} onOpen={onOpenMachineSession} />
         {!showingAllMachines && primary !== 'working' && primary !== 'needs' ? <div className="session-tree-group">
           <div className="session-tree-group-head">
-            <button type="button" onClick={() => setEndedOpen((current) => !current)}><span className="session-group-disclosure"><DisclosureChevron open={endedOpen} /> Ended</span><strong>{visibleEnded.length}</strong></button>
+            <button type="button" onClick={() => setEndedOpen((current) => !current)}><span className="session-group-disclosure"><DisclosureChevron open={endedOpen} /> Closed</span><strong>{visibleEnded.length}</strong></button>
             {filteredEnded.length > 0 ? <button type="button" className="session-select-ended" onClick={() => { setSelectingEnded((current) => !current); setEndedOpen(true); }}>Select</button> : null}
           </div>
           {endedOpen ? (
             <>
               {visibleEnded.map((session) => renderNode(session, true))}
-              {!browsingAllEnded && hasOlderEnded ? <button type="button" className="session-all-ended" onClick={() => setShowAllEnded(true)}>All ended sessions →</button> : null}
+              {!browsingAllEnded && hasOlderEnded ? <button type="button" className="session-all-ended" onClick={() => setShowAllEnded(true)}>All closed sessions →</button> : null}
               {showAllEnded && primary !== 'ended' && query.trim() === '' ? <button type="button" className="session-all-ended" onClick={() => setShowAllEnded(false)}>Show recent only</button> : null}
-              {visibleEnded.length === 0 ? <div className="session-tree-empty is-compact">No ended sessions yet.</div> : null}
+              {visibleEnded.length === 0 ? <div className="session-tree-empty is-compact">No closed sessions yet.</div> : null}
             </>
           ) : null}
         </div> : null}
@@ -927,7 +938,7 @@ export function SessionNavigator({
               <div><span>End session</span><h2 id="end-session-title">Stop “{resolvedSessionLabel(endConfirmSession)}”?</h2></div>
               <button type="button" aria-label="Cancel ending session" disabled={endingId !== null} onClick={dismissEndConfirm}>×</button>
             </header>
-            <p>This stops the agent on {machine}. Its conversation stays in Ended, where you can resume it later.</p>
+            <p>This stops the agent on {machine}. Its conversation stays in Closed, where you can resume it later.</p>
             {endError ? (
               <div className="session-move-error session-end-error" role="alert">
                 <strong>This session is still running.</strong> {endError}
@@ -986,7 +997,7 @@ function SessionRowLines({ session, end, lostNote, resumedFrom, under }: {
       {sessionNeedsYou(session) && session.idleDetail ? <span className="session-nav-rollup">{session.idleDetail}</span> : null}
       <SessionLastMessage session={session} />
       {end ? <span className={`session-nav-ended is-${end.tone}`}>{end.label}</span> : null}
-      {lostNote ? <span className="session-nav-ended is-attention">{lostNote}</span> : null}
+      {lostNote ? <span className="session-nav-ended" title={lostNote}>{session.lostAt ? `Unavailable since ${new Date(session.lostAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : 'Connection unavailable'}</span> : null}
       {resumedFrom ? <span className="session-nav-parent">Resumed from {resolvedSessionLabel(resumedFrom)}</span> : null}
       {under ? <span className="session-nav-parent">Under {resolvedSessionLabel(under)}</span> : null}
     </>
@@ -1011,10 +1022,6 @@ function SessionRowMeta({ provider, machine, when, project }: {
       {project ? <span className="session-nav-project" title={`Project: ${project}`}>{project}</span> : null}
     </span>
   );
-}
-
-function FilterButton({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }): JSX.Element {
-  return <Button variant="ghost" size="compact" aria-pressed={active} className={active ? 'is-active' : ''} onClick={onClick}>{label}</Button>;
 }
 
 function DisclosureChevron({ open }: { open: boolean }): JSX.Element {

@@ -1,6 +1,6 @@
 import '../styles/account-usage.css';
 import { Stack } from './ui/Layout';
-import { bucketName, relativeTime, resetText, windowName } from '../lib/accountUsageDisplay';
+import { CLAUDE_LIMITS_UNAVAILABLE, bucketName, relativeTime, resetText, windowName } from '../lib/accountUsageDisplay';
 import type { AccountUsageWindow } from '../api/sessionsd';
 import { freshestReading, type AccountGroup, type AccountPlacement } from '../lib/accountRollup';
 
@@ -46,11 +46,12 @@ function missingReason(placements: AccountPlacement[], tool: 'claude' | 'codex')
 
 /** Usage for one account row, taken from its freshest reading. */
 export function AccountUsageSummary({ group, label }: { group: AccountGroup; label: string }): JSX.Element {
+  if (group.tool === 'claude' && !group.reading) return <p className="account-usage-missing">{CLAUDE_LIMITS_UNAVAILABLE}</p>;
   if (!group.matchedByProvider && group.placements.length > 1) {
     return <details className="account-usage-readings">
       <summary>Usage by computer</summary>
       {group.placements.map((placement) => <div key={`${placement.serverId}:${placement.profile.name}`}>
-        <strong>{placement.machineName} · {placement.profile.label || placement.profile.name}</strong>
+        <strong>{[placement.machineName, placement.profile.label || placement.profile.name].filter(Boolean).join(' · ')}</strong>
         <AccountUsageSummary label={`${label} on ${placement.machineName}`} group={{ ...group,
           placements: [placement], reading: freshestReading([placement]) }} />
       </div>)}

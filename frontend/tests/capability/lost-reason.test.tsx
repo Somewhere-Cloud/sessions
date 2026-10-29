@@ -27,7 +27,7 @@ function lostSession(reason: string, extra: Partial<SessionInfo> = {}): SessionI
 
 describe('capability: a lost session says why', () => {
   it('names the reboot, the exit, and the silence differently', () => {
-    expect(lostSessionNote(lostSession('machine rebooted'))).toMatch(/this machine restarted/);
+    expect(lostSessionNote(lostSession('machine rebooted'))).toMatch(/this computer restarted/);
     expect(lostSessionNote(lostSession('runner exited'))).toMatch(/process ended/);
     expect(lostSessionNote(lostSession('daemon lost contact'))).toMatch(/lost contact/);
     // Each one ends with the single action that applies.
@@ -49,7 +49,7 @@ describe('capability: a lost session says why', () => {
   // The fold above the not-connected group used to say "runner is gone" for
   // every one of them, which is true and useless.
   it('replaces the generic not-connected line with the real reason', () => {
-    expect(notConnectedReason(lostSession('machine rebooted'))).toMatch(/machine restarted/);
+    expect(notConnectedReason(lostSession('machine rebooted'))).toMatch(/computer restarted/);
     const unknown = Object.assign(makeSession({ id: 'no-reason' }), {
       unreachable: true, unreachableReason: 'runner-lost', runnerGone: true
     }) as SessionInfo;
@@ -71,12 +71,13 @@ describe('capability: the row carries it', () => {
 
     // A lost session is folded away from the ones the person can type into,
     // and the fold itself says why rather than "runner is gone".
-    const fold = await screen.findByRole('button', { name: /Not connected . 1/ });
-    expect(fold.textContent).toMatch(/this machine restarted/);
+    const fold = await screen.findByRole('button', { name: /Unavailable agents\s*1/ });
+    expect(fold.textContent).toMatch(/Open one for connection details/);
 
     await userEvent.setup().click(fold);
     const row = (await screen.findByText('Release prep')).closest('.session-nav-row') as HTMLElement;
-    expect(within(row).getByText(/this machine restarted/)).toBeInTheDocument();
-    expect(within(row).getByText(/Resume to continue/)).toBeInTheDocument();
+    const note = within(row).getByTitle(/this computer restarted.*Resume to continue/);
+    expect(note).toHaveTextContent(/Unavailable since/);
+    expect(note).not.toHaveClass('is-attention');
   }, 20_000);
 });

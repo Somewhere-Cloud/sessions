@@ -47,7 +47,7 @@ assert.doesNotMatch(onboarding, /onClick=\{onClose\}|launcher-close|dialog-head-
 assert.match(settings, /updateOnboardingPreference/);
 assert.match(settings, /Keep sessions local/);
 assert.match(settings, /Delegated agent access/);
-assert.match(settings, /Approval questions stay open as Needs you/);
+assert.match(settings, /Approval questions stay open under Waiting for you/);
 assert.match(settings, /Chosen on \{hostName\}/);
 assert.match(settings, /disabled=\{props\.clientOnly \|\| props\.claudeBusy/);
 assert.match(settings, /disabled=\{props\.clientOnly \|\| props\.delegationBusy/);

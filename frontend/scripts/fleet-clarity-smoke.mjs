@@ -17,7 +17,7 @@ const [fleet, servers, api, styles, status] = await Promise.all([
 // The state vocabulary lives in exactly one module. Fleet asks for it; it
 // must not carry its own label map or its own precedence order, which is how
 // it came to say "Needs you" about a session the navigator called "Ended".
-assert.match(status, /'needs-you': 'Needs you'/);
+assert.match(status, /'needs-you': 'Waiting for you'/);
 assert.match(fleet, /classifySession/);
 assert.doesNotMatch(fleet, /'Needs you'/);
 assert.doesNotMatch(fleet, /function fleetSessionState/);

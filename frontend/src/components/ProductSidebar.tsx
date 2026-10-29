@@ -28,7 +28,7 @@ interface Props {
 const ITEMS: Array<{ id: ProductView; label: string; icon: ReactNode }> = [
   { id: 'tabs', label: 'Sessions', icon: <SessionsIcon /> },
   { id: 'search', label: 'Search', icon: <SearchIcon /> },
-  { id: 'accounts', label: 'Accounts & computers', icon: <AccountsIcon /> },
+  { id: 'accounts', label: 'Accounts', icon: <AccountsIcon /> },
   { id: 'settings', label: 'Settings', icon: <SettingsIcon /> }
 ];
 

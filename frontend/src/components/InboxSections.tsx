@@ -1,7 +1,7 @@
 import { SessionActivityGroups, WorkingObservation, isObservedWorking } from './SessionActivityGroups';
 import { useId, useState, type JSX } from 'react';
 import type { SessionInfo } from '../types';
-import { type InboxLayout, type InboxSection, type ProviderFaultNotice, notConnectedReason } from '../lib/inboxSections';
+import { type InboxLayout, type InboxSection, type ProviderFaultNotice } from '../lib/inboxSections';
 import { classifySession } from '../lib/sessionStatus';
 import { resolvedSessionLabel } from '../lib/tabLabels';
 import { ProviderMark, normalizeProvider } from './ProviderBadge';
@@ -56,7 +56,7 @@ export function InboxSections({ layout, activeSessionId, renderNode, onOpen, onS
       ) : null}
       {layout.needsYou.length > 0 ? (
         <div className="session-tree-group inbox-needs" role="group" aria-label="Sessions waiting on you">
-          <div className="session-tree-group-head is-attention"><span>Needs you</span><strong>{layout.needsYou.length + layout.moreNeedsYou}</strong></div>
+          <div className="session-tree-group-head is-attention"><span>Waiting for you</span><strong>{layout.needsYou.length + layout.moreNeedsYou}</strong></div>
           {layout.needsYou.map((session) => (
             <AttentionRow
               key={session.id}
@@ -116,8 +116,8 @@ function AttentionRow({ session, why, onOpen, folderOf, relativeTime, lastActivi
         <strong>{resolvedSessionLabel(session)}<AccountBadge session={session} /></strong>
         <SessionLastMessage session={session} />
         <small>{folderOf(session)}</small>
+        <span className={`inbox-needs-why${providerTrouble ? ` ${status.className}` : ''}`}>{why}</span>
       </span>
-      <span className={`inbox-needs-why${providerTrouble ? ` ${status.className}` : ''}`}>{why}</span>
       <time>{relativeTime(lastMessage(session).at || lastActivity(session))}</time>
     </button>
   );
@@ -134,8 +134,8 @@ function Fold({ label, count, detail, children }: {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button type="button" className="inbox-fold" onClick={() => setOpen((current) => !current)} aria-expanded={open}>
-        <span>{open ? '▾' : '▸'} {label} · {count}</span>
+      <button type="button" className="inbox-fold inbox-status-fold" onClick={() => setOpen((current) => !current)} aria-expanded={open}>
+        <span className="inbox-fold-label"><span>{open ? '▾' : '▸'} {label}</span><span>{count}</span></span>
         <small>{detail}</small>
       </button>
       {open ? children() : null}
@@ -160,13 +160,13 @@ function RecentList({ section, renderNode, projectLabelOf }: {
         ? <div className="session-tree-empty is-compact">Nothing live here.</div>
         : null}
       {section.notConnected.length > 0 ? (
-        <Fold label="Not connected" count={section.notConnected.length} detail={notConnectedReason(section.notConnected[0]!)}>
+        <Fold label="Unavailable agents" count={section.notConnected.length} detail="Cannot reach these agents. Open one for connection details.">
           {() => section.notConnected.map((session) => row(session))}
         </Fold>
       ) : null}
       {section.finished.length > 0 ? (
         <Fold
-          label="Finished"
+          label="Closed"
           count={section.finished.length}
           detail={`${resolvedSessionLabel(section.finished[0]!)}${section.finished.length > 1 ? ` · +${section.finished.length - 1}` : ''}`}
         >
@@ -192,7 +192,6 @@ function ProjectSection({ section, activeSessionId, renderNode }: { section: Inb
           {section.name}
         </span>
         <strong>
-          {section.needsYou > 0 ? <em className="inbox-project-needs">{section.needsYou} needs you · </em> : null}
           {count}
         </strong>
       </button>
@@ -204,13 +203,13 @@ function ProjectSection({ section, activeSessionId, renderNode }: { section: Inb
           </button> : null}
           {section.live.length === 0 && section.notConnected.length === 0 ? <div className="session-tree-empty is-compact">Nothing live here.</div> : null}
           {section.notConnected.length > 0 ? (
-            <Fold label="Not connected" count={section.notConnected.length} detail={notConnectedReason(section.notConnected[0]!)}>
+            <Fold label="Unavailable agents" count={section.notConnected.length} detail="Cannot reach these agents. Open one for connection details.">
               {() => section.notConnected.map((session) => renderNode(session))}
             </Fold>
           ) : null}
           {section.finished.length > 0 ? (
             <Fold
-              label="Finished"
+              label="Closed"
               count={section.finished.length}
               detail={`${resolvedSessionLabel(section.finished[0]!)}${section.finished.length > 1 ? ` · +${section.finished.length - 1}` : ''}`}
             >

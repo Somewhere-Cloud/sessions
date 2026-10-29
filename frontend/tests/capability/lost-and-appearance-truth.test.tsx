@@ -104,7 +104,7 @@ describe('capability: lost and waiting state truth', () => {
     installFakeDaemon([machine]);
     useFakeMachines([machine]);
 
-    expect(classifySession(waiting).label).toBe('Needs you');
+    expect(classifySession(waiting).label).toBe('Waiting for you');
     render(<Workbench />);
 
     expect(await screen.findByText("Choose Claude's terminal appearance")).toBeInTheDocument();

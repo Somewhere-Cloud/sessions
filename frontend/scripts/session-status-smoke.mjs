@@ -161,7 +161,7 @@ try {
     provenanceStatus: 'rooted'
   };
   assert.equal(classifySession(endedButAsking).state, 'ended');
-  assert.equal(classifySession(endedButAsking).label, 'Ended');
+  assert.equal(classifySession(endedButAsking).label, 'Closed');
   assert.equal(sessionNeedsYou(endedButAsking), false);
   assert.equal(sessionIsFinished(endedButAsking), true);
 
@@ -241,14 +241,14 @@ try {
   // runtime ended; "Not connected" is the complete literal fact.
   const unavailable = { ...reconnecting, id: 'runner-unavailable', pid: 0 };
   assert.equal(classifySession(unavailable).state, 'unavailable');
-  assert.equal(classifySession(unavailable).label, 'Not connected');
+  assert.equal(classifySession(unavailable).label, 'Agent unreachable');
   assert.equal(sessionIsFinished(unavailable), false);
 
   // An identity-aware process probe is stronger than a stale retained PID.
   // Once the runner is confirmed gone, no surface may promise reconnection.
   const runnerGone = { ...reconnecting, id: 'runner-gone', runnerGone: true };
   assert.equal(classifySession(runnerGone).state, 'unavailable');
-  assert.equal(classifySession(runnerGone).label, 'Not connected');
+  assert.equal(classifySession(runnerGone).label, 'Agent unreachable');
 
   // A deliberately reboot-paused runtime is not generic connection loss and
   // never reads as idle. It has one actionable state across every surface.
@@ -258,7 +258,7 @@ try {
     unreachableReason: 'restart-restore-pending'
   };
   assert.equal(classifySession(needsRecovery).state, 'needs-recovery');
-  assert.equal(classifySession(needsRecovery).label, 'Needs recovery');
+  assert.equal(classifySession(needsRecovery).label, 'Paused after restart');
   assert.equal(sessionWantsAttention(needsRecovery), true);
 
   // Ordinary live states.

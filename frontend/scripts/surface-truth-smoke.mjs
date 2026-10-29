@@ -32,11 +32,11 @@ let server;
 // fixture list. Keyed by session name so a surface's own ordering does not
 // matter — only what it says about each session.
 const EXPECTED_LABELS = {
-  'Ended while asking': 'Ended',
-  'Waiting on you': 'Needs you',
+  'Ended while asking': 'Closed',
+  'Waiting on you': 'Waiting for you',
   'Missing one MCP server': 'Limited',
-  'Running the build': 'Working',
-  'Finished its turn': 'Finished'
+  'Running the build': 'In progress',
+  'Finished its turn': 'Reply complete'
 };
 
 try {
@@ -171,10 +171,7 @@ localStorage.setItem('sessions:projects-machine-scope','fixture');
         // The navigator's filter badge and Home's tile are two numbers on one
         // screen that must describe the same set of sessions.
         navigatorNeedsYou: Number(
-          (Array.from(document.querySelectorAll('#surface-navigator .session-filter-row button'))
-            .map((button) => text(button))
-            .find((label) => label.startsWith('Needs you')) ?? '')
-            .replace('Needs you', '').trim() || 0
+          text(document.querySelector('#surface-navigator option[value="needs"]')).match(/\((\d+)\)/)?.[1] ?? 0
         ),
         homeNeedsYou: Number(text(
           Array.from(document.querySelectorAll('#surface-home .home-stat-grid button'))
@@ -195,7 +192,7 @@ localStorage.setItem('sessions:projects-machine-scope','fixture');
     if (surface === 'counts') continue;
     assert.equal(
       labels['Ended while asking'],
-      'Ended',
+      'Closed',
       `${surface} must call an exited needs-input session "Ended"`
     );
   }
@@ -220,9 +217,7 @@ localStorage.setItem('sessions:projects-machine-scope','fixture');
 
   // The badge is only honest if the filter behind it selects the same set.
   t.scenario('the "Needs you" filter selects exactly the set its badge counts');
-  await page.$$eval('#surface-navigator .session-filter-row button', (buttons) => {
-    buttons.find((button) => (button.textContent ?? '').startsWith('Needs you'))?.click();
-  });
+  await page.select('#surface-navigator [aria-label="Session status"]', 'needs');
   await t.waitForFunction(
     page,
     () => document.querySelectorAll('#surface-navigator .session-nav-row').length === 1,
@@ -233,9 +228,7 @@ localStorage.setItem('sessions:projects-machine-scope','fixture');
     (nodes) => nodes.map((node) => node.textContent?.trim() ?? '')
   );
   assert.deepEqual(needsRows, ['Waiting on you'], 'the needs-you filter must select the badge’s set');
-  await page.$$eval('#surface-navigator .session-filter-row button', (buttons) => {
-    buttons.find((button) => (button.textContent ?? '').trim() === 'All')?.click();
-  });
+  await page.select('#surface-navigator [aria-label="Session status"]', 'all');
 
   // ── A failed end must stay an open decision ─────────────────────────────
   // The fixture daemon refuses the DELETE. The confirmation must stay up, say

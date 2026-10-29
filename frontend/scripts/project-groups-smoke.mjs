@@ -67,7 +67,7 @@ try {
         const sessionGroup = initial.find((group) => group.name?.endsWith('Sessions'));
         assert.match(sessionGroup.count, scope === 'all-machines' ? /18$/ : /17$/, 'project count excludes Working rows and the separate local Pinned group');
         for (const index of [16, 18]) assert.ok(sessionGroup.ids.includes(`project-0-agent-${index}`));
-        const workingIds = await page.$$eval('[aria-label="Working conversations"] [data-session-id]', (rows) => rows.map((row) => row.getAttribute('data-session-id')));
+        const workingIds = await page.$$eval('[aria-label="Conversations in progress"] [data-session-id]', (rows) => rows.map((row) => row.getAttribute('data-session-id')));
         assert.deepEqual(workingIds.sort(), ['project-0-agent-15', 'project-0-agent-19']);
         for (const id of workingIds) assert.ok(!sessionGroup.ids.includes(id), 'Working rows appear only once');
         assert.ok(await page.$('[data-session-id="project-0-agent-17"]'), 'pinned conversation remains visible');
@@ -93,6 +93,24 @@ try {
         assert.deepEqual(daemon.unhandled, [], 'all product requests must reach the fake daemon');
       }
     }
+  }
+  t.scenario('connection loss stays separate from closed sessions, with readable disclosure labels');
+  for (const scope of ['fixture', 'all-machines']) {
+    await page.setViewport({ width: 1100, height: 900 });
+    await page.goto(`http://127.0.0.1:${address.port}/?scope=${scope}&connectionStates=1`, { waitUntil: 'networkidle0' });
+    await page.waitForFunction(() => document.body.textContent.includes('Unavailable agents'));
+    if (scope === 'fixture') {
+      assert.deepEqual(await page.$eval('.inbox-fold-label', (el) => {
+        const bounds = el.getBoundingClientRect();
+        return { count: el.lastElementChild.textContent, fits: el.scrollWidth <= el.clientWidth,
+          lines: bounds.height < 24, detailVisible: el.nextElementSibling.scrollHeight <= el.nextElementSibling.clientHeight };
+      }), { count: '39', fits: true, lines: true, detailVisible: true });
+    }
+    if (screenshots) await page.screenshot({ path: join(screenshots, `connection-states-${scope}.png`), fullPage: true });
+    await page.select('[aria-label="Session status"]', 'ended');
+    await page.waitForFunction(() => document.body.textContent.includes('Closed agent'));
+    assert.equal(await page.$('[data-session-id="unavailable-0"]'), null, 'Closed cannot claim an unreachable agent stopped');
+    assert.equal(await page.evaluate(() => window.projectGroupDaemon.requests.filter((r) => r.method !== 'GET').length), 0);
   }
   assert.deepEqual(errors, []);
   t.pass('project-groups smoke passed: 100 agents, desktop/mobile, local/all-machines, dark/light');

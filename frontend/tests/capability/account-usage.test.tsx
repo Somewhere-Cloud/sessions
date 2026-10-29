@@ -131,7 +131,7 @@ describe('capability: one account, one allowance, on every computer it is signed
     machines[1]!.accountUsage = false;
     const { list } = await openAccounts(machines);
     const claude = rowFor(list, 'Claude Max');
-    expect(await within(claude).findByText('Claude usage is not connected in Sessions yet. Check Claude for your current limits.')).toBeVisible();
+    expect(await within(claude).findByText('Claude limits aren’t available in Sessions yet.')).toBeVisible();
     expect(within(claude).queryByRole('meter')).not.toBeInTheDocument();
     expect(await screen.findByText('Usage needs a newer Sessions runtime')).toBeVisible();
     // Alpha still reads the shared account; Beta's missing reading is coverage.

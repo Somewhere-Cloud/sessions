@@ -200,8 +200,8 @@ async function managerTabIds() {
   const current = await openCase('', '.session-nav-row[data-session-id="codex-1"]');
   await current.page.evaluate(() => {
     const button = [...document.querySelectorAll('.session-tree-group-head')]
-      .find((node) => node.textContent?.trim() === 'Recently closed');
-    if (!(button instanceof HTMLElement)) throw new Error('Recently closed group is missing');
+      .find((node) => node.textContent?.trim() === 'Closed sessions');
+    if (!(button instanceof HTMLElement)) throw new Error('Closed sessions group is missing');
     button.click();
   });
   await t.waitForSelector(current.page, '.session-nav-row[data-session-id="finished-child"]', 'the ended sessions to expand');
@@ -249,8 +249,8 @@ async function assertFinishedSessionIsReadOnly() {
   const current = await openCase('', '.session-nav-row[data-session-id="codex-1"]');
   await current.page.evaluate(() => {
     const button = [...document.querySelectorAll('.session-tree-group-head')]
-      .find((node) => node.textContent?.trim() === 'Recently closed');
-    if (!(button instanceof HTMLElement)) throw new Error('Recently closed group is missing');
+      .find((node) => node.textContent?.trim() === 'Closed sessions');
+    if (!(button instanceof HTMLElement)) throw new Error('Closed sessions group is missing');
     button.click();
   });
   await t.waitForSelector(current.page, '.session-nav-row[data-session-id="finished-parent"]', 'the ended sessions to expand');

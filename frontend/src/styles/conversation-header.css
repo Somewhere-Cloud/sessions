@@ -9,8 +9,10 @@
 .session-actions-menu > summary::-webkit-details-marker { display: none; }
 .session-actions-menu > summary:hover, .session-actions-menu[open] > summary { background: var(--bg-elev-2); color: var(--fg); }
 .session-actions-popover { position: absolute; z-index: 120; top: calc(100% + 8px); right: 0; width: 260px; max-width: calc(100vw - 24px); padding: 7px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-elev-1); box-shadow: var(--shadow-2); }
-.session-actions-popover > button, .session-actions-popover > .claude-runtime-control > button { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 38px; height: auto; padding: 8px 10px; border: 0; border-radius: 6px; background: transparent; color: var(--fg-dim); font: inherit; font-size: 13px; text-align: left; white-space: normal; }
+.session-actions-popover > button, .session-actions-popover > .claude-runtime-control > button { display: flex; align-items: center; justify-content: flex-start; gap: 8px; width: 100%; min-height: 38px; height: auto; padding: 8px 10px; border: 0; border-radius: 6px; background: transparent; color: var(--fg-dim); font: inherit; font-size: 13px; text-align: left; white-space: normal; }
 .session-actions-popover > button:hover, .session-actions-popover > .claude-runtime-control > button:hover { background: var(--bg-elev-2); color: var(--fg); }
+.session-actions-popover > button > svg { flex: 0 0 16px; width: 16px; height: 16px; }
+.session-actions-popover > button:not(:has(svg)), .session-actions-popover > .claude-runtime-control > button { padding-left: 34px; }
 .session-actions-context { display: grid; gap: 5px; padding: 8px 10px 12px; margin-bottom: 4px; border-bottom: 1px solid var(--border); color: var(--fg-faint); font-size: 12px; }
 .session-actions-context .account-badge { border: 0; padding: 0; color: var(--fg-dim); white-space: normal; }
 .session-actions-popover .claude-runtime-panel { position: static; width: auto; margin-top: 6px; }

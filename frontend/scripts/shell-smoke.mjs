@@ -57,7 +57,7 @@ try {
             await page.waitForSelector('.session-nav-row');
             const firstTop = await page.$eval('.session-nav-row', (row) => row.getBoundingClientRect().top);
             assert.ok(firstTop <= (width === 375 ? 150 : 120), `first conversation starts at ${firstTop}px on ${width}px`);
-            assert.equal(await page.$$eval('[aria-label="Working conversations"]', (groups) => groups.length), 1);
+            assert.equal(await page.$$eval('[aria-label="Conversations in progress"]', (groups) => groups.length), 1);
           }
           if (process.env.UI_SCREENSHOT_DIR) await page.screenshot({ path: join(process.env.UI_SCREENSHOT_DIR, `${screen}-${theme}-${width}${empty ? '-empty' : ''}.png`), fullPage: true });
           if (screen === 'tabs' && !empty) {

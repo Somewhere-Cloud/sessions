@@ -104,7 +104,7 @@ describe('capability: choose how the navigator groups sessions', () => {
     expect(rowTitles(recentList())).toEqual(['Older conversation', 'Newer conversation']);
 
     // Ended work is still folded away rather than mixed into the live list.
-    const finished = within(recentList()).getByRole('button', { name: /Finished · 1/ });
+    const finished = within(recentList()).getByRole('button', { name: /Closed\s*1/ });
     expect(rowTitles(recentList())).not.toContain('Finished conversation');
     await userEvent.setup().click(finished);
     await waitFor(() => expect(rowTitles(recentList())).toContain('Finished conversation'));

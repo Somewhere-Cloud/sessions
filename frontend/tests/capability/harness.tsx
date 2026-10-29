@@ -62,9 +62,5 @@ export function Workbench({
   );
 }
 
-/**
- * The Ended group's disclosure. The navigator also has a filter chip whose
- * accessible name is exactly "Ended"; the group head carries its count, so this
- * distinguishes the two without reaching for a class name.
- */
-export const ENDED_GROUP = /^Recently closed$/;
+/** The cross-machine closed-session disclosure, distinct from the status select. */
+export const ENDED_GROUP = /^Closed sessions$/;

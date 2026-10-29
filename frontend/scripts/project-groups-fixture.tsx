@@ -15,6 +15,13 @@ const sessions = names.flatMap((name, project) => Array.from({ length: 20 }, (_,
   pinned: project === 0 && index === 17,
   tags: { project: name }
 })));
+if (new URLSearchParams(location.search).has('connectionStates')) {
+  sessions.push(...Array.from({ length: 39 }, (_, index) => makeSession({
+    id: `unavailable-${index}`, name: `Unavailable agent ${index + 1}`, cwd: '/work/Sessions',
+    tags: { project: 'Sessions' }, unreachable: true, runnerGone: true, pid: 0,
+  })), makeSession({ id: 'closed-agent', name: 'Closed agent', cwd: '/work/Sessions',
+    tags: { project: 'Sessions' }, exited: true, exitCode: 0, exitedAt: now }));
+}
 const machines: FakeMachine[] = [{ id: 'fixture', name: 'Fixture Mac', host: 'localhost', port: 8787, isDefault: true, sessions,
   projects: names.map((name, index) => ({ id: `project-${index}`, name, implicit: false, roots: [`/work/${name}`],
     session_ids: sessions.filter((session) => session.cwd === `/work/${name}`).map((session) => session.id), live: 20, needs_input: index === 0 ? 1 : 0 })) }];

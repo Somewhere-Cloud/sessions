@@ -48,11 +48,11 @@ describe('capability: recently closed recovery stays exact and explicit', () => 
     const resume = vi.fn();
     render(<SavedRows groups={savedGroup()} onOpen={open} onResume={resume} />);
 
-    expect(await screen.findByText(/this machine restarted/i)).toBeInTheDocument();
+    expect(await screen.findByText(/this computer restarted/i)).toBeInTheDocument();
     expect(resume).not.toHaveBeenCalled();
 
     // Reading the saved row is inert with respect to recovery.
-    await userEvent.setup().click(screen.getByRole('button', { name: /^Release handoff Needs recovery/ }));
+    await userEvent.setup().click(screen.getByRole('button', { name: /^Release handoff Paused after restart/ }));
     expect(open).toHaveBeenCalledWith('paired-mini', 'paused-on-mini');
     expect(resume).not.toHaveBeenCalled();
 

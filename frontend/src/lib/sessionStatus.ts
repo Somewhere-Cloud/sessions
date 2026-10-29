@@ -124,24 +124,24 @@ export interface SessionStatus {
 
 const STATE_LABELS: Record<SessionStatusState, string> = {
   reconnecting: 'Connecting…',
-  unavailable: 'Not connected',
-  'needs-recovery': 'Needs recovery',
+  unavailable: 'Agent unreachable',
+  'needs-recovery': 'Paused after restart',
   failed: 'Failed',
   'provider-down': 'Provider unavailable',
   'auth-needed': 'Needs login',
-  ended: 'Ended',
-  'needs-you': 'Needs you',
-  working: 'Working',
+  ended: 'Closed',
+  'needs-you': 'Waiting for you',
+  working: 'In progress',
   limited: 'Limited',
-  finished: 'Finished',
+  finished: 'Reply complete',
   'not-started': 'Not started',
-  ready: 'Ready'
+  ready: 'Ready for a message'
 };
 
 const STATE_TONES: Record<SessionStatusState, SessionStatusTone> = {
   reconnecting: 'ready',
   unavailable: 'ended',
-  'needs-recovery': 'needs',
+  'needs-recovery': 'ended',
   failed: 'attention',
   'provider-down': 'attention',
   'auth-needed': 'needs',
@@ -227,7 +227,7 @@ export function lostSessionNote(session: SessionInfo): string {
     case 'runner startup was never confirmed':
       return `Startup was not confirmed${when} · Inspect before restarting`;
     case 'machine rebooted':
-      return `Lost when this machine restarted${when} · Resume to continue`;
+      return `Paused after this computer restarted${when} · Resume to continue`;
     case 'runner exited':
       return `The agent's process ended${when} · Resume to continue`;
     default:

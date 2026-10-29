@@ -66,7 +66,6 @@ export function AccountPlacementRow(
           }}
         />
       ) : null}
-      <p className="field-help">Removing an account keeps its saved chats and sign-in on this computer.</p>
       {activity ? <span className="accounts-activity">{activity}</span> : null}
       {error ? <span className="accounts-row-error" role="alert">{error}</span> : null}
       {account.default_profile ? <p className="field-help">This is the existing {account.tool === 'claude' ? 'Claude' : 'Codex'} CLI login on {placement.machineName}. Choose “CLI default” when starting a session. Refresh accounts to check its identity; changing it in the provider CLI does not switch existing sessions.</p> : null}
