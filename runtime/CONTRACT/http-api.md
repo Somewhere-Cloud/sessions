@@ -3776,8 +3776,21 @@ worktree gitfiles; it never substitutes `source_repo` or the client checkout.
 The existing `branch` field remains worktree creation provenance.
 
 Reads use local files only, at most 32 ancestor directories and 4096 bytes per
-file, with a 30-second cache capped at 256 cwd entries and 16 cache misses per
+file, with a cache capped at 256 cwd entries and 16 refresh admissions per
 inventory request. Unprobed entries omit the observation. Missing cwd or
 unreadable/malformed HEAD is unavailable; a detached revision is not a branch.
 The cwd is the recorded session workspace, not a claim to track shell `cd`.
 No remote lookup, Git command, index refresh, or checkout is performed.
+
+Workspace HEAD reads run on one bounded background worker. Inventory never waits
+for these filesystem reads. Cached observations retain their `observedAt` while
+a refresh is pending; an unobserved cwd omits `workspaceGit`. Entries become
+eligible for refresh after 30 seconds, with rotating admission across rows.
+
+`workspaceGit.iconDataUrl`, when present, is a local project icon encoded as an
+image data URL (SVG, PNG, or ICO), shared by CLI JSON and GUI. The background
+observer checks a fixed list of favicon/icon filenames in the repository root,
+`public`, `app`, `src/app`, `frontend/public`, and `assets`. Files must be regular,
+at most 16 KiB, and resolve inside the workspace repository. No remote fetch or
+recursive scan occurs. Clients render icons as images, never inline SVG markup;
+missing or unrenderable icons fall back to project initials.

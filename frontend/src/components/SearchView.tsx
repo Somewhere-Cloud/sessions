@@ -193,21 +193,20 @@ async function readServerForSearch(
   const serverName = serverDisplayName(server, true);
   const budget = peerBudget(base, isLocalServer(server));
   const signal = budget.signal;
-  let partial: ServerResponse | null = null;
-  const enrichment = Promise.allSettled([
-      settleOnAbort(listServerSessions(server, signal), signal),
-      settleOnAbort(fetchServerHistory(server, signal), signal),
-      settleOnAbort(fetchServerResumableSessions(server, signal), signal)
-    ]).then((reads) => {
-      if (!partial) {
-        partial = enrichServerResponse(server, params, {
-          ...indexedServerResponse(server, { matches: [], total: 0 }), meta: null
-        }, reads);
-        partial.report = { ...partial.report, status: 'pending' };
-        onIndexed(partial);
-      }
-      return reads;
-    });
+  let indexed: ServerResponse = { ...indexedServerResponse(server, { matches: [], total: 0 }), meta: null };
+  let hasIndex = false;
+  const reads: TitleSourceReads = [undefined, undefined, undefined];
+  let partial: ServerResponse = indexed;
+  const publish = (): void => {
+    partial = enrichServerResponse(server, params, indexed, reads);
+    if (!hasIndex) partial.report = { ...partial.report, status: 'pending' };
+    onIndexed(partial);
+  };
+  const enrichment = Promise.all([
+    settleCatalog(settleOnAbort(listServerSessions(server, signal), signal), (read) => { reads[0] = read; publish(); }),
+    settleCatalog(settleOnAbort(fetchServerHistory(server, signal), signal), (read) => { reads[1] = read; publish(); }),
+    settleCatalog(settleOnAbort(fetchServerResumableSessions(server, signal), signal), (read) => { reads[2] = read; publish(); })
+  ]);
   try {
     const response = await settleOnAbort(searchServer(server, {
         query: params.query,
@@ -221,10 +220,11 @@ async function readServerForSearch(
         timeline: params.timeline,
         limit: 250
       }, signal), signal);
-    const indexed = indexedServerResponse(server, response);
-    partial = indexed;
-    onIndexed(indexed);
-    return enrichServerResponse(server, params, indexed, await enrichment);
+    indexed = indexedServerResponse(server, response);
+    hasIndex = true;
+    publish();
+    await enrichment;
+    return enrichServerResponse(server, params, indexed, reads);
   } catch (reason) {
     await enrichment;
     return {
@@ -247,18 +247,25 @@ async function readServerForSearch(
   }
 }
 
+async function settleCatalog<T>(read: Promise<T>, receive: (result: PromiseSettledResult<T>) => void): Promise<void> {
+  const result = await read.then((value): PromiseSettledResult<T> => ({ status: 'fulfilled', value }),
+    (reason): PromiseSettledResult<T> => ({ status: 'rejected', reason }));
+  receive(result);
+}
+
 type TitleSourceReads = [
-  PromiseSettledResult<SessionInfo[]>, PromiseSettledResult<HistorySession[]>, PromiseSettledResult<ResumableSession[]>
+  PromiseSettledResult<SessionInfo[]> | undefined, PromiseSettledResult<HistorySession[]> | undefined,
+  PromiseSettledResult<ResumableSession[]> | undefined
 ];
 
 function enrichServerResponse(
   server: ServerConfig, params: FleetSearchParams, indexed: ServerResponse, reads: TitleSourceReads
 ): ServerResponse {
   const [sessionRead, historyRead, resumableRead] = reads;
-  const sessions = sessionRead.status === 'fulfilled' ? sessionRead.value : [];
-  const history = historyRead.status === 'fulfilled' ? historyRead.value : [];
-  const resumable = resumableRead.status === 'fulfilled' ? resumableRead.value : [];
-  const failures = [sessionRead, historyRead, resumableRead].filter((read) => read.status === 'rejected');
+  const sessions = sessionRead?.status === 'fulfilled' ? sessionRead.value : [];
+  const history = historyRead?.status === 'fulfilled' ? historyRead.value : [];
+  const resumable = resumableRead?.status === 'fulfilled' ? resumableRead.value : [];
+  const failures = [sessionRead, historyRead, resumableRead].filter((read): read is PromiseRejectedResult => read?.status === 'rejected');
   const managedMatches = enrichSearchResultsWithSessions(
     indexed.matches, filterTitleSearchSessions(sessions, params), params.query
   );

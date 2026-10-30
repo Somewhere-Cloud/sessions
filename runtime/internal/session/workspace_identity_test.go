@@ -1,12 +1,10 @@
 package session
 
 import (
-	"github.com/somewhere-tech/sessions/runtime/internal/state"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestWorkspaceHead(t *testing.T) {
@@ -45,42 +43,6 @@ func TestWorkspaceHead(t *testing.T) {
 	}
 	if got := readWorkspaceHead(filepath.Join(repo, "missing")); got.State != "unavailable" {
 		t.Fatalf("missing cwd must not inherit root: %+v", got)
-	}
-}
-
-func TestWorkspaceIdentityCache(t *testing.T) {
-	root := t.TempDir()
-	git := filepath.Join(root, ".git")
-	if err := os.Mkdir(git, 0700); err != nil {
-		t.Fatal(err)
-	}
-	write := func(branch string) {
-		t.Helper()
-		if err := os.WriteFile(filepath.Join(git, "HEAD"), []byte("ref: refs/heads/"+branch), 0600); err != nil {
-			t.Fatal(err)
-		}
-	}
-	write("first")
-	input := []state.SessionInfo{{Cwd: root, SourceRepo: "/wrong-root", Branch: "creation-only"}}
-	first := withWorkspaceIdentity(input)[0]
-	if first.WorkspaceGit.Branch != "first" || first.Branch != "creation-only" {
-		t.Fatalf("provenance overwritten: %+v", first)
-	}
-	write("second")
-	if got := withWorkspaceIdentity(input)[0]; got.WorkspaceGit.Branch != "first" {
-		t.Fatalf("read bypassed cache: %+v", got.WorkspaceGit)
-	}
-	workspaceHeads.Lock()
-	entry := workspaceHeads.entries[root]
-	entry.at = time.Now().Add(-time.Minute)
-	workspaceHeads.entries[root] = entry
-	workspaceHeads.Unlock()
-	if got := withWorkspaceIdentity(input)[0]; got.WorkspaceGit.Branch != "second" {
-		t.Fatalf("expired cache: %+v", got.WorkspaceGit)
-	}
-	missing := withWorkspaceIdentity([]state.SessionInfo{{Cwd: filepath.Join(root, "missing"), SourceRepo: root, Branch: "creation-only"}})[0]
-	if missing.WorkspaceGit.State != "unavailable" || missing.WorkspaceGit.Branch != "" {
-		t.Fatalf("missing cwd inherited source branch: %+v", missing.WorkspaceGit)
 	}
 }
 

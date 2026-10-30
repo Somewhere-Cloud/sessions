@@ -84,10 +84,11 @@ const (
 // WorkspaceGit is a bounded cached observation of the session cwd on this host.
 // Branch remains creation provenance; this observation never replaces it.
 type WorkspaceGit struct {
-	State      string `json:"state"`
-	Branch     string `json:"branch,omitempty"`
-	Revision   string `json:"revision,omitempty"`
-	ObservedAt int64  `json:"observedAt"`
+	IconDataURL string `json:"iconDataUrl,omitempty"`
+	State       string `json:"state"`
+	Branch      string `json:"branch,omitempty"`
+	Revision    string `json:"revision,omitempty"`
+	ObservedAt  int64  `json:"observedAt"`
 }
 
 type SessionInfo struct {

@@ -58,6 +58,11 @@ try {
     await page.waitForSelector('.search-result-main');
     await page.evaluate(async () => { window.searchHarness.releaseOld(); await new Promise(requestAnimationFrame); await new Promise(requestAnimationFrame); });
     await page.waitForFunction(() => !document.body.textContent.includes('Obsolete result'));
+    await page.goto(`http://127.0.0.1:${server.address().port}/?screen=search&state=partial-catalog`);
+    await page.type('[aria-label="Search conversations"]', 'migration');
+    await page.click('.search-ai-submit');
+    await page.waitForSelector('.search-result-main', { timeout: 1500 });
+    assert.ok(await page.$('.search-progress'), 'ready catalog publishes while siblings remain blocked');
     await page.goto(`http://127.0.0.1:${server.address().port}/?screen=search&state=cold`);
     await page.type('[aria-label="Search conversations"]', 'migration');
     const coldStarted = Date.now();

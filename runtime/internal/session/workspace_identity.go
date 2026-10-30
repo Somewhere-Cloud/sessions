@@ -5,50 +5,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/somewhere-tech/sessions/runtime/internal/state"
 )
-
-// HEAD observations belong to the serving host and exact cwd, never sourceRepo.
-// No subprocess, remote, index refresh, checkout, or provider access is involved.
-var workspaceHeads = struct {
-	sync.Mutex
-	entries map[string]workspaceHeadEntry
-}{entries: make(map[string]workspaceHeadEntry)}
-
-type workspaceHeadEntry struct {
-	value state.WorkspaceGit
-	at    time.Time
-}
-
-func withWorkspaceIdentity(infos []state.SessionInfo) []state.SessionInfo {
-	workspaceHeads.Lock()
-	defer workspaceHeads.Unlock()
-	budget := 16
-	for i := range infos {
-		cwd := infos[i].Cwd
-		if !filepath.IsAbs(cwd) {
-			continue
-		}
-		entry, ok := workspaceHeads.entries[cwd]
-		if !ok || time.Since(entry.at) > 30*time.Second {
-			if budget == 0 {
-				continue
-			}
-			budget--
-			entry = workspaceHeadEntry{value: readWorkspaceHead(cwd), at: time.Now()}
-			if len(workspaceHeads.entries) >= 256 {
-				clear(workspaceHeads.entries)
-			}
-			workspaceHeads.entries[cwd] = entry
-		}
-		value := entry.value
-		infos[i].WorkspaceGit = &value
-	}
-	return infos
-}
 
 func readSmallGitFile(path string) (string, error) {
 	info, err := os.Stat(path)
@@ -86,6 +46,7 @@ func readWorkspaceHead(cwd string) state.WorkspaceGit {
 		gitPath := filepath.Join(dir, ".git")
 		info, err := os.Stat(gitPath)
 		if err == nil {
+			result.IconDataURL = readWorkspaceIcon(dir)
 			if !info.IsDir() {
 				text, readErr := readSmallGitFile(gitPath)
 				if readErr != nil || !strings.HasPrefix(text, "gitdir: ") {

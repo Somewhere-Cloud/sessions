@@ -30,6 +30,7 @@ try {
     await page.setViewport({ width, height: 960 });
     await page.goto(`http://127.0.0.1:${server.address().port}/?identity&theme=${theme}`, { waitUntil: 'networkidle0' });
     await page.waitForSelector('[data-session-id="project-0-agent-18"] .session-workspace-branch');
+    await page.waitForFunction(() => [...document.querySelectorAll('.project-mark img')].some((image) => image.complete && image.naturalWidth > 0));
     const result = await page.evaluate(() => {
       const row = document.querySelector('[data-session-id="project-0-agent-18"]');
       const title = row.querySelector('.session-nav-title');

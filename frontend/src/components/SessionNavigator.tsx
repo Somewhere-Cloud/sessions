@@ -1021,7 +1021,7 @@ function SessionRowMeta({ provider, machine, when, whenTitle, project, session }
     <span className="session-nav-meta" title={`${provider === 'claude' ? 'Claude' : provider === 'codex' ? 'Codex' : 'Shell'} · ${machine}`}>
       <span className="sr-only">{provider === 'claude' ? 'Claude' : provider === 'codex' ? 'Codex' : 'Shell'} · </span><span className="session-nav-context">{machine}</span>
       <span className="session-nav-time" title={whenTitle}>{when}</span>
-      {project ? <span className="session-nav-project" title={`Project: ${project}`}><ProjectMark name={project} />{project}</span> : null}
+      {project ? <span className="session-nav-project" title={`Project: ${project}`}><ProjectMark name={project} icon={session.workspaceGit?.iconDataUrl} />{project}</span> : null}
       <SessionWorkspaceBranch session={session} />
     </span>
   );

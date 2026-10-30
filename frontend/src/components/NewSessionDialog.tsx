@@ -278,14 +278,14 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
   const [createdWithDeliveryError, setCreatedWithDeliveryError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!embedded) return;
+    if (!embedded || hidden) return;
     const closeOnEscape = (event: KeyboardEvent): void => {
       if (event.key !== 'Escape' || event.defaultPrevented) return;
       event.preventDefault(); onClose();
     };
     window.addEventListener('keydown', closeOnEscape);
     return () => window.removeEventListener('keydown', closeOnEscape);
-  }, [embedded, onClose]);
+  }, [embedded, hidden, onClose]);
 
   const profileTool = providerForTool(tool);
   const toolProfiles = profiles.filter((profile) => profile.tool === profileTool);
@@ -303,7 +303,7 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
     ?? null;
 
   useEffect(() => {
-    if (parentSession) return;
+    if (parentSession || hidden) return;
     if (!configuredMachines.some((machine) => machine.id === machineId)) {
       const fallback = configuredMachines.find((machine) => machine.isDefault && isLocalServer(machine))
         ?? configuredMachines[0];
@@ -328,7 +328,7 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
       });
     }).catch(() => { if (active) setRecentWorkspaces([]); });
     return () => { active = false; };
-  }, [configuredMachines, machineId, parentSession, projectSeed, selectActiveMachine, setServerScope]);
+  }, [configuredMachines, machineId, parentSession, projectSeed, selectActiveMachine, setServerScope, hidden]);
 
   useEffect(() => {
     if (!profileTool) {

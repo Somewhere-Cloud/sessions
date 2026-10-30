@@ -35,6 +35,7 @@ if (state === 'smart') Object.assign(window, { __TAURI_INTERNALS__: {} });
 window.fetch = async (input, init) => {
   const url = String(input instanceof Request ? input.url : input);
   if (state === 'remote-first' && url.includes('localhost') && /\/api\/(search|sessions|history|resumable-conversations)/.test(url)) return new Promise(() => {});
+  if (state === 'partial-catalog' && /\/api\/(search\?|resumable-conversations)/.test(url)) return new Promise(() => {});
   if (state === 'cold' && url.includes('/api/search?')) await new Promise((resolve) => setTimeout(resolve, 2400));
   if (url.includes('/api/search/plan')) return new Response(JSON.stringify({ provider: 'claude', query: 'migration' }), { status: 200 });
   if (url.includes('/api/search?') && new URL(url).searchParams.get('q') === 'old') {

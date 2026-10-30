@@ -23,6 +23,7 @@ it('Cmd+N opens and refocuses one draft, while Cmd+K retains commands', async ()
   fireEvent.click(screen.getByRole('button', { name: 'Search' }));
   await screen.findByRole('textbox', { name: 'Search conversations' });
   expect(composer).not.toBeVisible();
+  fireEvent.keyDown(window, { key: 'Escape' });
   fireEvent.keyDown(window, { key: 'n', metaKey: true });
   await waitFor(() => expect(composer).toHaveFocus());
   expect(composer).toHaveValue('Keep this draft');

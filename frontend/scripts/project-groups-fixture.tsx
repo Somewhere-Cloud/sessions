@@ -16,6 +16,8 @@ const sessions = names.flatMap((name, project) => Array.from({ length: 20 }, (_,
   tags: { project: name }
 })));
 if (new URLSearchParams(location.search).has('identity')) {
+  sessions[0].workspaceGit = { state: 'branch', branch: 'main', observedAt: now,
+    iconDataUrl: 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><rect width="16" height="16" rx="4" fill="#23b3a8"/><path d="M4 8h8M8 4v8" stroke="white" stroke-width="2"/></svg>') };
   sessions[18].name = 'Codex: Simplify navigation for a project with an unusually long descriptive name and several related worktree conversations that must remain discoverable';
   sessions[18].lastSummary = 'Agent: The navigation now keeps the conversation title clear.';
   sessions[18].workspaceGit = { state: 'branch', branch: 'feature/sidebar/long-worktree-branch-with-meaningful-context', observedAt: now };

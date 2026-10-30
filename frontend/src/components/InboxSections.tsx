@@ -191,7 +191,7 @@ function ProjectSection({ section, activeSessionId, renderNode }: { section: Inb
       <button type="button" className="session-tree-group-head inbox-project-head" onClick={() => setOpen((current) => !current)} aria-expanded={open} aria-controls={rowsId}>
         <span className="session-group-disclosure">
           <span className={`inbox-chevron${open ? ' is-open' : ''}`} aria-hidden>▸</span>
-          <ProjectMark name={section.name} />{section.name}
+          <ProjectMark name={section.name} icon={section.live[0]?.workspaceGit?.iconDataUrl} />{section.name}
         </span>
         <strong>
           {count}
