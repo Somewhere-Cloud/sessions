@@ -39,6 +39,11 @@ if (new URLSearchParams(location.search).has('connectionStates')) {
 const machines: FakeMachine[] = [{ id: 'fixture', name: 'Fixture Mac', host: 'localhost', port: 8787, isDefault: true, sessions,
   projects: names.map((name, index) => ({ id: `project-${index}`, name, implicit: false, roots: [`/work/${name}`],
     session_ids: sessions.filter((session) => session.cwd === `/work/${name}`).map((session) => session.id), live: 20, needs_input: index === 0 ? 1 : 0 })) }];
+if (new URLSearchParams(location.search).has('implicit')) {
+  machines[0].projects = [{ id: 'other', name: 'Other projects', implicit: true, roots: [],
+    session_ids: sessions.map((session) => session.id), live: sessions.length, needs_input: 1 }];
+  sessions[18].tags = { project: 'A project with a long descriptive name that must visibly truncate' };
+}
 const daemon = installFakeDaemon(machines);
 useFakeMachines(machines);
 Object.assign(window, { projectGroupDaemon: daemon });

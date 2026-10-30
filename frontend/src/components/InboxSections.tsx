@@ -81,7 +81,7 @@ export function InboxSections({ layout, activeSessionId, renderNode, onOpen, onS
       {layout.flat
         ? sections[0] ? <RecentList section={sections[0]} renderNode={renderNode} projectLabelOf={projectLabelOf} /> : null
         : sections.map((section) => (
-          <ProjectSection key={section.id} section={section} activeSessionId={activeSessionId} renderNode={renderNode} />
+          <ProjectSection key={section.id} section={section} activeSessionId={activeSessionId} renderNode={renderNode} projectLabelOf={projectLabelOf} />
         ))}
     </>
   );
@@ -177,19 +177,20 @@ function RecentList({ section, renderNode, projectLabelOf }: {
   );
 }
 
-function ProjectSection({ section, activeSessionId, renderNode }: { section: InboxSection; activeSessionId?: string | null; renderNode: Props['renderNode'] }) {
+function ProjectSection({ section, activeSessionId, renderNode, projectLabelOf }: { section: InboxSection; activeSessionId?: string | null; renderNode: Props['renderNode']; projectLabelOf: Props['projectLabelOf'] }) {
   const [open, setOpen] = useState(true);
   const [showAll, setShowAll] = useState(false);
   const rowsId = useId();
   const preview = projectPreview(section.live, (session) => session, (session) => session.id === activeSessionId);
   const remaining = section.live.length - preview.length;
+  const row = (session: SessionInfo, ended = false) => renderNode(session, ended, section.implicit ? projectLabelOf?.(session) : undefined);
   const count = section.live.length + section.notConnected.length;
   return (
     <div className={`session-tree-group inbox-project${section.implicit ? ' is-implicit' : ''}`}>
       <button type="button" className="session-tree-group-head inbox-project-head" onClick={() => setOpen((current) => !current)} aria-expanded={open} aria-controls={rowsId}>
         <span className="session-group-disclosure">
           <span className={`inbox-chevron${open ? ' is-open' : ''}`} aria-hidden>▸</span>
-          <ProjectMark name={section.name} icon={section.live.find((session) => session.workspaceGit?.iconDataUrl)?.workspaceGit?.iconDataUrl} />{section.name}
+          <ProjectMark name={section.name} icon={section.implicit ? undefined : section.live.find((session) => session.workspaceGit?.iconDataUrl)?.workspaceGit?.iconDataUrl} />{section.name}
         </span>
         <strong>
           {count}
@@ -197,14 +198,14 @@ function ProjectSection({ section, activeSessionId, renderNode }: { section: Inb
       </button>
       <div id={rowsId} hidden={!open}>{open ? (
         <>
-          {(showAll ? section.live : preview).map((session) => renderNode(session))}
+          {(showAll ? section.live : preview).map((session) => row(session))}
           {remaining > 0 ? <button type="button" className="inbox-fold project-preview-toggle" aria-expanded={showAll} aria-controls={rowsId} onClick={() => setShowAll((current) => !current)}>
             {showAll ? 'Show fewer agents' : `Show ${remaining} remaining agents`}
           </button> : null}
           {section.live.length === 0 && section.notConnected.length === 0 ? <div className="session-tree-empty is-compact">Nothing live here.</div> : null}
           {section.notConnected.length > 0 ? (
             <Fold label="Unavailable agents" count={section.notConnected.length} detail="Cannot reach these agents. Open one for connection details.">
-              {() => section.notConnected.map((session) => renderNode(session))}
+              {() => section.notConnected.map((session) => row(session))}
             </Fold>
           ) : null}
           {section.finished.length > 0 ? (
@@ -213,7 +214,7 @@ function ProjectSection({ section, activeSessionId, renderNode }: { section: Inb
               count={section.finished.length}
               detail={`${resolvedSessionLabel(section.finished[0]!)}${section.finished.length > 1 ? ` · +${section.finished.length - 1}` : ''}`}
             >
-              {() => section.finished.map((session) => renderNode(session, true))}
+              {() => section.finished.map((session) => row(session, true))}
             </Fold>
           ) : null}
         </>

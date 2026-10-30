@@ -615,7 +615,7 @@ export function SessionNavigator({
           <span className={`session-nav-status ${status.className}`} aria-hidden title={status.label} />
           {isPinned(session) ? <span className="manager-pin is-pinned" title="Pinned" aria-label="Pinned">📌</span> : null}
           <span className="session-nav-copy">
-            <SessionRowMeta session={session} project={projectLabel} label={label} machine={machine}
+            <SessionRowMeta session={session} project={projectLabel} label={label} machine={machine} showMachine={showingAllMachines}
               when={session.exited ? endedAtLabel(session, true) : relativeTime(messageTimeOf(session))}
               whenTitle={session.exited ? endedAtLabel(session) : undefined} />
             <SessionRowLines session={session} end={end} lostNote={lostNote}
@@ -1002,22 +1002,23 @@ function SessionRowLines({ session, end, lostNote, resumedFrom, under }: {
 }
 
 // Project identity and age have their own line, leaving the branch readable.
-function SessionRowMeta({ when, whenTitle, project, session, label, machine }: {
+function SessionRowMeta({ when, whenTitle, project, session, label, machine, showMachine }: {
   session: SessionInfo;
   when: string;
   whenTitle?: string;
   project?: string;
   label: string;
   machine: string;
+  showMachine: boolean;
 }): JSX.Element {
   const providerName = normalizeProvider(session.tool);
   const stamp = <span className="session-nav-stamp">
     <span className="session-nav-time" title={whenTitle}>{when}</span>
-    <MachineMark machine={machine} size={14} />
+    <span className={showMachine ? undefined : 'sr-only'}><MachineMark machine={machine} size={14} /></span>
     {providerName ? <ProviderBadge provider={providerName} compact /> : null}
   </span>;
   return <>
-    {project ? <span className="session-nav-meta"><span className="session-nav-project" title={`Project: ${project}`}><ProjectMark name={project} icon={session.workspaceGit?.iconDataUrl} />{project}</span>{stamp}</span> : null}
+    {project ? <span className="session-nav-meta"><span className="session-nav-project" title={`Project: ${project}`}><ProjectMark name={project} icon={session.workspaceGit?.iconDataUrl} /><span className="session-nav-project-label">{project}</span></span>{stamp}</span> : null}
     <span className="session-nav-heading"><span className="session-nav-title" title={label}>{label}</span>{!project ? stamp : null}</span>
   </>;
 }

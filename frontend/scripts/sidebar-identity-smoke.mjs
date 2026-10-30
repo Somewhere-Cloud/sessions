@@ -26,9 +26,9 @@ try {
   const page = await browser.newPage();
   const errors = []; page.on('pageerror', (error) => errors.push(error.message));
   if (output) await mkdir(output, { recursive: true });
-  for (const width of [1141, 1440, 390]) for (const theme of ['dark', 'light']) {
+  for (const width of [1141, 1440, 390]) for (const theme of ['dark', 'light']) for (const implicit of [false, true]) {
     await page.setViewport({ width, height: 960 });
-    await page.goto(`http://127.0.0.1:${server.address().port}/?identity&theme=${theme}`, { waitUntil: 'networkidle0' });
+    await page.goto(`http://127.0.0.1:${server.address().port}/?identity&theme=${theme}${implicit ? '&implicit' : ''}`, { waitUntil: 'networkidle0' });
     await page.waitForSelector('[data-session-id="project-0-agent-18"] .session-workspace-branch');
     await page.waitForFunction(() => [...document.querySelectorAll('.project-mark img')].some((image) => image.complete && image.naturalWidth > 0));
     const result = await page.evaluate(() => {
@@ -41,7 +41,14 @@ try {
     });
     assert.ok(!result.title.startsWith('Codex:')); assert.equal(result.preview, undefined, 'sidebar rows omit message previews');
     assert.equal(result.overflow, false); assert.equal(result.noise, false); assert.ok(result.bounded); assert.ok(result.fullTitle); assert.ok(result.detached); assert.ok(result.unavailable);
-    if (output) await page.screenshot({ path: join(output, `sidebar-${width}-${theme}.png`) });
+    if (implicit) {
+      assert.equal(await page.$('.inbox-project.is-implicit .inbox-project-head img'), null, 'mixed bucket does not borrow a project icon');
+      assert.equal(await page.$eval('[data-session-id="project-0-agent-18"] .session-nav-project-label', (el) =>
+        getComputedStyle(el).textOverflow === 'ellipsis' && el.scrollWidth > el.clientWidth), true, 'long project names visibly ellipsise');
+      assert.ok(await page.$('[data-session-id="project-0-agent-0"] .session-nav-project img'), 'implicit row retains its own icon');
+    }
+    assert.equal(await page.$$eval('.session-nav-stamp .machine-mark', (nodes) => nodes.every((el) => Boolean(el.closest('.sr-only')))), true, 'single-machine scope keeps host identity without repeated glyphs');
+    if (output) await page.screenshot({ path: join(output, `sidebar-${width}-${theme}${implicit ? "-implicit" : ""}.png`) });
   }
   assert.deepEqual(errors, []);
   console.log('sidebar identity: 1141/1440/390, both themes; no message previews, branch/detached/unavailable, bounded titles passed');
