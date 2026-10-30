@@ -39,12 +39,12 @@ try {
     assert.equal(await page.$eval('textarea', (el) => el === document.activeElement), false, 'opening the launcher must not summon the phone keyboard');
     const bounds = await page.evaluate(() => ({
       overflow: document.documentElement.scrollWidth > innerWidth,
-      controls: [...document.querySelectorAll('.launcher-setup select, .launcher-setup button')].map((el) => {
+      controls: [...document.querySelectorAll('.launcher-composer-context select, .launcher-composer-context button')].map((el) => {
         const r = el.getBoundingClientRect(); return { x: r.x, right: r.right, height: r.height };
       })
     }));
     assert.equal(bounds.overflow, false, `no horizontal overflow at ${width}px`);
-    assert.ok(bounds.controls.every((r) => r.x >= 0 && r.right <= width && r.height >= 42), `readable touch-sized choices at ${width}px`);
+    assert.ok(bounds.controls.length >= 3 && bounds.controls.every((r) => r.x >= 0 && r.right <= width && r.height >= (width <= 430 ? 42 : 30)), `readable, touch-sized on phones, choices at ${width}px`);
     assert.equal(await page.evaluate(() => window.launcherDaemon.created.length), 0, 'opening creates no runner');
     await page.type('textarea', 'Preserve this draft');
     await page.evaluate(() => window.dispatchEvent(new Event('launcher-focus')));
@@ -54,7 +54,7 @@ try {
     await page.$eval('textarea', (el) => { el.value = ''; el.dispatchEvent(new Event('input', { bubbles: true })); });
     await page.select('[aria-label="Agent"]', 'codex');
     assert.equal(await page.$eval('.launcher-advanced', (el) => el.open), false);
-    assert.match(await page.$eval('#launcher-access-help', (el) => el.textContent), /without asking/);
+    assert.match(await page.$eval('[aria-label="Access"]', (el) => el.title), /without asking/);
     await page.click('.launcher-advanced > summary');
     await page.waitForSelector('.model-picker-trigger:not(:disabled)');
     await page.click('.model-picker-trigger');

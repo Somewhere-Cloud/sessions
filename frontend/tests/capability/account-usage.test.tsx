@@ -37,7 +37,8 @@ function fleet(): FakeMachine[] {
       ],
       accountUsage: {
         'codex/team': { ...reading(12, Date.now() - 30 * 60_000), identity: verified(Date.now() - 30 * 60_000) },
-        'codex/mail': { state: 'signed_out', checked_at: Date.now(), message: 'Codex reports no sign-in for this account. Sign in to see its usage.' }
+        'codex/mail': { state: 'signed_out', checked_at: Date.now(), message: 'Codex reports no sign-in for this account. Sign in to see its usage.' },
+        'claude/max': { state: 'unsupported', checked_at: Date.now(), message: 'This Claude sign-in has no plan limits to show.' }
       }
     },
     {
@@ -94,7 +95,7 @@ describe('capability: one account, one allowance, on every computer it is signed
     expect(within(computers).getAllByRole('button', { name: 'Rename' })).toHaveLength(2);
   });
 
-  it('groups verified email visually but keeps allowance readings separate', async () => {
+  it('shows one allowance once for the same verified email on several computers', async () => {
     const machines = fleet();
     // The latest observation must still verify this identity. A signed-out
     // reading intentionally supersedes the older email instead of matching it.
@@ -105,9 +106,10 @@ describe('capability: one account, one allowance, on every computer it is signed
     const { list } = await openAccounts(machines);
     await waitFor(() => expect(within(screen.getByRole('list', { name: 'Computers for Personal' })).getByText('Beta')).toBeVisible());
     const personal = rowFor(list, 'Personal');
-    expect(within(personal).getByText(/Usage readings remain separate/)).toBeVisible();
-    await userEvent.click(within(personal).getByText('Usage by computer'));
-    expect(within(personal).getAllByRole('meter').map((meter) => meter.getAttribute('aria-valuenow'))).toEqual(['10', '40', '70']);
+    expect(within(personal).getByText(/One allowance, signed in on 2 computers/)).toBeVisible();
+    expect(within(personal).queryByText('Usage by computer')).not.toBeInTheDocument();
+    // The freshest reading answers for both computers; the stale one is not repeated.
+    expect(within(personal).getAllByRole('meter').map((meter) => meter.getAttribute('aria-valuenow'))).toEqual(['10', '40']);
   });
 
   it('keeps a failed read visible as partial, stale coverage — not signed out, not zero', async () => {
@@ -131,7 +133,7 @@ describe('capability: one account, one allowance, on every computer it is signed
     machines[1]!.accountUsage = false;
     const { list } = await openAccounts(machines);
     const claude = rowFor(list, 'Claude Max');
-    expect(await within(claude).findByText('Claude limits aren’t available in Sessions yet.')).toBeVisible();
+    expect(await within(claude).findByText('This Claude sign-in has no plan limits to show.')).toBeVisible();
     expect(within(claude).queryByRole('meter')).not.toBeInTheDocument();
     expect(await screen.findByText('Usage needs a newer Sessions runtime')).toBeVisible();
     // Alpha still reads the shared account; Beta's missing reading is coverage.

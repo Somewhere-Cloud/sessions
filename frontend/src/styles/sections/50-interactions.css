@@ -650,3 +650,24 @@ button.model-picker-option { display: flex; align-items: center; justify-content
 .launcher-option-models > * { min-width: 0; max-width: 100%; }
 
 .new-session-surface[hidden] { display: none; }
+
+/* Project and agent sit in the composer bar beside Access, as compact chips. */
+.launcher-project-chip { display: inline-flex; min-width: 0; }
+.launcher-composer-context .launcher-intent-control.is-workspace {
+  width: auto; max-width: 220px; height: 32px; gap: 6px; padding: 0 8px;
+  border: 1px solid var(--border); border-radius: 8px; background: transparent;
+  color: var(--fg-dim); font-size: 12px; font-weight: 500;
+}
+.launcher-composer-context .launcher-intent-control.is-workspace strong { font-weight: 500; color: var(--fg); }
+.launcher-chip-caret { color: var(--fg-faint); font-size: 12px; line-height: 1; }
+.launcher-agent-chip { gap: 2px; padding-left: 8px; }
+.launcher-agent-chip select { padding-left: 2px; }
+.new-session-launcher.is-embedded .launcher-composer-context .launcher-intent-control.is-workspace { height: 36px; border-color: transparent; font-size: 13px; }
+.new-session-launcher.is-embedded .launcher-composer-context .launcher-intent-control.is-workspace:hover { background: var(--bg-elev-3); }
+@media (max-width: 720px) {
+  .launcher-agent-chip > .provider-mark { display: none; }
+  .launcher-agent-chip { padding-left: 0; }
+  .new-session-launcher .launcher-composer-context .launcher-intent-control.is-workspace,
+  .new-session-launcher.is-embedded .launcher-composer-context .launcher-intent-control.is-workspace { width: 100%; max-width: none; justify-content: flex-start; padding: 0 10px; border: 1px solid var(--border); }
+  .launcher-project-chip { display: grid; }
+}

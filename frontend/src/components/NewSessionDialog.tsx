@@ -410,12 +410,6 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
     },
     [recentWorkspaces, initialDefaults.cwd, cwd, openSessionWorkspaces]
   );
-  const homeWorkspace = useMemo(
-    () => recentWorkspaces.find((item) => item.kind === 'home')?.path
-      ?? fallbackWorkspaces(initialDefaults.cwd || cwd).find((item) => item.kind === 'home')?.path
-      ?? '',
-    [recentWorkspaces, initialDefaults.cwd, cwd]
-  );
   const selectedCodexModel = codexModels.find((model) => model.id === codexModel)
     ?? codexModels.find((model) => model.isDefault);
   const modelOptions: ModelPickerOption[] = tool === 'claude-code'
@@ -559,8 +553,6 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
     ? serverDisplayName(selectedMachine, true)
     : 'Choose computer';
 
-  const destinationAccount = toolProfiles.find((profile) => selectedProfile ? profile.name === selectedProfile : profile.default_profile);
-  const destinationLabel = profileChoice === NEW_PROFILE ? 'Add an account' : destinationAccount ? accountLabel(destinationAccount) : selectedProfile || 'CLI default account';
   const launcher = (
       <form className={`dialog dialog-wide new-session-launcher${embedded ? ' is-embedded' : ''}`} onClick={(e) => e.stopPropagation()} onSubmit={submit}>
         <header className="dialog-head launcher-compact-head">
@@ -580,30 +572,8 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
         <div className="dialog-body">
           <section className="launcher-hero"><PageHeader level={2} titleId="new-session-title"
             title={isDelegate ? 'Delegate a task' : 'What would you like to work on?'}
-            description={isDelegate ? 'Give it one focused job. It stays linked to its parent.' : 'Start with a task. Your project and agent are ready.'} />
+            description={isDelegate ? 'Give it one focused job. It stays linked to its parent.' : undefined} />
           </section>
-          <div className="launcher-setup" role="group" aria-label="Session setup">
-            <div className="launcher-setup-field is-folder">
-              <span>Project folder</span>
-              <button type="button" className="launcher-intent-control is-workspace" title={cwd || 'Choose a project folder'} onClick={() => setBrowserOpen((open) => !open)} aria-label={`Folder: ${workspaceTitle}`} aria-expanded={browserOpen} disabled={isDelegate}>
-                <span className="workspace-folder-icon" aria-hidden />
-                <strong>{workspaceTitle}</strong>
-                {!isDelegate && <span className="launcher-folder-change">Change</span>}
-              </button>
-            </div>
-            <label className="launcher-setup-field">
-              <span>Agent</span>
-              <span className="launcher-intent-control is-agent">
-                <AgentMark tool={tool} size={17} />
-                <Select value={tool} onChange={(event) => chooseTool(event.currentTarget.value as NewSessionTool)} aria-label="Agent">
-                  {TOOLS.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-                </Select>
-              </span>
-            </label>
-          </div>
-          <p className="launcher-target-context" aria-label="Session destination">
-            <span>{machineTitle}</span><span> · </span><span>{profileTool ? destinationLabel : 'Shell'}</span>
-          </p>
           {profileTool && requiresProviderLogin ? (
             <InlineAccountSignIn
               key={`${machineId}:${profileTool}:${profileChoice}`}
@@ -633,6 +603,21 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
                 {isDelegate ? (
                   <span className="launcher-context-chip" title={`${serverDisplayName(getActiveServer(), true)} · ${cwd}`}><span className="launcher-machine-icon" aria-hidden />Inherited</span>
                 ) : null}
+                {!isDelegate ? (
+                  <div className="launcher-project-chip" data-label="Project">
+                    <button type="button" className="launcher-intent-control is-workspace" title={cwd || 'Choose a project folder'} onClick={() => setBrowserOpen((open) => !open)} aria-label={`Folder: ${workspaceTitle}`} aria-expanded={browserOpen}>
+                      <span className="workspace-folder-icon" aria-hidden />
+                      <strong>{workspaceTitle}</strong>
+                      <span className="launcher-chip-caret" aria-hidden>⌄</span>
+                    </button>
+                  </div>
+                ) : null}
+                <label className="launcher-permissions-chip launcher-agent-chip" data-label="Agent">
+                  <AgentMark tool={tool} size={15} />
+                  <Select value={tool} onChange={(event) => chooseTool(event.currentTarget.value as NewSessionTool)} aria-label="Agent">
+                    {TOOLS.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                  </Select>
+                </label>
                 {tool !== 'shell' ? (
                   <>
                     <label className="launcher-permissions-chip" data-label="Access">
@@ -642,7 +627,7 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
                         onChange={(event) => {
                           setAccess(event.currentTarget.value as AccessChoice);
                         }}
-                        aria-label="Access" aria-describedby="launcher-access-help"
+                        aria-label="Access"
                         title={access === 'full' ? 'Runs commands and edits files without asking' : access === 'plan' ? 'Reads and plans; makes no changes' : 'Asks you before running commands or changing files'}
                       >
                         <option value="full">Full access</option>
@@ -660,8 +645,6 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
               </div>
             </div>
           </div>
-          <span className="launcher-send-hint">Enter sends · Shift+Enter adds a line</span>
-          {tool !== 'shell' ? <span className="field-help" id="launcher-access-help">{access === 'full' ? 'Full access: runs commands and edits files without asking.' : access === 'plan' ? 'Plan: reads and plans without making changes.' : 'Ask me: asks before running commands or changing files.'}</span> : null}
           {requiresProviderLogin ? <span className="field-help">Finish the new account login first. Sessions will keep this request here instead of sending it into a login screen.</span> : null}
           {isDelegate ? (
             <div className="launcher-inherited"><span>Runs with its parent</span><strong>{cwd}</strong><small>{serverDisplayName(getActiveServer(), true)} · grouped under {parentSession ? sessionLabel(parentSession) : 'the current session'}</small></div>
@@ -685,7 +668,6 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
                   </div>
                 </div>
               ) : null}
-              {cwd === homeWorkspace ? <span className="field-help">A project folder also avoids unrelated macOS prompts for protected folders such as Music and cloud drives.</span> : null}
             </section>
           )}
           <details className="launcher-advanced">

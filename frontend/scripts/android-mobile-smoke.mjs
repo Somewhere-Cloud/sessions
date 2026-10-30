@@ -78,8 +78,7 @@ try {
   assert.match(terminalHook, /visualViewport\?\.removeEventListener\('resize', onResize\)/);
   assert.match(terminalHook, /Android[\s\S]*--interface-scale[\s\S]*term\.resize\(Math\.floor\(term\.cols \* scale\), term\.rows\)/);
   assert.match(terminalStyles, /\.terminal-host \.xterm \{[\s\S]*width: 100%;/);
-  assert.match(newSession, /<\/div>\s*<span className="launcher-send-hint">Enter sends/,
-    'the keyboard hint must be outside the bordered composer');
+  assert.doesNotMatch(newSession, /launcher-send-hint/, 'the launcher carries no keyboard hint line');
 
   const browser = await puppeteer.launch({ headless: true });
   try {

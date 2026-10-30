@@ -550,7 +550,7 @@ button.session-tree-group-head { width: 100%; }
 .session-nav-stamp .provider-badge { font-size: 0; filter: grayscale(1); opacity: .6; }
 .session-nav-row:hover .session-nav-stamp .provider-badge,
 .session-nav-row.is-active .session-nav-stamp .provider-badge { filter: none; opacity: 1; }
-.project-mark { position: relative; display: inline-grid; flex: 0 0 18px; width: 18px; height: 18px; place-items: center; border-radius: 5px; background: hsl(var(--project-hue, 210) 55% 52% / 0.2); color: hsl(var(--project-hue, 210) 70% 68%); font-size: 9px; font-weight: 700; letter-spacing: -0.02em; line-height: 1; overflow: hidden; }
+.project-mark { position: relative; display: inline-grid; flex: 0 0 20px; width: 20px; height: 18px; place-items: center; border-radius: 5px; background: hsl(var(--project-hue, 210) 55% 52% / 0.2); color: hsl(var(--project-hue, 210) 70% 68%); font-size: 12px; font-weight: 700; letter-spacing: -0.06em; line-height: 1; overflow: hidden; }
 [data-theme="light"] .project-mark { background: hsl(var(--project-hue, 210) 60% 50% / 0.16); color: hsl(var(--project-hue, 210) 65% 34%); }
 .project-mark:has(img:not([hidden])) .project-mark-letters { visibility: hidden; }
 .session-workspace-branch { display: inline-flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; color: var(--fg-faint); font-size: 12px; }

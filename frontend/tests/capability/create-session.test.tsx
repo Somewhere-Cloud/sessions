@@ -6,7 +6,7 @@
 // typed, because the daemon really has it.
 import { useState } from 'react';
 import { describe, expect, it } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { NewSessionDialog } from '../../src/components/NewSessionDialog';
 import { Workbench } from './harness';
@@ -47,8 +47,10 @@ describe('capability: create a session', () => {
     useFakeMachines([machine]);
     const user = userEvent.setup();
     render(<Launcher />);
-    const setup = screen.getByRole('group', { name: 'Session setup' });
-    expect(setup.firstElementChild).toHaveTextContent('Project folder');
+    // Project, agent and access sit in the composer's bar.
+    const bar = screen.getByLabelText('New session configuration');
+    expect(within(bar).getByRole('button', { name: /^Folder:/ })).toBeInTheDocument();
+    expect(within(bar).getByRole('combobox', { name: 'Agent' })).toBeInTheDocument();
     await user.selectOptions(screen.getByRole('combobox', { name: 'Agent' }), 'codex');
     await user.click(screen.getByText('Session options', { selector: 'summary strong' }));
     await user.click(screen.getByRole('button', { name: /Codex default/ }));

@@ -31,7 +31,6 @@ assert.doesNotMatch(picker, /<button[\s\S]{0,1200}<button[\s\S]{0,300}★/);
 assert.match(launcher, /launcher-composer-footer/);
 assert.match(launcher, /<ModelPicker/);
 assert.match(launcher, /What would you like to work on/);
-assert.match(launcher, /aria-label="Session setup"/);
 assert.match(launcher, /launcher-intent-control is-workspace/);
 assert.match(launcher, /aria-label="Agent"/);
 assert.match(launcher, /aria-label="Computer"/);
