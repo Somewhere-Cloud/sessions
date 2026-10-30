@@ -239,12 +239,12 @@
     <div class="step-head"><div class="num">1</div><div><div class="step-title">Install Sessions</div><div class="step-sub">on your Mac</div></div></div>
     <div class="step-body">
       <span class="pill">native Mac app</span>
-      <a class="btn-open" href="https://github.com/somewhere-tech/sessions/releases/download/v0.2.26/Sessions_0.2.26_darwin_arm64.zip" target="_blank" rel="noopener">Download Sessions 0.2.26 <span class="arr">→</span></a>
+      <a class="btn-open" href="https://github.com/Somewhere-Cloud/sessions/releases/download/v0.2.26/Sessions_0.2.26_darwin_arm64.zip" target="_blank" rel="noopener">Download Sessions 0.2.26 <span class="arr">→</span></a>
       <div class="cmd"><code>brew install --cask somewhere-tech/tap/sessions-app</code><button class="copy">copy</button></div>
       <p class="note" style="margin-top:18px">Move <b>Sessions.app</b> to Applications and open it. The app verifies and installs its own signed background runtime. There is no Node or npm install, no native-module compile, and no script piped into your shell.</p>
       <p class="note" style="margin-top:18px">For headless machines and developers, the same release also includes checksummed archives. Keep <code>sessions</code>, <code>sessionsd</code>, and <code>sessions-runner</code> together:</p>
       <div class="cmd"><code>brew install somewhere-tech/tap/sessions</code><button class="copy">copy</button></div>
-      <p class="note">The tap pins the immutable release URL and SHA-256. The <a href="https://github.com/somewhere-tech/sessions/blob/main/docs/INSTALL.md" target="_blank" rel="noopener">advanced installation guide</a> also has direct-download verification steps and Linux archive names.</p>
+      <p class="note">The tap pins the immutable release URL and SHA-256. The <a href="https://github.com/Somewhere-Cloud/sessions/blob/main/docs/INSTALL.md" target="_blank" rel="noopener">advanced installation guide</a> also has direct-download verification steps and Linux archive names.</p>
       <div class="cmd"><code>sessions install</code><button class="copy">copy</button></div>
       <p class="note"><code>sessions install</code> registers the Go daemon with launchd, starts it, checks its health, and prints the local URL. Open that URL. Session runners live outside the daemon, so closing a terminal or reloading the daemon does not kill their work.</p>
       <a class="btn-open" href="http://localhost:8787" target="_blank" rel="noopener">Open the local URL <span class="arr">→</span></a>
@@ -299,7 +299,7 @@
   <div class="step" id="pair">
     <div class="step-head"><div class="num">3</div><div><div class="step-title">Pair the device</div><div class="step-sub">scan once · zero typing · no shared master secret</div></div></div>
     <div class="step-body">
-      <a class="btn-open" href="https://github.com/Somewhere-Tech/sessions/releases/download/android-preview-v0.2.26/Sessions_0.2.26_android_arm64_preview.apk" target="_blank" rel="noopener">Download the Android APK preview <span class="arr">→</span></a>
+      <a class="btn-open" href="https://github.com/Somewhere-Cloud/sessions/releases/download/android-preview-v0.2.26/Sessions_0.2.26_android_arm64_preview.apk" target="_blank" rel="noopener">Download the Android APK preview <span class="arr">→</span></a>
       <p class="note">Android is currently a sideloaded paired-client preview. It does not host agents itself; it connects directly to a Sessions computer you approve.</p>
       <p class="note">After enabling LAN or remote access, mint a one-time QR for the device in your hand:</p>
       <div class="cmd"><code>sessions pair --name "my phone"</code><button class="copy">copy</button></div>
@@ -354,7 +354,7 @@
     <p class="source-note">Setup claims and commands checked against <code>docs/INSTALL.md</code>, <code>docs/CLI.md</code>, <code>runtime/cmd/sessions/help.go</code>, <code>runtime/cmd/sessions/pair.go</code>, and <code>runtime/internal/backup/encrypt.go</code>.</p>
   </div>
 
-  <footer>sessions is the free local tool by <a href="https://somewhere.tech">somewhere</a> · <a href="docs.html">docs</a> · <a href="https://github.com/somewhere-tech/sessions">source</a> · MIT</footer>
+  <footer>sessions is the free local tool by <a href="https://somewhere.tech">somewhere</a> · <a href="docs.html">docs</a> · <a href="https://github.com/Somewhere-Cloud/sessions">source</a> · MIT</footer>
 </div>
 
 <script>

@@ -430,12 +430,30 @@ func validateUpdateArtifactURL(rawURL, releaseVersion string) error {
 	if err != nil {
 		return fmt.Errorf("parse update artifact URL: %w", err)
 	}
-	expectedPath := "/somewhere-tech/sessions/releases/download/v" + releaseVersion + "/Sessions.app.tar.gz"
 	if parsed.Scheme != "https" || parsed.Hostname() != "github.com" || parsed.Port() != "" ||
-		parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || parsed.EscapedPath() != expectedPath {
+		parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" ||
+		!isSessionsReleasePath(parsed.EscapedPath(), releaseVersion) {
 		return fmt.Errorf("refusing update artifact outside the immutable Sessions release path: %s", parsed.Redacted())
 	}
 	return nil
+}
+
+// sessionsReleaseOwners lists the GitHub owners that have published the Sessions
+// repository. The repository moved from somewhere-tech to Somewhere-Cloud; GitHub
+// owner names are case-insensitive, so the owner segment is compared that way.
+var sessionsReleaseOwners = []string{"somewhere-tech", "somewhere-cloud"}
+
+func isSessionsReleasePath(escapedPath, releaseVersion string) bool {
+	owner, rest, ok := strings.Cut(strings.TrimPrefix(escapedPath, "/"), "/")
+	if !ok || rest != "sessions/releases/download/v"+releaseVersion+"/Sessions.app.tar.gz" {
+		return false
+	}
+	for _, known := range sessionsReleaseOwners {
+		if strings.EqualFold(owner, known) {
+			return true
+		}
+	}
+	return false
 }
 
 func (updater nativeUpdater) downloadVerifiedArtifact(ctx context.Context, platform nativeUpdatePlatform, destination string) error {

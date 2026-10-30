@@ -28,7 +28,7 @@ not yet published; source availability does not mean an installed app is current
 
 Sessions.app is the primary macOS package. The current signed, notarized Apple
 Silicon build is available from
-[GitHub Releases](https://github.com/somewhere-tech/sessions/releases/latest) or
+[GitHub Releases](https://github.com/Somewhere-Cloud/sessions/releases/latest) or
 Homebrew:
 
 ```sh
@@ -49,7 +49,7 @@ web page, or follow the [development build guide](docs/DEV.md):
 ```sh
 VERSION=0.2.29 # Example published version; select the desired release explicitly.
 ARCHIVE="sessions_${VERSION}_darwin_arm64.tar.gz"
-gh release download "v${VERSION}" --repo somewhere-tech/sessions \
+gh release download "v${VERSION}" --repo Somewhere-Cloud/sessions \
   --pattern "$ARCHIVE" --pattern "$ARCHIVE.sha256"
 shasum -a 256 -c "$ARCHIVE.sha256"
 tar -xzf "$ARCHIVE"

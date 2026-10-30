@@ -4,7 +4,7 @@ version = "0.2.44"
 description = "Sessions native client and release package for the local Sessions runtime"
 authors = ["Uzair Haq"]
 license = "MIT"
-repository = "https://github.com/somewhere-tech/sessions"
+repository = "https://github.com/Somewhere-Cloud/sessions"
 edition = "2021"
 rust-version = "1.77.2"
 

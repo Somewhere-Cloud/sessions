@@ -59,12 +59,22 @@ func TestUpdateArtifactURLIsFailClosed(t *testing.T) {
 	if err := validateUpdateArtifactURL(valid, "0.2.2"); err != nil {
 		t.Fatalf("valid immutable artifact rejected: %v", err)
 	}
+	for _, moved := range []string{
+		"https://github.com/Somewhere-Cloud/sessions/releases/download/v0.2.2/Sessions.app.tar.gz",
+		"https://github.com/somewhere-cloud/sessions/releases/download/v0.2.2/Sessions.app.tar.gz",
+	} {
+		if err := validateUpdateArtifactURL(moved, "0.2.2"); err != nil {
+			t.Fatalf("artifact from the moved repository rejected: %v", err)
+		}
+	}
 	for _, invalid := range []string{
 		"http://github.com/somewhere-tech/sessions/releases/download/v0.2.2/Sessions.app.tar.gz",
 		"https://example.com/somewhere-tech/sessions/releases/download/v0.2.2/Sessions.app.tar.gz",
 		"https://github.com/somewhere-tech/sessions/releases/download/v0.2.1/Sessions.app.tar.gz",
 		valid + "?download=1",
 		"https://github.com/somewhere-tech/other/releases/download/v0.2.2/Sessions.app.tar.gz",
+		"https://github.com/someone-else/sessions/releases/download/v0.2.2/Sessions.app.tar.gz",
+		"https://github.com/Somewhere-Cloud/Sessions/releases/download/v0.2.2/Sessions.app.tar.gz/extra",
 	} {
 		if err := validateUpdateArtifactURL(invalid, "0.2.2"); err == nil {
 			t.Errorf("unsafe artifact URL accepted: %s", invalid)
