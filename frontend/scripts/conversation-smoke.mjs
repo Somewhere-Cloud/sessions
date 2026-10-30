@@ -35,7 +35,8 @@ try {
     } catch { res.writeHead(404); res.end(); }
   });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-  browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] });
+  const diagnosticArgs = process.env.SMOKE_DIAGNOSTIC_DIR ? [`--log-net-log=${join(process.env.SMOKE_DIAGNOSTIC_DIR, 'conversation-netlog.json')}`] : [];
+  browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', ...diagnosticArgs] });
   const page = await browser.newPage();
   const browserSystem = await browser.target().createCDPSession();
   // Sample only this fixture browser's processes, while the original timeout
@@ -62,9 +63,11 @@ try {
   await network.send('Network.enable');
   await network.send('Page.enable');
   await network.send('Page.setLifecycleEventsEnabled', { enabled: true });
-  network.on('Network.responseReceived', (event) => trace('cdp-response', event.requestId, event.response.url, event.response.status));
+  network.on('Network.requestWillBeSent', (event) => trace('cdp-request', event.requestId, event.frameId, event.loaderId, event.request.url));
+  network.on('Network.responseReceived', (event) => trace('cdp-response', event.requestId, event.frameId, event.loaderId, event.response.url, event.response.status));
   network.on('Network.loadingFinished', (event) => trace('cdp-finished', event.requestId));
-  network.on('Page.lifecycleEvent', (event) => trace('cdp-lifecycle', event.name));
+  network.on('Page.frameNavigated', (event) => trace('cdp-frame', event.frame.id, event.frame.loaderId, event.frame.url));
+  network.on('Page.lifecycleEvent', (event) => trace('cdp-lifecycle', event.frameId, event.loaderId, event.name));
   page.on('request', (request) => {
     pendingRequests.add(request);
     trace('intercept', request.url());
