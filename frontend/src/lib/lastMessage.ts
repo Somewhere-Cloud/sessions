@@ -132,6 +132,6 @@ export function sessionPreview(session: SessionInfo): string {
   const text = message.text.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '').replace(/^(?:Agent|Assistant|You):\s*/i, '').trim();
   if (!text || /[\x00-\x08\x0b-\x1f\x7f]/.test(text)) return '';
   if (/^[\s─━═│┃┌┐└┘├┤┬┴┼╭╮╰╯▁▂▃▄▅▆▇█=*_~`>+-]+$/.test(text)) return '';
-  if (/^(?:[❯›]|[>$]\s)/.test(text) || /^(?:thinking|working|running|loading)(?:…|\.{3})$/i.test(text)) return '';
+  if (/^[❯›]/.test(text) || /^(?:thinking|working|running|loading)(?:…|\.{3})$/i.test(text)) return '';
   return text.replace(/^#{1,6}\s+/, '').replace(/\*\*(.*?)\*\*/g, '$1');
 }

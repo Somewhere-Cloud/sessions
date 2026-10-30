@@ -13,7 +13,7 @@ it('quiet previews omit terminal chrome while preserving authored content', () =
     rerender(<SessionLastMessage session={{ ...base, lastSummary }} quiet />);
     expect(document.querySelector('.session-last-message')).toBeNull();
   }
-  for (const lastSummary of ['Use ├── src for the tree layout', 'Running the migration succeeded', '100% complete', 'Escape handling is fixed']) {
+  for (const lastSummary of ['Use ├── src for the tree layout', 'Running the migration succeeded', '100% complete', 'Escape handling is fixed', '> Keep this quoted instruction', '> The migration completed', '$ 50 is the total']) {
     rerender(<SessionLastMessage session={{ ...base, lastSummary }} quiet />);
     expect(screen.getByText(lastSummary)).toBeVisible();
   }
