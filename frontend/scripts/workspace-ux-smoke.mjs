@@ -46,7 +46,7 @@ assert.match(sessionView, /Exact provider view/);
 assert.match(sessionView, /terminal-drawer-expanded/);
 assert.match(sessionView, /term\.fitTerminalRef\.current\(\)/);
 assert.match(preference, /Terminal is an escape hatch/);
-assert.match(sidebar, /Find or run…/);
+assert.match(sidebar, /<span>Commands<\/span>/);
 assert.match(app, /onClickCapture=\{handleExternalLinkClick\}/,
   'the native app shell must delegate external links to the operating system');
 // Navigator machine scope now lives in the compact menu. The rendered

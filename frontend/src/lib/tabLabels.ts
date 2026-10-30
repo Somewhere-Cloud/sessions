@@ -197,3 +197,8 @@ export function resolvedSessionLabel(session: SessionInfo): string {
   if (stored && stored !== session.name) return boundedTitle(stored);
   return sessionLabel(session);
 }
+
+// Presentation only: retain the canonical name and never produce an empty row.
+export function quietSessionTitle(label: string): string {
+  return label.replace(/^(?:claude(?: code)?|codex|shell)(?:\s*[:—–·]\s*|\s+-\s+)/i, '').trim() || label;
+}

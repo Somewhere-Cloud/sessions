@@ -41,6 +41,11 @@ try {
           await page.goto(`http://127.0.0.1:${server.address().port}/?theme=${theme}&screen=${screen}&empty=${empty ? 1 : 0}`, { waitUntil: 'networkidle0' });
           await page.waitForSelector('.operations-content');
           assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `${screen}/${theme}/${width} fits`);
+          if (width > 720) {
+            assert.equal(await page.$$eval('.product-sidebar [aria-label="Search"]', (items) => items.length), 1);
+            assert.equal(await page.$eval('.product-command-button', (el) => el.getAttribute('aria-label')), 'Commands');
+            assert.equal(await page.$eval('.product-command-button', (el) => el.querySelectorAll('circle').length), 0, 'commands has a distinct icon');
+          }
           if (width === 1100) {
             for (const selector of ['.product-new-session', '.product-command-button', '.product-nav-item', '.theme-toggle']) {
               const centered = await page.$eval(selector, (el) => {

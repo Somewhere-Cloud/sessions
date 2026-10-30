@@ -117,12 +117,11 @@ assert.match(continueElsewhere, /appearance === 'menuitem'/);
 assert.match(resumeDialog, /preferredDestinationProvider=\{preferredDestinationProvider\}/);
 assert.match(resumeDialog, /key=\{`\$\{selected\?\.tool/);
 assert.doesNotMatch(resumeDialog, /preferredRemoteControl|resume-remote-control/);
-assert.match(navigator, /<MachineMark machine=\{machine\} size=\{17\} \/>/);
+assert.match(navigator, /className="session-nav-context"/);
 assert.doesNotMatch(navigator, /<span>\{machine\}<\/span>/);
-// The row's quiet line lives in SessionRowMeta now, so the check follows it:
-// the row hands it the session's provider, and it draws the 20px mark.
+// The quiet row retains provider and machine identity as accessible text.
 assert.match(navigator, /provider=\{providerName\}/);
-assert.match(navigator, /<ProviderMark provider=\{provider\} size=\{20\} \/>/);
+assert.match(navigator, /Shell'\} · <\/span><span className="session-nav-context">\{machine\}/);
 // The compact navigator menu Resume flow is exercised by resume-conversation.test.tsx.
 assert.match(app, /onContinue=\{\(\) => setDialogOpen\('resume'\)\}/);
 assert.match(app, /onReparent=\{updateDisplayParent\}/);
@@ -242,8 +241,8 @@ const launcherComposer = newSession.indexOf('launcher-task-field launcher-compos
 const folderControl = newSession.indexOf('launcher-workspace-shell');
 const advancedControl = newSession.indexOf('launcher-advanced');
 const permissionsControl = newSession.indexOf('aria-label="Access"');
-assert.ok(launcherHero > 0 && launcherHero < workspaceControl && workspaceControl < agentControl && agentControl < machineControl && machineControl < launcherComposer && launcherComposer < folderControl,
-  'new-session must present the project folder first, then agent and computer, before the prompt');
+assert.ok(launcherHero > 0 && launcherHero < workspaceControl && workspaceControl < agentControl && agentControl < launcherComposer && launcherComposer < folderControl && machineControl > advancedControl,
+  'new-session presents project and agent before the prompt, with computer controls in Session options');
 assert.ok(permissionsControl > launcherComposer && permissionsControl < advancedControl,
   'permissions belong in the primary composer before Advanced');
 assert.match(newSession, /Somewhere project/);
@@ -272,7 +271,7 @@ assert.match(sessionsStore, /api\.killSession\(id, reason, serverId\)/);
 assert.match(api, /\/api\/models\/codex/);
 assert.match(api, /remoteControl/);
 assert.doesNotMatch(newSession, /Provider default|More options|screen parsing|message parsing/);
-assert.match(newSession, /<summary><strong>Advanced<\/strong>/);
+assert.match(newSession, /<summary><strong>Session options<\/strong>/);
 // Claude starts in Conversation (structured); the interactive terminal that
 // Remote Control needs is an explicit launcher choice.
 assert.match(newSession, /tool === 'codex' \|\| tool === 'claude-code' \? 'rich' : 'terminal'/);

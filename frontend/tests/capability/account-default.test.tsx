@@ -19,6 +19,7 @@ it('makes an account the machine default and preselects it for new sessions', as
   expect(machines[0]!.profiles![1]!.preferred).toBe(true);
   view.unmount();
   render(<NewSessionDialog onClose={() => {}} onStarted={() => {}} />);
+  await userEvent.click(screen.getByText('Session options', { selector: 'summary strong' }));
   await waitFor(() => expect(screen.getByLabelText('Account')).toHaveValue('bean'));
   await userEvent.selectOptions(screen.getByLabelText('Account'), '');
   expect(screen.getByLabelText('Account')).toHaveValue('');

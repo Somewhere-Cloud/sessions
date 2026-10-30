@@ -50,6 +50,7 @@ describe('capability: create a session', () => {
     const setup = screen.getByRole('group', { name: 'Session setup' });
     expect(setup.firstElementChild).toHaveTextContent('Project folder');
     await user.selectOptions(screen.getByRole('combobox', { name: 'Agent' }), 'codex');
+    await user.click(screen.getByText('Session options', { selector: 'summary strong' }));
     await user.click(screen.getByRole('button', { name: /Codex default/ }));
     await user.click(await screen.findByRole('option', { name: /Astra/ }));
     expect(screen.getByRole('button', { name: /Astra/ })).toBeInTheDocument();
@@ -67,6 +68,7 @@ describe('capability: create a session', () => {
     const user = userEvent.setup();
     render(<Launcher />);
     await user.selectOptions(screen.getByRole('combobox', { name: 'Agent' }), 'codex');
+    await user.click(screen.getByText('Session options', { selector: 'summary strong' }));
     await user.click(screen.getByRole('button', { name: /Codex default/ }));
     await user.type(await screen.findByRole('combobox', { name: 'Search Codex models' }), 'gpt-6-astra');
     await user.click(screen.getByRole('option', { name: /Use exact model ID/ }));

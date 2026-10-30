@@ -195,7 +195,7 @@ describe('capability: the navigator row carries it', () => {
     render(<Workbench />);
     const row = await screen.findByText(waiting.name!);
     const node = row.closest('.session-nav-row') as HTMLElement;
-    expect(within(node).getByText('You sent a message · no reply yet')).toBeInTheDocument();
+    expect(within(node).getByText('Waiting for reply')).toBeInTheDocument();
     expect(within(node).queryByText(/An older agent result/)).not.toBeInTheDocument();
   }, 20_000);
 
@@ -210,7 +210,8 @@ describe('capability: the navigator row carries it', () => {
 
     render(<Workbench />);
     const row = (await screen.findByText(shell.name!)).closest('.session-nav-row') as HTMLElement;
-    expect(within(row).getByText('You sent terminal input')).toBeInTheDocument();
+    expect(row.querySelector('.session-last-message')).toBeNull();
+    expect(row.querySelector('.session-nav-time')).not.toBeNull();
     expect(within(row).queryByText(/no reply yet|Agent replied/)).not.toBeInTheDocument();
   }, 20_000);
 });

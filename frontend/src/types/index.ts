@@ -116,6 +116,7 @@ export interface PendingApproval {
 }
 
 export interface SessionInfo {
+  workspaceGit?: { state: 'branch' | 'detached' | 'unavailable' | 'not-repository'; branch?: string; revision?: string; observedAt: number };
   messageSubmit?: boolean;
   id: string;
   name?: string;

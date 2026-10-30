@@ -201,9 +201,9 @@ function SidebarNavigation({ active, onNavigate, onNewSession, onOpenCommandPale
         <span className="product-add-icon" aria-hidden><Icon><path d="M12 5v14M5 12h14" /></Icon></span><span>New Session</span>
       </Button>
 
-      <Button variant="ghost" type="button" className="product-command-button" aria-label="Find or run a command" title="Find or run a command (⌘K)" onClick={onOpenCommandPalette}>
-        <SearchIcon />
-        <span>Find or run…</span>
+      <Button variant="ghost" type="button" className="product-command-button" aria-label="Commands" title="Commands (⌘K)" onClick={onOpenCommandPalette}>
+        <Icon><path d="m5 7 5 5-5 5M13 17h6" /></Icon>
+        <span>Commands</span>
         <kbd>⌘K</kbd>
       </Button>
 

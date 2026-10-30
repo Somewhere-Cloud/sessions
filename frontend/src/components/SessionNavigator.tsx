@@ -7,10 +7,11 @@ import { SessionArchiveButton } from './SessionArchiveButton';
 import { archivedLiveIds, usesClaudeRemoteControl } from '../lib/sessionOrganization';
 import { RestartConversation } from './RestartConversation';
 import type { SessionInfo } from '../types';
-import { resolvedSessionLabel } from '../lib/tabLabels';
+import { quietSessionTitle, resolvedSessionLabel } from '../lib/tabLabels';
 import { readWindowScope, sessionMatchesWindowScope } from '../lib/windowScope';
-import { ProviderMark, normalizeProvider, type Provider } from './ProviderBadge';
+import { normalizeProvider, type Provider } from './ProviderBadge';
 import { SessionLastMessage } from './SessionLastMessage';
+import { ProjectMark, SessionWorkspaceBranch } from './SessionProjectIdentity';
 import { lastMessage } from '../lib/lastMessage';
 import {
   canContinueSession,
@@ -31,7 +32,6 @@ import {
 } from '../lib/workingSet';
 import { navigatorRowId, navigatorSessions as visibleNavigatorSessions } from '../lib/sessionNavigation';
 import { useSessions } from '../store/sessions';
-import { MachineMark } from './MachineMark';
 import { serverDisplayName, useServers } from '../lib/servers';
 import { useFleetSessions, type FleetSessionSnapshot } from '../hooks/useFleetSessions';
 import { useProjects } from '../hooks/useProjects';
@@ -580,7 +580,7 @@ export function SessionNavigator({
     const currentParentID = effectiveParentId(session);
     const parent = currentParentID ? sessions.find((candidate) => candidate.id === currentParentID) : null;
     const resumedFrom = session.resumedFrom ? sessions.find((candidate) => candidate.id === session.resumedFrom) : null;
-    const label = resolvedSessionLabel(session);
+    const label = quietSessionTitle(resolvedSessionLabel(session));
     const lostNote = lostSessionNote(session);
     return (
       <div className="session-tree-node" key={session.id}>
@@ -615,11 +615,12 @@ export function SessionNavigator({
           <span className={`session-nav-status ${status.className}`} aria-hidden title={status.label} />
           {isPinned(session) ? <span className="manager-pin is-pinned" title="Pinned" aria-label="Pinned">📌</span> : null}
           <span className="session-nav-copy">
-            <span className="session-nav-title">{label}</span>
+            <span className="session-nav-title" title={label}>{label}</span>
             <SessionRowLines session={session} end={end} lostNote={lostNote}
               resumedFrom={resumedFrom} under={endedFlat ? parent : null} />
             <SessionRowMeta
               provider={providerName}
+              session={session}
               machine={machine}
               when={session.exited ? endedAtLabel(session, true) : relativeTime(messageTimeOf(session))}
               whenTitle={session.exited ? endedAtLabel(session) : undefined}
@@ -997,7 +998,7 @@ function SessionRowLines({ session, end, lostNote, resumedFrom, under }: {
   return (
     <>
       {sessionNeedsYou(session) && session.idleDetail ? <span className="session-nav-rollup">{session.idleDetail}</span> : null}
-      <SessionLastMessage session={session} />
+      <SessionLastMessage session={session} quiet />
       {end ? <span className={`session-nav-ended is-${end.tone}`}>{end.label}</span> : null}
       {lostNote ? <span className="session-nav-ended" title={lostNote}>{session.lostAt ? `Unavailable since ${new Date(session.lostAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : 'Connection unavailable'}</span> : null}
       {resumedFrom ? <span className="session-nav-parent">Resumed from {resolvedSessionLabel(resumedFrom)}</span> : null}
@@ -1008,7 +1009,8 @@ function SessionRowLines({ session, end, lostNote, resumedFrom, under }: {
 
 // The row's quiet line: who runs it, where, when it last said something — and,
 // in the flat list, which project it belongs to.
-function SessionRowMeta({ provider, machine, when, whenTitle, project }: {
+function SessionRowMeta({ provider, machine, when, whenTitle, project, session }: {
+  session: SessionInfo;
   provider: Provider | null;
   machine: string;
   when: string;
@@ -1016,13 +1018,11 @@ function SessionRowMeta({ provider, machine, when, whenTitle, project }: {
   project?: string;
 }): JSX.Element {
   return (
-    <span className="session-nav-meta">
-      {provider
-        ? <span className="session-nav-provider" title={provider === 'claude' ? 'Claude' : 'Codex'}><ProviderMark provider={provider} size={20} /></span>
-        : <span className="session-nav-provider is-shell" title="Shell">⌘</span>}
-      <MachineMark machine={machine} size={17} />
+    <span className="session-nav-meta" title={`${provider === 'claude' ? 'Claude' : provider === 'codex' ? 'Codex' : 'Shell'} · ${machine}`}>
+      <span className="sr-only">{provider === 'claude' ? 'Claude' : provider === 'codex' ? 'Codex' : 'Shell'} · </span><span className="session-nav-context">{machine}</span>
       <span className="session-nav-time" title={whenTitle}>{when}</span>
-      {project ? <span className="session-nav-project" title={`Project: ${project}`}>{project}</span> : null}
+      {project ? <span className="session-nav-project" title={`Project: ${project}`}><ProjectMark name={project} />{project}</span> : null}
+      <SessionWorkspaceBranch session={session} />
     </span>
   );
 }

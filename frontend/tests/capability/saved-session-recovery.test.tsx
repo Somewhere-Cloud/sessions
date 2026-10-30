@@ -52,7 +52,7 @@ describe('capability: recently closed recovery stays exact and explicit', () => 
     expect(resume).not.toHaveBeenCalled();
 
     // Reading the saved row is inert with respect to recovery.
-    await userEvent.setup().click(screen.getByRole('button', { name: /^Release handoff Paused after restart/ }));
+    await userEvent.setup().click(screen.getByRole('button', { name: /^Release handoff Paired Mini · Paused after restart/ }));
     expect(open).toHaveBeenCalledWith('paired-mini', 'paused-on-mini');
     expect(resume).not.toHaveBeenCalled();
 

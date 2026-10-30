@@ -103,6 +103,8 @@ function inheritedProfile(parent: SessionInfo | null, tool: NewSessionTool): str
 }
 
 interface Props {
+  hidden?: boolean;
+  focusRequest?: number;
   projectSeed?: { serverId: string; cwd: string; tags: Record<string, string> } | null;
   onClose: () => void;
   // Creation and opening are separate product actions. The daemon owns the
@@ -182,8 +184,7 @@ function useCodexCatalog(tool: NewSessionTool, machineId: string): {
 }
 
 
-// The account a session starts on, beside the agent and the computer rather
-// than inside Advanced: a second subscription is a normal choice.
+// The account control retains exact provider identity inside Session options.
 function AccountChoice(
   { profiles, value, selected, inherited, title, disabled, onChange }: {
     profiles: AccountProfile[];
@@ -218,7 +219,11 @@ function AccountChoice(
 }
 
 
-export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSession = null, embedded = false, projectSeed = null }: Props): JSX.Element {
+export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSession = null, embedded = false, projectSeed = null, focusRequest = 0, hidden = false }: Props): JSX.Element {
+  const composerRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    if (focusRequest > 0) composerRef.current?.focus();
+  }, [focusRequest]);
   const create = useSessions((s) => s.create);
   const openSessions = useSessions((s) => s.sessions);
   const activeId = useSessions((s) => s.activeId);
@@ -548,6 +553,8 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
     ? serverDisplayName(selectedMachine, true)
     : 'Choose computer';
 
+  const destinationAccount = toolProfiles.find((profile) => selectedProfile ? profile.name === selectedProfile : profile.default_profile);
+  const destinationLabel = profileChoice === NEW_PROFILE ? 'Add an account' : destinationAccount ? accountLabel(destinationAccount) : selectedProfile || 'CLI default account';
   const launcher = (
       <form className={`dialog dialog-wide new-session-launcher${embedded ? ' is-embedded' : ''}`} onClick={(e) => e.stopPropagation()} onSubmit={submit}>
         <header className="dialog-head launcher-compact-head">
@@ -567,7 +574,7 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
         <div className="dialog-body">
           <section className="launcher-hero"><PageHeader level={2} titleId="new-session-title"
             title={isDelegate ? 'Delegate a task' : 'What would you like to work on?'}
-            description={isDelegate ? 'Give it one focused job. It stays linked to its parent.' : 'Choose a project and an agent. Make something yours.'} />
+            description={isDelegate ? 'Give it one focused job. It stays linked to its parent.' : 'Start with a task. Your project and agent are ready.'} />
           </section>
           <div className="launcher-setup" role="group" aria-label="Session setup">
             <div className="launcher-setup-field is-folder">
@@ -587,31 +594,10 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
                 </Select>
               </span>
             </label>
-            {!isDelegate && (
-              <label className="launcher-setup-field">
-                <span>Computer</span>
-                <span className="launcher-intent-control is-machine" title={machineTitle}>
-                  <MachineMark machine={machineTitle} size={16} />
-                  <Select value={machineId} onChange={(event) => chooseMachine(event.currentTarget.value)} aria-label="Computer">
-                    {configuredMachines.map((machine) => (
-                      <option key={machine.id} value={machine.id}>{serverDisplayName(machine, true)}</option>
-                    ))}
-                  </Select>
-                </span>
-              </label>
-            )}
-            {profileTool ? (
-              <AccountChoice
-                profiles={toolProfiles}
-                value={profileChoice}
-                selected={selectedProfile}
-                inherited={inheritedAccount}
-                title={accountTitle}
-                disabled={busy}
-                onChange={(next) => { setAccountTouched(true); setProfileChoice(next); }}
-              />
-            ) : null}
           </div>
+          <p className="launcher-target-context" aria-label="Session destination">
+            <span>{machineTitle}</span><span> · </span><span>{profileTool ? destinationLabel : 'Shell'}</span>
+          </p>
           {profileTool && requiresProviderLogin ? (
             <InlineAccountSignIn
               key={`${machineId}:${profileTool}:${profileChoice}`}
@@ -623,6 +609,7 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
           <div className="field launcher-task-field launcher-composer input-composer">
             <span className="sr-only">First request (optional)</span>
             <Textarea
+              ref={composerRef}
               className="input-textarea"
               value={task}
               aria-label="First request (optional)"
@@ -642,24 +629,6 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
                 ) : null}
                 {tool !== 'shell' ? (
                   <>
-                    <div className="launcher-model-control" data-label="Model">
-                      <ModelPicker
-                        provider={tool === 'claude-code' ? 'claude' : 'codex'}
-                        value={selectedModel}
-                        options={modelOptions}
-                        loading={tool === 'codex' && codexModelsLoading} error={tool === 'codex' ? codexModelsError : null}
-                        onChange={selectModel}
-                        defaultLabel={`${selectedTool.name} default`}
-                        allowCustom compact
-                      />
-                    </div>
-                    <label className="launcher-effort-chip" data-label="Effort">
-                      <span className="sr-only">Effort</span>
-                      <Select value={selectedEffort} onChange={(event) => selectEffort(event.currentTarget.value)} aria-label="Reasoning effort">
-                        <option value="">Default effort</option>
-                        {effortChoices.map((effort) => <option key={effort} value={effort}>{effortLabel(effort)}</option>)}
-                      </Select>
-                    </label>
                     <label className="launcher-permissions-chip" data-label="Access">
                       <span className="sr-only">Access</span>
                       <Select
@@ -714,8 +683,35 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
             </section>
           )}
           <details className="launcher-advanced">
-            <summary><strong>Advanced</strong><span>Account, tags, and provider settings</span></summary>
+            <summary><strong>Session options</strong><span>Computer, account, model, and more</span></summary>
             <div className="launcher-advanced-body">
+              <div className="launcher-setup" role="group" aria-label="Session options">
+                {!isDelegate && (
+                  <label className="launcher-setup-field">
+                    <span>Computer</span>
+                    <span className="launcher-intent-control is-machine" title={machineTitle}>
+                      <MachineMark machine={machineTitle} size={16} />
+                      <Select value={machineId} onChange={(event) => chooseMachine(event.currentTarget.value)} aria-label="Computer">
+                        {configuredMachines.map((machine) => (
+                          <option key={machine.id} value={machine.id}>{serverDisplayName(machine, true)}</option>
+                        ))}
+                      </Select>
+                    </span>
+                  </label>
+                )}
+                {profileTool ? (
+                  <AccountChoice
+                    profiles={toolProfiles}
+                    value={profileChoice}
+                    selected={selectedProfile}
+                    inherited={inheritedAccount}
+                    title={accountTitle}
+                    disabled={busy}
+                    onChange={(next) => { setAccountTouched(true); setProfileChoice(next); }}
+                  />
+                ) : null}
+              </div>
+              {tool !== 'shell' ? <LauncherModelOptions tool={tool} selectedModel={selectedModel} modelOptions={modelOptions} loading={codexModelsLoading} error={codexModelsError} selectModel={selectModel} selectedTool={selectedTool} selectedEffort={selectedEffort} selectEffort={selectEffort} effortChoices={effortChoices} /> : null}
               <details className="launcher-advanced-subsection">
                 <summary>Tags <span>Optional organization</span></summary>
                 <TagEditor value={tags} onChange={setTags} disabled={busy} />
@@ -773,6 +769,33 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
       </form>
   );
   return embedded
-    ? <section className="new-session-surface">{launcher}</section>
+    ? <section className="new-session-surface" hidden={hidden}>{launcher}</section>
     : <ModalDialog className="dialog new-session-modal" labelledBy="new-session-title" onClose={onClose}>{launcher}</ModalDialog>;
+}
+
+function LauncherModelOptions({ tool, selectedModel, modelOptions, loading, error, selectModel, selectedTool, selectedEffort, selectEffort, effortChoices }: {
+  tool: NewSessionTool; selectedModel: string; modelOptions: ModelPickerOption[];
+  loading: boolean; error: string | null; selectModel: (model: string) => void;
+  selectedTool: ToolDef; selectedEffort: string; selectEffort: (effort: string) => void; effortChoices: string[];
+}): JSX.Element {
+  return (<div className="launcher-option-models">
+    <div className="launcher-model-control" data-label="Model">
+      <ModelPicker
+        provider={tool === 'claude-code' ? 'claude' : 'codex'}
+        value={selectedModel}
+        options={modelOptions}
+        loading={tool === 'codex' && loading} error={tool === 'codex' ? error : null}
+        onChange={selectModel}
+        defaultLabel={`${selectedTool.name} default`}
+        allowCustom compact
+      />
+    </div>
+    <label className="launcher-effort-chip" data-label="Effort">
+      <span className="sr-only">Effort</span>
+      <Select value={selectedEffort} onChange={(event) => selectEffort(event.currentTarget.value)} aria-label="Reasoning effort">
+        <option value="">Default effort</option>
+        {effortChoices.map((effort) => <option key={effort} value={effort}>{effortLabel(effort)}</option>)}
+      </Select>
+    </label>
+</div>);
 }

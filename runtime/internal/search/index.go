@@ -13,7 +13,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/somewhere-tech/sessions/runtime/internal/integrations"
@@ -133,7 +132,20 @@ type scoredMatch struct {
 	rank  float64
 }
 
-var rankedSearchGate sync.Mutex
+var rankedSearchGate = make(chan struct{}, 1)
+
+func acquireRankedSearch(ctx context.Context) error {
+	select {
+	case rankedSearchGate <- struct{}{}:
+		if err := ctx.Err(); err != nil {
+			<-rankedSearchGate
+			return err
+		}
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
 
 type rankedSession struct {
 	history integrations.HistorySession
@@ -148,12 +160,10 @@ func runRanked(ctx context.Context, source HistorySource, live []state.SessionIn
 	if strings.TrimSpace(indexPath) == "" {
 		return Response{}, errors.New("search index path is required for ranked search")
 	}
-	rankedSearchGate.Lock()
-	defer rankedSearchGate.Unlock()
-	if err := ctx.Err(); err != nil {
+	if err := acquireRankedSearch(ctx); err != nil {
 		return Response{}, err
 	}
-
+	defer func() { <-rankedSearchGate }()
 	sessions, err := source.SearchSessions(live)
 	if err != nil {
 		return Response{}, err

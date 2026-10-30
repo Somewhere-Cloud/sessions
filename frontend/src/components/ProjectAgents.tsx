@@ -1,9 +1,10 @@
+import { ProjectMark, SessionWorkspaceBranch } from './SessionProjectIdentity';
 import { SessionActivityGroups, WorkingObservation, isObservedWorking } from './SessionActivityGroups';
 import { Button, IconButton } from './ui/Button';
 import { Input } from './ui/Field';
 import { lazy, Suspense, useId, useState, type ReactNode } from 'react';
 import type { AgentProject, Agent } from '../lib/projectAgents';
-import { resolvedSessionLabel, sessionLabel } from '../lib/tabLabels';
+import { quietSessionTitle, resolvedSessionLabel, sessionLabel } from '../lib/tabLabels';
 import { classifySession } from '../lib/sessionStatus';
 import { serverDisplayName } from '../lib/servers';
 import { normalizeProvider, ProviderMark } from './ProviderBadge';
@@ -49,7 +50,7 @@ function AgentGroup({ group, activeMachineId, activeSessionId, compact = true, r
   return <section className="agent-project" aria-label={group.name}>
     <header><Button variant="ghost" className="session-tree-group-head agent-project-disclosure" aria-expanded={open} aria-controls={rowsId} onClick={() => setOpen((current) => !current)}>
       <span className={`inbox-chevron${open ? ' is-open' : ''}`} aria-hidden>▸</span>
-      <span className="agent-project-name">{group.name}</span><strong className="agent-project-count">{group.rows.length}</strong>
+      <ProjectMark name={group.name} /><span className="agent-project-name">{group.name}</span><strong className="agent-project-count">{group.rows.length}</strong>
     </Button>{onAdd ? <IconButton size="compact" aria-label={`Add agent to ${group.name}`} onClick={() => onAdd(group.rows[0], group.name)}>＋</IconButton> : null}</header>
     <div id={rowsId} hidden={!open}>{open ? rows.map((row) => <div key={`${row.server.id}:${row.session.id}`}>
       {row.projectName ? <small className="session-nav-project">{row.projectName}</small> : null}
@@ -86,7 +87,7 @@ function RemoteAgent({ row, onOpen, onResume, localRow, showProject = false }: {
   return <div className="agent-remote-row">
     {localRow ?? <><button type="button" className="session-fleet-row" onClick={() => onOpen(server.id, session.id)} title={`${serverDisplayName(server, true)}${session.profile ? ` · ${session.profile}` : ''}`}>
       <span className="session-fleet-provider">{provider ? <ProviderMark provider={provider} size={18} /> : '⌘'}</span>
-      <span className="session-fleet-copy"><strong>{label}</strong><small>{showProject ? <><span className="session-nav-project">{row.projectName}</span> · </> : null}{row.unavailable ? 'Computer unavailable · saved view' : status.label}</small></span>
+      <span className="session-fleet-copy"><strong title={label}>{quietSessionTitle(label)}</strong><small>{showProject ? <><span className="session-nav-project">{row.projectName}</span> · </> : null}{serverDisplayName(server, true)} · {row.unavailable ? 'Computer unavailable · saved view' : status.label}</small><SessionWorkspaceBranch session={session} /></span>
     </button>{onResume ? <Suspense fallback={null}><SavedRecoveryAction row={row} onResume={onResume} /></Suspense> : null}</>}
     <IconButton size="compact" className="agent-rename" aria-label={`Rename ${label}`} onClick={() => { setDraft(label); setEditing(true); }}>✎</IconButton>
     {editing ? <form className="agent-rename-form" onSubmit={(event) => { event.preventDefault(); void save(); }}>

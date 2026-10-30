@@ -1,9 +1,10 @@
+import { ProjectMark, SessionWorkspaceBranch } from './SessionProjectIdentity';
 import { SessionActivityGroups, WorkingObservation, isObservedWorking } from './SessionActivityGroups';
 import { useId, useState, type JSX } from 'react';
 import type { SessionInfo } from '../types';
 import { type InboxLayout, type InboxSection, type ProviderFaultNotice } from '../lib/inboxSections';
 import { classifySession } from '../lib/sessionStatus';
-import { resolvedSessionLabel } from '../lib/tabLabels';
+import { quietSessionTitle, resolvedSessionLabel } from '../lib/tabLabels';
 import { ProviderMark, normalizeProvider } from './ProviderBadge';
 import { AccountBadge } from './AccountBadge';
 import { SessionLastMessage } from './SessionLastMessage';
@@ -113,9 +114,10 @@ function AttentionRow({ session, why, onOpen, folderOf, relativeTime, lastActivi
     <button type="button" className="inbox-needs-row" onClick={() => onOpen(session.id)} title={session.failureDetail || 'Open this session'}>
       <span className="inbox-needs-mark">{provider ? <ProviderMark provider={provider} size={16} /> : <span aria-hidden>⌘</span>}</span>
       <span className="inbox-needs-copy">
-        <strong>{resolvedSessionLabel(session)}<AccountBadge session={session} /></strong>
-        <SessionLastMessage session={session} />
+        <strong>{quietSessionTitle(resolvedSessionLabel(session))}<AccountBadge session={session} /></strong>
+        <SessionLastMessage session={session} quiet />
         <small>{folderOf(session)}</small>
+        <SessionWorkspaceBranch session={session} />
         <span className={`inbox-needs-why${providerTrouble ? ` ${status.className}` : ''}`}>{why}</span>
       </span>
       <time>{relativeTime(lastMessage(session).at || lastActivity(session))}</time>
@@ -189,7 +191,7 @@ function ProjectSection({ section, activeSessionId, renderNode }: { section: Inb
       <button type="button" className="session-tree-group-head inbox-project-head" onClick={() => setOpen((current) => !current)} aria-expanded={open} aria-controls={rowsId}>
         <span className="session-group-disclosure">
           <span className={`inbox-chevron${open ? ' is-open' : ''}`} aria-hidden>▸</span>
-          {section.name}
+          <ProjectMark name={section.name} />{section.name}
         </span>
         <strong>
           {count}

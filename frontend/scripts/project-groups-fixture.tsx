@@ -15,6 +15,15 @@ const sessions = names.flatMap((name, project) => Array.from({ length: 20 }, (_,
   pinned: project === 0 && index === 17,
   tags: { project: name }
 })));
+if (new URLSearchParams(location.search).has('identity')) {
+  sessions[18].name = 'Codex: Simplify navigation for a project with an unusually long descriptive name and several related worktree conversations that must remain discoverable';
+  sessions[18].lastSummary = 'Agent: The navigation now keeps the conversation title clear.';
+  sessions[18].workspaceGit = { state: 'branch', branch: 'feature/sidebar/long-worktree-branch-with-meaningful-context', observedAt: now };
+  sessions[17].lastSummary = '────────────────────────────────────────';
+  sessions[17].workspaceGit = { state: 'detached', revision: 'abcdef1234567890', observedAt: now };
+  sessions[16].workspaceGit = { state: 'unavailable', observedAt: now };
+  sessions[15].lastSummary = '❯ redraw output';
+}
 if (new URLSearchParams(location.search).has('connectionStates')) {
   sessions[18].name = 'Opus · Managed Claude terminal hooks';
   sessions.push(...Array.from({ length: 39 }, (_, index) => makeSession({

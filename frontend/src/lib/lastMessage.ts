@@ -122,3 +122,17 @@ export function lastMessageLine(session: SessionInfo, sending?: string): string 
       return '';
   }
 }
+
+/** Keep authored previews and pending-reply state, without terminal chrome. */
+export function sessionPreview(session: SessionInfo): string {
+  if (session.tool === 'terminal') return '';
+  const message = lastMessage(session);
+  if (message.kind === 'fault') return ''; // status already exposes the failure
+  if (message.kind === 'you' && message.awaitingReply) return 'Waiting for reply';
+  if (/[\u2500-\u259f\u2800-\u28ff]/.test(message.text)) return '';
+  const text = message.text.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '').replace(/^(?:Agent|Assistant|You):\s*/i, '').trim();
+  if (!text || /[\x00-\x08\x0b-\x1f\x7f]/.test(text)) return '';
+  if (/^[\s─━═│┃┌┐└┘├┤┬┴┼╭╮╰╯▁▂▃▄▅▆▇█=*_~`>+-]+$/.test(text)) return '';
+  if (/^(?:[╭╰┌└│┃▸❯›]|[>$]\s|(?:esc|ctrl[+-]|shift[+-])|(?:tokens?|context|working|thinking|running|loading)[… .:]|\d+%)/i.test(text)) return '';
+  return text.replace(/^#{1,6}\s+/, '').replace(/\*\*(.*?)\*\*/g, '$1');
+}

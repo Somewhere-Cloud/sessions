@@ -11,6 +11,7 @@ import {
   planSmartSearch,
   searchServer,
   type HistoryTranscript,
+  type HistorySession,
   type ResumableSession,
   type SearchSessionHits,
   type SmartSearchPlan
@@ -36,9 +37,10 @@ import {
   classifyPeerFailure,
   peerBudget,
   peerReportText,
-  FLEET_BUDGET_MS,
   type PeerReport
 } from '../lib/fleetPeerBudget';
+import { abortBudget } from '../lib/abortBudget';
+import { settleOnAbort } from '../lib/searchRead';
 import { isTauri } from '../lib/tauriBridge';
 import { useRestartRetry } from '../hooks/useRestartRetry';
 import { ConversationBrowser } from './ConversationBrowser';
@@ -185,18 +187,29 @@ interface FleetSearchParams {
 async function readServerForSearch(
   server: ServerConfig,
   params: FleetSearchParams,
-  base: AbortSignal
+  base: AbortSignal,
+  onIndexed: (response: ServerResponse) => void
 ): Promise<ServerResponse> {
   const serverName = serverDisplayName(server, true);
   const budget = peerBudget(base, isLocalServer(server));
   const signal = budget.signal;
-  const filters = {
-    speaker: params.speaker, tool: params.tool, sessionName: params.sessionName,
-    cwd: params.cwd, since: params.since, until: params.until
-  };
+  let partial: ServerResponse | null = null;
+  const enrichment = Promise.allSettled([
+      settleOnAbort(listServerSessions(server, signal), signal),
+      settleOnAbort(fetchServerHistory(server, signal), signal),
+      settleOnAbort(fetchServerResumableSessions(server, signal), signal)
+    ]).then((reads) => {
+      if (!partial) {
+        partial = enrichServerResponse(server, params, {
+          ...indexedServerResponse(server, { matches: [], total: 0 }), meta: null
+        }, reads);
+        partial.report = { ...partial.report, status: 'pending' };
+        onIndexed(partial);
+      }
+      return reads;
+    });
   try {
-    const [response, sessions, history, resumable] = await Promise.all([
-      searchServer(server, {
+    const response = await settleOnAbort(searchServer(server, {
         query: params.query,
         mode: 'ranked',
         role: params.speaker || undefined,
@@ -207,42 +220,17 @@ async function readServerForSearch(
         until: params.until,
         timeline: params.timeline,
         limit: 250
-      }, signal),
-      listServerSessions(server, signal).catch(() => []),
-      fetchServerHistory(server, signal).catch(() => []),
-      fetchServerResumableSessions(server, signal).catch(() => [])
-    ]);
-    const managedMatches = enrichSearchResultsWithSessions(
-      response.matches, filterTitleSearchSessions(sessions, filters), params.query
-    );
-    const historyMatches = enrichSearchResultsWithHistory(
-      managedMatches, filterTitleSearchHistory(history, filters), params.query
-    );
-    const matches = enrichSearchResultsWithResumable(
-      historyMatches, filterTitleSearchResumable(resumable, filters), params.query, serverName
-    );
-    return {
-      matches: matches.map((match) => ({ ...match, serverId: server.id, serverName })),
-      // Absent fields stay absent. An older daemon sends matches and a total
-      // and nothing else, and every null below is what keeps this screen from
-      // inventing a rollup it was never given.
-      sessions: (response.sessions ?? []).map((session) => ({ ...session, serverId: server.id, serverName })),
-      meta: {
-        serverId: server.id,
-        serverName,
-        rewrittenQuery: response.effective_query ?? null,
-        matchMode: response.match_mode ?? null,
-        totalHits: response.total_hits ?? null,
-        totalSessions: response.total_sessions ?? null,
-        rollupPartial: response.rollup_partial === true || response.partial === true
-      } satisfies SearchMeta,
-      report: { serverId: server.id, serverName, status: 'answered', detail: null }
-    };
+      }, signal), signal);
+    const indexed = indexedServerResponse(server, response);
+    partial = indexed;
+    onIndexed(indexed);
+    return enrichServerResponse(server, params, indexed, await enrichment);
   } catch (reason) {
+    await enrichment;
     return {
-      matches: [],
-      sessions: [],
-      meta: null,
+      matches: partial?.matches ?? [],
+      sessions: partial?.sessions ?? [],
+      meta: partial?.meta ?? null,
       report: {
         serverId: server.id,
         serverName,
@@ -257,6 +245,83 @@ async function readServerForSearch(
     // finished read would keep a timer alive for the rest of its budget.
     budget.release();
   }
+}
+
+type TitleSourceReads = [
+  PromiseSettledResult<SessionInfo[]>, PromiseSettledResult<HistorySession[]>, PromiseSettledResult<ResumableSession[]>
+];
+
+function enrichServerResponse(
+  server: ServerConfig, params: FleetSearchParams, indexed: ServerResponse, reads: TitleSourceReads
+): ServerResponse {
+  const [sessionRead, historyRead, resumableRead] = reads;
+  const sessions = sessionRead.status === 'fulfilled' ? sessionRead.value : [];
+  const history = historyRead.status === 'fulfilled' ? historyRead.value : [];
+  const resumable = resumableRead.status === 'fulfilled' ? resumableRead.value : [];
+  const failures = [sessionRead, historyRead, resumableRead].filter((read) => read.status === 'rejected');
+  const managedMatches = enrichSearchResultsWithSessions(
+    indexed.matches, filterTitleSearchSessions(sessions, params), params.query
+  );
+  const historyMatches = enrichSearchResultsWithHistory(
+    managedMatches, filterTitleSearchHistory(history, params), params.query
+  );
+  const matches = enrichSearchResultsWithResumable(
+    historyMatches, filterTitleSearchResumable(resumable, params), params.query, serverDisplayName(server, true)
+  );
+  return {
+    ...indexed,
+    matches: matches.map((match) => ({ ...match, serverId: server.id, serverName: serverDisplayName(server, true) })),
+    report: { ...indexed.report, status: 'answered', detail: failures.length
+      ? `Additional title sources did not finish: ${failures.map((read) => daemonErrorDisplay(read.reason)).join('; ')}. Retry to include them.`
+      : null }
+  };
+}
+
+function indexedServerResponse(server: ServerConfig, response: Awaited<ReturnType<typeof searchServer>>): ServerResponse {
+  const serverName = serverDisplayName(server, true);
+  return {
+    matches: response.matches.map((match) => ({ ...match, serverId: server.id, serverName })),
+    sessions: (response.sessions ?? []).map((session) => ({ ...session, serverId: server.id, serverName })),
+    meta: {
+      serverId: server.id, serverName,
+      rewrittenQuery: response.effective_query ?? null,
+      matchMode: response.match_mode ?? null,
+      totalHits: response.total_hits ?? null,
+      totalSessions: response.total_sessions ?? null,
+      rollupPartial: response.rollup_partial === true || response.partial === true
+    },
+    report: { serverId: server.id, serverName, status: 'pending', detail: null }
+  };
+}
+
+function readFleetSearch(
+  servers: ServerConfig[], params: FleetSearchParams, signal: AbortSignal,
+  update: (responses: ServerResponse[], reports: PeerReport[], loading: boolean) => void
+): void {
+  const settled = new Map<string, ServerResponse>();
+  const finished = new Set<string>();
+  const commit = (): void => {
+    if (signal.aborted) return;
+    const responses = servers.flatMap((server) => {
+      const response = settled.get(server.id);
+      return response ? [response] : [];
+    });
+    const reports = servers.map((server): PeerReport => settled.get(server.id)?.report ?? {
+      serverId: server.id, serverName: serverDisplayName(server, true), status: 'pending', detail: null
+    });
+    update(responses, reports, finished.size < servers.length);
+  };
+  servers.forEach((server) => {
+    void readServerForSearch(server, params, signal, (response) => {
+      settled.set(server.id, response);
+      commit();
+    }).then((response) => {
+      finished.add(server.id);
+      settled.set(server.id, response);
+      commit();
+    });
+  });
+  commit();
 }
 
 export function SearchView({ onResumeConversation, onOpenLiveSession }: SearchViewProps): JSX.Element {
@@ -335,38 +400,23 @@ export function SearchView({ onResumeConversation, onOpenLiveSession }: SearchVi
       return;
     }
     const controller = new AbortController();
-    const fleetBudget = window.setTimeout(() => controller.abort(), FLEET_BUDGET_MS);
+    setResults([]);
+    setRollup([]);
+    setMetas([]);
+    setPeerReports(servers.map((server) => ({ serverId: server.id, serverName: serverDisplayName(server, true), status: 'pending', detail: null })));
     setLoading(true);
-    const timer = window.setTimeout(() => {
-      // Each machine is read under its own budget and committed on its own.
-      // A machine that is off no longer decides when this person sees the
-      // history of the machine in front of them.
-      const params: FleetSearchParams = {
-        query: effectiveQuery, speaker, tool, sessionName, cwd,
-        since: dates.since, until: dates.until, timeline: sort === 'timeline'
-      };
-      const settled = new Map<string, ServerResponse>();
-      const commit = (): void => {
-        if (controller.signal.aborted) return;
-        const responses = servers
-          .map((server) => settled.get(server.id))
-          .filter((response): response is ServerResponse => Boolean(response));
-        setResults(responses.flatMap((response) => response.matches));
-        setRollup(responses.flatMap((response) => response.sessions));
-        setMetas(responses.flatMap((response) => response.meta ? [response.meta] : []));
-        setPeerReports(responses.map((response) => response.report));
-        setLoading(settled.size < servers.length);
-      };
-      servers.forEach((server) => {
-        void readServerForSearch(server, params, controller.signal).then((response) => {
-          settled.set(server.id, response);
-          commit();
-        });
-      });
-    }, mode === 'ai' ? 0 : 180);
+    const params: FleetSearchParams = {
+      query: effectiveQuery, speaker, tool, sessionName, cwd,
+      since: dates.since, until: dates.until, timeline: sort === 'timeline'
+    };
+    readFleetSearch(servers, params, controller.signal, (responses, reports, busy) => {
+      setResults(responses.flatMap((response) => response.matches));
+      setRollup(responses.flatMap((response) => response.sessions));
+      setMetas(responses.flatMap((response) => response.meta ? [response.meta] : []));
+      setPeerReports(reports);
+      setLoading(busy);
+    });
     return () => {
-      window.clearTimeout(timer);
-      window.clearTimeout(fleetBudget);
       controller.abort();
     };
   }, [effectiveQuery, mode, speaker, tool, sort, dateRange, dates.since, dates.until, sessionName, cwd, servers, retryToken]);
@@ -422,8 +472,9 @@ export function SearchView({ onResumeConversation, onOpenLiveSession }: SearchVi
     [peerReports]
   );
   const restarting = missingPeers.some((report) => report.status === 'restarting');
-  const stillRetrying = useRestartRetry(restarting, peerReports, () => setRetryToken((token) => token + 1));
+  const stillRetrying = useRestartRetry(restarting, peerReports, () => setRetryToken((token) => token + 1), peerReports.some((report) => report.status === 'pending'));
   const countsArePartial = metas.some((meta) => meta.rollupPartial)
+    || peerReports.some((report) => report.detail !== null)
     || anyPeerMissing(peerReports)
     || metas.length < servers.length;
 
@@ -462,6 +513,7 @@ export function SearchView({ onResumeConversation, onOpenLiveSession }: SearchVi
     planAbort.current?.abort();
     const controller = new AbortController();
     planAbort.current = controller;
+    const budget = abortBudget(30_000, controller.signal);
     setPlanning(true);
     setPlan(null);
     setResults([]);
@@ -470,13 +522,16 @@ export function SearchView({ onResumeConversation, onOpenLiveSession }: SearchVi
     setPeerReports([]);
     setScreenError(null);
     try {
-      const nextPlan = await planSmartSearch(naturalQuery, controller.signal);
+      const nextPlan = await settleOnAbort(planSmartSearch(naturalQuery, budget.signal), budget.signal);
       if (planGeneration.current === generation) setPlan(nextPlan);
     } catch (reason) {
       if (planGeneration.current === generation && !controller.signal.aborted) {
-        setScreenError(reason instanceof Error ? reason.message : 'AI search planning failed');
+        setScreenError(budget.signal.aborted
+          ? 'Smart search did not finish in 30 seconds. Try Keywords, or retry Smart search.'
+          : reason instanceof Error ? reason.message : 'AI search planning failed. Try Keywords or retry.');
       }
     } finally {
+      budget.release();
       if (planGeneration.current === generation) setPlanning(false);
     }
   };
@@ -492,6 +547,7 @@ export function SearchView({ onResumeConversation, onOpenLiveSession }: SearchVi
     setPeerReports([]);
     setScreenError(null);
     setSubmittedQuery(query.trim());
+    setRetryToken((token) => token + 1);
   };
 
   const continueConversation = async (
@@ -668,10 +724,10 @@ export function SearchView({ onResumeConversation, onOpenLiveSession }: SearchVi
               ? 'Where did I explain how the drafts rollout should work?'
               : 'Search a chat title, request, decision, or handoff…'}
           />
-          <Button type="submit" variant="primary" className="search-ai-submit" disabled={!query.trim() || searchBusy}>
+          <Button type="submit" variant="primary" className="search-ai-submit" disabled={!query.trim() || planning}>
             {planning ? 'Understanding…' : loading ? 'Searching…' : 'Search'}
           </Button>
-          {query && !searchBusy ? (
+          {query ? (
             <Button type="button" aria-label="Clear search" onClick={() => updateQuery('')}>×</Button>
           ) : null}
         </form>
@@ -754,6 +810,9 @@ export function SearchView({ onResumeConversation, onOpenLiveSession }: SearchVi
             )}
           </Status>
         ) : null}
+        {peerReports.filter((report) => report.status === 'answered' && report.detail).map((report) => (
+          <Status key={report.serverId}>{report.serverName}: {report.detail}</Status>
+        ))}
         {screenError ? <Status>{screenError}</Status> : null}
         {continuationError ? <Status>{continuationError}</Status> : null}
         {/* Both notices are silent on a normal strict search: a screen that

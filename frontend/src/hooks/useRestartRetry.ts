@@ -12,16 +12,18 @@ import { RESTART_RETRY_INTERVAL_MS, RESTART_RETRY_WINDOW_MS } from '../lib/fleet
  *
  * `attempt` is whatever value changes when an attempt finishes — a new value
  * arms the next one, so the asking is paced by answers rather than by wall
- * clock alone.
+ * clock alone. A pending retry preserves the first refusal time until its
+ * result can establish whether the machine recovered.
  */
-export function useRestartRetry(restarting: boolean, attempt: unknown, askAgain: () => void): boolean {
+export function useRestartRetry(restarting: boolean, attempt: unknown, askAgain: () => void, pending = false): boolean {
   const [since, setSince] = useState<number | null>(null);
   const ask = useRef(askAgain);
   ask.current = askAgain;
 
   useEffect(() => {
+    // A progressive pending report is not evidence that the machine recovered.
     if (!restarting) {
-      if (since !== null) setSince(null);
+      if (!pending && since !== null) setSince(null);
       return;
     }
     if (since === null) {
@@ -32,7 +34,7 @@ export function useRestartRetry(restarting: boolean, attempt: unknown, askAgain:
     if (remaining <= 0) return;
     const timer = window.setTimeout(() => ask.current(), Math.min(RESTART_RETRY_INTERVAL_MS, remaining));
     return () => window.clearTimeout(timer);
-  }, [restarting, since, attempt]);
+  }, [restarting, pending, since, attempt]);
 
   return restarting && since !== null && Date.now() - since < RESTART_RETRY_WINDOW_MS;
 }

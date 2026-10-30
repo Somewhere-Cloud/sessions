@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { useNewSessionLauncher } from '../src/hooks/useNewSessionLauncher';
 import { createRoot } from 'react-dom/client';
 import '../src/styles/globals.css';
 import { NewSessionDialog } from '../src/components/NewSessionDialog';
@@ -19,6 +20,13 @@ const daemon = installFakeDaemon(machines);
 useFakeMachines(machines);
 document.documentElement.dataset.theme = 'dark';
 Object.assign(window, { launcherDaemon: daemon });
-createRoot(document.getElementById('root')!).render(
-  <NewSessionDialog embedded onClose={() => {}} onStarted={() => {}} onOpenResume={() => {}} />
-);
+function LauncherFixture(): JSX.Element {
+  const { focusRequest, openNewSession } = useNewSessionLauncher(true, (opening) => { if (opening) throw new Error('An open draft must not reset'); });
+  useEffect(() => {
+    const focus = openNewSession;
+    window.addEventListener('launcher-focus', focus);
+    return () => window.removeEventListener('launcher-focus', focus);
+  }, [openNewSession]);
+  return <main className="operations-shell" data-theme="dark"><NewSessionDialog focusRequest={focusRequest} embedded onClose={() => {}} onStarted={() => {}} onOpenResume={() => {}} /></main>;
+}
+createRoot(document.getElementById('root')!).render(<LauncherFixture />);

@@ -35,6 +35,7 @@ function fleet(): FakeMachine[] {
 
 async function openLauncher(): Promise<HTMLSelectElement> {
   render(<NewSessionDialog onClose={() => {}} onStarted={() => {}} />);
+  await userEvent.click(screen.getByText('Session options', { selector: 'summary strong' }));
   return await screen.findByLabelText('Account') as HTMLSelectElement;
 }
 
@@ -62,15 +63,15 @@ describe('capability: accounts are a first-class choice', () => {
     expect(account).toHaveValue('');
   });
 
-  it('offers the accounts on the selected computer beside Agent and Computer', async () => {
+  it('offers the selected computer accounts in Session options', async () => {
     const machines = fleet();
     installFakeDaemon(machines);
     useFakeMachines(machines, 'local');
     const account = await openLauncher();
 
-    // Not behind Advanced: the control is in the setup row with the others.
+    // The exact account remains editable beside its computer.
     expect(account.closest('.launcher-setup')).not.toBeNull();
-    expect(account.closest('details')).toBeNull();
+    expect(account.closest('details')).toHaveAttribute('open');
 
     await waitFor(() => expect(within(account).getByRole('option', { name: /Work — team plan/ })).toBeInTheDocument());
     // The label the person typed, not the folder name behind it.
@@ -104,6 +105,7 @@ describe('capability: accounts are a first-class choice', () => {
     const user = userEvent.setup();
 
     render(<NewSessionDialog onClose={() => {}} onStarted={() => {}} parentSession={manager} />);
+    await userEvent.click(screen.getByText('Session options', { selector: 'summary strong' }));
     const account = await screen.findByLabelText('Account') as HTMLSelectElement;
     await waitFor(() => expect(account.value).toBe('work'));
     // And it says where that came from rather than looking like a free choice.
@@ -128,6 +130,7 @@ describe('capability: accounts are a first-class choice', () => {
         projectSeed={{ serverId: 'local', cwd: '/Users/somebody/project', tags: {} }}
       />
     );
+    await userEvent.click(screen.getByText('Session options', { selector: 'summary strong' }));
     const account = await screen.findByLabelText('Account') as HTMLSelectElement;
     await waitFor(() => expect(account.value).toBe('personal'));
     window.localStorage.removeItem('sessions:account-choice');
@@ -142,6 +145,7 @@ describe('capability: adding an account is a guided login', () => {
     const user = userEvent.setup();
     render(<NewSessionDialog onClose={() => {}} onStarted={() => {}}
       projectSeed={{ serverId: 'local', cwd: '/project', tags: {} }} />);
+    await userEvent.click(screen.getByText('Session options', { selector: 'summary strong' }));
     const account = await screen.findByLabelText('Account');
     const add = within(account).getByRole('option', { name: /Add an account/ }) as HTMLOptionElement;
     await user.selectOptions(account, add.value);

@@ -45,7 +45,17 @@ try {
     }));
     assert.equal(bounds.overflow, false, `no horizontal overflow at ${width}px`);
     assert.ok(bounds.controls.every((r) => r.x >= 0 && r.right <= width && r.height >= 42), `readable touch-sized choices at ${width}px`);
+    assert.equal(await page.evaluate(() => window.launcherDaemon.created.length), 0, 'opening creates no runner');
+    await page.type('textarea', 'Preserve this draft');
+    await page.evaluate(() => window.dispatchEvent(new Event('launcher-focus')));
+    await page.waitForFunction(() => document.activeElement === document.querySelector('textarea'));
+    assert.equal(await page.$eval('textarea', (el) => el.value), 'Preserve this draft');
+    assert.equal(await page.evaluate(() => window.launcherDaemon.created.length), 0, 'refocusing creates no runner');
+    await page.$eval('textarea', (el) => { el.value = ''; el.dispatchEvent(new Event('input', { bubbles: true })); });
     await page.select('[aria-label="Agent"]', 'codex');
+    assert.equal(await page.$eval('.launcher-advanced', (el) => el.open), false);
+    assert.match(await page.$eval('#launcher-access-help', (el) => el.textContent), /without asking/);
+    await page.click('.launcher-advanced > summary');
     await page.waitForSelector('.model-picker-trigger:not(:disabled)');
     await page.click('.model-picker-trigger');
     await page.waitForSelector('[role="option"]');
@@ -53,14 +63,28 @@ try {
     assert.match(await page.$eval('.model-picker-trigger', (el) => el.textContent), /Astra/);
     await page.select('[aria-label="Computer"]', 'mini');
     await page.waitForFunction(() => document.querySelector('.is-workspace strong').textContent === 'platform');
+    await page.click('.launcher-advanced > summary');
     if (width <= 390) {
       const startBottom = await page.$eval('[aria-label="Start session"]', (el) => el.getBoundingClientRect().bottom);
       assert.ok(startBottom <= height, `Start stays visible before opening the keyboard at ${width}px`);
     }
     if (process.env.LAUNCHER_SCREENSHOT_DIR) {
-      await page.screenshot({ path: join(process.env.LAUNCHER_SCREENSHOT_DIR, `launcher-${width}.png`), fullPage: true });
+      for (const theme of ['light', 'dark']) {
+        await page.evaluate((theme) => { document.querySelector('.operations-shell').dataset.theme = theme; document.activeElement?.blur(); }, theme);
+        await page.evaluate(async () => { await Promise.all(document.getAnimations().filter((animation) => animation.effect?.getTiming().iterations !== Infinity).map((animation) => animation.finished.catch(() => {}))); });
+        await page.screenshot({ path: join(process.env.LAUNCHER_SCREENSHOT_DIR, `launcher-${width}-${theme}.png`), fullPage: true });
+        await page.click('.launcher-advanced > summary');
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'expanded options fit');
+        await page.screenshot({ path: join(process.env.LAUNCHER_SCREENSHOT_DIR, `launcher-${width}-${theme}-options.png`), fullPage: true });
+        await page.click('.launcher-advanced > summary');
+      }
     }
-    await page.click('[aria-label="Start session"]');
+    await page.focus('textarea');
+    await page.keyboard.down('Shift');
+    await page.keyboard.press('Enter');
+    await page.keyboard.up('Shift');
+    assert.equal(await page.evaluate(() => window.launcherDaemon.created.length), 0, 'Shift+Enter adds a line without creating');
+    await page.keyboard.press('Enter');
     await page.waitForFunction(() => window.launcherDaemon.created.length === 1);
     const request = await page.evaluate(() => window.launcherDaemon.requests.find((r) => r.method === 'POST' && r.path === '/api/sessions'));
     assert.equal(request.body.cwd, '/Users/example/Projects/platform');

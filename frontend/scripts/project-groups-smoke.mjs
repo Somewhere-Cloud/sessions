@@ -105,8 +105,8 @@ try {
     }));
     assert.ok(titleLayout.height > 20 && titleLayout.height < 40 && titleLayout.fullHeight <= titleLayout.height + 1 && titleLayout.fits,
       `a normal long session name should fit on two lines without truncation: ${JSON.stringify(titleLayout)}`);
-    assert.equal(await page.$$eval('.session-nav-meta > span:not(.session-nav-project)', (nodes) =>
-      nodes.every((el) => el.scrollWidth <= el.clientWidth)), true, 'timestamps and provider marks do not get squeezed by project names');
+    assert.equal(await page.$$eval('.session-nav-meta > .session-nav-time', (nodes) =>
+      nodes.every((el) => el.scrollWidth <= el.clientWidth)), true, 'timestamps stay readable beside host, project, and branch');
     if (scope === 'fixture') {
       assert.deepEqual(await page.$eval('.inbox-fold-label', (el) => {
         const bounds = el.getBoundingClientRect();

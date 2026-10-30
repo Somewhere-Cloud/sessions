@@ -3764,3 +3764,20 @@ are not globally observable; they remain stored in their existing clients, and
 this policy never deletes them. Transient states between samples and concurrent
 changes can race an organization write; current native visibility protections
 still apply. A retained queue observation is not an exhaustive queue inventory.
+
+### Session workspace HEAD observation
+
+Session inventory entries may include `workspaceGit` with `state` (`branch`,
+`detached`, `not-repository`, or `unavailable`), `branch` or `revision` when
+observed, and `observedAt` in epoch milliseconds. This additive, descriptive
+field is shared by the daemon session inventory and CLI JSON listing. It reads
+HEAD relative to that session's recorded cwd on the serving host, including
+worktree gitfiles; it never substitutes `source_repo` or the client checkout.
+The existing `branch` field remains worktree creation provenance.
+
+Reads use local files only, at most 32 ancestor directories and 4096 bytes per
+file, with a 30-second cache capped at 256 cwd entries and 16 cache misses per
+inventory request. Unprobed entries omit the observation. Missing cwd or
+unreadable/malformed HEAD is unavailable; a detached revision is not a branch.
+The cwd is the recorded session workspace, not a claim to track shell `cd`.
+No remote lookup, Git command, index refresh, or checkout is performed.

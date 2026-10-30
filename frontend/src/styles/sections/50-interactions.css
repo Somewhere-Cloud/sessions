@@ -644,3 +644,9 @@ button.model-picker-option { display: flex; align-items: center; justify-content
 @media (max-width: 480px) {
   .new-session-modal .launcher-setup { grid-template-columns: minmax(0, 1fr); }
 }
+
+.launcher-target-context { margin: 0; color: var(--fg-dim); font-size: 12px; overflow-wrap: anywhere; }
+.launcher-option-models { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.launcher-option-models > * { min-width: 0; max-width: 100%; }
+
+.new-session-surface[hidden] { display: none; }

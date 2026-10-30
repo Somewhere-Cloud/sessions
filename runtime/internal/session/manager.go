@@ -529,7 +529,7 @@ func (m *Manager) listTimed(ctx context.Context, includeExited, strict bool) ([]
 	infos = m.withRunnerReality(infos)
 	timing.Reality = time.Since(realityStart)
 	infos = withLostReason(infos, states, bootAtMS())
-	return m.withProvenanceStates(infos, states), timing, err
+	return withWorkspaceIdentity(m.withProvenanceStates(infos, states)), timing, err
 }
 
 func (m *Manager) withRunnerReality(infos []state.SessionInfo) []state.SessionInfo {

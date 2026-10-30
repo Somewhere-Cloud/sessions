@@ -31,6 +31,7 @@ import { OnDemandSettingsMenu } from './components/OnDemandSettingsMenu';
 import { TailnetAccessInbox } from './components/TailnetAccessInbox';
 import { MachineRecoveryNotice } from './components/MachineRecoveryNotice';
 import { LaneLinkOpener } from './components/LaneLinkOpener';
+import { useNewSessionLauncher } from './hooks/useNewSessionLauncher';
 import { useIsMobile } from './hooks/useMediaQuery';
 import { useExactResume } from './hooks/useExactResume';
 import { useAndroidBackNavigation } from './hooks/useAndroidBackNavigation';
@@ -407,12 +408,12 @@ function ConnectedApp({ nativeClientOnly = false }: { nativeClientOnly?: boolean
   const [layoutMode, setLayoutMode] = useState<LayoutMode>(readStoredLayout);
   const [projectSeed, setProjectSeed] = useState<{ serverId: string; cwd: string; tags: Record<string, string> } | null>(null);
   const effectiveLayout: LayoutMode = layoutMode === 'home' || (isMobile && layoutMode === 'grid') ? 'tabs' : layoutMode;
-  const openNewSession = useCallback((): void => {
-    setProjectSeed(null);
+  const { focusRequest, openNewSession } = useNewSessionLauncher(dialogOpen === 'new', (opening) => {
+    if (opening) setProjectSeed(null);
     setLayoutMode('tabs');
     setMobileSessionDetail(true);
     setDialogOpen('new');
-  }, []);
+  });
   const localServer = servers.find((server) => server.isDefault && isLocalServer(server)) ?? null;
   const selectedMachineName = selectedServer ? serverDisplayName(selectedServer, true) : 'this machine';
   const pausedAfterRestart = serverHealth?.restore?.pending ?? 0;
@@ -814,20 +815,19 @@ function ConnectedApp({ nativeClientOnly = false }: { nativeClientOnly?: boolean
 
       <Suspense fallback={null}><FleetRelaySync /></Suspense>
       <main className="app-main operations-main">
+        {dialogOpen === 'new' ? <Suspense fallback={null}><NewSessionDialog
+              embedded hidden={!sessionWorkspace || tokenRequiredServerId === activeServerId} focusRequest={focusRequest}
+              projectSeed={projectSeed}
+              onClose={() => setDialogOpen(null)}
+              onStarted={openCreatedSession}
+              onOpenResume={(providerId) => setDialogOpen(providerId ? { resumeProviderId: providerId } : 'resume')}
+            /></Suspense> : null}
         {tokenRequiredServerId === activeServerId ? (
           <DaemonBanner
             error="sessionsd: authentication required (401)"
             onRetry={() => void refresh()}
           />
-        ) : sessionWorkspace && dialogOpen === 'new' ? (
-          <Suspense fallback={null}><NewSessionDialog
-              embedded
-              projectSeed={projectSeed}
-              onClose={() => setDialogOpen(null)}
-              onStarted={openCreatedSession}
-              onOpenResume={(providerId) => setDialogOpen(providerId ? { resumeProviderId: providerId } : 'resume')}
-            /></Suspense>
-        ) : sessionWorkspace && sessions.length === 0 && !sessionsHydrated ? (
+        ) : sessionWorkspace && dialogOpen === 'new' ? null : sessionWorkspace && sessions.length === 0 && !sessionsHydrated ? (
           <SessionsWorkspaceSkeleton />
         ) : sessionWorkspace && isMobile && !mobileSessionDetail ? (
           sessionNavigator

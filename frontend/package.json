@@ -34,6 +34,8 @@
     "test:local-network": "node scripts/local-network-guide-smoke.mjs",
     "test:title-clarity": "node scripts/title-clarity-smoke.mjs",
     "test:surface-truth": "node scripts/surface-truth-smoke.mjs",
+    "test:sidebar-identity": "node scripts/sidebar-identity-smoke.mjs",
+    "test:search-latency": "node scripts/search-latency-smoke.mjs",
     "test:search-rollup": "node scripts/search-rollup-smoke.mjs",
     "test:conversation-browser": "node scripts/conversation-browser-smoke.mjs",
     "test:restart-conversation": "node scripts/restart-conversation-smoke.mjs",
