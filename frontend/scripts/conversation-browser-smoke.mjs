@@ -181,7 +181,8 @@ localStorage.removeItem('sessions:search-state:v3');
   assert.deepEqual(liveByID.badges, ['Live now']);
   assert.ok(!liveByID.actions.includes('Resume conversation'), 'a live conversation must not offer resume; the daemon refuses it');
   assert.ok(liveByID.actions.includes('Open the live session'), 'it must offer the thing that does work');
-  assert.match(liveByID.note, /running right now/);
+  assert.equal(liveByID.note, '', 'the live action needs no duplicate explanation');
+  assert.ok(!liveByID.actions.some((action) => action.startsWith('Open conversation')), 'live rows have one destination');
 
   // Bound through the provider UUID only — the id comparison alone misses it.
   const liveByProvider = rowByTitle(first, 'Quota calculator with Codex');
