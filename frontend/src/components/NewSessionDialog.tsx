@@ -263,6 +263,10 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
   const [browserOpen, setBrowserOpen] = useState(false);
   const [tags, setTags] = useState<Record<string, string>>(projectSeed?.tags ?? parentSession?.tags ?? initialDefaults.tags);
   const [task, setTask] = useState('');
+  useEffect(() => {
+    if (!projectSeed) return;
+    setMachineId(projectSeed.serverId); setCwd(projectSeed.cwd); setTags(projectSeed.tags);
+  }, [projectSeed]);
   const [recentWorkspaces, setRecentWorkspaces] = useState<DirectoryCandidate[]>([]);
   const [profiles, setProfiles] = useState<AccountProfile[]>([]);
   const [profileChoice, setProfileChoice] = useState(() => inheritedProfile(parentSession, tool));
@@ -501,6 +505,8 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
           return;
         }
       }
+      setTask('');
+      startIdsRef.current = null;
       onStarted(info.id);
       onClose();
       if (task.trim()) void deliverInitialRequest(machineId, info.id, task.trim(), promptOperation);

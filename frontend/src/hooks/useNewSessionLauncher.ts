@@ -5,7 +5,7 @@ export function useNewSessionLauncher(isOpen: boolean, onOpen: (opening: boolean
   const [focusRequest, setFocusRequest] = useState(0);
   const openNewSession = useCallback((): void => {
     setFocusRequest((request) => request + 1);
-    onOpen(!isOpen);
-  }, [isOpen, onOpen]);
+    onOpen(!isOpen && focusRequest === 0);
+  }, [isOpen, focusRequest, onOpen]);
   return { focusRequest, openNewSession };
 }

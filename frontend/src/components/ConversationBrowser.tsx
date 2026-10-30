@@ -380,7 +380,7 @@ function ConversationCard({
                 {preview?.open ? 'Hide preview' : 'Preview'}
               </Button>
             ) : null}
-            {row.readable ? <Button type="button" onClick={onOpen}>Open conversation <span aria-hidden>→</span></Button> : null}
+            {row.readable && !(row.status === 'live' && onAttach) ? <Button type="button" onClick={onOpen}>Open conversation <span aria-hidden>→</span></Button> : null}
             {row.status === 'live' && onAttach ? (
               <Button type="button" className="is-resume" onClick={() => onAttach(row)}>Open the live session</Button>
             ) : null}
@@ -396,7 +396,7 @@ function ConversationCard({
             does not have. This is the difference between a browser that is
             honest and one that offers an action the daemon will refuse. */}
         {row.copies ? <span className="conversation-row-note">Why there are copies: Sessions keeps each run. Resume uses the newest.</span> : null}
-        {row.status !== 'resumable' ? (
+        {row.status !== 'resumable' && !(row.status === 'live' && onAttach) ? (
           <span className={`conversation-row-note${row.status === 'unrecoverable' ? ' is-gone' : ''}`}>{row.reason}</span>
         ) : null}
       </span>

@@ -323,6 +323,7 @@ function ConnectedApp({ nativeClientOnly = false }: { nativeClientOnly?: boolean
   const rawSessionsRef = useRef(rawSessions);
   rawSessionsRef.current = rawSessions;
   const openSession = useCallback((id: string): void => {
+    setDialogOpen(null);
     setPendingFleetView(null);
     // Viewing is selection only. Inventory reconciliation below decides whether
     // this is a user root or a transient agent drilldown, including delayed rows.
@@ -815,8 +816,8 @@ function ConnectedApp({ nativeClientOnly = false }: { nativeClientOnly?: boolean
 
       <Suspense fallback={null}><FleetRelaySync /></Suspense>
       <main className="app-main operations-main">
-        {dialogOpen === 'new' ? <Suspense fallback={null}><NewSessionDialog
-              embedded hidden={!sessionWorkspace || tokenRequiredServerId === activeServerId} focusRequest={focusRequest}
+        {focusRequest > 0 || dialogOpen === 'new' ? <Suspense fallback={null}><NewSessionDialog
+              embedded hidden={dialogOpen !== 'new' || !sessionWorkspace || tokenRequiredServerId === activeServerId} focusRequest={focusRequest}
               projectSeed={projectSeed}
               onClose={() => setDialogOpen(null)}
               onStarted={openCreatedSession}

@@ -1,11 +1,11 @@
 import { expect, it } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { App } from '../../src/App';
-import { installFakeDaemon, useFakeMachines, type FakeMachine } from './fake-daemon';
+import { installFakeDaemon, makeSession, useFakeMachines, type FakeMachine } from './fake-daemon';
 
 it('Cmd+N opens and refocuses one draft, while Cmd+K retains commands', async () => {
   const machines: FakeMachine[] = [{ id: 'local', name: 'Fixture Mac', host: 'localhost', port: 8787,
-    isDefault: true, sessions: [], directories: [{ path: '/work/project', label: 'project', kind: 'project' }] }];
+    isDefault: true, sessions: [makeSession({ id: 'existing', name: 'Existing conversation' })], directories: [{ path: '/work/project', label: 'project', kind: 'project' }] }];
   const daemon = installFakeDaemon(machines);
   useFakeMachines(machines);
   render(<App />);
@@ -24,6 +24,21 @@ it('Cmd+N opens and refocuses one draft, while Cmd+K retains commands', async ()
   await screen.findByRole('textbox', { name: 'Search conversations' });
   expect(composer).not.toBeVisible();
   fireEvent.keyDown(window, { key: 'Escape' });
+  fireEvent.keyDown(window, { key: 'n', metaKey: true });
+  await waitFor(() => expect(composer).toHaveFocus());
+  expect(composer).toHaveValue('Keep this draft');
+  fireEvent.keyDown(window, { key: 'Escape' });
+  expect(composer).not.toBeVisible();
+  fireEvent.keyDown(window, { key: 'n', metaKey: true });
+  await waitFor(() => expect(composer).toHaveFocus());
+  expect(composer).toHaveValue('Keep this draft');
+  fireEvent.click(screen.getByRole('button', { name: 'Close new session' }));
+  expect(composer).not.toBeVisible();
+  fireEvent.keyDown(window, { key: 'n', metaKey: true });
+  await waitFor(() => expect(composer).toHaveFocus());
+  expect(composer).toHaveValue('Keep this draft');
+  fireEvent.click(screen.getByText('Existing conversation'));
+  await waitFor(() => expect(composer).not.toBeVisible());
   fireEvent.keyDown(window, { key: 'n', metaKey: true });
   await waitFor(() => expect(composer).toHaveFocus());
   expect(composer).toHaveValue('Keep this draft');

@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ConversationBrowser } from '../../src/components/ConversationBrowser';
 import { DEFAULT_BROWSE_FILTERS } from '../../src/lib/conversationBrowser';
-import { installFakeDaemon, useFakeMachines, type FakeMachine } from './fake-daemon';
+import { installFakeDaemon, makeSession, useFakeMachines, type FakeMachine } from './fake-daemon';
 
 describe('capability: browse history while another computer is slow', () => {
   it.each([true, false])('lists uncounted history without parsing the archive (per-row marker: %s)', async (marker) => {
@@ -67,4 +67,21 @@ describe('capability: browse history while another computer is slow', () => {
       finishRemote?.();
     }
   });
+});
+
+it('offers one destination for a readable live conversation', async () => {
+  const machine: FakeMachine = { id: 'local', name: 'MacBook', host: 'localhost', port: 8787,
+    isDefault: true, sessions: [makeSession({ id: 'live', name: 'Live project', kind: 'claude-structured' })],
+    history: [{ id: 'live', name: 'Live project', tool: 'claude', cwd: '/project', machine: 'MacBook',
+      created_at: Date.now(), last_activity_at: Date.now(), message_count: 2, conversation_available: true }] };
+  installFakeDaemon([machine]);
+  useFakeMachines([machine]);
+  let attached = false;
+  render(<ConversationBrowser filters={DEFAULT_BROWSE_FILTERS} filtered={false} onOpen={() => {}}
+    onResume={() => {}} onAttach={() => { attached = true; }} />);
+  const open = await screen.findByRole('button', { name: 'Open the live session' });
+  expect(screen.queryByRole('button', { name: /^Open conversation/ })).not.toBeInTheDocument();
+  expect(screen.queryByText(/This conversation is running right now/)).not.toBeInTheDocument();
+  await userEvent.setup().click(open);
+  expect(attached).toBe(true);
 });
