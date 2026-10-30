@@ -89,11 +89,11 @@ try {
   await page.click('summary');
   assert.match(await text(), /could not be matched/);
   await change(scope('local', 'work', 'claude-code'));
-  await page.waitForFunction(() => document.querySelector('summary').textContent.includes('Claude: no data'));
+  // Claude reports its own limits now, read like any other account.
+  await page.waitForFunction(() => document.querySelector('summary').textContent.includes('3%'));
   await page.click('summary');
-  assert.equal(await page.$$eval('[role="meter"]', nodes => nodes.length), 0);
-  assert.match(await text(), /Claude limits aren’t available in Sessions yet/);
-  assert.doesNotMatch(await text(), /Load failed|Refresh limits/);
+  assert.deepEqual(await page.$$eval('[role="meter"]', nodes => nodes.map(n => n.getAttribute('aria-valuenow'))), ['3', '31']);
+  assert.doesNotMatch(await text(), /aren’t available|Load failed/);
   if (process.env.ACCOUNT_SCREENSHOT_DIR) {
     for (const [theme, width] of [['dark', 1280], ['dark', 1100], ['dark', 375], ['light', 1280], ['light', 375]]) {
       await page.evaluate(value => { document.documentElement.dataset.theme = value; document.querySelector('main').dataset.theme = value; }, theme);
@@ -211,7 +211,7 @@ try {
   assert.equal(await page.$eval('.footer-usage-popover', el => { const box = el.getBoundingClientRect(); return box.left >= 0 && box.right <= innerWidth && box.top >= 0 && box.bottom <= innerHeight; }), true, 'scaled disclosure stays inside viewport');
   if (process.env.ACCOUNT_SCREENSHOT_DIR) await page.screenshot({ path: join(process.env.ACCOUNT_SCREENSHOT_DIR, 'footer-scaled-mobile.png'), fullPage: true });
   assert.deepEqual(errors, []);
-  console.log('footer usage (including stale/multiple buckets/default/missing host/account race/offline refresh): host/profile/home matching, unsupported Claude, independent windows, late response fencing, zero/unknown/cumulative/native footprint, narrow layout passed');
+  console.log('footer usage (including stale/multiple buckets/default/missing host/account race/offline refresh): host/profile/home matching, Claude limits, independent windows, late response fencing, zero/unknown/cumulative/native footprint, narrow layout passed');
 } finally {
   await closeBrowser(browser);
   await closeServer(server);

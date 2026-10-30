@@ -63,9 +63,9 @@ try {
   await page.click('summary');
   assert.match(await text(), /could not be matched/);
   await change(scope('local', 'work', 'claude-code'));
-  await page.waitForFunction(() => document.querySelector('summary').textContent.includes('unavailable'));
+  await page.waitForFunction(() => document.querySelector('summary').textContent.includes('3%'));
   await page.click('summary');
-  assert.equal(await page.$$eval('[role="meter"]', nodes => nodes.length), 0);
+  assert.deepEqual(await page.$$eval('[role="meter"]', nodes => nodes.map(n => n.getAttribute('aria-valuenow'))), ['3', '31']);
   if (process.env.ACCOUNT_SCREENSHOT_DIR) {
     for (const [theme, width] of [['dark', 1280], ['dark', 375], ['light', 1280], ['light', 375]]) {
       await page.evaluate(value => { document.documentElement.dataset.theme = value; document.querySelector('main').dataset.theme = value; }, theme);
@@ -151,7 +151,7 @@ try {
     if (process.env.ACCOUNT_SCREENSHOT_DIR) await page.screenshot({ path: join(process.env.ACCOUNT_SCREENSHOT_DIR, `composer-usage-${theme}-${width}.png`), fullPage: true });
   }
   assert.deepEqual(errors, []);
-  console.log('composer usage (including stale/multiple buckets/default/missing host/account race/offline refresh): host/profile/home matching, unsupported Claude, independent windows, late response fencing, zero/unknown/cumulative/native footprint, narrow layout passed');
+  console.log('composer usage (including stale/multiple buckets/default/missing host/account race/offline refresh): host/profile/home matching, Claude limits, independent windows, late response fencing, zero/unknown/cumulative/native footprint, narrow layout passed');
 } finally {
   await closeBrowser(browser);
   await closeServer(server);

@@ -1,8 +1,8 @@
 import '../styles/account-usage.css';
 import { Stack } from './ui/Layout';
-import { CLAUDE_LIMITS_UNAVAILABLE, bucketName, relativeTime, resetText, windowName } from '../lib/accountUsageDisplay';
+import { bucketName, relativeTime, resetText, windowName } from '../lib/accountUsageDisplay';
 import type { AccountUsageWindow } from '../api/sessionsd';
-import { freshestReading, type AccountGroup, type AccountPlacement } from '../lib/accountRollup';
+import { freshestReading, sharesAllowance, type AccountGroup, type AccountPlacement } from '../lib/accountRollup';
 
 // An account's allowance as its provider last reported it. Each limit is its
 // own meter; nothing is added up. The reading says when and where it was taken,
@@ -40,14 +40,13 @@ function missingReason(placements: AccountPlacement[], tool: 'claude' | 'codex')
     return 'Update Sessions on this account’s computers to see its usage.';
   }
   if (placements.some((placement) => placement.usageGap === 'pending')) return 'Reading usage…';
-  if (tool === 'claude') return 'Claude usage is not connected in Sessions yet. Check Claude for your current limits.';
+  if (tool === 'claude') return 'Update Sessions on this computer to see Claude usage.';
   return 'Usage is not known right now. Refresh to try again.';
 }
 
 /** Usage for one account row, taken from its freshest reading. */
 export function AccountUsageSummary({ group, label }: { group: AccountGroup; label: string }): JSX.Element {
-  if (group.tool === 'claude' && !group.reading) return <p className="account-usage-missing">{CLAUDE_LIMITS_UNAVAILABLE}</p>;
-  if (!group.matchedByProvider && group.placements.length > 1) {
+  if (!sharesAllowance(group) && group.placements.length > 1) {
     return <details className="account-usage-readings">
       <summary>Usage by computer</summary>
       {group.placements.map((placement) => <div key={`${placement.serverId}:${placement.profile.name}`}>

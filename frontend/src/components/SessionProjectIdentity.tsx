@@ -1,8 +1,12 @@
+import { projectMonogram } from '../lib/projectMonogram';
 import type { SessionInfo } from '../types';
 
-/** Images are host-observed local assets, never remote URLs or inline markup. */
+/** Images are host-observed local assets, never remote URLs or inline markup.
+ *  Without one, the project's two-letter monogram shows on its own tint. */
 export function ProjectMark({ name, icon }: { name: string; icon?: string }): JSX.Element {
-  return <span className="project-mark" aria-hidden>{Array.from(name.trim())[0]?.toLocaleUpperCase() || '◇'}
+  const monogram = projectMonogram(name);
+  return <span className="project-mark" style={{ '--project-hue': monogram.hue } as React.CSSProperties} aria-hidden>
+    <span className="project-mark-letters">{monogram.letters}</span>
     {icon?.startsWith('data:image/') ? <img key={icon} src={icon} alt="" onError={(event) => { event.currentTarget.hidden = true; }} /> : null}
   </span>;
 }

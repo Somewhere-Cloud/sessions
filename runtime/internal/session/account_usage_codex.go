@@ -12,10 +12,10 @@ import (
 	"github.com/somewhere-tech/sessions/runtime/internal/codexapp"
 )
 
-// readProviderUsage is the supported reading for each provider. Only Codex
-// offers one: its app-server answers account/rateLimits/read for the signed-in
-// ChatGPT account. Claude usage is not connected in Sessions yet; Sessions does
-// not scrape it from Claude's files, endpoints or status line in the meantime.
+// readProviderUsage is the supported reading for each provider: Codex's
+// app-server answers account/rateLimits/read, and Claude's CLI answers a
+// get_usage control request (account_usage_claude.go). Sessions does not
+// scrape usage from provider files, endpoints or status lines.
 func readProviderUsage(ctx context.Context, tool, home string) AccountUsage {
 	return readProviderUsageWithEnv(ctx, tool, home, accountLoginEnvironment(tool, home))
 }
@@ -57,25 +57,36 @@ func readProviderUsageWithEnv(ctx context.Context, tool, home string, env []stri
 	return readCodexUsage(ctx, client)
 }
 
-// Identity and usage are separate facts: Claude exposes auth status without a
-// model turn, but no supported allowance reading. Never infer logout from a
-// missing credentials file (the provider may use the OS credential store).
+// Identity comes from `claude auth status`; the allowance from Claude's own
+// usage answer. Never infer logout from a missing credentials file (the
+// provider may use the OS credential store).
 func readClaudeAccountStatusWithEnv(ctx context.Context, home string, env []string) AccountUsage {
-	result := AccountUsage{State: AccountUsageUnsupported,
-		Message: "Claude usage is not connected in Sessions yet. Check Claude for your current limits."}
+	result := AccountUsage{State: AccountUsageUnavailable}
 	executable, err := agentcall.Executable("claude")
 	if err != nil {
-		result.State, result.Message = AccountUsageUnavailable, "Claude is not installed or could not be located on this computer."
+		result.Message = "Claude is not installed or could not be located on this computer."
 		return result
 	}
 	identity, err := readClaudeIdentity(ctx, executable, home, env)
 	result.CheckedAt = time.Now().UnixMilli()
-	if err != nil {
-		result.State, result.Message = AccountUsageUnavailable, "Claude could not confirm this sign-in. Refresh to check again; this does not mean signed out."
-	} else if identity == nil {
+	switch {
+	case err != nil:
+		result.Message = "Claude could not confirm this sign-in. Refresh to check again; this does not mean signed out."
+		return result
+	case identity == nil:
 		result.State, result.Message = AccountUsageSignedOut, "Claude reported no subscription sign-in in this provider home."
-	} else {
-		result.Identity = identity
+		return result
+	}
+	result.Identity = identity
+	reply, err := probeClaudeUsage(ctx, executable, env)
+	result.CheckedAt = time.Now().UnixMilli()
+	switch {
+	case err != nil:
+		result.Message = usageFailure(ctx, "Claude could not report this account's limits")
+	case !reply.Available:
+		result.State, result.Message = AccountUsageUnsupported, "This Claude sign-in has no plan limits to show."
+	default:
+		result.State, result.ReadAt, result.Buckets = AccountUsageAvailable, result.CheckedAt, claudeUsageBuckets(reply)
 	}
 	return result
 }

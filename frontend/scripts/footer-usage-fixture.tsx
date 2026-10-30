@@ -20,6 +20,8 @@ const machines: FakeMachine[] = ['local', 'remote'].map((id, index) => ({
   ],
   accountUsage: { 'codex/work': { state: 'available', read_at: now, checked_at: now,
     buckets: [{ limit_id: 'codex', windows: [{ kind: 'primary', window_minutes: 300, resets_at: now + 7200000, used_percent: index ? 77 : 12 },
+      { kind: 'secondary', window_minutes: 10080, resets_at: now + 345600000, used_percent: 31 }] }] }, 'claude/work': { state: 'available', read_at: now, checked_at: now,
+    buckets: [{ limit_id: 'claude', windows: [{ kind: 'primary', window_minutes: 300, resets_at: now + 7200000, used_percent: 3 },
       { kind: 'secondary', window_minutes: 10080, resets_at: now + 345600000, used_percent: 31 }] }] } }
 }));
 const daemon = installFakeDaemon(machines);

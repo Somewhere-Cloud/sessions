@@ -1,6 +1,5 @@
 import { lazy, Suspense, useEffect, useRef } from 'react';
 import type { ComposerUsageScope } from '../lib/composerAccountUsage';
-import { CLAUDE_LIMITS_UNAVAILABLE } from '../lib/accountUsageDisplay';
 import { Button } from './ui/Button';
 import '../styles/footer-usage.css';
 
@@ -13,9 +12,6 @@ export interface FooterUsageProps {
 }
 
 export function FooterUsage(props: FooterUsageProps): JSX.Element {
-  if (props.usageScope?.provider === 'claude-code') return <UsageDisclosure {...props} summary="Claude: no data">
-    <p>{CLAUDE_LIMITS_UNAVAILABLE}</p>
-  </UsageDisclosure>;
   return props.usageScope && props.usageScope.provider !== 'terminal'
     ? <Suspense fallback={<UsageDisclosure {...props} summary="Reading limits…" />}><SelectedUsage key={JSON.stringify(props.usageScope)} {...props} scope={props.usageScope} /></Suspense>
     : <UsageDisclosure {...props} summary="No selected account" />;

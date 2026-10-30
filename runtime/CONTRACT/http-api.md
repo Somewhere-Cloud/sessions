@@ -1095,8 +1095,10 @@ delegated creates explicitly send `defaultProfile: true` to override inheritance
 Default identity discovery shares the bounded account-reading cache and waits at
 most two seconds; a pending or failed check is not evidence of a logout.
 Usage refresh checks Claude identity with `claude auth status --json` without
-starting a login or model turn. Claude allowance remains unsupported even when
-identity is verified. No credentials are copied or parsed by Sessions.
+starting a login or model turn, then reads the allowance by starting Claude in
+stream-json mode with no prompt, hooks, MCP servers, tools or session
+persistence and sending its `initialize` and `get_usage` control requests. No
+credentials are copied or parsed by Sessions.
 
 Auth required. A profile is one account: a separate provider home with its own
 login and history. Returns them by tool and name, with their path, the label
@@ -1240,9 +1242,8 @@ it, or one account with `?tool=claude|codex&name=<name>`:
 - `available`: `buckets` are the provider's reading at `read_at`.
 - `signed_out`: the provider reported no sign-in in that home at `checked_at`.
 - `unsupported`: the provider, its version, or its sign-in kind offers no
-  supported usage read in Sessions. Claude usage is not connected in Sessions
-  yet; an older Codex without `account/rateLimits/read` and API-key sign-ins
-  also answer this way.
+  supported usage read in Sessions: an older Codex without
+  `account/rateLimits/read`, and API-key sign-ins of either provider.
 - `unavailable`: the read failed, timed out, or has not answered yet. `message`
   says what to do next. An earlier reading is returned with `stale: true` and
   its own `read_at` only when this attempt's provider-reported `identity`

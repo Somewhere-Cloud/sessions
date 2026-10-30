@@ -1,7 +1,5 @@
 import type { AccountUsageBucket, AccountUsageWindow } from '../api/sessionsd';
 
-export const CLAUDE_LIMITS_UNAVAILABLE = 'Claude limits aren’t available in Sessions yet.';
-
 export function relativeTime(at: number, now = Date.now()): string {
   const minutes = Math.round((now - at) / 60_000);
   if (minutes < 1) return 'just now';
@@ -34,5 +32,6 @@ export function resetText(at: number | undefined): string {
 export function bucketName(bucket: AccountUsageBucket, many: boolean): string | null {
   if (bucket.limit_name) return bucket.limit_name;
   if (!many) return null;
+  if (bucket.limit_id === 'claude') return 'All models';
   return bucket.limit_id === 'codex' ? 'Codex' : bucket.limit_id ?? 'Other limit';
 }

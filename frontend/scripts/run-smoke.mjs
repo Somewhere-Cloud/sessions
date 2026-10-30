@@ -47,6 +47,7 @@ const GATE = [
   'external-links',
   'lane-link',
   'lane-report',
+  'project-monogram',
   'lifecycle-clarity',
   'workspace-ux',
   'project-groups',

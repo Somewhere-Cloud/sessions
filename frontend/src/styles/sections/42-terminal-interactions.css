@@ -389,7 +389,9 @@
   .session-nav-meta { font-size: 12px; }
   .session-drag-handle { display: none; }
   .session-row-continue { max-width: 68px; padding: 0 2px; opacity: 1; pointer-events: auto; }
-  .session-row-actions { flex-basis: 38px; }
+  .session-row-actions { position: relative; top: auto; right: auto; flex: 0 0 38px; opacity: 1; pointer-events: auto; }
+  .session-nav-row:hover .session-nav-stamp,
+  .session-nav-row:has(:focus-visible) .session-nav-stamp { visibility: visible; }
   .session-row-action-trigger { width: 38px; height: 38px; font-size: 13px; }
   .session-row-action-menu { position: fixed; top: auto; right: 12px; bottom: calc(72px + env(safe-area-inset-bottom, 0px)); left: 12px; width: auto; padding: 8px; }
   .session-row-action-menu button { min-height: 44px; font-size: 14px; }

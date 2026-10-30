@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 )
@@ -39,12 +40,23 @@ func TestDefaultProfileIdentityIsDiscoveredWithoutRegistration(t *testing.T) {
 }
 
 func TestClaudeAccountReadIsNotALoginAndDoesNotGuessFromFiles(t *testing.T) {
+	// Only `auth status` and the prompt-less stream-json usage probe may run;
+	// anything else, such as a login, fails the read.
 	installAccountPathFixture(t, "claude", `#!/bin/sh
-if [ "$1 $2 $3" != "auth status --json" ]; then exit 99; fi
-printf '%s' '{"loggedIn":true,"authMethod":"claude.ai","email":"cli@example.test","subscriptionType":"max"}'
+if [ "$1 $2 $3" = "auth status --json" ]; then
+  printf '%s' '{"loggedIn":true,"authMethod":"claude.ai","email":"cli@example.test","subscriptionType":"max"}'
+  exit 0
+fi
+if [ "$1 $2" != "--output-format stream-json" ]; then exit 99; fi
+while IFS= read -r line; do
+  case "$line" in
+    *get_usage*) printf '%s\n' '{"type":"control_response","response":{"subtype":"success","request_id":"sessions-usage","response":{"rate_limits_available":false}}}'; exit 0 ;;
+  esac
+done
 `)
 	result := readProviderUsage(context.Background(), "claude", t.TempDir())
-	if result.State != AccountUsageUnsupported || result.Identity == nil || result.Identity.Email != "cli@example.test" {
+	if result.State != AccountUsageUnsupported || result.Identity == nil || result.Identity.Email != "cli@example.test" ||
+		!strings.Contains(result.Message, "no plan limits") {
 		t.Fatalf("status = %#v", result)
 	}
 }

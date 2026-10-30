@@ -3,13 +3,14 @@ import type { AccountIdentity, AccountProfile, AccountUsage } from '../api/sessi
 // One account, however many computers it is signed into.
 //
 // A subscription's allowance belongs to the provider account, not to the
-// computer, so the Accounts page leads with accounts. What makes two computers'
-// homes share an allowance is the provider's own stable account ID. Verified
-// email and organization may group homes visually, but their usage readings
-// remain independent. Missing organization is not evidence of a known one.
+// computer, so the Accounts page leads with accounts. Two computers' homes share
+// an allowance when the provider reports the same stable account ID or, when
+// it reports none (Codex does not), the same verified email, organization and
+// plan. A different organization or plan keeps homes apart: one email can hold
+// separate workspaces with separate allowances.
 //
-// Usage is never added across computers. Only a shared provider account ID
-// permits choosing the freshest reading as a shared allowance.
+// Usage is never added across computers. A shared allowance shows its
+// freshest reading once.
 
 export interface MachineAccounts {
   serverId: string;
@@ -182,7 +183,7 @@ function groupKey(placement: AccountPlacement): string {
   const accountId = identity?.account_id?.trim();
   if (accountId) return `${placement.profile.tool}:account:${accountId}`;
   if (identity?.email.trim()) return `${placement.profile.tool}:identity:${JSON.stringify([
-    identity.email.trim().toLowerCase(), identity.organization?.trim() || null
+    identity.email.trim().toLowerCase(), identity.organization?.trim() || null, identity.plan?.trim().toLowerCase() || null
   ])}`;
   return `${placement.profile.tool}:home:${placement.serverId}:${placement.profile.name}`;
 }
@@ -225,7 +226,12 @@ function freshestIdentity(placements: AccountPlacement[]): AccountIdentity | und
   return best;
 }
 
-/** Group verified identities visually without treating email as allowance identity. */
+/** Whether this group's homes draw on one allowance, so one reading answers for all. */
+export function sharesAllowance(group: AccountGroup): boolean {
+  return group.matchedByProvider || group.key.includes(':identity:');
+}
+
+/** One row per account; a shared allowance carries its freshest reading. */
 export function rollUpAccounts(machines: MachineAccounts[]): AccountGroup[] {
   const groups = new Map<string, AccountGroup>();
   for (const machine of machines) {
@@ -242,7 +248,7 @@ export function rollUpAccounts(machines: MachineAccounts[]): AccountGroup[] {
   const all = [...groups.values()];
   for (const group of all) {
     group.identity = freshestIdentity(group.placements);
-    group.reading = group.matchedByProvider || group.placements.length === 1
+    group.reading = sharesAllowance(group) || group.placements.length === 1
       ? freshestReading(group.placements) : undefined;
   }
   // Computer order, then each computer's own order: a rename never moves a row.

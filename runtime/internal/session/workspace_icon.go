@@ -8,8 +8,11 @@ import (
 	"strings"
 )
 
-// Known local asset locations only: no HTML discovery, URL fetch, or recursive
-// scan. This is called by the background workspace observer, never inventory.
+// Known favicon locations only: no HTML discovery, URL fetch, or recursive
+// scan. A generic icon.* is an app logo rather than the project's favicon,
+// except where Next.js serves app/icon.* as one. A project without a favicon
+// gets the client's lettered mark. This is called by the background workspace
+// observer, never inventory.
 func readWorkspaceIcon(root string) string {
 	resolved, err := filepath.EvalSymlinks(root)
 	if err != nil {
@@ -17,7 +20,11 @@ func readWorkspaceIcon(root string) string {
 	}
 	root = resolved
 	for _, dir := range []string{"", "public", "app", "src/app", "frontend/public", "assets"} {
-		for _, name := range []string{"favicon.svg", "favicon.png", "favicon.ico", "icon.svg", "icon.png"} {
+		names := []string{"favicon.svg", "favicon.png", "favicon.ico"}
+		if dir == "app" || dir == "src/app" {
+			names = append(names, "icon.svg", "icon.png")
+		}
+		for _, name := range names {
 			path, err := filepath.EvalSymlinks(filepath.Join(root, dir, name))
 			if err != nil {
 				continue

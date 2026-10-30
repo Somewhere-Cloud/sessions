@@ -24,6 +24,7 @@
     "test:external-links": "node scripts/external-links-smoke.mjs",
     "test:lane-link": "node scripts/lane-link-smoke.mjs",
     "test:lane-report": "node scripts/lane-report-smoke.mjs",
+    "test:project-monogram": "node scripts/project-monogram-smoke.mjs",
     "test:lifecycle-clarity": "node scripts/lifecycle-clarity-smoke.mjs",
     "test:launcher-onboarding": "node scripts/launcher-onboarding-smoke.mjs",
     "test:launcher-layout": "node scripts/launcher-layout-smoke.mjs",

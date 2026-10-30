@@ -3,7 +3,7 @@ import { Button } from './ui/Button';
 import { useEffect, useState } from 'react';
 import { forgetAccount, renameAccount, type AccountProfile } from '../api/sessionsd';
 import { useAccountFleet } from '../hooks/useAccountFleet';
-import { computersWithout, groupTitle, rollUpAccounts, type AccountGroup, type AccountPlacement, type MachineAccounts } from '../lib/accountRollup';
+import { computersWithout, groupTitle, rollUpAccounts, sharesAllowance, type AccountGroup, type AccountPlacement, type MachineAccounts } from '../lib/accountRollup';
 import { useServers } from '../lib/servers';
 import { AccountPlacementRow, AddOnComputer } from './AccountRowParts';
 import { AddAccountDialog } from './AddAccountDialog';
@@ -271,15 +271,8 @@ function AccountGroupRow(
 }
 
 function AccountMatchNote({ group }: { group: AccountGroup }): JSX.Element | null {
-  if (group.matchedByProvider && group.placements.length > 1) {
+  if (sharesAllowance(group) && group.placements.length > 1) {
     return <span className="accounts-activity">One allowance, signed in on {group.placements.length} computers.</span>;
-  }
-  if (!group.matchedByProvider && group.placements.length > 1) {
-    return (
-      <span className="accounts-activity" title="The provider did not report an account ID, and one email can belong to several workspaces or organizations with separate allowances.">
-        Sign-ins grouped by verified email and workspace. Usage readings remain separate.
-      </span>
-    );
   }
   return null;
 }

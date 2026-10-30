@@ -32,7 +32,7 @@ export function composerAccountGroup(
 
 export function compactLimits(group?: AccountGroup): string {
   const reading = group?.reading?.usage;
-  if (!reading) return group?.tool === 'claude' ? 'Limits unavailable' : 'Limits unknown';
+  if (!reading) return 'Limits unknown';
   const buckets = reading.buckets ?? [];
   const prefix = reading.stale ? 'Last known · ' : '';
   if (buckets.length > 1) return `${prefix}${buckets.length} independent limits`;

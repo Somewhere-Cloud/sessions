@@ -170,7 +170,8 @@ assert.equal(freshestReading([aliceNewer])?.usage.identity.email, 'alice@example
 const idBob = { ...bobNow, identity: { account_id: 'ws-b', email: 'me@example.test', checked_at: 200 } };
 assert.equal(freshestReading([placement(idBob, split(100, 300, { account_id: 'ws-a', email: 'me@example.test', checked_at: 100 }))]), undefined);
 // The same email without a provider ID is no known difference: the reading stays
-// this home's. Email groups the display, never the allowance readings.
+// this home's, and computers signed in as that email, organization and plan
+// share one allowance, shown once from the freshest reading.
 const sameEmail = { ...bobNow, identity: { email: 'me@example.test', checked_at: 200 } };
 const sameEmailRead = placement(sameEmail, split(100, 300, { email: 'me@example.test', checked_at: 100 }));
 assert.equal(freshestReading([sameEmailRead])?.usage.read_at, 300);
@@ -178,8 +179,13 @@ const homes = rollUpAccounts([machine([sameEmailRead.profile], [sameEmailRead.us
   { serverId: 'mini', machineName: 'Mac mini', profiles: [sameEmailRead.profile], usage: [sameEmailRead.usage] }]);
 assert.equal(homes.length, 1, 'verified email groups computers visually');
 assert.equal(homes[0].placements.length, 2);
-assert.equal(homes[0].reading, undefined, 'email never merges allowance readings');
+assert.equal(homes[0].reading?.usage.read_at, 300, 'one reading answers for the shared allowance');
 assert.equal(homes[0].matchedByProvider, false);
+const plans = rollUpAccounts([machine([
+  profile({ name: 'plus', identity: { ...alice, plan: 'plus' } }),
+  profile({ name: 'team', identity: { ...alice, plan: 'team' } })
+])]);
+assert.equal(plans.length, 2, 'one email on two plans stays two allowances');
 const workspaceHomes = rollUpAccounts([machine([
   profile({ name: 'a', identity: { ...alice, organization: 'Alpha' } }),
   profile({ name: 'b', identity: { ...alice, organization: 'Beta' } }),

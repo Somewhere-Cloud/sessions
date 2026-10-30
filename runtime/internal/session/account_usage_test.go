@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"sync"
@@ -289,7 +290,7 @@ func TestAccountUsageInvalidationFencesAnEarlierRead(t *testing.T) {
 }
 
 func TestAccountUsageListsOnlyRegisteredAccounts(t *testing.T) {
-	installAccountPathFixture(t, "claude", "#!/bin/sh\nprintf '%s' '{\"loggedIn\":true,\"authMethod\":\"claude.ai\",\"email\":\"test@example.test\"}'\n")
+	installAccountPathFixture(t, "claude", claudeUsageFixture)
 	manager, _ := usageManager(t, func(ctx context.Context, tool, home string) AccountUsage {
 		return readProviderUsage(ctx, tool, home)
 	})
@@ -306,9 +307,19 @@ func TestAccountUsageListsOnlyRegisteredAccounts(t *testing.T) {
 	if err != nil || len(usage) != 1 || usage[0].Tool != "claude" {
 		t.Fatalf("usage = %#v, %v; want only the listed Claude account", usage, err)
 	}
-	// Claude usage is not connected yet, and the answer says so plainly.
-	if usage[0].State != AccountUsageUnsupported || usage[0].Identity == nil || !strings.Contains(usage[0].Message, "not connected in Sessions yet") {
-		t.Fatalf("claude usage = %#v", usage[0])
+	// Claude answers its own usage request: shared session and weekly
+	// windows, then a model-specific weekly limit as its own bucket.
+	got := usage[0]
+	if got.State != AccountUsageAvailable || got.Identity == nil || len(got.Buckets) != 2 {
+		t.Fatalf("claude usage = %#v", got)
+	}
+	shared, fable := got.Buckets[0], got.Buckets[1]
+	if shared.LimitID != "claude" || len(shared.Windows) != 2 || shared.Windows[0].UsedPercent != 3 || *shared.Windows[0].WindowMinutes != 300 ||
+		shared.Windows[1].UsedPercent != 31 || *shared.Windows[1].WindowMinutes != 10_080 || shared.Windows[0].ResetsAt == nil {
+		t.Fatalf("shared bucket = %#v", shared)
+	}
+	if fable.LimitName != "Fable" || len(fable.Windows) != 1 || fable.Windows[0].UsedPercent != 10 {
+		t.Fatalf("model bucket = %#v", fable)
 	}
 	if _, err := manager.AccountUsage(context.Background(), "codex", "gone", false); err == nil || !strings.Contains(err.Error(), "sessions accounts") {
 		t.Fatalf("forgotten account err = %v, want an instructional unknown-account error", err)
@@ -395,3 +406,33 @@ func (unknownMethodError) Error() string {
 func (unknownMethodError) RPCCode() int { return -32600 }
 
 func codexUnknownMethod() error { return unknownMethodError{} }
+
+// claudeUsageFixture answers `auth status` and, in stream-json mode, the
+// initialize and get_usage control requests the way Claude's CLI does.
+const claudeUsageFixture = `#!/bin/sh
+if [ "$1" = "auth" ]; then
+  printf '%s' '{"loggedIn":true,"authMethod":"claude.ai","email":"test@example.test"}'
+  exit 0
+fi
+while IFS= read -r line; do
+  case "$line" in
+    *sessions-usage-init*) printf '%s\n' '{"type":"control_response","response":{"subtype":"success","request_id":"sessions-usage-init","response":{}}}' ;;
+    *get_usage*) printf '%s\n' '{"type":"control_response","response":{"subtype":"success","request_id":"sessions-usage","response":{"rate_limits_available":true,"rate_limits":{"limits":[{"kind":"session","percent":3,"resets_at":"2026-10-30T21:00:00.683637+00:00"},{"kind":"weekly_all","percent":31,"resets_at":"2026-11-05T05:00:00Z"},{"kind":"weekly_scoped","percent":10,"resets_at":"2026-11-05T05:00:00Z","scope":{"model":{"display_name":"Fable"}}}]}}}}'; exit 0 ;;
+  esac
+done
+`
+
+func TestClaudeUsageFallsBackToNamedWindowsAndReportsAPIKeys(t *testing.T) {
+	var reply claudeUsageReply
+	if err := json.Unmarshal([]byte(`{"rate_limits_available":true,"rate_limits":{"five_hour":{"utilization":12.4,"resets_at":"2026-11-05T05:00:00Z"},"seven_day":{"utilization":87.6}}}`), &reply); err != nil {
+		t.Fatal(err)
+	}
+	buckets := claudeUsageBuckets(reply)
+	if len(buckets) != 1 || len(buckets[0].Windows) != 2 || buckets[0].Windows[0].UsedPercent != 12 || buckets[0].Windows[1].UsedPercent != 88 ||
+		buckets[0].Windows[0].ResetsAt == nil || buckets[0].Windows[1].ResetsAt != nil {
+		t.Fatalf("fallback buckets = %#v", buckets)
+	}
+	if got := claudeUsageBuckets(claudeUsageReply{Available: false}); got != nil {
+		t.Fatalf("no rate limits produced buckets: %#v", got)
+	}
+}
