@@ -439,10 +439,8 @@ function ConnectedApp({ nativeClientOnly = false }: { nativeClientOnly?: boolean
     if (!localServer) return;
     useServers.getState().setActive(localServer.id);
     setServerScope(localServer.id);
-    setLayoutMode('tabs');
-    setMobileSessionDetail(true);
-    setDialogOpen('new');
-  }, [localServer, setServerScope]);
+    openNewSession();
+  }, [localServer, setServerScope, openNewSession]);
   useEffect(() => {
     if (single) return;
     const onKeyDown = (event: KeyboardEvent): void => {
