@@ -43,7 +43,7 @@ try {
   const sampleStall = (name) => setTimeout(() => {
     if (process.platform !== 'darwin' || !process.env.SMOKE_DIAGNOSTIC_DIR) return;
     void browserSystem.send('SystemInfo.getProcessInfo').then(({ processInfo }) => {
-      for (const proc of processInfo.filter((item) => ['renderer', 'GPU'].includes(item.type))) {
+      for (const proc of processInfo.filter((item) => ['browser', 'renderer', 'GPU', 'utility'].includes(item.type))) {
         const path = join(process.env.SMOKE_DIAGNOSTIC_DIR, `${name}-${proc.type}-${proc.id}.sample.txt`);
         execFile('/usr/bin/sample', [String(proc.id), '1', '-file', path], { timeout: 4000 }, (error) => {
           console.error('Navigation process sample', name, proc.type, proc.id, error?.message || path);
