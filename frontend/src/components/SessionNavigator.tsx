@@ -9,8 +9,8 @@ import { RestartConversation } from './RestartConversation';
 import type { SessionInfo } from '../types';
 import { quietSessionTitle, resolvedSessionLabel } from '../lib/tabLabels';
 import { readWindowScope, sessionMatchesWindowScope } from '../lib/windowScope';
-import { normalizeProvider, type Provider } from './ProviderBadge';
-import { SessionLastMessage } from './SessionLastMessage';
+import { ProviderBadge, normalizeProvider } from './ProviderBadge';
+import { MachineMark } from './MachineMark';
 import { ProjectMark, SessionWorkspaceBranch } from './SessionProjectIdentity';
 import { lastMessage } from '../lib/lastMessage';
 import {
@@ -615,17 +615,12 @@ export function SessionNavigator({
           <span className={`session-nav-status ${status.className}`} aria-hidden title={status.label} />
           {isPinned(session) ? <span className="manager-pin is-pinned" title="Pinned" aria-label="Pinned">📌</span> : null}
           <span className="session-nav-copy">
-            <span className="session-nav-title" title={label}>{label}</span>
+            <SessionRowMeta session={session} project={projectLabel} label={label} machine={machine}
+              when={session.exited ? endedAtLabel(session, true) : relativeTime(messageTimeOf(session))}
+              whenTitle={session.exited ? endedAtLabel(session) : undefined} />
             <SessionRowLines session={session} end={end} lostNote={lostNote}
               resumedFrom={resumedFrom} under={endedFlat ? parent : null} />
-            <SessionRowMeta
-              provider={providerName}
-              session={session}
-              machine={machine}
-              when={session.exited ? endedAtLabel(session, true) : relativeTime(messageTimeOf(session))}
-              whenTitle={session.exited ? endedAtLabel(session) : undefined}
-              project={projectLabel}
-            />
+            <SessionWorkspaceBranch session={session} />
           </span>
           {selectingEnded && session.exited ? <span className={`session-row-check${selectedEnded.has(session.id) ? ' is-selected' : ''}`} aria-hidden>{selectedEnded.has(session.id) ? '✓' : ''}</span> : null}
           {!selectingEnded && (end || lostNote) && canContinueSession(session) ? (
@@ -998,7 +993,6 @@ function SessionRowLines({ session, end, lostNote, resumedFrom, under }: {
   return (
     <>
       {sessionNeedsYou(session) && session.idleDetail ? <span className="session-nav-rollup">{session.idleDetail}</span> : null}
-      <SessionLastMessage session={session} quiet />
       {end ? <span className={`session-nav-ended is-${end.tone}`}>{end.label}</span> : null}
       {lostNote ? <span className="session-nav-ended" title={lostNote}>{session.lostAt ? `Unavailable since ${new Date(session.lostAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : 'Connection unavailable'}</span> : null}
       {resumedFrom ? <span className="session-nav-parent">Resumed from {resolvedSessionLabel(resumedFrom)}</span> : null}
@@ -1007,24 +1001,25 @@ function SessionRowLines({ session, end, lostNote, resumedFrom, under }: {
   );
 }
 
-// The row's quiet line: who runs it, where, when it last said something — and,
-// in the flat list, which project it belongs to.
-function SessionRowMeta({ provider, machine, when, whenTitle, project, session }: {
+// Project identity and age have their own line, leaving the branch readable.
+function SessionRowMeta({ when, whenTitle, project, session, label, machine }: {
   session: SessionInfo;
-  provider: Provider | null;
-  machine: string;
   when: string;
   whenTitle?: string;
   project?: string;
+  label: string;
+  machine: string;
 }): JSX.Element {
-  return (
-    <span className="session-nav-meta" title={`${provider === 'claude' ? 'Claude' : provider === 'codex' ? 'Codex' : 'Shell'} · ${machine}`}>
-      <span className="sr-only">{provider === 'claude' ? 'Claude' : provider === 'codex' ? 'Codex' : 'Shell'} · </span><span className="session-nav-context">{machine}</span>
-      <span className="session-nav-time" title={whenTitle}>{when}</span>
-      {project ? <span className="session-nav-project" title={`Project: ${project}`}><ProjectMark name={project} icon={session.workspaceGit?.iconDataUrl} />{project}</span> : null}
-      <SessionWorkspaceBranch session={session} />
-    </span>
-  );
+  const providerName = normalizeProvider(session.tool);
+  const stamp = <span className="session-nav-stamp">
+    <span className="session-nav-time" title={whenTitle}>{when}</span>
+    <MachineMark machine={machine} size={14} />
+    {providerName ? <ProviderBadge provider={providerName} compact /> : null}
+  </span>;
+  return <>
+    {project ? <span className="session-nav-meta"><span className="session-nav-project" title={`Project: ${project}`}><ProjectMark name={project} icon={session.workspaceGit?.iconDataUrl} />{project}</span>{stamp}</span> : null}
+    <span className="session-nav-heading"><span className="session-nav-title" title={label}>{label}</span>{!project ? stamp : null}</span>
+  </>;
 }
 
 function DisclosureChevron({ open }: { open: boolean }): JSX.Element {

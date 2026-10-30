@@ -9,7 +9,7 @@ export function normalizeProvider(value: string | undefined): Provider | null {
 export function ProviderBadge({ provider, compact = false, size }: { provider: Provider; compact?: boolean; size?: number }): JSX.Element {
   const label = provider === 'claude' ? 'Claude' : 'Codex';
   return (
-    <span className={`provider-badge is-${provider}${compact ? ' is-compact' : ''}`}>
+    <span title={label} className={`provider-badge is-${provider}${compact ? ' is-compact' : ''}`}>
       <ProviderMark provider={provider} size={size ?? (compact ? 16 : 19)} />
       <span>{label}</span>
     </span>

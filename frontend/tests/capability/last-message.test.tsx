@@ -183,7 +183,7 @@ describe('capability: the navigator row carries it', () => {
     return [{ id: 'local', name: 'This Mac', host: 'localhost', port: 8787, isDefault: true, sessions }];
   }
 
-  it('shows the newest message and its own time on the row', async () => {
+  it('keeps the row timestamp without adding a message preview', async () => {
     const waiting = sessionOfKind('claude-structured', 'claude-code', {
       lastAgentMessageAt: EARLIER, lastHumanMessageAt: LATER,
       lastSummary: 'An older agent result.', lastDataAt: LATER
@@ -195,7 +195,8 @@ describe('capability: the navigator row carries it', () => {
     render(<Workbench />);
     const row = await screen.findByText(waiting.name!);
     const node = row.closest('.session-nav-row') as HTMLElement;
-    expect(within(node).getByText('Waiting for reply')).toBeInTheDocument();
+    expect(node.querySelector('.session-nav-time')).not.toBeNull();
+    expect(node.querySelector('.session-last-message')).toBeNull();
     expect(within(node).queryByText(/An older agent result/)).not.toBeInTheDocument();
   }, 20_000);
 

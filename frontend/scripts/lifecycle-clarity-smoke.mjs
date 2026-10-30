@@ -117,11 +117,11 @@ assert.match(continueElsewhere, /appearance === 'menuitem'/);
 assert.match(resumeDialog, /preferredDestinationProvider=\{preferredDestinationProvider\}/);
 assert.match(resumeDialog, /key=\{`\$\{selected\?\.tool/);
 assert.doesNotMatch(resumeDialog, /preferredRemoteControl|resume-remote-control/);
-assert.match(navigator, /className="session-nav-context"/);
+assert.match(navigator, /<MachineMark machine=\{machine\}/);
 assert.doesNotMatch(navigator, /<span>\{machine\}<\/span>/);
 // The quiet row retains provider and machine identity as accessible text.
 assert.match(navigator, /provider=\{providerName\}/);
-assert.match(navigator, /Shell'\} · <\/span><span className="session-nav-context">\{machine\}/);
+assert.match(navigator, /<ProviderBadge provider=\{providerName\} compact/);
 // The compact navigator menu Resume flow is exercised by resume-conversation.test.tsx.
 assert.match(app, /onContinue=\{\(\) => setDialogOpen\('resume'\)\}/);
 assert.match(app, /onReparent=\{updateDisplayParent\}/);

@@ -73,6 +73,7 @@ function reconcileSessions(prev: SessionInfo[], fresh: SessionInfo[]): SessionIn
       old.configDir === f.configDir &&
       old.worktreePath === f.worktreePath &&
       old.branch === f.branch &&
+      JSON.stringify(old.workspaceGit) === JSON.stringify(f.workspaceGit) &&
       old.base === f.base &&
       old.sourceRepo === f.sourceRepo &&
       old.parentSessionId === f.parentSessionId &&

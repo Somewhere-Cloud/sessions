@@ -101,12 +101,12 @@ try {
     await page.waitForFunction(() => document.body.textContent.includes('Unavailable agents'));
     const titleLayout = await page.$eval('[data-session-id="project-0-agent-18"] .session-nav-title', (el) => ({
       height: el.getBoundingClientRect().height, fullHeight: el.scrollHeight,
-      fits: el.scrollWidth <= el.clientWidth,
+      fullTitle: el.title === el.textContent,
     }));
-    assert.ok(titleLayout.height > 20 && titleLayout.height < 40 && titleLayout.fullHeight <= titleLayout.height + 1 && titleLayout.fits,
-      `a normal long session name should fit on two lines without truncation: ${JSON.stringify(titleLayout)}`);
-    assert.equal(await page.$$eval('.session-nav-meta > .session-nav-time', (nodes) =>
-      nodes.every((el) => el.scrollWidth <= el.clientWidth)), true, 'timestamps stay readable beside host, project, and branch');
+    assert.ok(titleLayout.height > 10 && titleLayout.height < 22 && titleLayout.fullHeight <= titleLayout.height + 1 && titleLayout.fullTitle,
+      `a session title stays on one line with its full text available on hover: ${JSON.stringify(titleLayout)}`);
+    assert.equal(await page.$$eval('.session-nav-time', (nodes) =>
+      nodes.every((el) => el.scrollWidth <= el.clientWidth)), true, 'timestamps stay readable beside the project');
     if (scope === 'fixture') {
       assert.deepEqual(await page.$eval('.inbox-fold-label', (el) => {
         const bounds = el.getBoundingClientRect();

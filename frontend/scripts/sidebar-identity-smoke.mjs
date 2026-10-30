@@ -39,12 +39,12 @@ try {
         noise: [...document.querySelectorAll('.session-last-message')].some((node) => /Agent:|─|❯/.test(node.textContent)),
         detached: document.body.textContent.includes('Detached abcdef12'), unavailable: document.body.textContent.includes('Branch unavailable') };
     });
-    assert.ok(!result.title.startsWith('Codex:')); assert.equal(result.preview, 'The navigation now keeps the conversation title clear.');
+    assert.ok(!result.title.startsWith('Codex:')); assert.equal(result.preview, undefined, 'sidebar rows omit message previews');
     assert.equal(result.overflow, false); assert.equal(result.noise, false); assert.ok(result.bounded); assert.ok(result.fullTitle); assert.ok(result.detached); assert.ok(result.unavailable);
     if (output) await page.screenshot({ path: join(output, `sidebar-${width}-${theme}.png`) });
   }
   assert.deepEqual(errors, []);
-  console.log('sidebar identity: 1141/1440/390, both themes; authored previews, noise omission, branch/detached/unavailable, bounded titles passed');
+  console.log('sidebar identity: 1141/1440/390, both themes; no message previews, branch/detached/unavailable, bounded titles passed');
 } finally {
   if (browser) await closeBrowser(browser); if (server) await closeServer(server); await rm(work, { recursive: true, force: true });
 }

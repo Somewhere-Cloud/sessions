@@ -50,7 +50,7 @@ function AgentGroup({ group, activeMachineId, activeSessionId, compact = true, r
   return <section className="agent-project" aria-label={group.name}>
     <header><Button variant="ghost" className="session-tree-group-head agent-project-disclosure" aria-expanded={open} aria-controls={rowsId} onClick={() => setOpen((current) => !current)}>
       <span className={`inbox-chevron${open ? ' is-open' : ''}`} aria-hidden>▸</span>
-      <ProjectMark name={group.name} icon={group.rows[0]?.session.workspaceGit?.iconDataUrl} /><span className="agent-project-name">{group.name}</span><strong className="agent-project-count">{group.rows.length}</strong>
+      <ProjectMark name={group.name} icon={group.rows.find((row) => row.session.workspaceGit?.iconDataUrl)?.session.workspaceGit?.iconDataUrl} /><span className="agent-project-name">{group.name}</span><strong className="agent-project-count">{group.rows.length}</strong>
     </Button>{onAdd ? <IconButton size="compact" aria-label={`Add agent to ${group.name}`} onClick={() => onAdd(group.rows[0], group.name)}>＋</IconButton> : null}</header>
     <div id={rowsId} hidden={!open}>{open ? rows.map((row) => <div key={`${row.server.id}:${row.session.id}`}>
       {row.projectName ? <small className="session-nav-project">{row.projectName}</small> : null}

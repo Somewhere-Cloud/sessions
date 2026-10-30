@@ -7,7 +7,6 @@ import { classifySession } from '../lib/sessionStatus';
 import { quietSessionTitle, resolvedSessionLabel } from '../lib/tabLabels';
 import { ProviderMark, normalizeProvider } from './ProviderBadge';
 import { AccountBadge } from './AccountBadge';
-import { SessionLastMessage } from './SessionLastMessage';
 import { lastMessage } from '../lib/lastMessage';
 import { projectPreview } from '../lib/projectPreview';
 
@@ -115,7 +114,6 @@ function AttentionRow({ session, why, onOpen, folderOf, relativeTime, lastActivi
       <span className="inbox-needs-mark">{provider ? <ProviderMark provider={provider} size={16} /> : <span aria-hidden>⌘</span>}</span>
       <span className="inbox-needs-copy">
         <strong>{quietSessionTitle(resolvedSessionLabel(session))}<AccountBadge session={session} /></strong>
-        <SessionLastMessage session={session} quiet />
         <small>{folderOf(session)}</small>
         <SessionWorkspaceBranch session={session} />
         <span className={`inbox-needs-why${providerTrouble ? ` ${status.className}` : ''}`}>{why}</span>
@@ -191,7 +189,7 @@ function ProjectSection({ section, activeSessionId, renderNode }: { section: Inb
       <button type="button" className="session-tree-group-head inbox-project-head" onClick={() => setOpen((current) => !current)} aria-expanded={open} aria-controls={rowsId}>
         <span className="session-group-disclosure">
           <span className={`inbox-chevron${open ? ' is-open' : ''}`} aria-hidden>▸</span>
-          <ProjectMark name={section.name} icon={section.live[0]?.workspaceGit?.iconDataUrl} />{section.name}
+          <ProjectMark name={section.name} icon={section.live.find((session) => session.workspaceGit?.iconDataUrl)?.workspaceGit?.iconDataUrl} />{section.name}
         </span>
         <strong>
           {count}
