@@ -65,12 +65,12 @@ export function IdleCompactionCard({ clientOnly, hostName, showHostChoice = true
       {clientOnly && showHostChoice ? <div className="settings-host-choice">Chosen on {hostName}</div> : null}
       <label className="settings-toggle">
         <span>
-          <strong>Compact before the cache expires (beta)</strong>
+          <strong>Compact before the cache expires</strong>
           <small>The compaction appears in the conversation as a /compact turn from Idle compaction. Delegated child sessions are never compacted.</small>
         </span>
         <input
           type="checkbox"
-          checked={status?.enabled ?? false}
+          checked={status?.enabled ?? true}
           disabled={clientOnly || busy || status === null}
           onChange={(event) => void save(event.currentTarget.checked)}
         />

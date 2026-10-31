@@ -75,14 +75,14 @@ func TestSchedulerSendsOnceAtFireTime(t *testing.T) {
 	}
 }
 
-func TestSchedulerIsOffByDefaultAndHonorsLaneOverride(t *testing.T) {
+func TestSchedulerHonorsGlobalOffAndLaneOverride(t *testing.T) {
 	daemon := newFakeDaemon(t, filepath.Join(t.TempDir(), FileName))
 	daemon.global = false
 	daemon.now = base.Add(time.Hour - Lead)
 	scheduler := daemon.scheduler()
 	scheduler.Tick(context.Background())
 	if status := scheduler.Status(); len(daemon.delivered) != 0 || status.Lanes[0].Reason != ReasonOff || status.Lanes[0].Enabled {
-		t.Fatalf("off by default: delivered %d, status %+v", len(daemon.delivered), status.Lanes)
+		t.Fatalf("off globally: delivered %d, status %+v", len(daemon.delivered), status.Lanes)
 	}
 	on := true
 	if err := daemon.store.SetOverride("lane-1", &on); err != nil {

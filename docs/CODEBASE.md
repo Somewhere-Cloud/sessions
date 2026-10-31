@@ -426,8 +426,8 @@ history (`runtime/internal/claudep/events.go`,
 
 ### `compaction`
 
-`compaction` plans idle compaction for Claude lanes, an opt-in setting that is
-off by default. `Observe` reads a lane's retained Claude events (Terminal
+`compaction` plans idle compaction for Claude lanes, a setting that is on by
+default. `Observe` reads a lane's retained Claude events (Terminal
 transcript or Rich runner log) for the last request's `message.usage`: its
 context size, the cache lifetime `cache_creation` reports, and its start time,
 taken from the conversation record written before the response. `Window`

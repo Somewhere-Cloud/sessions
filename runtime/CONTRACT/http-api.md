@@ -3344,8 +3344,8 @@ process that was launched constrained.
 ### `GET /api/idle-compaction`
 
 Returns the machine-wide idle compaction default and every live Claude lane's
-choice, current window, and latest outcome. Idle compaction is off unless the
-user turns it on:
+choice, current window, and latest outcome. Idle compaction is on unless the
+user turns it off:
 
 ```json
 {"enabled":false,"lanes":[{"id":"<id>","name":"Parser","structured":false,

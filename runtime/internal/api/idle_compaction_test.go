@@ -107,16 +107,25 @@ func TestIdleCompactionDeliveryRechecksTheLane(t *testing.T) {
 	}
 }
 
-func TestIdleCompactionRoutesAreOffByDefaultAndSetLaneOverrides(t *testing.T) {
+func TestIdleCompactionRoutesAreOnByDefaultAndSetLaneOverrides(t *testing.T) {
 	daemon := newTestDaemon(t)
 	session, _ := registerStructuredClaude(t, daemon, "structured-settings")
 	var status compaction.Status
 	response := serve(t, daemon.handler, http.MethodGet, idleCompactionRoute, nil, "127.0.0.1:4567", nil)
-	if response.Code != http.StatusOK || json.Unmarshal(response.Body.Bytes(), &status) != nil || status.Enabled {
+	if response.Code != http.StatusOK || json.Unmarshal(response.Body.Bytes(), &status) != nil || !status.Enabled {
 		t.Fatalf("default status %d %s", response.Code, response.Body.String())
 	}
-	if len(status.Lanes) != 1 || status.Lanes[0].Reason != compaction.ReasonOff {
+	if len(status.Lanes) != 1 || !status.Lanes[0].Enabled || status.Lanes[0].Reason == compaction.ReasonOff {
 		t.Fatalf("lanes = %+v", status.Lanes)
+	}
+	// Turning it off is remembered rather than read back as the default.
+	response = serve(t, daemon.handler, http.MethodPut, idleCompactionRoute, strings.NewReader(`{"enabled":false}`), "127.0.0.1:4567", nil)
+	if response.Code != http.StatusOK || json.Unmarshal(response.Body.Bytes(), &status) != nil || status.Enabled {
+		t.Fatalf("disable %d %s", response.Code, response.Body.String())
+	}
+	response = serve(t, daemon.handler, http.MethodGet, idleCompactionRoute, nil, "127.0.0.1:4567", nil)
+	if json.Unmarshal(response.Body.Bytes(), &status) != nil || status.Enabled || status.Lanes[0].Reason != compaction.ReasonOff {
+		t.Fatalf("off was not kept: %s", response.Body.String())
 	}
 	response = serve(t, daemon.handler, http.MethodPut, idleCompactionRoute, strings.NewReader(`{"enabled":true}`), "127.0.0.1:4567", nil)
 	if response.Code != http.StatusOK || json.Unmarshal(response.Body.Bytes(), &status) != nil || !status.Enabled {
