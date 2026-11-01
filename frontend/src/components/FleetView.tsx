@@ -832,6 +832,7 @@ function FleetSessionRow({
 const FLEET_SORT_PRIORITY: Record<SessionStatusState, number> = {
   failed: 0,
   'provider-down': 0,
+  resuming: 4,
   'auth-needed': 0,
   'needs-recovery': 1,
   'needs-you': 2,

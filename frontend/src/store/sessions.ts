@@ -80,6 +80,9 @@ function reconcileSessions(prev: SessionInfo[], fresh: SessionInfo[]): SessionIn
       old.delegationKind === f.delegationKind &&
       old.displayParentSessionId === f.displayParentSessionId &&
       old.setAsideAt === f.setAsideAt &&
+      old.setAsideUntil === f.setAsideUntil &&
+      old.limitRecovery?.state === f.limitRecovery?.state &&
+      old.limitRecovery?.resumeAt === f.limitRecovery?.resumeAt &&
       // Without this the refresh diff treats a pin change as no change at all,
       // and a toggle the user just made is silently reverted on the next poll.
       old.pinned === f.pinned &&
@@ -175,7 +178,7 @@ interface SessionsState {
   updateTags: (id: string, tags: Record<string, string>) => Promise<void>;
   updateModel: (id: string, model: string, effort: string) => Promise<void>;
   updateDisplayParent: (id: string, parentId: string | null) => Promise<void>;
-  updateSetAside: (id: string, setAside: boolean) => Promise<void>;
+  updateSetAside: (id: string, setAside: boolean, until?: api.SetAsideReturn) => Promise<void>;
   updatePinned: (id: string, pinned: boolean) => Promise<void>;
   setActive: (id: string | null) => void;
 }
@@ -240,9 +243,9 @@ function writeCache(serverId: string | null, sessions: SessionInfo[], activeId: 
   cacheMachineSessions(serverId, sessions, activeId);
 }
 
-function organizationUpdate(state: SessionsState, serverId: string, id: string, setAsideAt: number | null): Partial<SessionsState> {
+function organizationUpdate(state: SessionsState, serverId: string, id: string, stored: api.SetAsideState): Partial<SessionsState> {
   if (state.serverId !== serverId) return state;
-  const sessions = state.sessions.map((session) => session.id === id ? { ...session, setAsideAt } : session);
+  const sessions = state.sessions.map((session) => session.id === id ? { ...session, ...stored } : session);
   writeCache(state.serverId, sessions, state.activeId);
   return { sessions };
 }
@@ -377,11 +380,11 @@ export const useSessions = create<SessionsState>((set, get) => ({
     });
   },
 
-  updateSetAside: async (id, setAside) => {
+  updateSetAside: async (id, setAside, until) => {
     const serverId = get().serverId;
     if (!serverId) throw new Error('Choose a computer before organizing its sessions.');
-    const setAsideAt = await api.updateSetAside(id, setAside, serverId);
-    set((state) => organizationUpdate(state, serverId, id, setAsideAt));
+    const stored = await api.updateSetAside(id, setAside, serverId, until);
+    set((state) => organizationUpdate(state, serverId, id, stored));
   },
 
   // Paint only the daemon's persisted answer, never an optimistic pin.

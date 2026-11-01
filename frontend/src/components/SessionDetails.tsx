@@ -19,6 +19,7 @@ const STATE_DETAIL: Record<SessionStatusState, string> = {
   'needs-recovery': 'This agent is paused after restart; open its saved conversation to review recovery options',
   failed: 'The runtime stopped unexpectedly; saved history is still available',
   'provider-down': 'The provider did not complete this turn; Sessions has preserved the conversation',
+  resuming: 'The provider usage limit stopped this turn; Sessions continues the conversation when the limit resets',
   'auth-needed': 'The provider needs you to log in before this session can continue',
   ended: 'The runtime is no longer running',
   'needs-you': 'Waiting for your response',

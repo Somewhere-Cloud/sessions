@@ -4,7 +4,7 @@ import { Suspense, lazy, memo, useCallback, useEffect, useLayoutEffect, useMemo,
 import { useDispatch } from '../hooks/useDispatch';
 import { renderContent } from '../lib/contentRender';
 import type { SessionSidebarState } from '../hooks/useSessionSidebar';
-import type { ClaudeSessionEvent, HarnessEventView, SessionTool, ApprovalDecision, PendingApproval, ProviderFailureKind, ProviderRetry } from '../types';
+import type { ClaudeSessionEvent, HarnessEventView, SessionTool, ApprovalDecision, PendingApproval, LimitRecovery, ProviderFailureKind, ProviderRetry } from '../types';
 import { InputBar } from './InputBar';
 import { MessageDeliveryStatus } from './MessageDeliveryStatus';
 import { ScrollToBottomButton } from './ScrollToBottomButton';
@@ -88,6 +88,7 @@ export interface ProviderFaultView {
   /** The provider's own line the claim rests on. */
   evidence?: string;
   retry?: ProviderRetry;
+  limitRecovery?: LimitRecovery | null;
   onConnectAccount?: () => void;
 }
 
@@ -110,7 +111,7 @@ function FaultCard({ sessionId, fault, rich, onOpenTerminal }: {
   return (
     <ProviderFaultCard
       sessionId={sessionId} failureKind={fault.kind} detail={fault.detail}
-      evidence={fault.evidence} retry={fault.retry} rich={rich} onOpenTerminal={onOpenTerminal}
+      evidence={fault.evidence} retry={fault.retry} limitRecovery={fault.limitRecovery} rich={rich} onOpenTerminal={onOpenTerminal}
       onConnectAccount={fault.onConnectAccount}
     />
   );

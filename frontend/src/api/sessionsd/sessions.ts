@@ -56,19 +56,29 @@ export async function updateSessionName(
   return body.name;
 }
 
+/** When a set-aside session comes back: a time, or when its usage limit resets. */
+export type SetAsideReturn = { until: number } | { untilLimitReset: true };
+
+export interface SetAsideState {
+  setAsideAt: number | null;
+  setAsideUntil: number | null;
+}
+
+// `sessions aside ID [--until WHEN|reset]` and `sessions aside ID --clear`.
 export async function updateSetAside(
   sessionId: string,
   setAside: boolean,
-  serverId?: string
-): Promise<number | null> {
+  serverId?: string,
+  until?: SetAsideReturn
+): Promise<SetAsideState> {
   const server = requestedServer(serverId);
   const r = await serverFetch(server, `${httpBaseForServer(server)}/api/sessions/${encodeURIComponent(sessionId)}/set-aside`, {
     method: 'PUT',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ setAside })
+    body: JSON.stringify({ setAside, ...(setAside ? until : undefined) })
   });
-  const body = await featureJSON<{ setAsideAt: number | null }>(r, 'Session working-set organization');
-  return body.setAsideAt;
+  const body = await featureJSON<{ setAsideAt: number | null; setAsideUntil?: number | null }>(r, 'Session working-set organization');
+  return { setAsideAt: body.setAsideAt, setAsideUntil: body.setAsideUntil ?? null };
 }
 
 // The daemon answers with the state it actually stored rather than the one that

@@ -158,6 +158,9 @@
   font-size: 12px;
 }
 .provider-fault-banner strong { color: var(--warn); }
+/* A usage limit Sessions resumes on its own is calm: no warning colour. */
+.provider-fault-banner.is-limit-resume strong { color: var(--fg); }
+.provider-fault-banner.is-limit-resume .provider-control-card-choices { margin-left: auto; }
 .provider-fault-evidence {
   display: block;
   min-width: 0;

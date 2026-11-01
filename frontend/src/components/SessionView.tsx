@@ -107,7 +107,7 @@ function providerFaultFor(session: SessionInfo | null, onConnectAccount?: () => 
   return session?.failureKind
     ? {
       kind: session.failureKind, detail: session.failureDetail,
-      evidence: session.failureEvidence, retry: session.retry, onConnectAccount
+      evidence: session.failureEvidence, retry: session.retry, limitRecovery: session.limitRecovery, onConnectAccount
     }
     : undefined;
 }
@@ -122,7 +122,7 @@ function TerminalProviderFault({ session, onOpenTerminal, onConnectAccount }: { 
       <Suspense fallback={null}>
         <ProviderFaultCard
           sessionId={session.id} failureKind={session.failureKind} detail={session.failureDetail}
-          evidence={session.failureEvidence} retry={session.retry} rich={false}
+          evidence={session.failureEvidence} retry={session.retry} limitRecovery={session.limitRecovery} rich={false}
           placement="banner" onOpenTerminal={onOpenTerminal} onConnectAccount={onConnectAccount}
         />
       </Suspense>

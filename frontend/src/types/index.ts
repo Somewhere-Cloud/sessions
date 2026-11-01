@@ -173,6 +173,8 @@ export interface SessionInfo {
   failureProvider?: 'claude' | 'codex';
   failureAt?: number;
   retry?: ProviderRetry;
+  // The daemon's plan to resume this session when its usage limit resets.
+  limitRecovery?: LimitRecovery | null;
   // The permission a Rich Codex lane is holding open, when it is not
   // autonomous. Answered with approveSession, never with a reply.
   pendingApproval?: PendingApproval | null;
@@ -239,6 +241,8 @@ export interface SessionInfo {
   // Daemon-owned working-set organization. A live session remains running,
   // searchable, countable, and CLI-visible while set aside.
   setAsideAt?: number | null;
+  // When the daemon brings a set-aside session back on its own (Unix ms).
+  setAsideUntil?: number | null;
   // Daemon-owned workbench mark. A pinned session sorts first everywhere and
   // is excluded from delegated-work review suggestions. The daemon always sends
   // it, so undefined means an older daemon that never learned the field.
@@ -526,4 +530,16 @@ export interface SessionHookObservations {
   tools: SessionObservations['tools'];
   gaps: string[];
   rejected: { foreign_launch: number; unconfirmed_conversation: number; malformed: number };
+}
+
+// A session's resume-after-usage-limit plan. At resumeAt Sessions sends
+// "Continue where you left off." once; `sessions limits` is the CLI view.
+export interface LimitRecovery {
+  state: 'scheduled' | 'sending' | 'sent' | 'unconfirmed' | 'failed' | 'cancelled' | 'stopped';
+  resumeAt?: number;
+  resetAt?: number;
+  source?: 'provider-message' | 'account-usage' | 'unknown';
+  attempt?: number;
+  detail?: string;
+  updatedAt?: number;
 }
