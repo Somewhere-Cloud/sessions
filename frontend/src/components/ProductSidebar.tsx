@@ -1,16 +1,10 @@
 import { FooterUsage, type FooterUsageProps } from './FooterUsage';
 import { Button } from './ui/Button';
-import { useEffect, useState, type ReactNode } from 'react';
-import {
-  checkForNativeUpdate,
-  installNativeUpdate,
-  isTauri,
-  notifyNativeUpdate,
-  notifyProviderUpdate,
-  type NativeUpdateInfo
-} from '../lib/tauriBridge';
-import { fetchProviderStatuses, updateProvider, type ProviderStatus } from '../api/sessionsd';
-import { serverDisplayName, useServers } from '../lib/servers';
+import { Suspense, lazy, type ReactNode } from 'react';
+
+// Update awareness is not on the first-paint path: the first check waits
+// 15 s anyway, so the cards load in their own chunk.
+const SidebarUpdateCards = lazy(() => import('./SidebarUpdateCards').then((module) => ({ default: module.SidebarUpdateCards })));
 
 export type ProductView = 'home' | 'tabs' | 'today' | 'search' | 'fleet' | 'usage' | 'accounts' | 'settings' | 'feedback';
 export type ThemeMode = 'dark' | 'light';
@@ -32,102 +26,7 @@ const ITEMS: Array<{ id: ProductView; label: string; icon: ReactNode }> = [
   { id: 'settings', label: 'Settings', icon: <SettingsIcon /> }
 ];
 
-const UPDATE_CHECK_KEY = 'sessions:native-update-check-at';
-const UPDATE_NOTIFIED_KEY = 'sessions:native-update-notified-version';
-const PROVIDER_UPDATE_NOTIFIED_KEY = 'sessions:provider-update-notified:';
-const UPDATE_CHECK_INTERVAL = 6 * 60 * 60 * 1000;
-
 export function ProductSidebar({ active, theme, onNavigate, onNewSession, onOpenCommandPalette, onToggleTheme, usageScope }: Props): JSX.Element {
-  const activeServer = useServers((state) => state.servers.find((server) => server.id === state.activeId));
-  const activeServerKey = activeServer
-    ? `${activeServer.id}|${activeServer.scheme ?? 'http'}|${activeServer.host}|${activeServer.port}|${activeServer.token ?? ''}`
-    : '';
-  const providerTarget = activeServer ? serverDisplayName(activeServer, true) : 'this computer';
-  const [updateInfo, setUpdateInfo] = useState<NativeUpdateInfo | null>(null);
-  const [updateBusy, setUpdateBusy] = useState(false);
-  const [updateError, setUpdateError] = useState<string | null>(null);
-  const [providers, setProviders] = useState<ProviderStatus[]>([]);
-  const [providerBusy, setProviderBusy] = useState<ProviderStatus['id'] | null>(null);
-  const [providerUpdateError, setProviderUpdateError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!isTauri()) return;
-    let cancelled = false;
-    const automaticCheck = async (): Promise<void> => {
-      let last = 0;
-      try { last = Number(window.localStorage.getItem(UPDATE_CHECK_KEY) ?? 0); } catch { /* ignore */ }
-      if (Date.now() - last < UPDATE_CHECK_INTERVAL) return;
-      try {
-        const available = await checkForNativeUpdate();
-        if (cancelled) return;
-        try { window.localStorage.setItem(UPDATE_CHECK_KEY, String(Date.now())); } catch { /* ignore */ }
-        setUpdateInfo(available);
-        if (!available) return;
-        let notified = '';
-        try { notified = window.localStorage.getItem(UPDATE_NOTIFIED_KEY) ?? ''; } catch { /* ignore */ }
-        if (notified !== available.version) {
-          await notifyNativeUpdate(available).catch(() => { /* sidebar remains authoritative */ });
-          try { window.localStorage.setItem(UPDATE_NOTIFIED_KEY, available.version); } catch { /* ignore */ }
-        }
-      } catch {
-        // Automatic checks stay silent. Manual checks remain available in
-        // Settings → Notifications & updates.
-      }
-    };
-    const startup = window.setTimeout(() => void automaticCheck(), 1_500);
-    const interval = window.setInterval(() => void automaticCheck(), UPDATE_CHECK_INTERVAL);
-    return () => { cancelled = true; window.clearTimeout(startup); window.clearInterval(interval); };
-  }, []);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    setProviders([]);
-    setProviderUpdateError(null);
-    const timer = window.setTimeout(() => {
-      void fetchProviderStatuses(controller.signal).then((statuses) => {
-        setProviders(statuses);
-        if (!isTauri()) return;
-        for (const provider of statuses) {
-          if (!provider.updateAvailable || !provider.latestVersion) continue;
-          const key = `${PROVIDER_UPDATE_NOTIFIED_KEY}${activeServer?.id ?? 'unknown'}:${provider.id}`;
-          let notified = '';
-          try { notified = window.localStorage.getItem(key) ?? ''; } catch { /* ignore */ }
-          if (notified === provider.latestVersion) continue;
-          void notifyProviderUpdate(provider.name, provider.latestVersion)
-            .then(() => { try { window.localStorage.setItem(key, provider.latestVersion!); } catch { /* ignore */ } })
-            .catch(() => { /* sidebar remains authoritative */ });
-        }
-      }).catch(() => { /* older runtime */ });
-    }, 1_000);
-    return () => { controller.abort(); window.clearTimeout(timer); };
-  }, [activeServerKey, activeServer?.id]);
-
-  const installUpdate = async (): Promise<void> => {
-    if (!updateInfo || updateBusy) return;
-    setUpdateBusy(true);
-    setUpdateError(null);
-    try {
-      await installNativeUpdate();
-    } catch (error) {
-      setUpdateError(error instanceof Error ? error.message : 'Could not install the update');
-      setUpdateBusy(false);
-    }
-  };
-  const providerUpdate = providers.find((provider) => provider.updateAvailable);
-  const installProviderUpdate = async (provider: ProviderStatus): Promise<void> => {
-    if (providerBusy) return;
-    setProviderBusy(provider.id);
-    setProviderUpdateError(null);
-    try {
-      const result = await updateProvider(provider.id);
-      setProviders((current) => current.map((item) => item.id === provider.id ? result.provider : item));
-    } catch (error) {
-      setProviderUpdateError(error instanceof Error ? error.message : `Could not update ${provider.name}`);
-    } finally {
-      setProviderBusy(null);
-    }
-  };
-
   return (
     <aside className="product-sidebar">
       <SidebarNavigation active={active} onNavigate={onNavigate} onNewSession={onNewSession} onOpenCommandPalette={onOpenCommandPalette} />
@@ -143,35 +42,7 @@ export function ProductSidebar({ active, theme, onNavigate, onNewSession, onOpen
           <span className="product-nav-icon" aria-hidden><FeedbackIcon /></span>
           <span>Send feedback</span>
         </Button>
-        {updateInfo ? (
-          <div className="product-update-card">
-            <div><span>Sessions {updateInfo.version}</span><strong>Update available</strong></div>
-            <Button variant="ghost" type="button" disabled={updateBusy} onClick={() => void installUpdate()}>
-              {updateBusy ? 'Updating…' : 'Update app'}
-            </Button>
-            <small className="product-update-safe">Your sessions will keep running during the update.</small>
-            {updateError ? <small role="alert">{updateError}</small> : null}
-          </div>
-        ) : null}
-        {providerUpdate ? (
-          <div className="product-update-card is-provider">
-            <div><span>{providerUpdate.name} {providerUpdate.latestVersion}</span><strong>Update available</strong></div>
-            <Button variant="ghost"
-              type="button"
-              aria-label={`Update ${providerUpdate.name} on ${providerTarget}`}
-              disabled={providerBusy !== null}
-              onClick={() => void installProviderUpdate(providerUpdate)}
-            >
-              {providerBusy === providerUpdate.id ? 'Installing…' : 'Update'}
-            </Button>
-            <small>
-              {providerBusy === providerUpdate.id
-                ? `${providerTarget} · This can take a few minutes.`
-                : `${providerTarget} · Running work keeps going.`}
-            </small>
-          </div>
-        ) : null}
-        {providerUpdateError ? <small className="product-update-error" role="alert">{providerUpdateError}</small> : null}
+        <Suspense fallback={null}><SidebarUpdateCards /></Suspense>
         <Button variant="ghost" type="button" className="theme-toggle" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} onClick={onToggleTheme} title={`Use ${theme === 'dark' ? 'light' : 'dark'} mode`}>
           <span className="product-nav-icon" aria-hidden>{theme === 'dark' ? <SunIcon /> : <MoonIcon />}</span>
           <span>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>

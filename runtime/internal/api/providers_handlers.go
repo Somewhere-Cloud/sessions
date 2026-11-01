@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -19,13 +20,19 @@ import (
 )
 
 type providerStatus struct {
-	ID              string           `json:"id"`
-	Name            string           `json:"name"`
-	Installed       bool             `json:"installed"`
-	Version         string           `json:"version,omitempty"`
-	LatestVersion   string           `json:"latestVersion,omitempty"`
-	LastCheckedAt   string           `json:"lastCheckedAt,omitempty"`
-	UpdateAvailable bool             `json:"updateAvailable"`
+	ID              string `json:"id"`
+	Name            string `json:"name"`
+	Installed       bool   `json:"installed"`
+	Version         string `json:"version,omitempty"`
+	LatestVersion   string `json:"latestVersion,omitempty"`
+	LastCheckedAt   string `json:"lastCheckedAt,omitempty"`
+	UpdateAvailable bool   `json:"updateAvailable"`
+	// LatestSource names where LatestVersion came from: "provider" for the
+	// provider's own local record, "registry" for the public npm record.
+	LatestSource string `json:"latestSource,omitempty"`
+	// RunningSessions counts live sessions using this provider here. They
+	// keep their current process through an update.
+	RunningSessions int              `json:"runningSessions"`
 	Models          []codexapp.Model `json:"models,omitempty"`
 	ModelsError     string           `json:"modelsError,omitempty"`
 }
@@ -39,7 +46,8 @@ func (s *Server) handleProvidersRoute(response http.ResponseWriter, request *htt
 	if s.handleCodexModelsRoute(response, request, corsOrigin) {
 		return true
 	}
-	if request.URL.Path == "/api/providers" {
+	switch request.URL.Path {
+	case "/api/providers":
 		// A wrong method on a route this handler owns is 405 here, as it is on
 		// every sibling route family; returning false handed the request to the
 		// router's catch-all 404 and told the caller the endpoint did not exist.
@@ -48,7 +56,12 @@ func (s *Server) handleProvidersRoute(response http.ResponseWriter, request *htt
 			return true
 		}
 		statuses := s.providerStatuses(request.Context(), request.URL.Query().Get("include_models") == "1")
-		s.sendJSON(response, http.StatusOK, map[string]any{"providers": statuses}, corsOrigin)
+		s.sendJSON(response, http.StatusOK, map[string]any{
+			"providers": statuses, "updateCheck": s.providerUpdateCheckStatus(),
+		}, corsOrigin)
+		return true
+	case providerUpdateCheckRoute:
+		s.handleProviderUpdateCheck(response, request, corsOrigin)
 		return true
 	}
 	const prefix = "/api/providers/"
@@ -60,11 +73,7 @@ func (s *Server) handleProvidersRoute(response http.ResponseWriter, request *htt
 		s.sendJSON(response, http.StatusMethodNotAllowed, map[string]any{"error": "method not allowed"}, corsOrigin)
 		return true
 	}
-	principal, ok := request.Context().Value(authPrincipalContextKey{}).(authPrincipal)
-	if !ok || !principalMayUpdateProvider(principal) {
-		s.sendJSON(response, http.StatusForbidden, map[string]any{
-			"error": "provider updates require a local or paired Sessions client",
-		}, corsOrigin)
+	if !s.requireProviderAuthority(response, request, corsOrigin) {
 		return true
 	}
 	id := strings.TrimSuffix(strings.TrimPrefix(request.URL.Path, prefix), suffix)
@@ -72,18 +81,36 @@ func (s *Server) handleProvidersRoute(response http.ResponseWriter, request *htt
 		s.sendJSON(response, http.StatusNotFound, map[string]any{"error": "unknown provider"}, corsOrigin)
 		return true
 	}
+	s.runProviderUpdate(response, request, id, corsOrigin)
+	return true
+}
+
+func (s *Server) requireProviderAuthority(response http.ResponseWriter, request *http.Request, corsOrigin string) bool {
+	principal, ok := request.Context().Value(authPrincipalContextKey{}).(authPrincipal)
+	if ok && principalMayUpdateProvider(principal) {
+		return true
+	}
+	s.sendJSON(response, http.StatusForbidden, map[string]any{
+		"error": "provider updates require a local or paired Sessions client",
+	}, corsOrigin)
+	return false
+}
+
+func (s *Server) runProviderUpdate(response http.ResponseWriter, request *http.Request, id, corsOrigin string) {
 	path, err := providerExecutable(id)
 	if err != nil {
 		s.sendJSON(response, http.StatusBadRequest, map[string]any{"error": id + " is not installed"}, corsOrigin)
-		return true
+		return
 	}
 	if !providerUpdateMu.TryLock() {
 		s.sendJSON(response, http.StatusConflict, map[string]any{
 			"error": "an agent update is already running on this machine",
 		}, corsOrigin)
-		return true
+		return
 	}
 	defer providerUpdateMu.Unlock()
+	previous := localProviderStatus(request.Context(), id).Version
+	running := s.countRunningProviderSessions()[id]
 	// Provider installers replace their own executable. Once explicitly
 	// started, an app close or client disconnect must not kill that installer
 	// midway through its atomic swap and leave Claude/Codex unusable.
@@ -101,16 +128,84 @@ func (s *Server) handleProvidersRoute(response http.ResponseWriter, request *htt
 	}
 	if runErr != nil {
 		s.sendJSON(response, http.StatusBadGateway, map[string]any{
-			"error":  runErr.Error(),
+			"error":  runErr.Error() + "; " + id + " was not changed by Sessions and running sessions were not touched",
 			"output": strings.TrimSpace(string(output)),
 		}, corsOrigin)
-		return true
+		return
 	}
+	status := s.providerStatusWithLatest(request.Context(), id)
+	status.RunningSessions = running
 	s.sendJSON(response, http.StatusOK, map[string]any{
-		"provider": localProviderStatus(request.Context(), id),
-		"output":   strings.TrimSpace(string(output)),
+		"provider":        status,
+		"previousVersion": previous,
+		"runningSessions": running,
+		"detail":          providerUpdateDetail(status, previous, running),
+		"output":          strings.TrimSpace(string(output)),
 	}, corsOrigin)
-	return true
+}
+
+// providerUpdateDetail is the one sentence every client shows after an
+// update: what changed, and what happens to the sessions already running.
+func providerUpdateDetail(status providerStatus, previous string, running int) string {
+	version := status.Version
+	if version == "" {
+		version = "the installed version"
+	}
+	head := status.Name + " is on " + version + "."
+	if previous != "" && previous != status.Version && status.Version != "" {
+		head = status.Name + " updated " + previous + " → " + status.Version + "."
+	} else if previous != "" && previous == status.Version {
+		head = status.Name + " was already on " + version + "."
+	}
+	switch running {
+	case 0:
+		return head + " New sessions use it."
+	case 1:
+		return head + " 1 running session keeps its current " + status.Name + " until it ends; new sessions use " + version + "."
+	default:
+		return head + " " + strconv.Itoa(running) + " running sessions keep their current " + status.Name + " until they end; new sessions use " + version + "."
+	}
+}
+
+const providerUpdateCheckRoute = "/api/providers/update-check"
+
+func (s *Server) providerUpdateCheckStatus() map[string]any {
+	return map[string]any{"enabled": s.providerUpdateCheckEnabled(), "source": providerRegistryHost}
+}
+
+// handleProviderUpdateCheck reads or changes the machine's registry-lookup
+// opt-out. Turning it off is a privacy choice; turning it on again is the
+// default state, so both directions need the same host authority as an update.
+func (s *Server) handleProviderUpdateCheck(response http.ResponseWriter, request *http.Request, corsOrigin string) {
+	switch request.Method {
+	case http.MethodGet:
+	case http.MethodPut:
+		if !s.requireProviderAuthority(response, request, corsOrigin) {
+			return
+		}
+		var body struct {
+			Enabled *bool `json:"enabled"`
+		}
+		if err := readJSON(request, &body); err != nil || body.Enabled == nil {
+			s.sendJSON(response, http.StatusBadRequest, map[string]any{"error": `send {"enabled": true} or {"enabled": false}`}, corsOrigin)
+			return
+		}
+		if s.lan == nil || s.lan.settingsPath == "" {
+			s.sendJSON(response, http.StatusServiceUnavailable, map[string]any{"error": "the provider update check setting needs a daemon state directory"}, corsOrigin)
+			return
+		}
+		if err := state.UpdateSettings(s.lan.settingsPath, func(settings *state.Settings) error {
+			settings.ProviderUpdateCheck = &state.ProviderUpdateCheckSettings{Enabled: *body.Enabled}
+			return nil
+		}); err != nil {
+			s.sendJSON(response, http.StatusInternalServerError, map[string]any{"error": "save provider update check setting: " + err.Error()}, corsOrigin)
+			return
+		}
+	default:
+		s.sendJSON(response, http.StatusMethodNotAllowed, map[string]any{"error": "method not allowed"}, corsOrigin)
+		return
+	}
+	s.sendJSON(response, http.StatusOK, s.providerUpdateCheckStatus(), corsOrigin)
 }
 
 func (s *Server) handleCodexModelsRoute(
@@ -133,10 +228,31 @@ func (s *Server) handleCodexModelsRoute(
 	return true
 }
 
+// providerStatusWithLatest is the local status plus, unless the user turned
+// it off, the public registry's latest version.
+func (s *Server) providerStatusWithLatest(ctx context.Context, id string) providerStatus {
+	status := localProviderStatus(ctx, id)
+	if status.Installed && s.providerUpdateCheckEnabled() {
+		latest, checkedAt := providerLatest.lookup(ctx, id)
+		applyRegistryLatest(&status, latest, checkedAt)
+	}
+	return status
+}
+
 func (s *Server) providerStatuses(ctx context.Context, includeModels bool) []providerStatus {
-	statuses := []providerStatus{
-		localProviderStatus(ctx, "claude"),
-		localProviderStatus(ctx, "codex"),
+	statuses := make([]providerStatus, 2)
+	var wait sync.WaitGroup
+	for index, id := range []string{"claude", "codex"} {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			statuses[index] = s.providerStatusWithLatest(ctx, id)
+		}()
+	}
+	wait.Wait()
+	running := s.countRunningProviderSessions()
+	for index := range statuses {
+		statuses[index].RunningSessions = running[statuses[index].ID]
 	}
 	if !includeModels {
 		return statuses
@@ -235,6 +351,9 @@ func localProviderStatus(parent context.Context, id string) providerStatus {
 		}
 		if readSmallJSON(filepath.Join(home, ".codex", "version.json"), &cached) == nil {
 			status.LatestVersion = cached.LatestVersion
+			if status.LatestVersion != "" {
+				status.LatestSource = "provider"
+			}
 			status.LastCheckedAt = cached.LastCheckedAt
 			status.UpdateAvailable = versionLess(status.Version, status.LatestVersion)
 		}
@@ -252,6 +371,7 @@ func localProviderStatus(parent context.Context, id string) providerStatus {
 		}
 		if lastUpdate.Status == "success" {
 			status.LatestVersion = lastUpdate.VersionTo
+			status.LatestSource = "provider"
 			status.UpdateAvailable = versionLess(status.Version, status.LatestVersion)
 		}
 	}

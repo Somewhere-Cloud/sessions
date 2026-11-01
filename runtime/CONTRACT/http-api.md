@@ -1306,20 +1306,41 @@ and [`internal/session/worktrees.go`](../internal/session/worktrees.go).
 
 ### `GET /api/providers`
 
-Auth required. Returns local Claude Code and Codex installation status:
+Auth required. Returns local Claude Code and Codex installation status, the
+running-session count for each, and this machine's latest-version check
+choice:
 
 ```json
-{"providers":[{"id":"claude","name":"Claude Code","installed":true,"version":"1.0.0","latestVersion":"1.0.1","lastCheckedAt":"2026-07-25T12:00:00Z","updateAvailable":true}]}
+{"providers":[{"id":"claude","name":"Claude Code","installed":true,"version":"1.0.0","latestVersion":"1.0.1","latestSource":"registry","lastCheckedAt":"2026-07-25T12:00:00Z","updateAvailable":true,"runningSessions":2}],"updateCheck":{"enabled":true,"source":"registry.npmjs.org"}}
 ```
 
-Version and last-check fields are omitted when the provider or its local update
-metadata is unavailable. Status inspection is read-only and is allowed for
-authenticated local and paired clients.
+`version` comes from the provider's own `--version`. `latestVersion` is the
+newer of the provider's own local record (`latestSource: "provider"`) and,
+while `updateCheck.enabled` is true, the public `registry.npmjs.org` `latest`
+record for `@anthropic-ai/claude-code` or `@openai/codex`
+(`latestSource: "registry"`). The registry is read only for an installed
+provider, only while serving this request, and is cached for an hour (ten
+minutes after a failure); a failed read is silent and never marks a provider
+outdated. `updateAvailable` is true only when both versions are known and the
+installed one is older. `runningSessions` counts live sessions of that tool on
+this machine; they keep their process through an update. Version, source, and
+last-check fields are omitted when unknown. `updateCheck` is absent on older
+daemons. Status inspection is read-only and is allowed for authenticated local
+and paired clients.
 
 With `include_models=1`, each provider also returns `models`, using the same
 model objects as `GET /api/models/codex`: `id`, `displayName`, `isDefault`,
 supported effort choices, and the default effort. A provider whose catalog
 cannot be loaded returns `modelsError` without hiding its installation status.
+
+### `GET /api/providers/update-check`, `PUT /api/providers/update-check`
+
+Auth required. Returns `{"enabled":bool,"source":"registry.npmjs.org"}`. `PUT`
+with `{"enabled":false}` turns the registry read off for this machine (stored
+in daemon settings as `providerUpdateCheck`); `{"enabled":true}` restores the
+default. A missing `enabled` is 400. `PUT` requires the same authority as a
+provider update (loopback, master token, or paired device). CLI:
+`sessions providers check [on|off]`.
 
 ### `POST /api/providers/:id/update`
 
@@ -1331,9 +1352,12 @@ then runs that installed provider's own `update` command with a five-minute
 deadline. Only one provider update runs on a machine at a time; a second request
 returns 409 instead of waiting behind the first. The updater runs in an isolated
 process tree, and a timeout stops its package-manager descendants as well as the
-provider parent. Success returns the refreshed provider object and bounded
-installer output. Unknown, absent, failed, or timed-out providers return 4xx/5xx
-without changing Sessions itself.
+provider parent. Success returns the refreshed provider object,
+`previousVersion` (the version before the updater ran, when known),
+`runningSessions` (live sessions that keep their current process), a
+human-readable `detail` sentence naming both, and bounded installer output.
+Unknown, absent, failed, or timed-out providers return 4xx/5xx without changing
+Sessions itself or any running session.
 
 ### `GET /api/worktrees`
 

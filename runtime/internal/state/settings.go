@@ -301,6 +301,9 @@ type Settings struct {
 	// the same checks `sessions worktrees clean` uses all pass. Missing means
 	// on.
 	WorktreeCleanup *EnabledSetting `json:"worktreeCleanup,omitempty"`
+	// ProviderUpdateCheck controls the public package-registry lookup that
+	// tells a client a newer Claude Code or Codex exists. Missing means on.
+	ProviderUpdateCheck *ProviderUpdateCheckSettings `json:"providerUpdateCheck,omitempty"`
 	// LimitRecovery is the machine-wide default for resuming a session when
 	// its provider usage limit resets. Missing means on; per-session choices
 	// live with the plans in the state root.
@@ -340,6 +343,16 @@ func (s Settings) PullRequestWatchEnabled() bool {
 // WorktreeCleanupEnabled reports the machine choice, on unless turned off.
 func (s Settings) WorktreeCleanupEnabled() bool {
 	return s.WorktreeCleanup == nil || s.WorktreeCleanup.Enabled
+}
+
+type ProviderUpdateCheckSettings struct {
+	Enabled bool `json:"enabled"`
+}
+
+// ProviderUpdateCheckEnabled reports whether provider status may read the
+// public registry's latest version; on unless the user turned it off.
+func (s Settings) ProviderUpdateCheckEnabled() bool {
+	return s.ProviderUpdateCheck == nil || s.ProviderUpdateCheck.Enabled
 }
 
 type IdleCompactionSettings struct {

@@ -645,6 +645,7 @@ export async function checkForNativeUpdate(): Promise<NativeUpdateInfo | null> {
     if (pendingUpdate) {
       await pendingUpdate.close();
       pendingUpdate = null;
+      downloadedUpdateVersion = null;
     }
     const { check } = await import('@tauri-apps/plugin-updater');
     pendingUpdate = await check({ timeout: 12_000 });
@@ -673,7 +674,7 @@ export async function notifyNativeUpdate(info: NativeUpdateInfo): Promise<void> 
   if (!granted) return;
   notification.sendNotification({
     title: `Sessions ${info.version} is ready`,
-    body: 'Open Sessions Settings to review the notes and update. Running sessions will keep working.'
+    body: 'Restart Sessions when convenient. Only the window restarts; your sessions keep running.'
   });
 }
 
@@ -691,15 +692,12 @@ export async function notifyProviderUpdate(name: string, version: string): Promi
   });
 }
 
-export async function installNativeUpdate(
-  onProgress?: (progress: NativeUpdateProgress) => void
-): Promise<void> {
-  if (!isTauri()) throw new Error('Updates are available only in Sessions.app');
-  if (!pendingUpdate) throw new Error('Check for an update first');
+let downloadedUpdateVersion: string | null = null;
 
+function trackProgress(onProgress?: (progress: NativeUpdateProgress) => void) {
   let downloadedBytes = 0;
   let totalBytes: number | null = null;
-  await pendingUpdate.downloadAndInstall((event) => {
+  return (event: { event: 'Started'; data: { contentLength?: number } } | { event: 'Progress'; data: { chunkLength: number } } | { event: 'Finished' }) => {
     if (event.event === 'Started') {
       downloadedBytes = 0;
       totalBytes = event.data.contentLength ?? null;
@@ -709,12 +707,37 @@ export async function installNativeUpdate(
       downloadedBytes = totalBytes;
     }
     onProgress?.({ downloadedBytes, totalBytes });
-  });
+  };
+}
 
-  // Relaunch only the UI process. The daemon and every runner are launchd-owned
-  // and remain alive across this replacement.
+// Downloads and verifies the signed update without installing it. Nothing on
+// disk changes until installDownloadedNativeUpdate, so this is safe to run in
+// the background while sessions work.
+export async function downloadNativeUpdate(
+  onProgress?: (progress: NativeUpdateProgress) => void
+): Promise<void> {
+  if (!isTauri()) throw new Error('Updates are available only in Sessions.app');
+  if (!pendingUpdate) throw new Error('Check for an update first');
+  if (downloadedUpdateVersion === pendingUpdate.version) return;
+  await pendingUpdate.download(trackProgress(onProgress));
+  downloadedUpdateVersion = pendingUpdate.version;
+}
+
+// Installs the already-downloaded update and relaunches only the UI process.
+// The daemon and every runner are launchd-owned and remain alive.
+export async function installDownloadedNativeUpdate(): Promise<void> {
+  if (!isTauri()) throw new Error('Updates are available only in Sessions.app');
+  if (!pendingUpdate || downloadedUpdateVersion !== pendingUpdate.version) throw new Error('Download the update first');
+  await pendingUpdate.install();
   const { relaunch } = await import('@tauri-apps/plugin-process');
   await relaunch();
+}
+
+export async function installNativeUpdate(
+  onProgress?: (progress: NativeUpdateProgress) => void
+): Promise<void> {
+  await downloadNativeUpdate(onProgress);
+  await installDownloadedNativeUpdate();
 }
 
 // Quitting the viewer never ends the daemon or any runner. Recovery screens

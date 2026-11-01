@@ -6,24 +6,17 @@ import {
   fetchAISettings,
   fetchClaudeSettings,
   fetchOnboardingState,
-  fetchProviderStatuses,
   updateAISettings,
   updateClaudeSettings,
   updateOnboardingPreference,
-  updateProvider,
-  type AIProvider,
-  type ProviderStatus
+  type AIProvider
 } from '../api/sessionsd';
 import type { ClaudeSettings } from '../types';
 import { serverDisplayName, useServers } from '../lib/servers';
 import {
-  checkForNativeUpdate,
   getNativeSupportPreview,
-  installNativeUpdate,
   isTauri,
   openSupportPage,
-  type NativeUpdateInfo,
-  type NativeUpdateProgress,
   type SupportPage,
   type SupportPreview
 } from '../lib/tauriBridge';
@@ -34,6 +27,7 @@ import type { ThemeMode } from './ProductSidebar';
 import { SomewhereCard } from './SomewhereCard';
 import { useSessions } from '../store/sessions';
 import { FleetProviderUpdates } from './FleetProviderUpdates';
+import { AppUpdateSettings, ProviderUpdateSettings } from './UpdateSettings';
 import { NotificationDeliveryStatus } from './NotificationDeliveryStatus';
 import { NativeRuntimeStatusCard } from './NativeRuntimeStatusCard';
 import { AutoArchiveCard } from './AutoArchiveCard';
@@ -90,13 +84,6 @@ export function SettingsView({ clientOnly = false, hostName, theme, onThemeChang
   const [delegationBusy, setDelegationBusy] = useState(false);
   const [delegationAvailable, setDelegationAvailable] = useState(true);
   const [delegationMessage, setDelegationMessage] = useState<string | null>(null);
-  const [updateInfo, setUpdateInfo] = useState<NativeUpdateInfo | null>(null);
-  const [updateProgress, setUpdateProgress] = useState<NativeUpdateProgress | null>(null);
-  const [updateBusy, setUpdateBusy] = useState(false);
-  const [updateMessage, setUpdateMessage] = useState<string | null>(null);
-  const [providerStatuses, setProviderStatuses] = useState<ProviderStatus[]>([]);
-  const [providerBusy, setProviderBusy] = useState<ProviderStatus['id'] | null>(null);
-  const [providerMessage, setProviderMessage] = useState<string | null>(null);
   const aiGeneration = useRef(0);
   const claudeGeneration = useRef(0);
 
@@ -106,9 +93,6 @@ export function SettingsView({ clientOnly = false, hostName, theme, onThemeChang
 
   useEffect(() => {
     const controller = new AbortController();
-    void fetchProviderStatuses(controller.signal).then(setProviderStatuses).catch(() => {
-      if (!controller.signal.aborted) setProviderStatuses([]);
-    });
     const nextClaude = claudeGeneration.current + 1;
     claudeGeneration.current = nextClaude;
     setClaudeBusy(false);
@@ -253,56 +237,6 @@ export function SettingsView({ clientOnly = false, hostName, theme, onThemeChang
     }
   };
 
-  const checkForUpdate = async (): Promise<void> => {
-    if (!native || updateBusy) return;
-    setUpdateBusy(true);
-    setUpdateMessage(null);
-    setUpdateProgress(null);
-    try {
-      const available = await checkForNativeUpdate();
-      setUpdateInfo(available);
-      setUpdateMessage(available ? `Sessions ${available.version} is available.` : 'Sessions is up to date.');
-    } catch (error) {
-      setUpdateInfo(null);
-      setUpdateMessage(error instanceof Error ? error.message : 'Could not check for updates.');
-    } finally {
-      setUpdateBusy(false);
-    }
-  };
-
-  const installUpdate = async (): Promise<void> => {
-    if (!native || !updateInfo || updateBusy) return;
-    setUpdateBusy(true);
-    setUpdateMessage('Downloading update…');
-    try {
-      await installNativeUpdate((progress) => {
-        setUpdateProgress(progress);
-        if (progress.totalBytes) {
-          const percent = Math.min(100, Math.round((progress.downloadedBytes / progress.totalBytes) * 100));
-          setUpdateMessage(`Downloading update… ${percent}%`);
-        }
-      });
-    } catch (error) {
-      setUpdateMessage(error instanceof Error ? error.message : 'Could not install update.');
-      setUpdateBusy(false);
-    }
-  };
-
-  const installProvider = async (provider: ProviderStatus): Promise<void> => {
-    if (clientOnly || providerBusy) return;
-    setProviderBusy(provider.id);
-    setProviderMessage(`Updating ${provider.name} on ${providerUpdateTarget} with its official updater…`);
-    try {
-      const result = await updateProvider(provider.id);
-      setProviderStatuses((current) => current.map((item) => item.id === provider.id ? result.provider : item));
-      setProviderMessage(`${provider.name} ${result.provider.version || ''} is ready on ${providerUpdateTarget}. Running agents were not restarted.`);
-    } catch (error) {
-      setProviderMessage(error instanceof Error ? error.message : `Could not update ${provider.name}.`);
-    } finally {
-      setProviderBusy(null);
-    }
-  };
-
   return (
     <div className="settings-view">
       <aside className="settings-sections">
@@ -365,19 +299,9 @@ export function SettingsView({ clientOnly = false, hostName, theme, onThemeChang
             clientOnly={clientOnly}
             hostName={machineName}
             native={native}
-            updateInfo={updateInfo}
-            updateProgress={updateProgress}
-            updateBusy={updateBusy}
-            updateMessage={updateMessage}
             workingAgents={workingAgents}
             liveRunners={liveRunners}
-            providers={providerStatuses}
-            providerBusy={providerBusy}
-            providerMessage={providerMessage}
             providerUpdateTarget={providerUpdateTarget}
-            onCheck={checkForUpdate}
-            onInstall={installUpdate}
-            onProviderUpdate={installProvider}
           />
         ) : (
           <SupportSettings native={native} />
@@ -505,82 +429,20 @@ interface NotificationSettingsProps {
   clientOnly: boolean;
   hostName: string;
   native: boolean;
-  updateInfo: NativeUpdateInfo | null;
-  updateProgress: NativeUpdateProgress | null;
-  updateBusy: boolean;
-  updateMessage: string | null;
   workingAgents: number | null;
   liveRunners: number | null;
-  providers: ProviderStatus[];
-  providerBusy: ProviderStatus['id'] | null;
-  providerMessage: string | null;
   providerUpdateTarget: string;
-  onCheck: () => Promise<void>;
-  onInstall: () => Promise<void>;
-  onProviderUpdate: (provider: ProviderStatus) => Promise<void>;
 }
 
 function NotificationSettings(props: NotificationSettingsProps): JSX.Element {
   const serverId = useServers((state) => state.activeId);
   return (
     <section className="settings-page">
-      <PageHeader eyebrow={<>Signed {props.clientOnly ? 'device' : 'desktop'} delivery</>} title={<>Notifications & updates</>} description={<>Sessions checks the signed release feed automatically, while installation always stays an explicit action.</>} />
+      <PageHeader eyebrow={<>Signed {props.clientOnly ? 'device' : 'desktop'} delivery</>} title={<>Notifications & updates</>} description={<>Sessions keeps itself and your agent tools current. Downloads happen in the background; installing is always your click, and running sessions are never restarted.</>} />
       <NotificationDeliveryStatus key={serverId} serverId={serverId} hostName={props.providerUpdateTarget} />
-      <Surface><SettingsSection title={<>Sessions updates</>}>
-        <div className="settings-static-row">
-          <span>
-            <strong>{props.updateInfo ? `Sessions ${props.updateInfo.version} is ready` : 'Signed release channel'}</strong>
-            <small>
-              {props.workingAgents === null
-                ? 'This updates the client. Agents and open sessions on every host continue independently.'
-                : props.workingAgents > 0
-                ? `${props.workingAgents} ${props.workingAgents === 1 ? 'agent is' : 'agents are'} working. They continue on their current runners; new sessions use the updated runner after the service refresh.`
-                : `No agents are working. Update now without losing ${props.liveRunners === 1 ? 'your open session' : 'any open sessions'}.`}
-            </small>
-          </span>
-          {props.updateInfo ? (
-            <Button type="button" variant="primary" disabled={!props.native || props.updateBusy} onClick={() => void props.onInstall()}>
-              {props.workingAgents === null
-                ? 'Update client safely'
-                : props.workingAgents > 0
-                ? `Update safely · ${props.workingAgents} continue`
-                : 'Update now'}
-            </Button>
-          ) : (
-            <Button type="button" variant="ghost" disabled={!props.native || props.updateBusy} onClick={() => void props.onCheck()}>{props.updateBusy ? 'Checking…' : 'Check now'}</Button>
-          )}
-        </div>
-        {!props.native ? <Status live="off">Update controls are available only in Sessions.app.</Status> : null}
-        {props.updateMessage ? <Status>{props.updateMessage}</Status> : null}
-        {props.updateBusy && props.updateProgress?.totalBytes ? <progress value={props.updateProgress.downloadedBytes} max={props.updateProgress.totalBytes} aria-label="Update download progress" /> : null}
-        {props.updateInfo?.notes ? <p>{props.updateInfo.notes}</p> : null}
-      </SettingsSection></Surface>
-      <Surface><SettingsSection title={<>Agent tools</>} description={<>Sessions reads local version metadata only. It does not contact provider update servers until you click an update button.</>}>
-        {props.clientOnly ? <HostChoice hostName={props.hostName} /> : null}
-        {props.providers.map((provider) => (
-          <div className="settings-static-row" key={provider.id}>
-            <span>
-              <strong>{provider.name}</strong>
-              <small>
-                {!provider.installed
-                  ? 'Not installed on this machine'
-                  : provider.updateAvailable
-                  ? `${provider.version || 'Unknown version'} installed · ${provider.latestVersion} available`
-                  : `${provider.version || 'Installed'} · no locally reported update`}
-              </small>
-            </span>
-            <Button type="button" className={provider.updateAvailable ? 'btn btn-primary' : 'btn btn-ghost'} disabled={props.clientOnly || !provider.installed || props.providerBusy !== null} onClick={() => void props.onProviderUpdate(provider)}>
-              {props.providerBusy === provider.id
-                ? `Updating on ${props.providerUpdateTarget}…`
-                : provider.updateAvailable
-                ? `Update ${provider.name} on ${props.providerUpdateTarget}`
-                : `Check & update on ${props.providerUpdateTarget}`}
-            </Button>
-          </div>
-        ))}
-        {props.providerMessage ? <Status>{props.providerMessage}</Status> : null}
-        <Status live="off">The action runs on {props.providerUpdateTarget} and replaces only that machine's CLI executable. Existing Claude and Codex processes continue unchanged; new sessions there use the updated version.</Status>
-      </SettingsSection></Surface>
+      <AppUpdateSettings native={props.native} workingAgents={props.workingAgents} liveRunners={props.liveRunners} />
+      {props.clientOnly ? <HostChoice hostName={props.hostName} /> : null}
+      <ProviderUpdateSettings clientOnly={props.clientOnly} target={props.providerUpdateTarget} />
       <FleetProviderUpdates />
     </section>
   );

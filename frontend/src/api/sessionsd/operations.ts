@@ -56,6 +56,10 @@ export interface ProviderStatus {
   latestVersion?: string;
   lastCheckedAt?: string;
   updateAvailable: boolean;
+  /** Where latestVersion came from: the provider's own local record or the public registry. */
+  latestSource?: 'provider' | 'registry';
+  /** Live sessions on this provider here; they keep their process through an update. */
+  runningSessions?: number;
   models?: SessionModelOption[];
   modelsError?: string;
 }
@@ -65,6 +69,45 @@ export async function fetchProviderStatuses(signal?: AbortSignal, includeModels 
   const r = await apiFetch(`${httpBase()}/api/providers${suffix}`, { signal });
   const body = await featureJSON<{ providers: ProviderStatus[] }>(r, 'Provider status');
   return body.providers;
+}
+
+export interface ProviderUpdateCheck {
+  enabled: boolean;
+  source?: string;
+}
+
+export interface ProviderStatusReport {
+  providers: ProviderStatus[];
+  /** Absent on daemons that predate the latest-version check. */
+  updateCheck: ProviderUpdateCheck | null;
+}
+
+/** Provider status on one named computer, without changing the active one. */
+export async function fetchProviderStatusReport(serverId?: string, signal?: AbortSignal): Promise<ProviderStatusReport> {
+  const server = requestedServer(serverId);
+  const r = await serverFetch(server, `${httpBaseForServer(server)}/api/providers`, { signal });
+  const body = await featureJSON<{ providers: ProviderStatus[]; updateCheck?: ProviderUpdateCheck }>(r, 'Provider status');
+  return { providers: body.providers, updateCheck: body.updateCheck ?? null };
+}
+
+/** CLI: `sessions providers check on|off`. */
+export async function setProviderUpdateCheck(enabled: boolean, serverId?: string): Promise<ProviderUpdateCheck> {
+  const server = requestedServer(serverId);
+  const r = await serverFetch(server, `${httpBaseForServer(server)}/api/providers/update-check`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ enabled })
+  });
+  return featureJSON<ProviderUpdateCheck>(r, 'Provider update check');
+}
+
+export interface ProviderUpdateResult {
+  provider: ProviderStatus;
+  output: string;
+  previousVersion?: string;
+  runningSessions?: number;
+  /** The daemon's own sentence: what changed and what running sessions do. */
+  detail?: string;
 }
 
 export interface ContinuationPreview {
@@ -141,7 +184,7 @@ export async function cancelContinuationJob(id: string): Promise<ContinuationJob
   return json<ContinuationJob>(r);
 }
 
-export async function updateProvider(id: ProviderStatus['id'], serverId?: string): Promise<{ provider: ProviderStatus; output: string }> {
+export async function updateProvider(id: ProviderStatus['id'], serverId?: string): Promise<ProviderUpdateResult> {
   const server = requestedServer(serverId);
   const controller = new AbortController();
   // Current runtimes stop the complete installer tree after five minutes.
@@ -155,7 +198,7 @@ export async function updateProvider(id: ProviderStatus['id'], serverId?: string
       body: '{}',
       signal: controller.signal
     });
-    const result = await featureJSON<{ provider: ProviderStatus; output: string }>(r, 'Provider update');
+    const result = await featureJSON<ProviderUpdateResult>(r, 'Provider update');
     if (result.provider?.id !== id || !result.provider.installed) throw new Error('Update returned no usable provider result. Check the installed version before trying again.');
     return result;
   } catch (error) {
