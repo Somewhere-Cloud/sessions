@@ -71,6 +71,7 @@ control the user turn. Dispatch is not proof of provider acceptance or recall.
 ├── vapid.json
 ├── push-subscriptions.json
 ├── idle-compaction.json
+├── limit-recovery.json
 ├── delivery-operations/
 │   └── <operation-id>.json
 ├── parent-reports/
@@ -123,6 +124,7 @@ override:
 - `parent-reports/`, delegated lanes' pending outcome reports to their managers;
 - `usage.sqlite3` and `errors.jsonl`;
 - `idle-compaction.json`, the idle compaction schedule and per-lane choices;
+- `limit-recovery.json`, usage-limit resume plans and per-session choices;
 - `history-cache.json`, what the history listing has already computed about each
   transcript file — its message count, its recorded last activity, and the card
   the provider scan read out of that file's head — keyed by path with the size
@@ -395,6 +397,32 @@ text and time, never conversation content. Entries and overrides of a lane
 absent for ten minutes after startup discovery are forgotten. A file that
 cannot be read or decoded, or has another version, pauses idle compaction and
 is never overwritten; move it aside to reset. An older daemon ignores the file.
+
+### `limit-recovery.json`
+
+Version-1, mode-0600 JSON written by the daemon's limit recovery scheduler
+(`runtime/internal/limitrecovery/store.go`), replaced atomically through a
+synced temporary file. It follows `SESSIONS_STATE_DIR`; the machine-wide on/off
+default lives in `settings.json` as `limitRecovery.enabled` (missing means on).
+
+```json
+{"version":1,
+ "lanes":{"<id>":{"key":0,"resetAtMs":0,"source":"provider-message","fireAtMs":0,"attempt":1,
+                  "createdAtMs":0,"state":"scheduled","operationId":"","detail":"","updatedAtMs":0}},
+ "overrides":{"<id>":false},
+ "sent":{"<id>":[{"operationId":"<uuid>","text":"Continue where you left off.","atMs":0}]}}
+```
+
+`lanes` holds each session's latest plan, keyed by the limited turn's failure
+time. `state` is `scheduled`, `sending` (written before delivery starts),
+`sent`, `unconfirmed`, `failed`, `cancelled`, or `stopped`. On startup a
+`sending` entry becomes `unconfirmed` and is never sent again; a `scheduled`
+entry whose time passed while no daemon ran is sent late, because the limit
+has reset. `sent` keeps at most 16 records per session for 30 days for
+transcript attribution; it stores only the fixed resume text and time.
+Entries and overrides of a session absent for ten minutes after startup
+discovery are forgotten. A file that cannot be read or decoded, or has another
+version, pauses limit recovery and is never overwritten.
 
 ### `idle/<id>`
 
@@ -757,6 +785,9 @@ failure path is stricter as described above.
 `settings.json` adds optional `autoArchive` (boolean; absent means false).
 The authenticated `/api/auto-archive` preference is per daemon machine. Eligible
 structured sessions reuse runner metadata `set_aside_at`; there is no separate
-archive store. Observation windows live only in daemon memory and reset on
+archive store. Runner metadata may also carry `set_aside_until` (Unix ms), the
+time the daemon clears both fields; it is written and cleared with
+`set_aside_at`, merged across runner rewrites like it, and ignored by older
+runtimes. Observation windows live only in daemon memory and reset on
 restart, so no downtime counts toward the 24-hour inactivity interval. Disabling
 the preference does not clear existing marks or alter runner lifecycle.

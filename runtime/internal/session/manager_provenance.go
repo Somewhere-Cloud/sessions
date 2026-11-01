@@ -128,6 +128,10 @@ func overlayRunnerMetadata(info *state.SessionInfo, path string) {
 		setAsideAt := *metadata.SetAsideAt
 		info.SetAsideAt = &setAsideAt
 	}
+	if metadata.SetAsideUntil != nil {
+		until := *metadata.SetAsideUntil
+		info.SetAsideUntil = &until
+	}
 	info.Pinned = metadata.Pinned
 }
 

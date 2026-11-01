@@ -387,17 +387,8 @@ func (a *app) writeStatusCard(output statusOutput, current session, lastActivity
 			return err
 		}
 	}
-	if output.SetAsideAtMS != nil {
-		label := "was set aside"
-		detail := ""
-		if output.State == "set-aside" {
-			label = "set aside"
-			detail = " — hidden from the Sessions working set; the runtime is running"
-		}
-		if _, err := fmt.Fprintf(a.stdout, "  %-9s %s ago%s\n",
-			label, a.ageOf(*output.SetAsideAtMS), detail); err != nil {
-			return err
-		}
+	if err := a.writeStatusWorkingSet(output, current); err != nil {
+		return err
 	}
 	if output.ExitCode != nil {
 		if _, err := fmt.Fprintf(a.stdout, "  exit     %d\n", *output.ExitCode); err != nil {
@@ -678,4 +669,37 @@ func (a *app) statusHookLines(hooks *state.ObservedHooks) []string {
 		lines = append(lines, "hooks    incomplete: "+terminalSafe(strings.Join(hooks.Gaps, ", ")))
 	}
 	return lines
+}
+
+// writeStatusWorkingSet prints the set-aside mark, its return time, and a
+// usage-limit resume plan.
+func (a *app) writeStatusWorkingSet(output statusOutput, current session) error {
+	now := time.Now()
+	if output.SetAsideAtMS != nil {
+		label := "was set aside"
+		detail := ""
+		if output.State == "set-aside" {
+			label = "set aside"
+			detail = " — hidden from the Sessions working set; the runtime is running"
+			if current.SetAsideUntil != nil {
+				detail = " — back " + returnTimeLabel(*current.SetAsideUntil, now) + "; the runtime is running"
+			}
+		}
+		if _, err := fmt.Fprintf(a.stdout, "  %-9s %s ago%s\n",
+			label, a.ageOf(*output.SetAsideAtMS), detail); err != nil {
+			return err
+		}
+	}
+	recovery := current.LimitRecovery
+	if recovery == nil || (recovery.State != "scheduled" && recovery.State != "stopped") {
+		return nil
+	}
+	line := "limit    " + recovery.State
+	if recovery.State == "scheduled" {
+		line = "limit    resumes " + returnTimeLabel(recovery.ResumeAt, now) + " with \"Continue where you left off.\""
+	} else if recovery.Detail != "" {
+		line += " — " + recovery.Detail
+	}
+	_, err := fmt.Fprintf(a.stdout, "  %s\n", line)
+	return err
 }

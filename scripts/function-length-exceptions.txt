@@ -62,7 +62,6 @@ go runtime/internal/session/delegation.go Manager.resolveDelegatedExecution 88
 go runtime/internal/state/metadata_merge.go MergeRunnerMetadata 86
 go runtime/internal/search/query.go parseSearchQuery 85
 go runtime/internal/usage/scanner.go parseCodexLine 85
-go runtime/cmd/sessions/aside.go app.cmdAside 84
 go runtime/internal/api/lan.go lanListener.enable 84
 go runtime/internal/integrations/day_summary.go SummarizeConversationDay 84
 go runtime/cmd/sessions/sessions.go app.cmdSessions 83

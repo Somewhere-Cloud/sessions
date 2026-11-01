@@ -30,7 +30,7 @@ func MergeRunnerMetadata(existing, next Metadata) Metadata {
 	merged := next
 	merged.Tags = CloneTags(existing.Tags)
 	merged.DisplayParentSessionID = cloneStringPointer(existing.DisplayParentSessionID)
-	merged.SetAsideAt = cloneInt64Pointer(existing.SetAsideAt)
+	merged.SetAsideAt, merged.SetAsideUntil = cloneInt64Pointer(existing.SetAsideAt), cloneInt64Pointer(existing.SetAsideUntil)
 	// Pinned belongs here for the same reason as the rest: the runner has no
 	// way to express it and therefore no way to intend a change, so the
 	// on-disk value is always the more recent intent. Losing it would be

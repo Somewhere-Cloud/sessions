@@ -76,6 +76,7 @@ type SessionMetadata struct {
 	Tags                   map[string]string
 	DisplayParentSessionID *string
 	SetAsideAt             *int64
+	SetAsideUntil          *int64
 	Pinned                 bool
 	LastHumanMessageAt     *int64
 	LastAgentMessageAt     *int64
@@ -481,7 +482,7 @@ func (r *Registry) RegisterMetadata(ctx context.Context, runner proto.Runner, me
 		Adopted: true, Name: metadata.Name, NameSource: metadata.NameSource,
 		Description: metadata.Description, DescriptionSource: metadata.DescriptionSource,
 		Tags: CloneTags(metadata.Tags), DisplayParentSessionID: cloneStringPointer(metadata.DisplayParentSessionID),
-		SetAsideAt: cloneInt64Pointer(metadata.SetAsideAt), Pinned: metadata.Pinned,
+		SetAsideAt: cloneInt64Pointer(metadata.SetAsideAt), SetAsideUntil: cloneInt64Pointer(metadata.SetAsideUntil), Pinned: metadata.Pinned,
 		LastHumanMessageAt: cloneInt64Pointer(metadata.LastHumanMessageAt),
 		LastAgentMessageAt: cloneInt64Pointer(metadata.LastAgentMessageAt),
 		DelegationKind:     metadata.DelegationKind,
@@ -746,8 +747,15 @@ func (r *Registry) UpdateDisplayParent(id, parentID string) (string, error) {
 
 // UpdateSetAside persists working-set organization without changing runner
 // lifecycle. Clearing stores nil so older runtimes continue to decode the
-// metadata and the absence remains the default.
+// metadata and the absence remains the default. Either direction clears any
+// return time, so a plain set-aside is open-ended.
 func (r *Registry) UpdateSetAside(id string, setAside bool) (*int64, error) {
+	return r.UpdateSetAsideUntil(id, setAside, nil)
+}
+
+// UpdateSetAsideUntil sets a session aside until untilMS, when the daemon
+// brings it back. A nil until is open-ended; clearing ignores until.
+func (r *Registry) UpdateSetAsideUntil(id string, setAside bool, until *int64) (*int64, error) {
 	if !validMetadataID(id) {
 		return nil, fmt.Errorf("%w: session %s", ErrSessionNotFound, id)
 	}
@@ -757,9 +765,12 @@ func (r *Registry) UpdateSetAside(id string, setAside bool) (*int64, error) {
 	if setAside {
 		now := time.Now().UnixMilli()
 		setAsideAt = &now
+	} else {
+		until = nil
 	}
 	_, err := updateMetadata(path, func(metadata *Metadata) error {
 		metadata.SetAsideAt = cloneInt64Pointer(setAsideAt)
+		metadata.SetAsideUntil = cloneInt64Pointer(until)
 		return nil
 	})
 	if err != nil {
@@ -769,7 +780,7 @@ func (r *Registry) UpdateSetAside(id string, setAside bool) (*int64, error) {
 		return nil, fmt.Errorf("persist session working-set state: %w", err)
 	}
 	if live {
-		session.setSetAsideAt(setAsideAt)
+		session.setSetAsideAt(setAsideAt, until)
 	}
 	return cloneInt64Pointer(setAsideAt), nil
 }

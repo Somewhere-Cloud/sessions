@@ -290,6 +290,19 @@ type Settings struct {
 	// lanes before their prompt cache expires. Missing means on; per-lane
 	// choices live with the schedule in the state root.
 	IdleCompaction *IdleCompactionSettings `json:"idleCompaction,omitempty"`
+	// LimitRecovery is the machine-wide default for resuming a session when
+	// its provider usage limit resets. Missing means on; per-session choices
+	// live with the plans in the state root.
+	LimitRecovery *LimitRecoverySettings `json:"limitRecovery,omitempty"`
+}
+
+type LimitRecoverySettings struct {
+	Enabled bool `json:"enabled"`
+}
+
+// LimitRecoveryEnabled reports the machine-wide default, on unless turned off.
+func (s Settings) LimitRecoveryEnabled() bool {
+	return s.LimitRecovery == nil || s.LimitRecovery.Enabled
 }
 
 type IdleCompactionSettings struct {

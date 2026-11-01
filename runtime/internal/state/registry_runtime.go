@@ -347,7 +347,7 @@ func writeMetadata(dir string, info proto.RunnerInfo, sessionMetadata SessionMet
 		Description:       sessionMetadata.Description,
 		DescriptionSource: sessionMetadata.DescriptionSource, Kind: sessionMetadata.Kind, SpecPath: sessionMetadata.SpecPath,
 		Tags: CloneTags(sessionMetadata.Tags), DisplayParentSessionID: cloneStringPointer(sessionMetadata.DisplayParentSessionID),
-		SetAsideAt: cloneInt64Pointer(sessionMetadata.SetAsideAt), Pinned: sessionMetadata.Pinned,
+		SetAsideAt: cloneInt64Pointer(sessionMetadata.SetAsideAt), SetAsideUntil: cloneInt64Pointer(sessionMetadata.SetAsideUntil), Pinned: sessionMetadata.Pinned,
 		LastHumanMessageAt: cloneInt64Pointer(sessionMetadata.LastHumanMessageAt),
 		LastAgentMessageAt: cloneInt64Pointer(sessionMetadata.LastAgentMessageAt),
 		DelegationKind:     sessionMetadata.DelegationKind,
@@ -379,6 +379,7 @@ type RunnerMetadata struct {
 	Tags                   map[string]string
 	DisplayParentSessionID *string
 	SetAsideAt             *int64
+	SetAsideUntil          *int64
 	Pinned                 bool
 	LastHumanMessageAt     *int64
 	LastAgentMessageAt     *int64
@@ -422,7 +423,7 @@ func parseRunnerMetadata(encoded []byte) (RunnerMetadata, error) {
 		Name: metadata.Name, NameSource: metadata.NameSource,
 		Description: metadata.Description, DescriptionSource: metadata.DescriptionSource,
 		Tags: CloneTags(metadata.Tags), DisplayParentSessionID: cloneStringPointer(metadata.DisplayParentSessionID),
-		SetAsideAt: cloneInt64Pointer(metadata.SetAsideAt), Pinned: metadata.Pinned,
+		SetAsideAt: cloneInt64Pointer(metadata.SetAsideAt), SetAsideUntil: cloneInt64Pointer(metadata.SetAsideUntil), Pinned: metadata.Pinned,
 		LastHumanMessageAt: cloneInt64Pointer(metadata.LastHumanMessageAt),
 		LastAgentMessageAt: cloneInt64Pointer(metadata.LastAgentMessageAt),
 		DelegationKind:     metadata.DelegationKind,

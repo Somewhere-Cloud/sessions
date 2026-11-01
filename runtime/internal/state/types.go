@@ -166,6 +166,10 @@ type SessionInfo struct {
 	FailureEvidence string               `json:"failureEvidence,omitempty"`
 	FailureAt       int64                `json:"failureAt,omitempty"`
 	Retry           *proto.ProviderRetry `json:"retry,omitempty"`
+	// LimitRecovery is the daemon's plan to resume this session when its
+	// usage limit resets, and the latest outcome. It is derived from the
+	// limit recovery store in the state root and never written to metadata.
+	LimitRecovery *LimitRecovery `json:"limitRecovery,omitempty"`
 	// PendingApproval is the permission a Rich lane is waiting on right now.
 	// It is derived from the lane's structured stream, so it survives a
 	// daemon restart as long as the runner is still holding the request.
@@ -234,6 +238,9 @@ type SessionInfo struct {
 	// SetAsideAt removes a live session from the default working set without
 	// changing runner lifecycle, attention, search, or notification truth.
 	SetAsideAt *int64 `json:"setAsideAt,omitempty"`
+	// SetAsideUntil is when the daemon brings the session back on its own.
+	// Absent means it stays aside until someone brings it back.
+	SetAsideUntil *int64 `json:"setAsideUntil,omitempty"`
 	// Pinned is the user marking a workbench: the session sorts first in every
 	// listing and automatic termination keeps its hands off it. It is never
 	// omitempty, matching working and exited rather than fast, because an agent
@@ -460,4 +467,17 @@ type ClaudeEventsWindow struct {
 	TotalCount int64
 	StartIndex int64
 	EndIndex   int64
+}
+
+// LimitRecovery is one session's resume-after-usage-limit plan as session
+// reads show it. State is scheduled, sending, sent, unconfirmed, failed,
+// cancelled, or stopped.
+type LimitRecovery struct {
+	State     string `json:"state"`
+	ResumeAt  int64  `json:"resumeAt,omitempty"`
+	ResetAt   int64  `json:"resetAt,omitempty"`
+	Source    string `json:"source,omitempty"`
+	Attempt   int    `json:"attempt,omitempty"`
+	Detail    string `json:"detail,omitempty"`
+	UpdatedAt int64  `json:"updatedAt,omitempty"`
 }

@@ -157,6 +157,7 @@ fields. Optional fields are omitted when their value is `undefined`.
 | `failureDetail` | string, optional | concise provider fault in Sessions' words; also becomes `lastSummary` for the failed turn |
 | `failureProvider` | `"claude" \| "codex"`, optional | provider that produced the current fault |
 | `failureAt` | number, optional | Unix epoch milliseconds when the current provider fault was observed |
+| `limitRecovery` | object, optional | the daemon's plan to resume this session after a provider usage limit, derived from `limit-recovery.json`: `state` (`scheduled`, `sending`, `sent`, `unconfirmed`, `failed`, `cancelled`, or `stopped`), `resumeAt` (Unix ms the resume fires), `resetAt` (Unix ms the limit resets; omitted when unknown), `source` (`provider-message`, `account-usage`, or `unknown`), `attempt`, `detail`, `updatedAt`. Omitted when the session never had one since this daemon started. See `GET /api/limit-recovery` |
 | `retry` | object, optional | runner-owned automatic Rich-turn retry schedule: `attempt` (the next retry, 1–5), `max` (5), `nextAt` (Unix epoch milliseconds), and `kind` (the current `failureKind`). Present while a retry is scheduled or running; omitted after success, cancellation, or exhaustion |
 | `pendingApproval` | object, optional | permission a Rich session is waiting on, with `id`, `kind` (`command`, `file-change`, or `permissions`), `summary`, `command`, `cwd`, `reason`, and `at`; absent when no approval is pending |
 | `exited` | boolean | whether Sessions reaped a real status for the session's process: an EXIT frame, a signal, or a completed user-requested end. It is never set because the daemon lost contact with a runner |
@@ -175,6 +176,7 @@ fields. Optional fields are omitted when their value is `undefined`.
 | `effort` | string, optional | effort parsed from effective arguments |
 | `fast` | boolean, optional | present as `true` for Codex priority service tier; otherwise omitted |
 | `setAsideAt` | number, optional | Unix epoch milliseconds when the live session was removed from the native app's default working set; this is organization, not lifecycle |
+| `setAsideUntil` | number, optional | Unix epoch milliseconds when the daemon brings the set-aside session back on its own; omitted for an open-ended set-aside |
 | `pinned` | boolean, always present | whether the user marked this live session as a workbench: it sorts first in every listing and any future automatic cleanup policy must leave it alone. Always present, including as `false`, so a caller can tell "not pinned" from a daemon that predates the field |
 | `memoryBytes` | number, optional | resident memory of the session's whole process tree at `resourceSampledAt`. **Omitted, never zero, when unknown** — no live process, a process the daemon may not inspect, or a platform without sampling. A client that treats a missing value as `0` will report a saturated machine as idle |
 | `cpuPercent` | number, optional | percent of one core the process tree used between the two most recent samples. It is a rate, not an average over the life of the process; a tree spanning cores exceeds 100. Omitted when unknown, which includes the first sample of a tree, because a rate needs two readings. Omitted is not zero; a measured zero is sent as `0` |
@@ -1652,6 +1654,15 @@ clears it. Success returns the resulting value:
 ```json
 {"setAsideAt":1785024000000}
 ```
+
+The body may add a return time: `"until"` (Unix epoch milliseconds, later than
+now and at most 366 days away) or `"untilLimitReset": true`, which uses the
+session's scheduled usage-limit resume time (409 when none is scheduled). Both
+together, or either with `"setAside": false`, return 400. The return time is
+persisted as `set_aside_until` beside `set_aside_at`, the response adds
+`"setAsideUntil"`, and the daemon clears both within 15 seconds of that time,
+including at the next start when the time passed while it was stopped. Setting
+aside without a return time, clearing, and accepted input all clear it.
 
 Clearing returns `{"setAsideAt":null}`. The operation does not stop, archive,
 detach, or otherwise alter the runner. Unknown sessions return 404. Ended
@@ -3413,6 +3424,51 @@ missing or non-boolean `enabled` returns 400.
 Accepts `{"override": "on" | "off" | "default"}` for a live Claude lane and
 returns the status above. `default` removes the lane's choice. A session the
 daemon does not hold returns 404; a non-Claude session returns 400.
+
+### `GET /api/limit-recovery`
+
+Returns the machine-wide default for resuming after a provider usage limit and
+every live Claude or Codex session that is limited, has a plan or an outcome,
+or has its own choice. It is on unless the user turns it off:
+
+```json
+{"enabled":true,"lanes":[{"id":"<id>","name":"Parser","override":null,"enabled":true,
+  "next":{"key":0,"resetAtMs":0,"source":"provider-message","fireAtMs":0,"attempt":1,"createdAtMs":0}}]}
+```
+
+A session qualifies when its `failureKind` is `rate-limited`, no automatic
+provider retry is scheduled (the runner's outage backoff has finished), and it
+is not working or ended. `key` is the limited turn's `failureAt`; each limit is
+planned and sent at most once. The reset time comes from the provider's own
+words (`limit reached|<epoch>`, `resets 3pm (Zone)`, `try again in 2 hours`,
+`try again at 3:05 PM`), then from the account's usage reading (the latest
+reset of every window at 100%), and is otherwise unknown: the plan then fires
+after 30 minutes times `attempt`. `fireAtMs` is the reset plus one minute.
+Before sending, the daemon rereads account usage and moves the plan when the
+account is still at its limit. At `fireAtMs` it sends `Continue where you left
+off.` through the path `POST /api/sessions/:id/submit` uses (pasted for a
+terminal session), under the same per-session gate, recorded as automation:
+no human or agent message principal, no bring-back of a set-aside session.
+Event and transcript reads attribute it with
+`author: {"kind":"automation","id":"limit-recovery","name":"Limit recovery","client":"sessionsd"}`.
+A plan is cancelled when the setting turns off, the session ends, starts
+working, a message reaches it after the plan was made, or its limit no longer
+applies. A resume that runs into a new limit with no message in between is
+`attempt + 1`; past 6 the entry is `stopped` and nothing more is sent until a
+message arrives. `error` appears, and nothing is planned or sent, when the plan
+file cannot be read.
+
+### `PUT /api/limit-recovery`
+
+Accepts `{"enabled": true}` or `{"enabled": false}`, persists it as
+`limitRecovery.enabled` in `settings.json`, and returns the status above. A
+missing or non-boolean `enabled` returns 400.
+
+### `PUT /api/limit-recovery/lanes/:id`
+
+Accepts `{"override": "on" | "off" | "default"}` for a live Claude or Codex
+session and returns the status above. `default` removes the session's choice.
+A session the daemon does not hold returns 404; any other session returns 400.
 
 ### `POST /api/search/plan`
 
