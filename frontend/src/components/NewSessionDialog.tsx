@@ -19,7 +19,7 @@ import { accountLabel, accountNeedsLogin, accountRequestFields, rememberAccount,
 import { TagEditor } from './TagEditor';
 import type { ClaudeSessionOptions, CreateSessionRequest, DirectoryCandidate, SessionInfo } from '../types';
 import { getActiveServer, isLocalServer, serverDisplayName, useServers } from '../lib/servers';
-import { sessionLabel, sessionTitleFromPrompt } from '../lib/tabLabels';
+import { sessionLabel } from '../lib/tabLabels';
 import { ProviderMark } from './ProviderBadge';
 import { MachineMark } from './MachineMark';
 import { CLAUDE_MODEL_OPTIONS, ModelPicker, type ModelPickerOption } from './ModelPicker';
@@ -475,7 +475,9 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
         cwd: folder.trim() || undefined,
         cols: initialDefaults.cols,
         rows: initialDefaults.rows,
-        name: task.trim() ? sessionTitleFromPrompt(task) : undefined,
+        // No name: the sidebar shows a label shaped from the request, and an
+        // unnamed session is one Sessions may title after its first turn.
+        // A name sent here would count as chosen by hand.
         description: task.trim() || undefined,
         tags,
         ...accountRequestFields(selectedProfile, Boolean(parentSession && profileTool)),

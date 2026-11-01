@@ -294,7 +294,8 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 	if s.handleAutoArchiveRoute(response, request, corsOrigin) {
 		return
 	}
-	if s.handleIdleCompactionRoute(response, request, corsOrigin) || s.handleLimitRecoveryRoute(response, request, corsOrigin) {
+	if s.handleIdleCompactionRoute(response, request, corsOrigin) || s.handleLimitRecoveryRoute(response, request, corsOrigin) ||
+		s.handleTitlesRoute(response, request, corsOrigin) {
 		return
 	}
 	if s.handleClaudeSettingsRoute(response, request, corsOrigin) {
@@ -735,7 +736,7 @@ func (s *Server) handleSessionRoute(response http.ResponseWriter, request *http.
 				s.sendJSON(response, status, map[string]any{"error": err.Error()}, corsOrigin)
 				return
 			}
-			s.sendJSON(response, http.StatusOK, map[string]any{"name": name}, corsOrigin)
+			s.sendJSON(response, http.StatusOK, s.autoTitleAfterRelease(request.Context(), id, name), corsOrigin)
 			return
 		}
 		renamer, supported := s.registry.(interface {

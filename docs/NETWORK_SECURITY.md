@@ -18,6 +18,12 @@ them.
 - Data-bearing outbound features are opt-in. An update check may fetch public
   release metadata automatically, but it must not attach local session data or
   a durable machine/user identifier.
+- Automatic session titles are the one data-bearing call that is on by
+  default, and only because they add no new recipient: the excerpt goes to the
+  provider that already holds the conversation, through the CLI and account the
+  session already uses. They are described under
+  [Automatic session titles](#automatic-session-titles) and turned off with
+  `sessions titles off`.
 - Sessions does not add third-party analytics, advertising SDKs, or silent crash
   uploads. Local diagnostics stay local until the user previews and explicitly
   sends them.
@@ -489,6 +495,41 @@ or shell fragment from the caller. Already-running provider processes continue
 unchanged; sessions created later resolve the updated executable
 (`runtime/internal/api/providers_handlers.go`,
 `runtime/cmd/sessions/providers.go`).
+
+## Automatic session titles
+
+Sessions titles a Claude or Codex session that nobody named, once, after its
+first finished turn (`runtime/internal/autotitle`,
+`runtime/internal/api/auto_titles.go`).
+
+- **Destination:** the session's own provider, reached by the user's
+  installed `claude` or `codex` CLI through `agentcall`. No Sessions,
+  Somewhere, or third-party service is involved, and the child environment is
+  the `agentcall` allowlist, so base-URL, Bedrock, Vertex, and API-key
+  variables cannot reroute or rebill the call.
+- **Trigger:** a turn that ends with an answer or a question, in a session with
+  no name from its creator, no rename, and no provider title. A Claude session
+  waits 20 seconds for Claude's own title first. `sessions rename ID --auto` is
+  the explicit trigger, and it works even with automatic titles off.
+- **Payload:** the session's first request and that turn's final reply, each
+  cut to 1,500 bytes, inside a fixed instruction. That provider already has
+  this text in the session itself. No path, tag, account, or other session is
+  included.
+- **Credential source:** the session's own provider login (its
+  `CLAUDE_CONFIG_DIR` or `CODEX_HOME` when it runs under a named account).
+  Sessions copies no credential. The call counts against that account's usage.
+- **Isolation and retention:** a temporary working directory, no tools, no
+  MCP servers, no hooks or settings sources, and no saved provider session
+  (Claude `--no-session-persistence` with `--model haiku`; Codex `exec
+  --ephemeral` at low effort). Sessions keeps only the resulting title in the
+  session metadata.
+- **Timeout and retry:** 45 seconds per call, at most two calls at once, and
+  one attempt per session per daemon run. A failure is not retried and is
+  shown only as the session's `autoTitle` status. It never blocks, delays, or
+  messages the session.
+- **Disable:** `sessions titles off` or Settings → Name sessions
+  automatically. Off stops every automatic call; a name given at creation or
+  with `sessions rename` also stops titling for that session.
 
 ## GitHub pull request status
 

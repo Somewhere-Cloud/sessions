@@ -213,6 +213,25 @@ export async function updateIdleCompaction(enabled: boolean): Promise<IdleCompac
   return featureJSON<IdleCompactionStatus>(r, 'Idle compaction');
 }
 
+export interface AutoTitleSettings {
+  enabled: boolean;
+  available?: boolean;
+}
+
+export async function fetchAutoTitles(signal?: AbortSignal): Promise<AutoTitleSettings> {
+  const r = await apiFetch(`${httpBase()}/api/titles`, { signal });
+  return featureJSON<AutoTitleSettings>(r, 'Automatic titles');
+}
+
+export async function updateAutoTitles(enabled: boolean): Promise<AutoTitleSettings> {
+  const r = await apiFetch(`${httpBase()}/api/titles`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ enabled })
+  });
+  return featureJSON<AutoTitleSettings>(r, 'Automatic titles');
+}
+
 export async function fetchClaudeSettings(signal?: AbortSignal): Promise<ClaudeSettings> {
   const r = await apiFetch(`${httpBase()}/api/claude/settings`, { signal });
   return featureJSON<ClaudeSettings>(r, 'Claude defaults');

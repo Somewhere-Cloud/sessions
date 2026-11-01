@@ -123,7 +123,8 @@ fields. Optional fields are omitted when their value is `undefined`.
 | --- | --- | --- |
 | `id` | string | daemon-generated UUID |
 | `name` | string, optional | trimmed caller label |
-| `name_source` | `"launch" \| "provider" \| "explicit"`, optional | where the current `name` came from; anything but `explicit` keeps following the provider's conversation title, and absent means the same as `launch` |
+| `name_source` | `"launch" \| "provider" \| "explicit" \| "generated"`, optional | where the current `name` came from; anything but `explicit` keeps following the provider's conversation title, and absent means the same as `launch`. `generated` is a title Sessions generated after the first turn (see `GET /api/titles`) |
+| `autoTitle` | object, optional | the daemon's last automatic title attempt for this live session: `state` (`generating`, `generated`, `failed`), `provider`, `error` when it failed, and `at` (Unix ms). In memory only; absent when no attempt was made |
 | `cmd` | string | launched command |
 | `args` | string[] | effective arguments, including daemon-injected tool defaults |
 | `cwd` | string | working directory |
@@ -1596,9 +1597,14 @@ records `name_source: "explicit"`, which stops the daemon from following the
 provider's conversation title for that session.
 
 Body `{"auto":true}` reverses that and takes no name of its own: it records
-`name_source: "launch"`, adopts the provider's current conversation title
-immediately when there is one, and otherwise keeps the present name until the
-next title arrives. Success returns the resulting `{"name":"<title>"}`. A
+`name_source: "launch"` and adopts the provider's current conversation title
+immediately when there is one. Otherwise, for a live Claude or Codex session,
+it generates a title now through the same bounded call as automatic titles
+(even when `GET /api/titles` reports them off, because this is an explicit
+request) and waits up to 90 seconds for it. Success returns
+`{"name":"<title>","auto":true,"name_source":"...","autoTitle":{...}}`. A
+generation that fails still answers 200: the name stays as it was and
+`autoTitle.state` is `failed` with the reason in `autoTitle.error`. A
 runtime without it answers
 `501 {"error":"automatic session naming is not available on this runtime"}`.
 
@@ -1607,7 +1613,8 @@ later continuations. Until a session is renamed it follows the provider's own
 title automatically, so a Claude conversation is named whatever Claude calls it
 and keeps following later title changes; that is what makes a session findable
 in Sessions under the name every Claude surface shows. Codex writes no title
-into its rollout files, so a Codex session keeps the name it was created with.
+into its rollout files, so a Codex session keeps the name it was created with,
+or, if it was created without one, the title Sessions generates for it.
 Sessions never rewrites Claude or Codex private conversation files to imitate
 an unsupported provider rename API.
 
@@ -3418,6 +3425,30 @@ ledger.
 Accepts `{"enabled": true}` or `{"enabled": false}`, persists it as
 `idleCompaction.enabled` in `settings.json`, and returns the status above. A
 missing or non-boolean `enabled` returns 400.
+
+### `GET /api/titles`
+
+Returns `{"enabled":true,"available":true}`. `enabled` is the machine-wide
+automatic title switch, `titles.enabled` in `settings.json`; a missing section
+means on. `available` is false on a runtime that cannot store generated
+titles.
+
+When it is on, the daemon titles a live Claude or Codex session once, after
+its first turn that finishes with an answer or a question, if nobody named it
+at creation or since and the provider has not titled it. A Claude session
+first waits 20 seconds for Claude's own title. The call uses the session's own
+CLI and account through `agentcall` (`claude --model haiku -p ...`; Codex at
+its default model and low effort), sends the session's first request and the
+turn's final reply cut to 1,500 bytes each, and is bounded at 45 seconds with
+at most two calls in flight. Nothing is retried; the outcome is recorded only
+in the session's `autoTitle`. A generated title is stored with
+`name_source: "generated"`; a later provider title replaces it and a rename
+pins over it.
+
+### `PUT /api/titles`
+
+Accepts `{"enabled": true}` or `{"enabled": false}`, persists it, and returns
+the status above. A missing or non-boolean `enabled` returns 400.
 
 ### `PUT /api/idle-compaction/lanes/:id`
 

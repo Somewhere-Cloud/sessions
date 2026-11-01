@@ -173,10 +173,13 @@ type Manager struct {
 	// childReports receives each delegated lane's idle outcome; see
 	// child_report.go.
 	childReports atomic.Pointer[childReportHandler]
-	push         *PushService
-	guard        MassKillGuard
-	options      ManagerOptions
-	started      time.Time
+	// titleCandidates receives each completed turn for automatic titling;
+	// see title_candidate.go.
+	titleCandidates atomic.Pointer[titleCandidateHandler]
+	push            *PushService
+	guard           MassKillGuard
+	options         ManagerOptions
+	started         time.Time
 
 	boundaries   ledger.BoundaryWriter
 	observations ledger.ObservationWriter

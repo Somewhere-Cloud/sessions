@@ -157,7 +157,8 @@ export function sessionTitleFromPrompt(value: string): string {
 // name for the same session.
 //   1. Sessions' explicit durable name
 //   2. Claude's /rename title (imported when Sessions has no title)
-//   3. Claude's ai-title (auto-generated first-prompt summary)
+//   3. Claude's ai-title (auto-generated first-prompt summary), then a
+//      title Sessions generated after the first turn
 //   4. explicit durable description
 //   5. cwd basename — the project folder name, our traditional default
 //   6. cmd basename or short id as last resort
@@ -170,7 +171,7 @@ export function sessionLabel(session: SessionInfo): string {
   if (session.name_source === 'explicit' && name) return boundedTitle(name);
   if (session.claudeCustomTitle?.trim()) return boundedTitle(session.claudeCustomTitle);
   if (session.claudeAiTitle?.trim()) return boundedTitle(session.claudeAiTitle);
-  if (session.name_source === 'provider' && name) return boundedTitle(name);
+  if ((session.name_source === 'provider' || session.name_source === 'generated') && name) return boundedTitle(name);
   if (session.name_source === 'launch') {
     if (description) return sessionTitleFromPrompt(description);
     if (name) return sessionTitleFromPrompt(name);

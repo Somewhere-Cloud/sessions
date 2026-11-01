@@ -6,8 +6,17 @@ import (
 )
 
 type renameResponse struct {
-	Name string `json:"name"`
-	Auto bool   `json:"auto,omitempty"`
+	Name       string                 `json:"name"`
+	Auto       bool                   `json:"auto,omitempty"`
+	NameSource string                 `json:"name_source,omitempty"`
+	AutoTitle  *renameAutoTitleStatus `json:"autoTitle,omitempty"`
+}
+
+type renameAutoTitleStatus struct {
+	State    string `json:"state"`
+	Provider string `json:"provider,omitempty"`
+	Error    string `json:"error,omitempty"`
+	At       int64  `json:"at,omitempty"`
 }
 
 func (a *app) cmdRename(args []string) error {
@@ -30,7 +39,7 @@ func (a *app) cmdRename(args []string) error {
 	}
 	name := strings.TrimSpace(strings.Join(words, " "))
 	if auto && name != "" {
-		return fail(1, "--auto follows the provider's own title, so it cannot be combined with a name")
+		return fail(1, "--auto hands the name back to the provider's title or a generated one, so it cannot be combined with a name")
 	}
 	if !auto && name == "" {
 		return fail(1, "session name is required")
@@ -47,6 +56,11 @@ func (a *app) cmdRename(args []string) error {
 	if a.wantJSON {
 		return writeJSON(a.stdout, result, true)
 	}
-	_, err = fmt.Fprintln(a.stdout, result.Name)
+	if _, err = fmt.Fprintln(a.stdout, result.Name); err != nil {
+		return err
+	}
+	if result.AutoTitle != nil && result.AutoTitle.State == "failed" {
+		_, err = fmt.Fprintf(a.stderr, "No title was generated, so the name stays as shown: %s\n", result.AutoTitle.Error)
+	}
 	return err
 }

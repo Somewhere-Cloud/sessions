@@ -64,6 +64,13 @@ func Run(ctx context.Context, provider, purpose, prompt string) (string, error) 
 // RunInProfile uses a daemon-resolved provider home without changing global
 // credentials or the source agent. Callers must not accept arbitrary paths.
 func RunInProfile(ctx context.Context, provider, purpose, prompt, configDir string) (string, error) {
+	return RunInProfileWithModel(ctx, provider, purpose, prompt, configDir, "")
+}
+
+// RunInProfileWithModel is RunInProfile with a fixed model alias. Only a
+// caller that names a constant alias may use it -- automatic titles ask
+// Claude for "haiku" -- so a request can never choose the model.
+func RunInProfileWithModel(ctx context.Context, provider, purpose, prompt, configDir, model string) (string, error) {
 	ctx, cancel := boundedContext(ctx)
 	defer cancel()
 	executable, err := Executable(provider)
@@ -79,7 +86,7 @@ func RunInProfile(ctx context.Context, provider, purpose, prompt, configDir stri
 	}
 	defer os.RemoveAll(workingDirectory)
 
-	return runIsolated(ctx, provider, purpose, executable, Arguments(provider), workingDirectory, prompt, configDir)
+	return runIsolated(ctx, provider, purpose, executable, ArgumentsWithModel(provider, model), workingDirectory, prompt, configDir)
 }
 
 // boundedContext defends the daemon against a caller that never bounds its own
@@ -133,6 +140,20 @@ func runIsolated(ctx context.Context, provider, purpose, executable string, argu
 		detail = err.Error()
 	}
 	return "", fmt.Errorf("%s %s call failed: %s", provider, purpose, detail)
+}
+
+// ArgumentsWithModel adds a model alias in front of Arguments. An empty model
+// is Arguments unchanged.
+func ArgumentsWithModel(provider, model string) []string {
+	args := Arguments(provider)
+	if model == "" {
+		return args
+	}
+	flag := "--model"
+	if provider == ProviderCodex {
+		flag = "-m"
+	}
+	return append([]string{flag, model}, args...)
 }
 
 // Arguments are intentionally model-free. User CLI defaults decide the model.

@@ -101,7 +101,10 @@ describe('capability: create a session', () => {
 
     // The daemon really created it…
     await waitFor(() => expect(daemon.created).toHaveLength(1));
-    expect(daemon.created[0].name).toBe('Ship the release notes');
+    // It is sent unnamed, so Sessions may title it after the first turn; the
+    // request travels as the description the list label is shaped from.
+    expect(daemon.created[0].name).toBeUndefined();
+    expect(daemon.created[0].description).toBe('Ship the release notes');
 
     // …and the person can see it in their list.
     expect(await screen.findByText('Ship the release notes')).toBeInTheDocument();

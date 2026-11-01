@@ -290,6 +290,9 @@ type Settings struct {
 	// lanes before their prompt cache expires. Missing means on; per-lane
 	// choices live with the schedule in the state root.
 	IdleCompaction *IdleCompactionSettings `json:"idleCompaction,omitempty"`
+	// Titles is the machine-wide switch for automatic session titles.
+	// Missing means on.
+	Titles *TitleSettings `json:"titles,omitempty"`
 	// LimitRecovery is the machine-wide default for resuming a session when
 	// its provider usage limit resets. Missing means on; per-session choices
 	// live with the plans in the state root.
@@ -303,6 +306,17 @@ type LimitRecoverySettings struct {
 // LimitRecoveryEnabled reports the machine-wide default, on unless turned off.
 func (s Settings) LimitRecoveryEnabled() bool {
 	return s.LimitRecovery == nil || s.LimitRecovery.Enabled
+}
+
+// TitleSettings controls automatic session titles (internal/autotitle).
+type TitleSettings struct {
+	Enabled bool `json:"enabled"`
+}
+
+// TitlesEnabled reports whether Sessions titles unnamed sessions, on unless
+// turned off.
+func (s Settings) TitlesEnabled() bool {
+	return s.Titles == nil || s.Titles.Enabled
 }
 
 type IdleCompactionSettings struct {

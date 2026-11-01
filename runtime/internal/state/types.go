@@ -79,7 +79,25 @@ const (
 	NameSourceLaunch   = "launch"
 	NameSourceProvider = "provider"
 	NameSourceExplicit = "explicit"
+	// NameSourceGenerated is a short title Sessions wrote itself, once, from
+	// the first exchange of a session nobody named. It is the weakest claim
+	// on the card: the provider's own title replaces it and a rename pins
+	// over it. See internal/autotitle.
+	NameSourceGenerated = "generated"
 )
+
+// AutoTitleStatus reports the daemon's automatic title attempt for one
+// session. It is the only place a failure appears: generation never blocks or
+// interrupts the session, so an unavailable CLI or a timeout is recorded here
+// and nowhere else. It lives in memory only; a restarted daemon may try once
+// more after the session's next completed turn.
+type AutoTitleStatus struct {
+	// State is generating, generated, or failed.
+	State    string `json:"state"`
+	Provider string `json:"provider,omitempty"`
+	Error    string `json:"error,omitempty"`
+	At       int64  `json:"at"`
+}
 
 // WorkspaceGit is a bounded cached observation of the session cwd on this host.
 // Branch remains creation provenance; this observation never replaces it.
@@ -206,24 +224,27 @@ type SessionInfo struct {
 	// rebooted, seven sessions read that way and the daemon knew perfectly well
 	// that the machine had restarted under them. One of:
 	// "machine rebooted", "runner exited", "daemon lost contact".
-	LostReason             string `json:"lostReason,omitempty"`
-	LostAtMS               int64  `json:"lostAt,omitempty"`
-	ClaudeCustomTitle      string `json:"claudeCustomTitle,omitempty"`
-	ClaudeAITitle          string `json:"claudeAiTitle,omitempty"`
-	OnIdle                 string `json:"onIdle,omitempty"`
-	Model                  string `json:"model,omitempty"`
-	Effort                 string `json:"effort,omitempty"`
-	Fast                   bool   `json:"fast,omitempty"`
-	ConversationID         string `json:"conversationId,omitempty"`
-	RemoteEndpoint         string `json:"remoteEndpoint,omitempty"`
-	ClaudeSessionID        string `json:"claudeSessionId,omitempty"`
-	ContinuedFromHistoryID string `json:"continuedFromHistoryId,omitempty"`
-	ContinuedFromProvider  string `json:"continuedFromProvider,omitempty"`
-	ContinuationMode       string `json:"continuationMode,omitempty"`
-	ImportedMessageCount   int    `json:"importedMessageCount,omitempty"`
-	CreatorKind            string `json:"creator_kind,omitempty"`
-	CreatorID              string `json:"creator_id,omitempty"`
-	ParentSessionID        string `json:"parent_session_id,omitempty"`
+	LostReason        string `json:"lostReason,omitempty"`
+	LostAtMS          int64  `json:"lostAt,omitempty"`
+	ClaudeCustomTitle string `json:"claudeCustomTitle,omitempty"`
+	ClaudeAITitle     string `json:"claudeAiTitle,omitempty"`
+	// AutoTitle is the last automatic title attempt, absent when Sessions
+	// has not tried to title this session.
+	AutoTitle              *AutoTitleStatus `json:"autoTitle,omitempty"`
+	OnIdle                 string           `json:"onIdle,omitempty"`
+	Model                  string           `json:"model,omitempty"`
+	Effort                 string           `json:"effort,omitempty"`
+	Fast                   bool             `json:"fast,omitempty"`
+	ConversationID         string           `json:"conversationId,omitempty"`
+	RemoteEndpoint         string           `json:"remoteEndpoint,omitempty"`
+	ClaudeSessionID        string           `json:"claudeSessionId,omitempty"`
+	ContinuedFromHistoryID string           `json:"continuedFromHistoryId,omitempty"`
+	ContinuedFromProvider  string           `json:"continuedFromProvider,omitempty"`
+	ContinuationMode       string           `json:"continuationMode,omitempty"`
+	ImportedMessageCount   int              `json:"importedMessageCount,omitempty"`
+	CreatorKind            string           `json:"creator_kind,omitempty"`
+	CreatorID              string           `json:"creator_id,omitempty"`
+	ParentSessionID        string           `json:"parent_session_id,omitempty"`
 	// ReportsToParent means the daemon delivers this child's idle outcomes to
 	// ParentSessionID (`sessions new --report`).
 	ReportsToParent bool   `json:"reports_to_parent,omitempty"`

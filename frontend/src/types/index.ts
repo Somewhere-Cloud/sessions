@@ -115,12 +115,21 @@ export interface PendingApproval {
   at?: number;
 }
 
+export interface AutoTitleStatus {
+  state: 'generating' | 'generated' | 'failed';
+  provider?: string;
+  error?: string;
+  at: number;
+}
+
 export interface SessionInfo {
   workspaceGit?: { iconDataUrl?: string; state: 'branch' | 'detached' | 'unavailable' | 'not-repository'; branch?: string; revision?: string; observedAt: number };
   messageSubmit?: boolean;
   id: string;
   name?: string;
-  name_source?: 'launch' | 'provider' | 'explicit';
+  name_source?: 'launch' | 'provider' | 'explicit' | 'generated';
+  /** The daemon's last automatic title attempt; absent when it has not tried. */
+  autoTitle?: AutoTitleStatus;
   description?: string;
   tags?: Record<string, string>;
   kind?: string;

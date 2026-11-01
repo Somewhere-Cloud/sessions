@@ -47,6 +47,15 @@ try {
     id: '2', name: 'hey I want you to inspect this', name_source: 'launch',
     description: 'hey I want you to inspect this repository carefully'
   }), 'Inspect this repository carefully');
+  // An unnamed launch shows its request until Sessions generates a title,
+  // and the generated title then shows like any other name.
+  assert.equal(sessionLabel({
+    id: '2a', name_source: 'launch', description: 'can you fix the flaky login test'
+  }), 'Fix the flaky login test');
+  assert.equal(sessionLabel({
+    id: '2b', name: 'Flaky login test fix', name_source: 'generated',
+    description: 'can you fix the flaky login test'
+  }), 'Flaky login test fix');
   assert.equal(sessionLabel({
     id: '3', name: 'Fable — Sessions analysis',
     description: 'Independent product and lifecycle review for organizing stale windows'
