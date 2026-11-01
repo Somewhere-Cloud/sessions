@@ -514,6 +514,9 @@ func sessionStateAt(value session, now time.Time) string {
 	case "provider-unavailable":
 		return "provider-down"
 	case "rate-limited":
+		if recovery := value.LimitRecovery; recovery != nil && recovery.State == "scheduled" {
+			return "resumes " + time.UnixMilli(recovery.ResumeAt).Local().Format("15:04")
+		}
 		return "rate-limited"
 	case "auth":
 		return "auth-needed"

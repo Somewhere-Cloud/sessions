@@ -84,6 +84,7 @@ type Server struct {
 	teamChanges        teamChanges
 	storageScan        sync.Mutex
 	idleCompaction     *idleCompactionService
+	limitRecovery      *limitRecoveryService
 }
 
 func (s *Server) logLANFallbackOnce(fallbacks []fleetendpoint.Candidate) {
@@ -222,7 +223,7 @@ func NewWithUsage(config state.Config, registry sessionService, localUsage *usag
 		localUsage = usage.NewLocalService(config)
 	}
 	server.usage = localUsage
-	server.idleCompaction = newIdleCompaction(server, deliveryRoot)
+	server.idleCompaction, server.limitRecovery = newIdleCompaction(server, deliveryRoot), newLimitRecovery(server, deliveryRoot)
 	server.smartSearch = smartsearch.NewService()
 	server.lan = newLANListener(config, server, identity)
 	server.remote = newRemoteManager(config, server.lan.settingsPath)

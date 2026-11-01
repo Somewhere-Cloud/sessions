@@ -314,7 +314,8 @@ func pendingSessionInfo(id string, metadata state.RunnerMetadata, pending state.
 		ContinuedFromProvider:  metadata.ContinuedFromProvider,
 		ContinuationMode:       metadata.ContinuationMode, ImportedMessageCount: metadata.ImportedMessageCount,
 		DisplayParentSessionID: metadata.DisplayParentSessionID, SetAsideAt: metadata.SetAsideAt,
-		Pinned: metadata.Pinned, LastHumanMessageAt: metadata.LastHumanMessageAt,
+		SetAsideUntil: metadata.SetAsideUntil,
+		Pinned:        metadata.Pinned, LastHumanMessageAt: metadata.LastHumanMessageAt,
 		LastAgentMessageAt: metadata.LastAgentMessageAt, DelegationKind: metadata.DelegationKind,
 		Permissions: metadata.Permissions, Lifecycle: metadata.Lifecycle,
 	}

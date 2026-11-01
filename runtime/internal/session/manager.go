@@ -643,6 +643,12 @@ func (m *Manager) UpdateDisplayParent(id, parentID string) (string, error) {
 // use Archive instead; this keeps presentation organization orthogonal to
 // lifecycle and retention.
 func (m *Manager) UpdateSetAside(id string, setAside bool) (*int64, error) {
+	return m.UpdateSetAsideUntil(id, setAside, nil)
+}
+
+// UpdateSetAsideUntil sets a live session aside until a time at which the
+// daemon brings it back (see the set-aside wake in the API layer).
+func (m *Manager) UpdateSetAsideUntil(id string, setAside bool, until *int64) (*int64, error) {
 	var current *state.SessionInfo
 	for _, info := range m.List(true) {
 		if info.ID == id {
@@ -657,7 +663,7 @@ func (m *Manager) UpdateSetAside(id string, setAside bool) (*int64, error) {
 	if current.Exited {
 		return nil, fmt.Errorf("%w; use archive to hide an ended record", state.ErrSessionEnded)
 	}
-	return m.registry.UpdateSetAside(id, setAside)
+	return m.registry.UpdateSetAsideUntil(id, setAside, until)
 }
 
 // UpdatePinned records the user marking a session as a workbench: it sorts

@@ -1,4 +1,5 @@
 import type { SessionInfo } from '../types';
+import { resumesAfterLimit, returnTimeLabel } from './returnTime';
 
 // ───────────────────────────────────────────────────────────────────────────
 // The one session classifier.
@@ -36,6 +37,9 @@ import type { SessionInfo } from '../types';
 // 3. provider-down / auth-needed / failed — a provider turn fault. These are
 //    ranked with a crashed runtime because the current turn did not complete,
 //    but they keep their actionable cause and provider-specific wording.
+//    A usage limit Sessions will resume on its own is the exception: it is
+//    'resuming', a calm state that names the time, because nothing is asked
+//    of the person and the work continues by itself.
 //
 // 4. ended — session.exited. Exit is terminal and it outranks every live
 //    hint below, because `working` and `idleReason` describe a process that
@@ -87,6 +91,7 @@ export type SessionStatusState =
   | 'needs-recovery'
   | 'failed'
   | 'provider-down'
+  | 'resuming'
   | 'auth-needed'
   | 'ended'
   | 'needs-you'
@@ -128,6 +133,7 @@ const STATE_LABELS: Record<SessionStatusState, string> = {
   'needs-recovery': 'Paused after restart',
   failed: 'Failed',
   'provider-down': 'Provider unavailable',
+  resuming: 'Resumes after the limit',
   'auth-needed': 'Needs login',
   ended: 'Closed',
   'needs-you': 'Waiting for you',
@@ -144,6 +150,7 @@ const STATE_TONES: Record<SessionStatusState, SessionStatusTone> = {
   'needs-recovery': 'ended',
   failed: 'attention',
   'provider-down': 'attention',
+  resuming: 'ready',
   'auth-needed': 'needs',
   ended: 'ended',
   'needs-you': 'needs',
@@ -169,6 +176,7 @@ function statusState(session: SessionInfo, options: ClassifyOptions): SessionSta
   if (session.unreachable) return !session.runnerGone && session.pid && session.pid > 0 ? 'reconnecting' : 'unavailable';
   if (isCrashedSession(session)) return 'failed';
   if (session.failureKind === 'auth') return 'auth-needed';
+  if (!session.exited && resumesAfterLimit(session) !== null) return 'resuming';
   if (session.failureKind === 'provider-unavailable' || session.failureKind === 'rate-limited') return 'provider-down';
   if (session.failureKind === 'other') return 'failed';
   if (session.exited) return 'ended';
@@ -194,7 +202,8 @@ export function classifySession(session: SessionInfo, options: ClassifyOptions =
         : session.failureProvider === 'claude'
           ? 'Claude unavailable'
           : STATE_LABELS[state]
-    : state === 'not-started' && session.launching ? 'Starting' : STATE_LABELS[state];
+    : state === 'resuming' ? `Resumes ${returnTimeLabel(resumesAfterLimit(session) ?? 0)}`
+      : state === 'not-started' && session.launching ? 'Starting' : STATE_LABELS[state];
   return {
     state,
     label,

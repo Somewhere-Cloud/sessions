@@ -145,6 +145,9 @@ type Metadata struct {
 	ImportedMessageCount   int               `json:"importedMessageCount,omitempty"`
 	DisplayParentSessionID *string           `json:"display_parent_session_id,omitempty"`
 	SetAsideAt             *int64            `json:"set_aside_at,omitempty"`
+	// SetAsideUntil is when the daemon brings a set-aside session back. It is
+	// absent for an open-ended set-aside and always cleared with set_aside_at.
+	SetAsideUntil *int64 `json:"set_aside_until,omitempty"`
 	// Pinned is the user marking a workbench. It is omitted when false so an
 	// older runtime that never learned the field decodes the document
 	// unchanged and absence keeps meaning "not pinned", which is the same

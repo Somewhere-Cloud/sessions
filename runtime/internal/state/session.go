@@ -135,6 +135,7 @@ func newSession(ctx context.Context, info proto.RunnerInfo, runner proto.Runner,
 			ImportedMessageCount:   metadata.ImportedMessageCount,
 			DisplayParentSessionID: cloneStringPointer(metadata.DisplayParentSessionID),
 			SetAsideAt:             cloneInt64Pointer(metadata.SetAsideAt),
+			SetAsideUntil:          cloneInt64Pointer(metadata.SetAsideUntil),
 			Pinned:                 metadata.Pinned,
 			LastHumanMessageAt:     cloneInt64Pointer(metadata.LastHumanMessageAt),
 			LastAgentMessageAt:     cloneInt64Pointer(metadata.LastAgentMessageAt),
@@ -328,6 +329,11 @@ func (s *Session) Info() SessionInfo {
 	info.Tags = CloneTags(s.info.Tags)
 	info.DisplayParentSessionID = cloneStringPointer(s.info.DisplayParentSessionID)
 	info.SetAsideAt = cloneInt64Pointer(s.info.SetAsideAt)
+	info.SetAsideUntil = cloneInt64Pointer(s.info.SetAsideUntil)
+	if s.info.LimitRecovery != nil {
+		recovery := *s.info.LimitRecovery
+		info.LimitRecovery = &recovery
+	}
 	info.MemoryBytes = cloneUint64Pointer(s.info.MemoryBytes)
 	info.CPUPercent = cloneFloat64Pointer(s.info.CPUPercent)
 	info.ResourceProcesses = cloneIntPointer(s.info.ResourceProcesses)
@@ -400,10 +406,24 @@ func (s *Session) setDisplayParentSessionID(parentID string) {
 	s.info.DisplayParentSessionID = &parent
 }
 
-func (s *Session) setSetAsideAt(setAsideAt *int64) {
+func (s *Session) setSetAsideAt(setAsideAt, until *int64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.info.SetAsideAt = cloneInt64Pointer(setAsideAt)
+	s.info.SetAsideUntil = cloneInt64Pointer(until)
+}
+
+// SetLimitRecovery publishes the daemon's resume-after-limit plan for this
+// session; nil clears it.
+func (s *Session) SetLimitRecovery(value *LimitRecovery) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if value == nil {
+		s.info.LimitRecovery = nil
+		return
+	}
+	copy := *value
+	s.info.LimitRecovery = &copy
 }
 
 func (s *Session) setPinned(pinned bool) {

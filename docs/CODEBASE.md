@@ -445,6 +445,25 @@ delivered turn in event reads, and serves `GET/PUT /api/idle-compaction` for
 `sessions compaction` and the Settings card
 (`frontend/src/components/IdleCompactionCard.tsx`).
 
+### `limitrecovery`
+
+`limitrecovery` resumes a Claude or Codex session whose turn ended on a provider
+usage limit, a setting that is on by default. `ResetFromText` reads the reset
+time from the provider's own message and `ResetFromWindows` from an account
+usage reading (`runtime/internal/limitrecovery/reset.go`). The scheduler plans
+one resume per limit, persists it before acting, writes `sending` before
+delivery, rechecks account usage before sending, and cancels a plan a message,
+the setting, or the session's end overtook
+(`runtime/internal/limitrecovery/scheduler.go`,
+`runtime/internal/limitrecovery/store.go`).
+`runtime/internal/api/limit_recovery.go` supplies live sessions and the usage
+probe, sends `Continue where you left off.` as automation input, publishes each
+plan on `SessionInfo.limitRecovery`, and serves `GET/PUT /api/limit-recovery`
+for `sessions limits` and the Settings card
+(`frontend/src/components/LimitRecoveryCard.tsx`).
+`runtime/internal/api/set_aside.go` serves set-aside with a return time and
+brings a session back when that time passes.
+
 ### `codexapp`
 
 `codexapp` speaks the Codex app-server JSON-RPC contract and persists provider

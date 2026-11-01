@@ -487,12 +487,30 @@ export function installFakeDaemon(machines: FakeMachine[]): FakeDaemon {
       target.pinned = pinned;
       return jsonResponse({ pinned });
     }
+    if (path.startsWith('/api/limit-recovery/lanes/') && method === 'PUT') {
+      const id = decodeURIComponent(path.slice('/api/limit-recovery/lanes/'.length));
+      const lane = machine.sessions.find((candidate) => candidate.id === id);
+      if (!lane) return jsonResponse({ error: 'no live session ' + id }, 404);
+      const override = (body as { override?: unknown })?.override;
+      if (override === 'off' && lane.limitRecovery?.state === 'scheduled') {
+        lane.limitRecovery = { ...lane.limitRecovery, state: 'cancelled' };
+      }
+      return jsonResponse({ enabled: true, lanes: [{ id, override: override === 'default' ? null : override === 'on', enabled: override !== 'off' }] });
+    }
     if (sessionRoute && sessionTail === '/set-aside' && method === 'PUT') {
       if (!target) return jsonResponse({ error: 'session not found' }, 404);
       if (target.exited) return jsonResponse({ error: 'session ended; use archive to hide an ended record' }, 409);
-      const setAside = (body as { setAside?: unknown })?.setAside === true;
+      const request = body as { setAside?: unknown; until?: unknown; untilLimitReset?: unknown } | undefined;
+      const setAside = request?.setAside === true;
+      let until: number | null = null;
+      if (setAside && typeof request?.until === 'number') until = request.until;
+      if (setAside && request?.untilLimitReset === true) {
+        if (target.limitRecovery?.state !== 'scheduled') return jsonResponse({ error: 'no usage-limit resume is scheduled for this session' }, 409);
+        until = target.limitRecovery.resumeAt ?? null;
+      }
       target.setAsideAt = setAside ? NOW : null;
-      return jsonResponse({ setAsideAt: target.setAsideAt });
+      target.setAsideUntil = until;
+      return jsonResponse({ setAsideAt: target.setAsideAt, setAsideUntil: until });
     }
     if (sessionRoute && sessionTail === '/display-parent' && method === 'PUT') {
       const parent = String((body as { parentSessionId?: unknown })?.parentSessionId ?? '');

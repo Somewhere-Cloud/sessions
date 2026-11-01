@@ -131,10 +131,10 @@ var commandTable = []commandSpec{
 		examples: []string{"sessions auto-archive on", "sessions --json auto-archive status", "sessions auto-archive off"}, run: (*app).cmdAutoArchive,
 	},
 	{
-		name: "aside", usage: "aside <session> [session...] [--clear]",
-		summary: "set live sessions aside or bring them back", group: dailyCommandGroup, localJSON: true,
-		longHelp: "Set aside removes selected live sessions from the default native working set without ending them, suppressing attention, changing notifications, or hiding them from the CLI. --clear brings them back. Ended records use archive instead.",
-		examples: []string{"sessions aside 0123abcd", "sessions aside 0123abcd 89abcdef", "sessions aside 0123abcd --clear", "sessions --json aside 0123abcd"}, run: (*app).cmdAside,
+		name: "aside", usage: "aside <session> [session...] [--until 2h|18:00|tomorrow 09:00|reset] [--clear]",
+		summary: "set live sessions aside, optionally until a time, or bring them back", group: dailyCommandGroup, localJSON: true,
+		longHelp: "Set aside removes selected live sessions from the default native working set without ending them, suppressing attention, changing notifications, or hiding them from the CLI. --clear brings them back. Ended records use archive instead.\n\n--until snoozes: the daemon brings the session back at that time, and the time is saved with the session, so a return that falls due while Sessions is stopped happens when it starts. It accepts a duration (90m, 2h, 3d), a 24-hour clock time (18:00, the next one), a day with an optional clock time (tomorrow, tomorrow 09:00, mon 09:00, 2026-11-03 09:00; 09:00 when omitted), or an RFC 3339 time, read in this computer's time zone. --until reset brings a session stopped by a usage limit back when Sessions resumes it (see `sessions limits`). Sending the session a message brings it back sooner. --json items carry until in Unix milliseconds.",
+		examples: []string{"sessions aside 0123abcd", "sessions aside 0123abcd 89abcdef", "sessions aside 0123abcd --until 2h", "sessions aside 0123abcd --until tomorrow 09:00", "sessions aside 0123abcd --until reset", "sessions aside 0123abcd --clear", "sessions --json aside 0123abcd"}, run: (*app).cmdAside,
 	},
 	{
 		name: "pin", usage: "pin <session>",
@@ -460,6 +460,12 @@ var commandTable = []commandSpec{
 		summary: "manage same-network access", group: adminCommandGroup, localJSON: true,
 		longHelp: "Enable, disable, or inspect explicit HTTP access from other devices on the same Wi-Fi or Ethernet network. Enabling LAN access also advertises a low-sensitivity Bonjour record for native discovery. Protected routes still require a revocable device or daemon token. LAN HTTP traffic is unencrypted; use it only on a private network you trust.\n\nUnder --json, status always answers with {enabled, verified, url, bonjour} and adds verificationError when a configured listener did not verify — an unreachable or stale listener is reported as enabled with verified:false rather than as a bare error, matching `remote status`. Without --json that same state is a diagnostic on stderr and exit 2.",
 		examples: []string{"sessions lan enable", "sessions lan status", "sessions lan disable"}, run: (*app).cmdLan,
+	},
+	{
+		name: "limits", usage: "limits [status|on|off|default] [--lane SESSION]",
+		summary: "resume sessions when their provider usage limit resets", group: adminCommandGroup, localJSON: true,
+		longHelp: "Inspect or change limit recovery, which is on by default. When a Claude or Codex session's turn ends on a provider usage or rate limit and the automatic outage retries are done, Sessions plans a resume and, when the limit resets, sends \"Continue where you left off.\" through the normal send path. The reset time comes from the provider's own message, then from the account's usage reading (`sessions accounts usage`); when neither says, Sessions tries again after 30 minutes, waiting 30 minutes longer each time, and rechecks the account's usage before every send so it never spends a turn while the account is still at its limit. Each limit is resumed at most once, and after 6 automatic resumes in a row Sessions stops and waits for you. Sending the session anything, turning the setting off, or the session ending cancels the plan. The resume appears in the conversation attributed to Limit recovery, not to you. Plans are saved, so a daemon restart neither loses nor repeats one. `sessions ls` shows a waiting session as resumes HH:MM, and `sessions --json status ID` carries limitRecovery. on and off change the machine default; with --lane they set that session's own choice, and default returns it to the machine default.",
+		examples: []string{"sessions limits", "sessions limits off", "sessions limits off --lane 1a2b3c4d", "sessions limits default --lane 1a2b3c4d", "sessions --json limits status"}, run: (*app).cmdLimits,
 	},
 	{
 		name: "compaction", usage: "compaction [status|on|off|default] [--lane SESSION]",

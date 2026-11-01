@@ -162,34 +162,49 @@ func (s *Server) deliverIdleCompaction(ctx context.Context, candidate compaction
 }
 
 func (s *Server) submitIdleCompaction(ctx context.Context, id, operationID string) compaction.Delivery {
-	service, ok := s.registry.(messageSubmitService)
-	if !ok {
-		return compaction.Delivery{State: compaction.StateFailed, Detail: "acknowledged message control is unavailable; nothing was sent"}
-	}
-	control := proto.MessageControl{OperationID: operationID, Text: compaction.CommandText}
-	result, err := service.SubmitMessage(ctx, id, control, state.InputAttribution{Automation: idleCompactionAutomation})
-	switch {
-	case err != nil:
-		return compaction.Delivery{State: compaction.StateUnconfirmed, Detail: "runner did not confirm /compact: " + err.Error() + "; inspect the conversation"}
-	case result.Boundary == "unknown":
-		return compaction.Delivery{State: compaction.StateUnconfirmed, Detail: "runner could not confirm /compact; inspect the conversation"}
-	case result.Accepted:
-		return compaction.Delivery{State: compaction.StateSent, Detail: "accepted by the runner (" + result.Boundary + ")"}
-	}
-	return compaction.Delivery{State: compaction.StateFailed, Detail: "runner refused /compact: " + result.Error}
+	outcome, detail := s.submitAutomationText(ctx, id, operationID, compaction.CommandText, idleCompactionAutomation)
+	return compaction.Delivery{State: outcome, Detail: detail}
 }
 
 func (s *Server) pasteIdleCompaction(ctx context.Context, id string) compaction.Delivery {
-	status, delivered, reason := s.deliverLegacyProvider(ctx, id, compaction.CommandText, state.InputAttribution{Automation: idleCompactionAutomation})
+	// Claude Code records a slash command in its own shape, which the
+	// generic message confirmation does not read; the observation in
+	// deliverIdleCompaction does.
+	outcome, detail := s.pasteAutomationText(ctx, id, compaction.CommandText, idleCompactionAutomation)
+	return compaction.Delivery{State: outcome, Detail: detail}
+}
+
+// submitAutomationText sends text a daemon-owned sender chose through the
+// acknowledged message path, attributed to automation. It reports sent,
+// unconfirmed, or failed (the compaction and limit recovery state names).
+func (s *Server) submitAutomationText(ctx context.Context, id, operationID, text, automation string) (string, string) {
+	service, ok := s.registry.(messageSubmitService)
+	if !ok {
+		return compaction.StateFailed, "acknowledged message control is unavailable; nothing was sent"
+	}
+	control := proto.MessageControl{OperationID: operationID, Text: text}
+	result, err := service.SubmitMessage(ctx, id, control, state.InputAttribution{Automation: automation})
+	switch {
+	case err != nil:
+		return compaction.StateUnconfirmed, "runner did not confirm " + text + ": " + err.Error() + "; inspect the conversation"
+	case result.Boundary == "unknown":
+		return compaction.StateUnconfirmed, "runner could not confirm " + text + "; inspect the conversation"
+	case result.Accepted:
+		return compaction.StateSent, "accepted by the runner (" + result.Boundary + ")"
+	}
+	return compaction.StateFailed, "runner refused " + text + ": " + result.Error
+}
+
+// pasteAutomationText types text into a terminal lane as automation input.
+func (s *Server) pasteAutomationText(ctx context.Context, id, text, automation string) (string, string) {
+	status, delivered, reason := s.deliverLegacyProvider(ctx, id, text, state.InputAttribution{Automation: automation})
 	switch {
 	case delivered:
-		return compaction.Delivery{State: compaction.StateSent, Detail: reason}
+		return compaction.StateSent, reason
 	case status == delivery.StatusNotDelivered:
-		return compaction.Delivery{State: compaction.StateFailed, Detail: reason}
+		return compaction.StateFailed, reason
 	}
-	// Claude Code records a slash command in its own shape, which the
-	// generic message confirmation does not read; the observation below does.
-	return compaction.Delivery{State: compaction.StateUnconfirmed, Detail: reason}
+	return compaction.StateUnconfirmed, reason
 }
 
 // observeIdleCompaction waits for the provider's own record of the command,

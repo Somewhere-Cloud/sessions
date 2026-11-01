@@ -294,7 +294,7 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 	if s.handleAutoArchiveRoute(response, request, corsOrigin) {
 		return
 	}
-	if s.handleIdleCompactionRoute(response, request, corsOrigin) {
+	if s.handleIdleCompactionRoute(response, request, corsOrigin) || s.handleLimitRecoveryRoute(response, request, corsOrigin) {
 		return
 	}
 	if s.handleClaudeSettingsRoute(response, request, corsOrigin) {
@@ -697,33 +697,7 @@ func (s *Server) handleSessionRoute(response http.ResponseWriter, request *http.
 		return
 	}
 	if suffix == "/set-aside" && request.Method == http.MethodPut {
-		var body struct {
-			SetAside bool `json:"setAside"`
-		}
-		if err := readJSON(request, &body); err != nil {
-			s.sendJSON(response, http.StatusBadRequest, map[string]any{"error": err.Error()}, corsOrigin)
-			return
-		}
-		workingSet, supported := s.registry.(interface {
-			UpdateSetAside(string, bool) (*int64, error)
-		})
-		if !supported {
-			s.sendJSON(response, http.StatusNotImplemented, map[string]any{"error": "session working-set organization is not available on this runtime"}, corsOrigin)
-			return
-		}
-		setAsideAt, err := workingSet.UpdateSetAside(id, body.SetAside)
-		if err != nil {
-			status := http.StatusBadRequest
-			switch {
-			case errors.Is(err, state.ErrSessionNotFound):
-				status = http.StatusNotFound
-			case errors.Is(err, state.ErrSessionEnded):
-				status = http.StatusConflict
-			}
-			s.sendJSON(response, status, map[string]any{"error": err.Error()}, corsOrigin)
-			return
-		}
-		s.sendJSON(response, http.StatusOK, map[string]any{"setAsideAt": setAsideAt}, corsOrigin)
+		s.handleSetAside(response, request, id, corsOrigin)
 		return
 	}
 	if suffix == "/name" && request.Method == http.MethodPut {
