@@ -43,7 +43,7 @@ Daily workflows:
   accounts                 list and add second Claude or ChatGPT accounts
   onboarding               inspect user consent and delegated access
   defaults                 inspect or change new-session defaults
-  providers                inspect or update agent CLIs
+  providers                inspect or update agent CLIs on every computer
   run                      run a command in a headless lane
   tags                     view or edit session tags
   rename                   rename a session everywhere in Sessions
@@ -296,16 +296,22 @@ Examples:
 
 ```text
 Usage:
-  sessions providers [update claude|codex [--all]]
+  sessions providers [--all] | providers update [claude|codex] [--all] | providers check [on|off]
 
-inspect or update agent CLIs
+inspect or update agent CLIs on every computer
 
-Show the locally installed Claude Code and Codex versions using only local provider metadata. `providers update` explicitly invokes that provider's own updater; it may access the internet and change the provider executable. Existing sessions keep their running process, while new sessions use the updated binary. `providers update codex --all` updates this computer and every saved paired computer, at most two at a time. Each machine has its own result; one unavailable or unauthorized host does not hide successful updates elsewhere. JSON reports complete and results, and any unconfirmed machine makes the command exit 2. A lost answer is unknown, not proof that installation failed; check that computer's installed version before trying again. --all cannot be combined with a selected --machine, --host or --port.
+Show the installed Claude Code and Codex versions, whether a newer version exists, and how many sessions are running on each. The installed version comes from the provider's own `--version`; the latest version is the newer of the provider's own local record and the public registry.npmjs.org `latest` record for @anthropic-ai/claude-code and @openai/codex. That registry read is an anonymous GET with no Sessions or machine identity, cached for an hour (ten minutes after a failure), and happens only when a client asks for provider status. `providers check off` turns it off for this computer, `providers check on` turns it back on, and `providers check` shows the choice. `--all` shows every saved paired computer as well, with an outdated count; an unreachable computer is listed with its reason.
+
+`providers update claude|codex` explicitly invokes that provider's own updater; it may access the internet and change the provider executable. `providers update` with no provider updates only the providers that report a newer version and leaves current ones alone. Running sessions keep the process they started with until they end; new sessions use the updated binary, and the result names how many running sessions stay on the old version. `--all` does the same on this computer and every saved paired computer, at most two at a time. Each computer has its own result (updated, current, or unknown); one unavailable or unauthorized host does not hide successful updates elsewhere. JSON reports complete and results, and any unconfirmed computer makes the command exit 2. A lost answer is unknown, not proof that installation failed; check that computer's installed version before trying again. --all cannot be combined with a selected --machine, --host or --port.
 
 Examples:
   sessions providers
+  sessions providers --all
+  sessions providers update
+  sessions providers update --all
   sessions providers update codex
-  sessions --json providers
+  sessions providers check off
+  sessions --json providers --all
 
 --json may appear before the command or among its options. --machine, --direct, --host, and --port must appear before the command. Arguments after `sessions run --` always belong to the child command.
 ```

@@ -150,9 +150,15 @@ Windows releases require a current-user installer, Authenticode, the pinned
 updater signature, manifest verification, and the hardware matrix in
 [`WINDOWS_TEST.md`](WINDOWS_TEST.md).
 
-The viewer checks for updates in the background but installation remains an
-explicit user or authorized local-agent action. Update checks do not send
-session content.
+The viewer checks the signed feed 15 seconds after launch, then hourly and when
+the window regains focus after an hour. When a newer version exists it
+downloads and verifies the signed update in the background; nothing on disk
+changes. The sidebar then shows **Update ready — Restart**. Installation remains
+an explicit user or authorized local-agent action (`sessions update`): Restart
+replaces the app and relaunches only the window, and the daemon and every
+runner keep running. A failed automatic check stays silent; a failed download
+or install is reported with a retry. Update checks do not send session
+content (`frontend/src/lib/appUpdate.ts`).
 
 ## Login and crash recovery
 

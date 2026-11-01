@@ -290,6 +290,19 @@ type Settings struct {
 	// lanes before their prompt cache expires. Missing means on; per-lane
 	// choices live with the schedule in the state root.
 	IdleCompaction *IdleCompactionSettings `json:"idleCompaction,omitempty"`
+	// ProviderUpdateCheck controls the public package-registry lookup that
+	// tells a client a newer Claude Code or Codex exists. Missing means on.
+	ProviderUpdateCheck *ProviderUpdateCheckSettings `json:"providerUpdateCheck,omitempty"`
+}
+
+type ProviderUpdateCheckSettings struct {
+	Enabled bool `json:"enabled"`
+}
+
+// ProviderUpdateCheckEnabled reports whether provider status may read the
+// public registry's latest version; on unless the user turned it off.
+func (s Settings) ProviderUpdateCheckEnabled() bool {
+	return s.ProviderUpdateCheck == nil || s.ProviderUpdateCheck.Enabled
 }
 
 type IdleCompactionSettings struct {

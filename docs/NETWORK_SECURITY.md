@@ -457,7 +457,11 @@ GET with a non-identifying updater user agent to the fixed public release route:
 `sessions.somewhere.tech` redirects to the allowlisted deployed host
 `sessions.somewhere.site`. They send no token, cookie, account credential,
 machine ID, session ID, usage, transcript, prompt, terminal content, or
-telemetry. Installation is explicit.
+telemetry. The app checks 15 seconds after launch and then at most hourly.
+When a newer version is announced it downloads that release's signed artifact
+in the background, with the same anonymous request shape, and verifies it
+against the pinned updater key; nothing is installed until the person chooses
+Restart or runs `sessions update`. Installation is explicit.
 
 `sessions update` then accepts only the exact immutable GitHub release path for
 the announced version; GitHub's asset redirect is restricted to
@@ -472,13 +476,33 @@ validation and the artifact signature remain mandatory.
 ## Claude and Codex version controls
 
 Sessions checks the installed Claude Code and Codex versions by resolving the
-local executables and running their local `--version` commands. Codex update
-awareness additionally reads its bounded local version cache. The automatic
-check does not call a package registry, provider API, or Somewhere service
-(`runtime/internal/api/providers_handlers.go`).
+local executables and running their local `--version` commands, and reads the
+providers' own bounded local version records (Codex's version cache, Claude's
+last update result).
 
-Installing a provider update is a separate explicit action in Settings or
-`sessions providers update claude|codex`. That action invokes only the
+To tell you a newer version exists, the daemon also reads one public release
+record per installed provider: an HTTPS GET to the fixed
+`https://registry.npmjs.org/@anthropic-ai%2Fclaude-code/latest` or
+`https://registry.npmjs.org/@openai%2Fcodex/latest`.
+
+- Trigger: only while answering a provider-status request from an
+  authenticated client (`sessions providers`, Settings, or the sidebar's
+  hourly refresh). sessionsd has no timer of its own for it, and a provider
+  that is not installed is never looked up.
+- Payload: no body, query, cookie, credential, token, machine or session ID;
+  the user agent is the fixed `Sessions-update-check`. Redirects are not
+  followed. The response is capped at 64 KiB and only its `version` is kept.
+- Cache and retry: an answer is kept in memory for an hour, a failure for ten
+  minutes; a timeout is four seconds. A failure is silent and never marks a
+  provider outdated.
+- Opt-out: `sessions providers check off` or Settings › Notifications &
+  updates › **Check for newer versions**, per computer, stored in daemon
+  settings. Off means only the local records above are consulted
+  (`runtime/internal/api/provider_latest.go`).
+
+Installing a provider update is a separate explicit action in Settings, the
+sidebar, or `sessions providers update [claude|codex] [--all]`; Sessions never
+installs a provider update on its own. That action invokes only the
 resolved provider executable with its own fixed `update` subcommand, so the
 provider updater may access the internet and replace that provider's local
 binary. The mutating endpoint accepts a loopback client, the master token, or
@@ -486,7 +510,8 @@ an explicitly paired device; anonymous open-access clients may inspect status
 but cannot trigger installation. Remote clients name the destination machine
 before invoking the action. Sessions accepts no provider path, URL, package,
 or shell fragment from the caller. Already-running provider processes continue
-unchanged; sessions created later resolve the updated executable
+unchanged and the result says how many are still running on the previous
+version; sessions created later resolve the updated executable
 (`runtime/internal/api/providers_handlers.go`,
 `runtime/cmd/sessions/providers.go`).
 
