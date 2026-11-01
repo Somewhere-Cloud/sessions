@@ -421,6 +421,8 @@ export function installFakeDaemon(machines: FakeMachine[]): FakeDaemon {
       return jsonResponse({ machineId: machine.machineId ?? machine.id, name: machine.name });
     }
     if (path === '/api/lan') return jsonResponse({ enabled: false, url: null });
+    // The navigator's Automations section reads this; the fake holds none.
+    if (path === '/api/automations' && method === 'GET') return jsonResponse({ automations: [], runs: { total: 0, skipped: 0, running: 0, needsInput: 0, recentFailed: 0 } });
     if (path === '/api/lanes/mine' && machine.teamFailure) {
       return jsonResponse({ error: machine.teamFailure.message }, machine.teamFailure.status);
     }

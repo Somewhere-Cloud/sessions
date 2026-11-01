@@ -152,7 +152,7 @@ export function SessionDetails({ session, allSessions, onEnd, onResume }: Props)
         <DetailsCard title="Relationships">
           <Row label="Parent" value={parent ? resolvedSessionLabel(parent) : 'Top-level session'}/>
           <Row label="Children" value={`${children.filter((child) => !child.exited).length} running · ${children.filter((child) => child.exited).length} ended`}/>
-          <Row label="Created by" value={session.creatorKind === 'session' ? 'Another session' : session.creatorKind === 'external' ? 'An outside agent or CLI' : 'You'}/>
+          <Row label="Created by" value={session.creatorKind === 'session' ? 'Another session' : session.creatorKind === 'external' ? (session.creatorId?.startsWith('automation:') ? 'An automation' : 'An outside agent or CLI') : 'You'}/>
           {session.resumedFrom ? <Row label="Continued from" value={`Session ${session.resumedFrom.slice(0, 8)}`} /> : null}
           {session.reopenedAs ? <Row label="Continued as" value={`Session ${session.reopenedAs.slice(0, 8)}`} /> : null}
           {session.movedFromSessionId ? <Row label="Continued from machine" value={`${session.movedFromEndpoint || 'Another machine'} · ${session.movedFromSessionId.slice(0, 8)}`} /> : null}

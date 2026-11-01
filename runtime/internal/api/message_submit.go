@@ -40,6 +40,17 @@ func (s *Server) handleSubmitControl(response http.ResponseWriter, request *http
 }
 
 func (s *Server) submitStructuredMessage(response http.ResponseWriter, request *http.Request, id, data, operationID, mode, corsOrigin string, attribution state.InputAttribution) {
+	record, err := s.completeStructuredMessage(request.Context(), id, data, operationID, mode, attribution)
+	if err != nil {
+		s.sendJSON(response, http.StatusInternalServerError, map[string]any{"error": "could not record message outcome; do not automatically resend: " + err.Error(), "operation_id": operationID}, corsOrigin)
+		return
+	}
+	s.sendDeliveryRecord(response, record, false, corsOrigin)
+}
+
+// completeStructuredMessage submits one acknowledged message whose delivery
+// receipt has already begun, and records its outcome on that receipt.
+func (s *Server) completeStructuredMessage(ctx context.Context, id, data, operationID, mode string, attribution state.InputAttribution) (delivery.Record, error) {
 	service, ok := s.registry.(messageSubmitService)
 	control := proto.MessageControl{OperationID: operationID, Text: composerMessageText(data), Mode: mode}
 	status, delivered, retry, reason, acceptance := delivery.StatusNotDelivered, false, true, "", ""
@@ -48,7 +59,7 @@ func (s *Server) submitStructuredMessage(response http.ResponseWriter, request *
 	} else if !ok {
 		reason = "acknowledged message control is unavailable"
 	} else {
-		result, err := service.SubmitMessage(request.Context(), id, control, attribution)
+		result, err := service.SubmitMessage(ctx, id, control, attribution)
 		reason, acceptance = result.Error, result.Boundary
 		if err != nil || result.Boundary == "unknown" {
 			status, retry = delivery.StatusUnknown, false
@@ -59,12 +70,7 @@ func (s *Server) submitStructuredMessage(response http.ResponseWriter, request *
 			status, delivered, retry = delivery.StatusAccepted, true, false
 		}
 	}
-	record, err := s.deliveries.Complete(operationID, status, delivered, retry, reason, acceptance)
-	if err != nil {
-		s.sendJSON(response, http.StatusInternalServerError, map[string]any{"error": "could not record message outcome; do not automatically resend: " + err.Error(), "operation_id": operationID}, corsOrigin)
-		return
-	}
-	s.sendDeliveryRecord(response, record, false, corsOrigin)
+	return s.deliveries.Complete(operationID, status, delivered, retry, reason, acceptance)
 }
 
 func composerMessageText(data string) string {

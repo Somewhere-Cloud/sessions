@@ -212,6 +212,7 @@ func startAutomaticServices(handler *api.Server, remotePreview bool) func() {
 	handler.StartAutoArchive(accountContext, log.Printf)
 	handler.StartPullRequestWatch(accountContext, log.Printf)
 	handler.StartWorktreeAutoClean(accountContext, log.Printf)
+	handler.StartAutomations(accountContext, log.Printf)
 	return func() {
 		stopAccount()
 		stopRemote()

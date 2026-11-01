@@ -298,6 +298,9 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleTitlesRoute(response, request, corsOrigin) {
 		return
 	}
+	if s.handleAutomationsRoute(response, request, corsOrigin) {
+		return
+	}
 	if s.handleClaudeSettingsRoute(response, request, corsOrigin) {
 		return
 	}

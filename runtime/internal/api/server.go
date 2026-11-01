@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/somewhere-tech/sessions/runtime/internal/automation"
 	"github.com/somewhere-tech/sessions/runtime/internal/autotitle"
 	"github.com/somewhere-tech/sessions/runtime/internal/backup"
 	"github.com/somewhere-tech/sessions/runtime/internal/codexapp"
@@ -89,6 +90,7 @@ type Server struct {
 	idleCompaction     *idleCompactionService
 	limitRecovery      *limitRecoveryService
 	autoTitles         *autotitle.Service
+	automations        *automation.Scheduler
 }
 
 func (s *Server) logLANFallbackOnce(fallbacks []fleetendpoint.Candidate) {
@@ -227,7 +229,7 @@ func NewWithUsage(config state.Config, registry sessionService, localUsage *usag
 		localUsage = usage.NewLocalService(config)
 	}
 	server.usage = localUsage
-	server.idleCompaction, server.limitRecovery = newIdleCompaction(server, deliveryRoot), newLimitRecovery(server, deliveryRoot)
+	server.initScheduledWork(deliveryRoot)
 	server.smartSearch, server.autoTitles = smartsearch.NewService(), newAutoTitles(server)
 	server.lan = newLANListener(config, server, identity)
 	server.remote = newRemoteManager(config, server.lan.settingsPath)

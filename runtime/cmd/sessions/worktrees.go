@@ -8,21 +8,21 @@ import (
 const worktreesUsage = "usage: sessions worktrees [--all | clean [--dry-run] | auto [status|on|off]]"
 
 type worktreeStatus struct {
-	SessionID       string `json:"session"`
-	SessionName     string `json:"session_name,omitempty"`
-	WorktreePath    string `json:"worktree_path"`
-	Branch          string `json:"branch"`
-	Base            string `json:"base"`
-	SourceRepo      string `json:"source_repo"`
-	TreeState       string `json:"tree_state"`
-	Dirty           bool   `json:"dirty"`
-	MergedIntoBase  bool   `json:"merged_into_base"`
-	SessionState    string `json:"session_state"`
-	InspectionError string `json:"inspection_error,omitempty"`
-	Exists          bool   `json:"exists"`
-	Cleaned         bool   `json:"cleaned"`
-	CleanedAtMS     int64  `json:"cleaned_at,omitempty"`
-	BranchRemoved   bool   `json:"branch_removed"`
+	SessionID         string `json:"session"`
+	SessionName       string `json:"session_name,omitempty"`
+	WorktreePath      string `json:"worktree_path"`
+	Branch            string `json:"branch"`
+	Base              string `json:"base"`
+	SourceRepo        string `json:"source_repo"`
+	TreeState         string `json:"tree_state"`
+	Dirty             bool   `json:"dirty"`
+	MergedIntoBase    bool   `json:"merged_into_base"`
+	SessionState      string `json:"session_state"`
+	InspectionError   string `json:"inspection_error,omitempty"`
+	Exists            bool   `json:"exists"`
+	Cleaned           bool   `json:"cleaned"`
+	CleanedAtMS       int64  `json:"cleaned_at,omitempty"`
+	BranchRemoved     bool   `json:"branch_removed"`
 	MergedVia         string `json:"merged_via,omitempty"`
 	MergedPullRequest string `json:"merged_pull_request,omitempty"`
 }

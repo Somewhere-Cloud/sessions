@@ -15,7 +15,9 @@ type settlePolicyService struct {
 	writes []string
 }
 
-func (s *settlePolicyService) List(bool) []state.SessionInfo { return append([]state.SessionInfo(nil), s.infos...) }
+func (s *settlePolicyService) List(bool) []state.SessionInfo {
+	return append([]state.SessionInfo(nil), s.infos...)
+}
 func (s *settlePolicyService) Get(string) (*state.Session, bool) { return nil, false }
 func (s *settlePolicyService) IsDiscovering() bool               { return false }
 func (s *settlePolicyService) UpdateSetAside(id string, aside bool) (*int64, error) {
@@ -45,7 +47,11 @@ func TestMergedPullRequestSettlesAQuietSessionOnceAndRespectsRestore(t *testing.
 		mergedInfo("working", "merged", true),
 		stateInfo("closed", "closed", false),
 		stateInfo("open", "open", false),
-		func() state.SessionInfo { info := mergedInfo("pinned", "merged", true); info.Pinned = true; return info }(),
+		func() state.SessionInfo {
+			info := mergedInfo("pinned", "merged", true)
+			info.Pinned = true
+			return info
+		}(),
 		func() state.SessionInfo { info := mergedInfo("ended", "merged", true); info.Exited = true; return info }(),
 	}}
 	service.infos[0].Working = true

@@ -1,6 +1,7 @@
 # Exact direct product-package imports, generated from darwin, linux, and
 # windows `go list -deps` output. Unlisted Go product edges are forbidden.
 cmd/sessions internal/ansi
+cmd/sessions internal/automation
 cmd/sessions internal/backup
 cmd/sessions internal/codexapp
 cmd/sessions internal/cpuprofile
@@ -48,6 +49,7 @@ cmd/sessionsd internal/state
 cmd/sessionsd internal/usage
 cmd/sessionsd internal/winprocess
 internal/api internal/agentcall
+internal/api internal/automation
 internal/api internal/autotitle
 internal/api internal/background
 internal/api internal/backup

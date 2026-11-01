@@ -98,6 +98,7 @@ Daily workflows:
   adopt                    bind an existing conversation into Sessions
   resume (continue, resurrect) resume one saved conversation
   fork                     copy a live conversation without stopping it
+  automations (automation) run an agent on a schedule
 
 Models and interactive:
   model                    set the next-turn model for a Rich session
@@ -1733,6 +1734,28 @@ Examples:
   sessions limits off --lane 1a2b3c4d
   sessions limits default --lane 1a2b3c4d
   sessions --json limits status
+
+--json may appear before the command or among its options. --machine, --direct, --host, and --port must appear before the command. Arguments after `sessions run --` always belong to the child command.
+```
+
+## `sessions automations`
+
+```text
+Usage:
+  sessions automations [list|add NAME|edit AUTOMATION|run AUTOMATION|on AUTOMATION|off AUTOMATION|remove AUTOMATION|runs [AUTOMATION]]
+
+run an agent on a schedule
+
+Automations are scheduled agents. Each run starts a fresh structured Claude or Codex session in the automation's project folder on this computer, sends the automation's prompt as its first request, and tags the session automation=<id> so its runs group together; the session is created through the same recorded path as `sessions new`. A schedule is every N minutes (5 minutes to 7 days; --every 30m, 2h, 1h30m) or daily at a local time (--daily 09:00). Runs of one automation never overlap: a run that comes due while the previous one is still working or waiting for you is recorded as skipped. The run and the next due time are saved before a session is created, so a daemon restart never fires the same slot twice and never starts an interrupted run again; a run interrupted mid-start is matched to the session it created or recorded as unknown. A computer that was asleep runs a missed slot once when it wakes. Resuming a paused automation does not run missed slots. add needs a name, --prompt and a schedule; --cwd defaults to the current folder, --tool to claude, and --access to full (ask and plan are the launcher's other choices); --model, --effort and --account are optional, and --paused saves it without scheduling it. edit changes only the flags given. run starts one now, outside the schedule. on and off resume and pause. remove deletes the automation and its history and keeps its sessions. runs lists previous agents newest first with their outcome (running, needs-input, succeeded, failed, skipped, or unknown) and session.
+
+Examples:
+  sessions automations
+  sessions automations add "Nightly triage" --prompt "Triage new issues and summarize" --daily 02:00 --cwd ~/code/app
+  sessions automations add Deps --prompt "Check for outdated dependencies" --every 2h --tool codex --access plan
+  sessions automations edit 1a2b --every 90m
+  sessions automations run "Nightly triage"
+  sessions automations off 1a2b
+  sessions --json automations runs 1a2b --limit 20
 
 --json may appear before the command or among its options. --machine, --direct, --host, and --port must appear before the command. Arguments after `sessions run --` always belong to the child command.
 ```

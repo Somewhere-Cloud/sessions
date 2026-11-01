@@ -3616,6 +3616,82 @@ Accepts `{"override": "on" | "off" | "default"}` for a live Claude or Codex
 session and returns the status above. `default` removes the session's choice.
 A session the daemon does not hold returns 404; any other session returns 400.
 
+### `GET /api/automations`
+
+Automations are scheduled agents owned by this daemon. Returns every
+automation, oldest first, with its latest run and run counts, plus counts
+across all automations:
+
+```json
+{"automations":[{"id":"1a2b3c4d","name":"Nightly triage","prompt":"…","cwd":"/abs/project",
+  "agent":"claude","model":"","effort":"","access":"full","profile":"",
+  "schedule":{"kind":"interval","everyMinutes":120},"enabled":true,
+  "createdAtMs":0,"updatedAtMs":0,"nextRunAtMs":0,
+  "lastRun":{"id":"…","automationId":"1a2b3c4d","automationName":"Nightly triage",
+    "trigger":"schedule","outcome":"running","detail":"","sessionId":"<id>",
+    "operationId":"<uuid>","promptOperationId":"<uuid>","startedAtMs":0,"finishedAtMs":0,"updatedAtMs":0},
+  "runs":{"total":0,"skipped":0,"running":0,"needsInput":0,"recentFailed":0}}],
+ "runs":{"total":0,"skipped":0,"running":0,"needsInput":0,"recentFailed":0}}
+```
+
+`schedule` is `{"kind":"interval","everyMinutes":N}` (5 to 10080) or
+`{"kind":"daily","at":"HH:MM"}` in the daemon's local time. `agent` is `claude`
+or `codex`; `access` is `full`, `ask`, or `plan`, mapped exactly as the
+launcher maps them. `nextRunAtMs` is absent while paused. `error` appears, and
+nothing runs, when `automations.json` cannot be read. In `runs`, `total` counts
+agents started (skipped runs start none) and `recentFailed` counts `failed` or
+`unknown` runs started in the last 24 hours.
+
+Each run is a fresh session created through the same path as
+`POST /api/sessions` — ledgered before launch — as a structured Claude or Codex
+session in `cwd`, named after the automation, tagged `automation=<id>`, with
+creator `external:automation:<id>`, `waitReady`, and the run's `operationId`
+and `promptOperationId`. The prompt is then delivered once under
+`promptOperationId` through the `POST /api/sessions/:id/submit` receipt path; it
+is ordinary input, so the run's turns notify like any other. A run's `outcome`
+is `starting`, `running`, `needs-input` (an approval or question is open),
+`succeeded` (its first turn completed), `failed`, `skipped`, or `unknown`. It is
+read from the session's start receipt until it settles. Runs of one
+automation never overlap: while a run is `starting`, `running`, or
+`needs-input`, a due run is recorded as `skipped` and starts nothing. The run
+and the next due time are written in one write before the session is created;
+after a restart a `starting` run is matched to the session created under its
+`operationId` or recorded as `unknown`, and is never started again. A slot that
+came due while the daemon was stopped runs once on startup.
+
+### `POST /api/automations`
+
+Accepts the automation fields `name`, `prompt`, `cwd` (absolute), `agent`,
+`access`, `schedule`, and optional `model`, `effort`, `profile`, and
+`enabled` (default true). Returns 201 with the automation. Nothing runs at
+creation; an enabled automation is first due one schedule step later. Invalid
+input returns 400 with what to change.
+
+### `PUT /api/automations/:id`, `DELETE /api/automations/:id`
+
+`PUT` replaces the fields above (not `enabled`) and returns the automation; a
+changed schedule is next due one step from now. `DELETE` removes the
+automation and its run history and returns `{"ok":true,"id":"…"}`; sessions it
+started are kept. An unknown id returns 404.
+
+### `PUT /api/automations/:id/enabled`
+
+Accepts `{"enabled": true|false}` and returns the automation. Resuming does not
+run missed slots.
+
+### `POST /api/automations/:id/run`
+
+Starts a run now, outside the schedule, enabled or not, and returns 202 with
+the run. The next scheduled time is unchanged. When the previous run is
+unfinished the returned run is `skipped` and says which run is still open.
+
+### `GET /api/automations/runs?automation=<id>&limit=<n>`
+
+Returns `{"runs":[…],"summary":{…}}`, newest first, for one automation or all.
+`limit` is 1 to 500 (default 50). Each automation keeps its latest 200 runs.
+`sessions automations [list|add|edit|run|on|off|remove|runs]`, including
+`--json`, is equivalent.
+
 ### `POST /api/search/plan`
 
 Accepts `{"query":"the session where I discussed Apple signing"}`. The query
