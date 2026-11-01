@@ -57,6 +57,10 @@ const (
 	RetryReq   Type = 0x17
 	RetryStop  Type = 0x18
 	MessageReq Type = 0x19 // capability-gated semantic message, not terminal bytes
+	// QueueReq inspects or changes a structured Claude runner's saved
+	// next-turn messages. Capability-gated by HELLO messageQueue; QueueRes
+	// answers each request in order.
+	QueueReq Type = 0x1a
 
 	Hello       Type = 0x20
 	Output      Type = 0x21
@@ -73,6 +77,7 @@ const (
 	RetryState Type = 0x27
 	RetryRes   Type = 0x28
 	MessageRes Type = 0x29
+	QueueRes   Type = 0x2a
 )
 
 var (

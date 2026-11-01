@@ -2126,8 +2126,12 @@ epoch milliseconds on the runner's clock; a time no record shows is `null`.
 `not-observed` and `null` mean only that the retained window holds no such
 record, not that it did not happen. None of these fields says what the model
 read or understood, and none is a reason to resend: `delivered:true` on a
-`queue` receipt still describes queue acceptance. `status` is one of `accepted`, `not-delivered`, `unknown`, or
-`text-delivered`. Retrying the same operation id with the same target and
+`queue` receipt still describes queue acceptance. A message changed through
+`/queue` before dispatch adds `edits` and `edited_at` (its latest edit), or sets
+`dispatch:"cancelled"` with `cancelled_at`; a receipt still `accepted` whose
+evidence shows a cancellation is projected as `cancelled`. `status` is one of
+`accepted`, `not-delivered`, `unknown`, `text-delivered`, or `cancelled` (a saved
+message withdrawn before dispatch: never sent, never executed again). Retrying the same operation id with the same target and
 content reads the original receipt without sending another message, including
 after a daemon restart. Reusing it for different content or a different target
 returns 409. Receipts store only the target id, byte count, and SHA-256 digest;
@@ -2258,6 +2262,42 @@ clearing the provider fault or its retained failed input. Success is 204 with no
 body. Nothing scheduled, a PTY or ended session, and an older runner return 409
 with an instructional error; unknown session is 404 and other control failures
 are 502.
+
+### `GET /api/sessions/:id/queue` and `POST /api/sessions/:id/queue`
+
+Auth required. A Rich Claude session whose runner advertised `messageQueue`
+(also exposed on `SessionInfo`) reads and changes its saved next-turn messages.
+GET lists them. POST takes `{"action":"edit","operation_id":"…","text":"…"}`,
+`{"action":"cancel","operation_id":"…"}` or
+`{"action":"move","operation_id":"…","to":1}` (1-based among undispatched
+messages; a position past the end means last). Success is 200:
+
+```json
+{"session_id":"…","paused":false,
+ "items":[{"operation_id":"…","text":"…","state":"queued","position":1,
+           "enqueued_at":"2026-11-01T10:00:00Z","edits":1}],
+ "receipt":{"operation_id":"…","status":"cancelled","delivered":false,"retry":false,…}}
+```
+
+`items` are the undispatched messages in dispatch order plus the current
+dispatched one (`state:"dispatched"`), which cannot change. After an accepted
+cancel or edit the daemon updates the operation's durable receipt and returns
+it as `receipt`: cancel makes it `cancelled`; edit adds `edits` and
+`edited_at_ms` and keeps the original request's content hash, so a same-id
+resubmit of the original text reads the receipt and sends nothing. If that
+receipt write fails the change still stands and `receipt_error` says so; receipt
+reads project a cancellation from the runner's history either way. Cancelling a
+cancelled message is 200 with `code:"already-cancelled"`.
+
+A runner refusal changed nothing and keeps the runner's sentence in `error`
+with `code` and the queue as it stands: `dispatched` (already sent to Claude; it
+is never edited, withdrawn or sent again), `cancelled`, `full` (an edit past the
+1 MiB bound) and `stopping` are 409, `not-found` is 404, `invalid` is 400 and
+`storage` is 500. A malformed request is 400. A Codex session (which keeps no
+saved messages; a message sent while it works steers the active turn), a PTY
+session, an ended session or an older runner is 409 without `code`. Unknown
+session is 404 and other runner-control failures are 502. `move` only reorders;
+it does not steer or interrupt the current turn.
 
 ### `GET /api/message-deliveries/:operation-id`
 

@@ -66,6 +66,8 @@ type deliveryReceipt struct {
 	Reason      string `json:"reason,omitempty"`
 	Duplicate   bool   `json:"duplicate"`
 	Acceptance  string `json:"acceptance,omitempty"`
+	Edits       int    `json:"edits,omitempty"`
+	EditedAtMS  int64  `json:"edited_at_ms,omitempty"`
 	// Evidence is what a structured Claude runner's records show after it
 	// accepted the message; sessionsd omits it for every other receipt.
 	Evidence *delivery.ClaudeEvidence `json:"evidence,omitempty"`
@@ -507,7 +509,7 @@ func acknowledgedSendResult(receipt deliveryReceipt, tool string) (sendResult, b
 	if receipt.Status != "accepted" {
 		confirmed := false
 		exitCode := exitTransport
-		if receipt.Status == "not-delivered" && receipt.Retry {
+		if (receipt.Status == "not-delivered" && receipt.Retry) || receipt.Status == "cancelled" {
 			exitCode = 1
 		}
 		return sendResult{
@@ -796,6 +798,8 @@ func (a *app) cmdSend(args []string) error {
 		}
 	} else if result.Reason == "session-unreachable" {
 		io.WriteString(a.stderr, "sessions send: session exited or became unreachable before submission was confirmed\n")
+	} else if result.Confidence == "cancelled" {
+		fmt.Fprintf(a.stderr, "sessions send: operation %s was cancelled before dispatch and was never sent; send the message again without --operation-id\n", result.OperationID)
 	} else if (result.Confidence == "not-delivered" || result.Confidence == "unknown") && result.Reason != "" {
 		// Preserve the daemon's specific refusal or uncertainty instructions,
 		// and say what they amount to: the message did not arrive, and whether
@@ -883,6 +887,8 @@ func (a *app) cmdSendStatus(args []string) error {
 	}
 	if receipt.Retry {
 		fmt.Fprintln(a.stdout, "Sessions confirmed that retrying this exact operation is safe.")
+	} else if receipt.Status == "cancelled" {
+		fmt.Fprintln(a.stdout, "It was never sent. Resending this operation id only reads this receipt; send the message as a new operation instead.")
 	} else if receipt.Status != "accepted" {
 		fmt.Fprintln(a.stdout, "Do not resend the message automatically.")
 	}
@@ -906,7 +912,12 @@ func claudeEvidenceLines(evidence *delivery.ClaudeEvidence) []string {
 	if evidence.EnqueuedAt == nil {
 		lines[0] = "saved by the runner: no enqueue record in retained history"
 	}
+	if evidence.Edits > 0 {
+		lines = append(lines, fmt.Sprintf("edited before dispatch: %d time(s), last at %s", evidence.Edits, at(evidence.EditedAt)))
+	}
 	switch evidence.Dispatch {
+	case delivery.DispatchCancelled:
+		lines = append(lines, "cancelled before dispatch: "+at(evidence.CancelledAt)+"; it was never sent")
 	case delivery.DispatchObserved:
 		lines = append(lines, "dispatched to a Claude turn: "+at(evidence.DispatchedAt))
 	case delivery.DispatchUnknown:

@@ -84,3 +84,21 @@ func TestClaudeEvidenceSaysWhatIsNotObserved(t *testing.T) {
 		t.Fatalf("empty evidence = %+v", evidence)
 	}
 }
+
+func TestClaudeEvidenceReportsEditsAndCancellation(t *testing.T) {
+	records := evidenceRecords(t,
+		map[string]any{"type": "queue-operation", "operation": "enqueue", "source": "sessions-next-turn", "uuid": "sessions-message:op", "timestamp": "2026-11-01T10:00:00Z"},
+		map[string]any{"type": "queue-operation", "operation": "edit", "source": "sessions-next-turn", "uuid": "sessions-message:op:edit:1", "operation_id": "sessions-message:op", "timestamp": "2026-11-01T10:00:05Z"},
+		map[string]any{"type": "queue-operation", "operation": "edit", "source": "sessions-next-turn", "uuid": "sessions-message:other:edit:1", "operation_id": "sessions-message:other", "timestamp": "2026-11-01T10:00:06Z"},
+	)
+	got := ObserveClaudeOperation(slices.Values(records), "op")
+	if got.Edits != 1 || got.EditedAt == nil || got.Dispatch != DispatchNotObserved || got.CancelledAt != nil {
+		t.Fatalf("edited evidence = %+v", got)
+	}
+	records = append(records, evidenceRecords(t, map[string]any{"type": "queue-operation", "operation": "remove", "source": "sessions-next-turn",
+		"uuid": "sessions-message:op:cancelled", "operation_id": "sessions-message:op", "timestamp": "2026-11-01T10:00:09Z"})...)
+	got = ObserveClaudeOperation(slices.Values(records), "op")
+	if got.Dispatch != DispatchCancelled || got.CancelledAt == nil || *got.CancelledAt != *recordMillis("2026-11-01T10:00:09Z") {
+		t.Fatalf("cancelled evidence = %+v", got)
+	}
+}

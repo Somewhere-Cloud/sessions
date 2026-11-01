@@ -62,3 +62,9 @@ func (m *Manager) SubmitMessage(ctx context.Context, id string, control proto.Me
 	}
 	return result, nil
 }
+
+// ControlMessageQueue reads or changes a structured Claude session's saved
+// next-turn messages. The runner decides against its own dispatch state.
+func (m *Manager) ControlMessageQueue(ctx context.Context, id string, control proto.QueueControl) (proto.QueueResult, error) {
+	return m.registry.ControlMessageQueue(ctx, id, control)
+}

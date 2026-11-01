@@ -58,6 +58,7 @@ both current receivers for forward compatibility.
 | daemon -> runner | RETRY_REQ | `0x17` | empty |
 | daemon -> runner | RETRY_STOP | `0x18` | empty |
 | daemon -> runner | MESSAGE_REQ | `0x19` | semantic message JSON, capability-gated |
+| daemon -> runner | QUEUE_REQ | `0x1a` | saved-message queue request JSON, capability-gated |
 | runner -> daemon | HELLO | `0x20` | JSON `RunnerHello` |
 | runner -> daemon | OUTPUT | `0x21` | 4-byte BE `seq`, then UTF-8 chunk |
 | runner -> daemon | EXIT | `0x22` | JSON `{"code":number|null,"signal":string|null,"seq":number}` |
@@ -68,6 +69,7 @@ both current receivers for forward compatibility.
 | runner -> daemon | RETRY_STATE | `0x27` | JSON `{"retry":object|null}` |
 | runner -> daemon | RETRY_RES | `0x28` | `{}` or JSON `{"error":string}` |
 | runner -> daemon | MESSAGE_RES | `0x29` | correlated message outcome JSON |
+| runner -> daemon | QUEUE_RES | `0x2a` | saved-message queue answer JSON |
 
 ## Runner to daemon frames
 
@@ -315,6 +317,45 @@ messages explicitly. Missing capability uses the
 legacy input path for ordinary sends; explicit steering is refused without
 writing input. The version remains 5: older daemons ignore the additive HELLO
 field and use INPUT; newer daemons never send MESSAGE_REQ to an old runner.
+
+### Saved-message queue control (additive protocol-5 capability)
+
+Structured Claude runners advertise `messageQueue:true` in HELLO. Only then
+may a daemon send QUEUE_REQ: `{"action":"list"}`, or `edit`, `cancel` or `move`
+with the saved message's `operation_id`, plus `text` for `edit` and a 1-based
+`to` position among undispatched entries for `move` (a position past the end
+means last). The daemon sends one request at a time per connection; the runner
+answers each with exactly one QUEUE_RES, in order:
+
+```json
+{"paused":false,"items":[{"operation_id":"…","text":"…","state":"queued",
+  "position":1,"enqueued_at":"2026-11-01T10:00:00Z","edits":1}],
+ "code":"dispatched","error":"…"}
+```
+
+`items` lists entries not yet dispatched (`state:"queued"`, with `position`) and
+the current dispatched entry, if any (`state:"dispatched"`, no position). A
+non-empty `error` is a refusal that changed nothing; `code` is `dispatched`,
+`cancelled`, `not-found`, `invalid`, `full`, `storage` or `stopping`.
+Cancelling an already-cancelled operation answers `code:"already-cancelled"`
+with no error.
+
+The runner decides under the same lock that claims an entry for dispatch, and a
+claim commits the entry as dispatched before it releases that lock. A change
+therefore lands entirely before the claim, which then sends the changed queue,
+or sees the entry dispatched and is refused. A dispatched entry is never edited,
+withdrawn, moved or sent again. `move` changes only the order of undispatched
+entries; it does not steer or interrupt the current turn. Accepted changes are
+committed to the sidecar before the answer and recorded in structured history
+as `queue-operation` records with `source:"sessions-next-turn"` and
+`operation_id:"sessions-message:<id>"`: `edit` (uuid `…:edit:<n>`, `content` the
+new text), `remove` (uuid `…:cancelled`) and `reorder` (`order`, the
+undispatched operation ids in their new order). A MESSAGE_REQ that reuses a
+cancelled operation id while that record is retained is refused; the daemon's
+durable receipt remains the authority after it is not.
+
+Older runners omit the flag and never receive QUEUE_REQ; older daemons ignore
+the flag. The version remains 5.
 
 ### INPUT (`0x10`)
 

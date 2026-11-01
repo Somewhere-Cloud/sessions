@@ -21,6 +21,11 @@ type claudeQueuedMessage struct {
 	Phase    string `json:"phase"`
 	Boundary string `json:"boundary"`
 	At       string `json:"timestamp"`
+	// SubmittedHash is the hash of the text first submitted under this
+	// operation id when the text has since been edited; Hash always matches
+	// Text. Edits counts accepted edits. Both are additive.
+	SubmittedHash string `json:"submitted_hash,omitempty"`
+	Edits         int    `json:"edits,omitempty"`
 }
 
 type claudeMessageQueue struct {

@@ -287,6 +287,14 @@ again, and at most 64 such dispatched receipts are retained. Completed entries
 drop text and retain at most 64 recent receipts. The runner syncs the temporary
 file and atomically renames it before acknowledging or claiming a message.
 
+An edit before dispatch replaces the entry's text and hash and adds
+`submitted_hash` (the hash first submitted under that operation id, which a
+same-id resubmit is compared against) and an `edits` count; both are additive
+and older readers ignore them. A cancelled entry is removed from the sidecar,
+not kept with a new phase, so runners that predate cancellation still read it;
+the cancellation is recorded in the structured history and the daemon receipt.
+A move reorders only undispatched entries, leaving receipt entries in place.
+
 Daemon/UI restarts do not stop the queue. Runner restart pauses it when an
 entry is not yet dispatched, and never replays a dispatched entry: a crash after claim is an uncertain outcome, even
 if provider launch had not yet happened. Retry can explicitly continue only
@@ -300,8 +308,12 @@ Go-runtime-only, mode 0600 files below a mode-0700 directory. Each file is a
 durable receipt for one logical `/submit` operation: UUID, target session id,
 content SHA-256, content byte count, status, delivery/retry booleans, optional
 reason, optional `mode` (`steer`; omitted for ordinary sends), optional
-`acceptance` evidence (`runner`, `queue`, `provider`, or `unknown`), and
-creation/update times. It deliberately does not store the message
+`acceptance` evidence (`runner`, `queue`, `provider`, or `unknown`), the
+additive `edits` count and `edited_at_ms` for a saved Claude message edited
+before dispatch (the content hash stays that of the original request), and
+creation/update times. Status `cancelled` (additive) records that the runner
+withdrew a saved message before dispatch; it is set only from `accepted` or
+`unknown`, is never executed again, and has `delivered:false`, `retry:false`. It deliberately does not store the message
 body. A `pending` file left by a crash is treated as `unknown` and must not be
 retried automatically. Reusing an operation id with different content or a
 different target or send mode is refused. The one record a same-id submit

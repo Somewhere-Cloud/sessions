@@ -211,3 +211,28 @@ func TestBeginReexecutesOnlyAProvenRefusal(t *testing.T) {
 		}
 	}
 }
+
+func TestCancelAndEditApplyOnlyToAcceptedReceipts(t *testing.T) {
+	store := New(t.TempDir())
+	if _, _, err := store.Begin(testOperationID, "session-a", "saved"); err != nil {
+		t.Fatal(err)
+	}
+	if record, err := store.Cancel(testOperationID, "withdrawn"); err != nil || record.Status != StatusPending {
+		t.Fatalf("pending receipt was cancelled: %+v, %v", record, err)
+	}
+	if _, err := store.Complete(testOperationID, StatusAccepted, true, false, "", "queue"); err != nil {
+		t.Fatal(err)
+	}
+	edited, err := store.RecordEdit(testOperationID)
+	if err != nil || edited.Edits != 1 || edited.EditedAtMS == 0 || edited.ContentBytes != len("saved") {
+		t.Fatalf("edit = %+v, %v", edited, err)
+	}
+	cancelled, err := store.Cancel(testOperationID, "withdrawn")
+	if err != nil || cancelled.Status != StatusCancelled || cancelled.Delivered || cancelled.Retry {
+		t.Fatalf("cancel = %+v, %v", cancelled, err)
+	}
+	again, created, err := New(filepath.Dir(store.root)).Begin(testOperationID, "session-a", "saved")
+	if err != nil || created || again.Status != StatusCancelled {
+		t.Fatalf("same-id submit after cancel = %+v, %t, %v", again, created, err)
+	}
+}

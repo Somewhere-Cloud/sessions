@@ -15,6 +15,9 @@ var (
 	// ErrNothingToContinue: a Rich Claude runner with no recorded failure
 	// answered Retry itself and started nothing, so no saved message moved.
 	ErrNothingToContinue = errors.New("Claude did not continue saved messages")
+	// ErrQueueUnsupported: this session keeps no runner-side saved messages
+	// that Sessions can change.
+	ErrQueueUnsupported = errors.New("saved messages cannot be changed for this session")
 	// ErrNoTerminalMirror: this session kind is not backed by a terminal
 	// screen, so there is no rendered viewport to return. A lane answers from
 	// its raw output tail and a structured provider from its event log; asking

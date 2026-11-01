@@ -3,3 +3,10 @@
 .remote-queued-status summary { cursor: pointer; }
 .remote-queued-text { margin: 8px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .remote-queued-hint { color: var(--fg-dim); }
+.remote-queued-item { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; }
+.remote-queued-item .remote-queued-text { margin: 0; }
+.remote-queued-actions { display: flex; flex-wrap: wrap; gap: 4px; opacity: 0.75; }
+.remote-queued-item:hover .remote-queued-actions,
+.remote-queued-item:focus-within .remote-queued-actions { opacity: 1; }
+.remote-queued-editor { width: 100%; box-sizing: border-box; font: inherit; resize: vertical; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border, rgba(127, 127, 127, 0.35)); background: transparent; color: inherit; }
+.remote-queued-error { color: var(--fg-dim); }

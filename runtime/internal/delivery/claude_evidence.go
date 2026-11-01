@@ -26,12 +26,18 @@ type ClaudeEvidence struct {
 	// (success or error), and ProviderResultObservedAt when the runner got it.
 	ProviderResult           *string `json:"provider_result"`
 	ProviderResultObservedAt *int64  `json:"provider_result_observed_at"`
+	// Edits and EditedAt describe edits made before dispatch; CancelledAt is
+	// when the runner withdrew the message (dispatch is then cancelled).
+	Edits       int    `json:"edits,omitempty"`
+	EditedAt    *int64 `json:"edited_at,omitempty"`
+	CancelledAt *int64 `json:"cancelled_at,omitempty"`
 }
 
 const (
 	DispatchObserved    = "dispatched"
 	DispatchUnknown     = "dispatch-unknown"
 	DispatchNotObserved = "not-observed"
+	DispatchCancelled   = "cancelled"
 )
 
 // ObserveClaudeOperation reads the records a structured Claude runner writes
@@ -55,6 +61,7 @@ func ObserveClaudeOperation(events iter.Seq[json.RawMessage], operationID string
 			ObservedAt                                     string `json:"observed_at"`
 			IsError                                        bool   `json:"is_error"`
 			Transport                                      string `json:"transport"`
+			OperationID                                    string `json:"operation_id"`
 			SessionsOperationID                            string `json:"sessions_operation_id"`
 		}
 		if json.Unmarshal(raw, &record) != nil {
@@ -66,6 +73,11 @@ func ObserveClaudeOperation(events iter.Seq[json.RawMessage], operationID string
 				evidence.EnqueuedAt = recordMillis(record.Timestamp)
 			case record.Type == "queue-operation" && record.Operation == "dispatch-unknown" && record.UUID == id+":unknown":
 				evidence.Dispatch = DispatchUnknown
+			case record.Type == "queue-operation" && record.Operation == "edit" && record.OperationID == id:
+				evidence.Edits++
+				evidence.EditedAt = recordMillis(record.Timestamp)
+			case record.Type == "queue-operation" && record.Operation == "remove" && record.UUID == id+":cancelled":
+				evidence.Dispatch, evidence.CancelledAt = DispatchCancelled, recordMillis(record.Timestamp)
 			case record.Type == "user" && record.UUID == id:
 				dispatched = true
 				evidence.Dispatch, evidence.DispatchedAt = DispatchObserved, recordMillis(record.Timestamp)

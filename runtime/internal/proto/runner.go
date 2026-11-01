@@ -27,6 +27,7 @@ type RunnerInfo struct {
 	Retry           *ProviderRetry `json:"retry,omitempty"`
 	Turn            *TurnState     `json:"turn,omitempty"`
 	MessageSubmit   bool           `json:"messageSubmit,omitempty"`
+	MessageQueue    bool           `json:"messageQueue,omitempty"`
 }
 
 // TurnState is the Rich runner's exact current provider-turn state. It lives

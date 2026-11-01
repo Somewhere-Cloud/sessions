@@ -28,6 +28,9 @@ const (
 	StatusNotDelivered Status = "not-delivered"
 	StatusUnknown      Status = "unknown"
 	StatusTextOnly     Status = "text-delivered"
+	// StatusCancelled: the runner withdrew a saved message before dispatch at
+	// a caller's request. Nothing was sent, and a same-id submit only reads it.
+	StatusCancelled Status = "cancelled"
 )
 
 var operationIDPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
@@ -46,7 +49,11 @@ type Record struct {
 	Transcript   *TranscriptIntent `json:"transcript,omitempty"`
 	// Attempts counts executions after the first. Only a refusal proven to
 	// have sent nothing (not-delivered with retry) may be executed again.
-	Attempts    int   `json:"attempts,omitempty"`
+	Attempts int `json:"attempts,omitempty"`
+	// Edits counts accepted edits of a saved message before dispatch. The
+	// content hash stays the submitted one: it identifies the request.
+	Edits       int   `json:"edits,omitempty"`
+	EditedAtMS  int64 `json:"edited_at_ms,omitempty"`
 	CreatedAtMS int64 `json:"created_at_ms"`
 	UpdatedAtMS int64 `json:"updated_at_ms"`
 }
@@ -238,6 +245,51 @@ func (s *Store) ConfirmAccepted(operationID, acceptance, reason string) (Record,
 	}
 	record.Status, record.Delivered, record.Retry = StatusAccepted, true, false
 	record.Acceptance, record.Reason = acceptance, reason
+	record.UpdatedAtMS = s.now().UnixMilli()
+	if err := writeAtomic(path, record); err != nil {
+		return Record{}, err
+	}
+	return record, nil
+}
+
+// Cancel records that the runner withdrew a saved message before dispatch.
+// Only an accepted or unknown receipt can become cancelled: the runner's own
+// cancellation is the evidence, and it never applies to a refusal. A pending
+// receipt belongs to a submit still running; its owner records the outcome
+// and readers project the cancellation from history.
+func (s *Store) Cancel(operationID, reason string) (Record, error) {
+	return s.update(operationID, func(record *Record) bool {
+		if record.Status != StatusAccepted && record.Status != StatusUnknown {
+			return false
+		}
+		record.Status, record.Delivered, record.Retry, record.Reason = StatusCancelled, false, false, reason
+		return true
+	})
+}
+
+// RecordEdit counts an accepted edit of a saved message.
+func (s *Store) RecordEdit(operationID string) (Record, error) {
+	return s.update(operationID, func(record *Record) bool {
+		if record.Status != StatusAccepted && record.Status != StatusUnknown {
+			return false
+		}
+		record.Edits++
+		record.EditedAtMS = s.now().UnixMilli()
+		return true
+	})
+}
+
+func (s *Store) update(operationID string, change func(*Record) bool) (Record, error) {
+	if err := ValidateOperationID(operationID); err != nil {
+		return Record{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	path := s.path(operationID)
+	record, err := read(path)
+	if err != nil || !change(&record) {
+		return record, err
+	}
 	record.UpdatedAtMS = s.now().UnixMilli()
 	if err := writeAtomic(path, record); err != nil {
 		return Record{}, err
