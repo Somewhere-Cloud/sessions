@@ -37,7 +37,7 @@ func MergeRunnerMetadata(existing, next Metadata) Metadata {
 	// invisible until a daemon restart re-read the file, and what came back
 	// would be a session the user had exempted from automatic termination
 	// silently returning to being eligible for it.
-	merged.Pinned = existing.Pinned
+	preserveDaemonMarks(&merged, existing)
 	// The message-principal clocks are stamped by the daemon at its own input
 	// boundary, so the runner has no way to express them either. Dropping them
 	// would be invisible until a restart and would then read as a session no
@@ -111,6 +111,17 @@ func MergeRunnerMetadata(existing, next Metadata) Metadata {
 		merged.RemoteEndpoint = existing.RemoteEndpoint
 	}
 	return merged
+}
+
+// preserveDaemonMarks keeps the person's per-session marks -- the pin and the
+// read state -- across a runner write. A runner write that dropped the read
+// state would make every session read as unread, or never unread, after the
+// next restart.
+func preserveDaemonMarks(merged *Metadata, existing Metadata) {
+	merged.Pinned = existing.Pinned
+	merged.SeenAt = cloneInt64Pointer(existing.SeenAt)
+	merged.AttentionAt = cloneInt64Pointer(existing.AttentionAt)
+	merged.MarkedUnread = existing.MarkedUnread
 }
 
 // readMetadataForMerge treats an absent, unreadable, or undecodable document

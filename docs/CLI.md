@@ -56,6 +56,8 @@ Daily workflows:
   aside                    set live sessions aside or bring them back
   pin                      keep a user-driven session at the top
   unpin                    remove the workbench mark from a session
+  seen                     mark a session read on every device
+  unread                   keep a session marked unread until it is opened
   ls                       list interactive sessions
   list                     list agent sessions and headless lanes
   lanes                    list headless lanes
@@ -542,6 +544,44 @@ Clear a pin. The session keeps running and keeps everything else about it; it re
 Examples:
   sessions unpin 0123abcd
   sessions --json unpin 0123abcd
+
+--json may appear before the command or among its options. --machine, --direct, --host, and --port must appear before the command. Arguments after `sessions run --` always belong to the child command.
+```
+
+## `sessions seen`
+
+```text
+Usage:
+  sessions seen <session>
+
+mark a session read on every device
+
+Mark a session seen now, which is what opening it in the app does. A session is unread when it finished a turn, failed, or needs you after you last saw it or typed into it, or when you marked it unread; the app shows that as a bold title with a small dot. The mark is daemon-owned and persisted in runner metadata, so the Mac, another machine's app and the phone agree. A session nobody ever opened or typed into, such as one an agent started for its own work, is never unread by activity alone, and an ended session is never unread. Nothing is sent and the runner is not touched.
+
+Every `sessions ls --json` record carries unread, and seenAt and attentionAt when known.
+
+Under --json the answer is {ok, code, id, name, unread, seenAt}, where unread is what the daemon derived after storing the change.
+
+Examples:
+  sessions seen 0123abcd
+  sessions --json seen bolo
+
+--json may appear before the command or among its options. --machine, --direct, --host, and --port must appear before the command. Arguments after `sessions run --` always belong to the child command.
+```
+
+## `sessions unread`
+
+```text
+Usage:
+  sessions unread <session>
+
+keep a session marked unread until it is opened
+
+Mark a live session unread, the same as "Mark as unread" in the app's session menu. It stays unread on every device until it is opened or marked seen with `sessions seen`. Ended records are refused because an ended session is never shown as unread. The answer shape matches seen.
+
+Examples:
+  sessions unread 0123abcd
+  sessions --json unread bolo
 
 --json may appear before the command or among its options. --machine, --direct, --host, and --port must appear before the command. Arguments after `sessions run --` always belong to the child command.
 ```

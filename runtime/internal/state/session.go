@@ -136,11 +136,12 @@ func newSession(ctx context.Context, info proto.RunnerInfo, runner proto.Runner,
 			DisplayParentSessionID: cloneStringPointer(metadata.DisplayParentSessionID),
 			SetAsideAt:             cloneInt64Pointer(metadata.SetAsideAt),
 			Pinned:                 metadata.Pinned,
-			LastHumanMessageAt:     cloneInt64Pointer(metadata.LastHumanMessageAt),
-			LastAgentMessageAt:     cloneInt64Pointer(metadata.LastAgentMessageAt),
-			DelegationKind:         metadata.DelegationKind,
-			Permissions:            metadata.Permissions,
-			Lifecycle:              metadata.Lifecycle,
+			SeenAt:                 cloneInt64Pointer(metadata.SeenAt), AttentionAt: cloneInt64Pointer(metadata.AttentionAt), MarkedUnread: metadata.MarkedUnread,
+			LastHumanMessageAt: cloneInt64Pointer(metadata.LastHumanMessageAt),
+			LastAgentMessageAt: cloneInt64Pointer(metadata.LastAgentMessageAt),
+			DelegationKind:     metadata.DelegationKind,
+			Permissions:        metadata.Permissions,
+			Lifecycle:          metadata.Lifecycle,
 		},
 		nextSeq:    1,
 		observedAt: now,
@@ -333,6 +334,9 @@ func (s *Session) Info() SessionInfo {
 	info.ResourceProcesses = cloneIntPointer(s.info.ResourceProcesses)
 	info.ResourceSampledAt = cloneInt64Pointer(s.info.ResourceSampledAt)
 	info.Retry = cloneRetry(s.info.Retry)
+	info.SeenAt = cloneInt64Pointer(s.info.SeenAt)
+	info.AttentionAt = cloneInt64Pointer(s.info.AttentionAt)
+	info.Unread = SessionUnread(info)
 	info.Observations = s.observationsLocked(info)
 	return info
 }
@@ -404,6 +408,14 @@ func (s *Session) setSetAsideAt(setAsideAt *int64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.info.SetAsideAt = cloneInt64Pointer(setAsideAt)
+}
+
+func (s *Session) setReadState(seenAt, attentionAt *int64, marked bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.info.SeenAt = cloneInt64Pointer(seenAt)
+	s.info.AttentionAt = cloneInt64Pointer(attentionAt)
+	s.info.MarkedUnread = marked
 }
 
 func (s *Session) setPinned(pinned bool) {

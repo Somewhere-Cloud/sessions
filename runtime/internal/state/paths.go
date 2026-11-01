@@ -150,6 +150,15 @@ type Metadata struct {
 	// unchanged and absence keeps meaning "not pinned", which is the same
 	// compatibility shape set_aside_at uses for its cleared state.
 	Pinned bool `json:"pinned,omitempty"`
+	// SeenAt, AttentionAt and MarkedUnread are the read state the app shows
+	// as unread. SeenAt is when a person last looked at the session through
+	// Sessions, AttentionAt when the daemon last told someone it finished a
+	// turn, failed, or needs input, and MarkedUnread is an explicit "Mark as
+	// unread". All three are omitted when absent so an older runtime decodes
+	// the document unchanged and absence keeps meaning "nothing recorded".
+	SeenAt       *int64 `json:"seen_at,omitempty"`
+	AttentionAt  *int64 `json:"attention_at,omitempty"`
+	MarkedUnread bool   `json:"marked_unread,omitempty"`
 	// LastHumanMessageAt and LastAgentMessageAt carry the daemon's
 	// message-principal clocks across a restart. Both are omitted when absent,
 	// so an older runtime decodes the document unchanged and absence keeps

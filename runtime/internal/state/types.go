@@ -240,6 +240,18 @@ type SessionInfo struct {
 	// choosing what to end has to tell "this session is not pinned" from "this
 	// daemon never told me", and an omitted field reads as both.
 	Pinned bool `json:"pinned"`
+	// SeenAt is when a person last opened this session through a Sessions
+	// client or `sessions seen`. AttentionAt is when the daemon last reported
+	// that the agent finished a turn, failed, or needs input -- the same
+	// moments a desktop notification is queued for. MarkedUnread is an
+	// explicit "Mark as unread".
+	SeenAt       *int64 `json:"seenAt,omitempty"`
+	AttentionAt  *int64 `json:"attentionAt,omitempty"`
+	MarkedUnread bool   `json:"markedUnread,omitempty"`
+	// Unread is derived from the three fields above by the daemon, so every
+	// client and the CLI agree on it. Always present, like pinned, so a caller
+	// can tell "read" from a daemon that predates the field.
+	Unread bool `json:"unread"`
 	// MemoryBytes, CPUPercent and ResourceProcesses are what this session costs
 	// the machine: resident memory across its whole process tree, percent of
 	// one core burned since the previous sample, and how many processes those
