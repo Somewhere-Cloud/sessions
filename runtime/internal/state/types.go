@@ -79,7 +79,25 @@ const (
 	NameSourceLaunch   = "launch"
 	NameSourceProvider = "provider"
 	NameSourceExplicit = "explicit"
+	// NameSourceGenerated is a short title Sessions wrote itself, once, from
+	// the first exchange of a session nobody named. It is the weakest claim
+	// on the card: the provider's own title replaces it and a rename pins
+	// over it. See internal/autotitle.
+	NameSourceGenerated = "generated"
 )
+
+// AutoTitleStatus reports the daemon's automatic title attempt for one
+// session. It is the only place a failure appears: generation never blocks or
+// interrupts the session, so an unavailable CLI or a timeout is recorded here
+// and nowhere else. It lives in memory only; a restarted daemon may try once
+// more after the session's next completed turn.
+type AutoTitleStatus struct {
+	// State is generating, generated, or failed.
+	State    string `json:"state"`
+	Provider string `json:"provider,omitempty"`
+	Error    string `json:"error,omitempty"`
+	At       int64  `json:"at"`
+}
 
 // WorkspaceGit is a bounded cached observation of the session cwd on this host.
 // Branch remains creation provenance; this observation never replaces it.
@@ -206,6 +224,9 @@ type SessionInfo struct {
 	LostAtMS               int64  `json:"lostAt,omitempty"`
 	ClaudeCustomTitle      string `json:"claudeCustomTitle,omitempty"`
 	ClaudeAITitle          string `json:"claudeAiTitle,omitempty"`
+	// AutoTitle is the last automatic title attempt, absent when Sessions
+	// has not tried to title this session.
+	AutoTitle              *AutoTitleStatus `json:"autoTitle,omitempty"`
 	OnIdle                 string `json:"onIdle,omitempty"`
 	Model                  string `json:"model,omitempty"`
 	Effort                 string `json:"effort,omitempty"`

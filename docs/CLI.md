@@ -52,6 +52,7 @@ Daily workflows:
   transcripts              keep a durable copy of provider conversations
   gc                       archive old closed records safely
   archive                  hide selected closed sessions
+  titles                   name unnamed sessions automatically
   auto-archive             choose reversible automatic organization
   aside                    set live sessions aside or bring them back
   pin                      keep a user-driven session at the top
@@ -362,9 +363,11 @@ rename a session everywhere in Sessions
 
 Set the durable Sessions title used by the app, CLI, Fleet, search, and later continuations.
 
-A session you have not renamed follows the provider's own conversation title automatically. Claude titles its conversations, so a Claude session is named whatever Claude calls it and keeps following later title changes; searching Sessions for the name you can see in Claude finds the session. Codex writes no title to its rollout files, so a Codex session keeps the name it was created with.
+A session you have not renamed follows the provider's own conversation title automatically. Claude titles its conversations, so a Claude session is named whatever Claude calls it and keeps following later title changes; searching Sessions for the name you can see in Claude finds the session. Codex writes no title to its rollout files.
 
-Renaming makes the title yours, and Sessions stops following the provider for that session. --auto reverses that and hands the name back: it takes no name of its own, adopts the provider's current title immediately when there is one, and otherwise keeps the present name until the next title arrives.
+A Claude or Codex session that nobody named and its provider has not titled is titled once by Sessions after its first finished turn, using the session's own CLI and account in a short tool-free call (Claude uses Haiku). A provider title still replaces a generated one. Turn this off with sessions titles off.
+
+Renaming makes the title yours, and Sessions stops following the provider or generating titles for that session. --auto reverses that and hands the name back: it takes no name of its own, adopts the provider's current title immediately when there is one, and otherwise generates a title now (even with automatic titles off, because you asked). A failed generation keeps the present name and is reported as autoTitle in --json output.
 
 Sessions does not rewrite Claude or Codex private history files, so unsupported provider-native renames remain unchanged.
 
@@ -466,6 +469,25 @@ Examples:
   sessions archive 0123abcd
   sessions archive 0123abcd 89abcdef
   sessions --json archive 0123abcd
+
+--json may appear before the command or among its options. --machine, --direct, --host, and --port must appear before the command. Arguments after `sessions run --` always belong to the child command.
+```
+
+## `sessions titles`
+
+```text
+Usage:
+  sessions titles [status|on|off]
+
+name unnamed sessions automatically
+
+Inspect or change automatic session titles, which are on by default, per machine. After the first finished turn of a Claude or Codex session that nobody named at launch or since, and that its provider has not titled, Sessions asks the session's own CLI, signed in with the session's own account, for a two-to-six-word title. The call runs in a scratch directory with no tools, MCP servers, hooks, or saved session; Claude uses Haiku and Codex its default model at low effort. It sends the first request and the final reply of that turn, each cut to 1,500 bytes, to the same provider that already holds the conversation. It never blocks the session, gives up after 45 seconds, and is tried once per session; a failure is shown only as the session's autoTitle status. A provider title replaces a generated one, and sessions rename always wins. off stops all automatic calls; sessions rename ID --auto still generates one on request.
+
+Examples:
+  sessions titles
+  sessions titles off
+  sessions --json titles status
+  sessions rename 0123abcd --auto
 
 --json may appear before the command or among its options. --machine, --direct, --host, and --port must appear before the command. Arguments after `sessions run --` always belong to the child command.
 ```

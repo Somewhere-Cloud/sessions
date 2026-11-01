@@ -333,6 +333,10 @@ func (s *Session) Info() SessionInfo {
 	info.ResourceProcesses = cloneIntPointer(s.info.ResourceProcesses)
 	info.ResourceSampledAt = cloneInt64Pointer(s.info.ResourceSampledAt)
 	info.Retry = cloneRetry(s.info.Retry)
+	if s.info.AutoTitle != nil {
+		status := *s.info.AutoTitle
+		info.AutoTitle = &status
+	}
 	info.Observations = s.observationsLocked(info)
 	return info
 }

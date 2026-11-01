@@ -3,9 +3,14 @@ import { useState } from 'react';
 interface Props {
   label: string;
   onRename: (name: string) => Promise<void>;
+  /**
+   * `sessions rename ID --auto`: returns why no title was generated, or null
+   * when the session took the provider's title or a generated one.
+   */
+  onAutoName?: () => Promise<string | null>;
 }
 
-export function SessionTitleRename({ label, onRename }: Props): JSX.Element {
+export function SessionTitleRename({ label, onRename, onAutoName }: Props): JSX.Element {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(label);
   const [saving, setSaving] = useState(false);
@@ -35,6 +40,21 @@ export function SessionTitleRename({ label, onRename }: Props): JSX.Element {
     }
   };
 
+  const autoName = async (): Promise<void> => {
+    if (!onAutoName) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const failure = await onAutoName();
+      if (failure) setError(`No title was generated: ${failure}`);
+      else setEditing(false);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Could not name this session automatically.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (editing) {
     return (
       <form className="session-title-rename" onSubmit={(event) => { event.preventDefault(); void save(); }}>
@@ -48,6 +68,11 @@ export function SessionTitleRename({ label, onRename }: Props): JSX.Element {
           onKeyDown={(event) => { if (event.key === 'Escape') cancel(); }}
         />
         <button type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+        {onAutoName ? (
+          <button type="button" disabled={saving} onClick={() => void autoName()} title="Use the provider's title, or generate a short one">
+            Automatic name
+          </button>
+        ) : null}
         <button type="button" disabled={saving} onClick={cancel}>Cancel</button>
         {error ? <span className="session-title-rename-error" role="alert">{error}</span> : null}
       </form>

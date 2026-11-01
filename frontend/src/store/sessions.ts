@@ -337,7 +337,7 @@ export const useSessions = create<SessionsState>((set, get) => ({
     const name = await api.updateSessionName(id, requested);
     set((state) => {
       const sessions = state.sessions.map((session) => (
-        session.id === id ? { ...session, name } : session
+        session.id === id ? { ...session, name, name_source: 'explicit' as const } : session
       ));
       writeCache(state.serverId, sessions, state.activeId);
       return { sessions };

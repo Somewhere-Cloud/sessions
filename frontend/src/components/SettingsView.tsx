@@ -38,6 +38,7 @@ import { NotificationDeliveryStatus } from './NotificationDeliveryStatus';
 import { NativeRuntimeStatusCard } from './NativeRuntimeStatusCard';
 import { AutoArchiveCard } from './AutoArchiveCard';
 import { IdleCompactionCard } from './IdleCompactionCard';
+import { AutoTitlesCard } from './AutoTitlesCard';
 
 const StorageView = lazy(() => import('./StorageView').then((module) => ({ default: module.StorageView })));
 
@@ -475,6 +476,7 @@ function AgentSettings(props: AgentSettingsProps): JSX.Element {
       </SettingsSection></Surface>
       <AutoArchiveCard hostName={props.hostName} />
       <IdleCompactionCard clientOnly={props.clientOnly} hostName={props.hostName} showHostChoice={false} />
+      <AutoTitlesCard clientOnly={props.clientOnly} />
       <Surface><SettingsSection title={<>Delegated agent access</>} description={<>Applies only when one Sessions agent starts another. It never changes an existing session or lets a child escalate itself.</>}>
         <label className="settings-select-row"><span><strong>Child-agent permissions</strong><small>Inherited keeps each worker inside its manager’s access. Autonomous is an explicit opt-in for unattended delegated work.</small></span><Select value={props.delegatedAccess} disabled={props.clientOnly || props.delegationBusy || !props.delegationAvailable} onChange={(event) => void props.onDelegatedAccess(event.currentTarget.value as 'inherit' | 'autonomous')}><option value="inherit">Inherit manager permissions</option><option value="autonomous">Autonomous delegated work</option></Select></label>
         <Status live="off">Children stay open unless a caller creates an explicit bounded task. A final response never ends a runtime. Approval questions stay open under Waiting for you.</Status>

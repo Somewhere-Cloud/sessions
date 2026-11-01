@@ -7,7 +7,7 @@ import type { ProviderFaultView } from './RemoteView';
 import type { SessionInfo } from '../types';
 import { ScrollToBottomButton } from './ScrollToBottomButton';
 import { useSessions } from '../store/sessions';
-import { approveSession, fetchServerHistoryTranscript, submitMessage as submitAttributedMessage, wsMuxUrl } from '../api/sessionsd';
+import { approveSession, autoNameSession, fetchServerHistoryTranscript, submitMessage as submitAttributedMessage, wsMuxUrl } from '../api/sessionsd';
 import { classifySnapshotComposerState } from '../lib/detectMultiChoice';
 import { requestSnapshot } from '../lib/wsMux';
 import { SessionDetails } from './SessionDetails';
@@ -91,6 +91,13 @@ const TERMINAL_NOTICE_ACK_PREFIX = 'sessions:terminal-notice-ack:';
 // React so only one compatibility explanation can appear during an app launch,
 // even when the user has several Terminal sessions open.
 let terminalNoticeShownThisLaunch = false;
+
+/** Rename --auto from the title editor; returns why nothing was generated. */
+async function autoNameFailure(sessionId: string): Promise<string | null> {
+  const result = await autoNameSession(sessionId);
+  await useSessions.getState().refresh();
+  return result.autoTitle?.state === 'failed' ? result.autoTitle.error ?? 'the provider did not answer' : null;
+}
 
 function SessionStreamStatus({ notice, status, lostConversation }: {
   notice: string | null; status: string; lostConversation: boolean;
@@ -567,6 +574,7 @@ function SessionViewInner({ sessionId, onStatusChange, isActive = false, onResum
               <SessionTitleRename
                 label={resolvedSessionLabel(session)}
                 onRename={(name) => updateName(session.id, name)}
+                onAutoName={() => autoNameFailure(session.id)}
               />
             ) : <h1>Session</h1>}
           </div>

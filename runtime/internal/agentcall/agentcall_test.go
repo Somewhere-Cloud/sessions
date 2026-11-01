@@ -187,3 +187,16 @@ func hasPair(values []string, first, second string) bool {
 	}
 	return false
 }
+
+func TestArgumentsWithModelOnlyPrefixesTheModel(t *testing.T) {
+	if got, want := ArgumentsWithModel(ProviderClaude, ""), Arguments(ProviderClaude); strings.Join(got, "\x00") != strings.Join(want, "\x00") {
+		t.Fatalf("empty model changed arguments: %q", got)
+	}
+	got := ArgumentsWithModel(ProviderClaude, "haiku")
+	if len(got) < 3 || got[0] != "--model" || got[1] != "haiku" || strings.Join(got[2:], "\x00") != strings.Join(Arguments(ProviderClaude), "\x00") {
+		t.Fatalf("claude arguments = %q", got)
+	}
+	if got := ArgumentsWithModel(ProviderCodex, "small"); got[0] != "-m" || got[1] != "small" {
+		t.Fatalf("codex arguments = %q", got)
+	}
+}

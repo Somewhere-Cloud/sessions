@@ -29,6 +29,7 @@ func (m *Manager) deliverIdle(record idleRecord) {
 	m.runHook(record.info.OnIdle, record.info, hookContext, false)
 	m.runHook(m.hooks.OnIdle, record.info, hookContext, true)
 	m.offerChildReport(record)
+	m.offerTitleCandidate(record)
 }
 
 type idleHookContext struct {

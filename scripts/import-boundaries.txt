@@ -48,6 +48,7 @@ cmd/sessionsd internal/state
 cmd/sessionsd internal/usage
 cmd/sessionsd internal/winprocess
 internal/api internal/agentcall
+internal/api internal/autotitle
 internal/api internal/background
 internal/api internal/backup
 internal/api internal/codexapp
@@ -78,6 +79,8 @@ internal/api internal/usage
 internal/api internal/verdict
 internal/api internal/watch
 internal/api internal/webassets
+internal/autotitle internal/agentcall
+internal/autotitle internal/state
 internal/background internal/cpuprofile
 internal/backup internal/providerargs
 internal/backup internal/state

@@ -388,7 +388,8 @@ Sessions and use Codex's untrusted policy rather than on-request.
 `agentcall` is the shared one-shot boundary for explicitly requested AI
 features (`runtime/internal/agentcall/agentcall.go`). It invokes the user's
 already-authenticated Codex or Claude CLI in a temporary directory, disables
-tools and persistence, and does not hardcode a model. The child environment is
+tools and persistence, and does not hardcode a model; automatic titles alone
+pass the fixed alias `haiku` to Claude through `RunInProfileWithModel`. The child environment is
 built from an allowlist rather than by stripping known API-key names: only
 variables needed to locate the CLI, let it read credentials the user already
 stored on disk, and reach the network at all are passed through, and `PATH` is
@@ -402,6 +403,20 @@ preflighted so an older CLI fails with an update/provider instruction rather
 than weakening the boundary.
 Claude runs in safe mode with Chrome, slash commands, settings sources, tools,
 MCP, and persistence disabled.
+
+### `autotitle`
+
+`autotitle` names sessions nobody named (`runtime/internal/autotitle`). The
+session manager publishes each finished Claude or Codex turn
+(`runtime/internal/session/title_candidate.go`); the API server hands it to the
+service (`runtime/internal/api/auto_titles.go`), which skips any session with a
+name, an explicit rename, or a provider title, and otherwise makes one bounded
+`agentcall` request with the session's own provider and account (Claude asks
+for Haiku). The title is stored as `name_source: "generated"` by
+`state.Registry.AdoptGeneratedTitle`, which re-checks ownership against the
+on-disk metadata, and the outcome is shown only as `SessionInfo.autoTitle`.
+`sessions titles on|off` is the machine-wide switch and `sessions rename ID
+--auto` regenerates on request.
 
 ### `backup`
 

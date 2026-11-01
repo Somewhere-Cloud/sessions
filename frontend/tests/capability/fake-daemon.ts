@@ -442,7 +442,10 @@ export function installFakeDaemon(machines: FakeMachine[]): FakeDaemon {
       if (replayed) return jsonResponse({ ...replayed, start: { ...replayed.start!, replayed: true } });
       const created = makeSession({
         id: `created-${machine.sessions.length + 1}`,
-        name: typeof request.name === 'string' && request.name ? request.name : 'Untitled session',
+        // Like sessionsd: an unnamed request stays unnamed, with its request as
+        // the description, until a title is generated after the first turn.
+        name: typeof request.name === 'string' && request.name ? request.name : undefined,
+        description: typeof request.description === 'string' ? request.description : undefined,
         cmd: typeof request.cmd === 'string' ? request.cmd : 'claude',
         cwd: typeof request.cwd === 'string' ? request.cwd : '/Users/example/project',
         createdAt: NOW,

@@ -1,5 +1,5 @@
 import { connectionSettingsTarget } from '../../lib/connectionSettingsTarget';
-import type { SessionInfo } from '../../types';
+import type { AutoTitleStatus, SessionInfo } from '../../types';
 import {
   getActiveServer,
   getServer,
@@ -54,6 +54,23 @@ export async function updateSessionName(
   });
   const body = await featureJSON<{ name: string }>(r, 'Session rename');
   return body.name;
+}
+
+export interface AutoNameResult {
+  name: string;
+  name_source?: SessionInfo['name_source'];
+  autoTitle?: AutoTitleStatus;
+}
+
+/** `sessions rename ID --auto`: the provider's title, or a generated one. */
+export async function autoNameSession(sessionId: string, serverId?: string): Promise<AutoNameResult> {
+  const server = requestedServer(serverId);
+  const r = await serverFetch(server, `${httpBaseForServer(server)}/api/sessions/${encodeURIComponent(sessionId)}/name`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ auto: true })
+  });
+  return featureJSON<AutoNameResult>(r, 'Automatic session name');
 }
 
 export async function updateSetAside(
