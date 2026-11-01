@@ -59,7 +59,11 @@ func (r *claudeStructuredRunner) queuedReceipt(control proto.MessageControl, res
 		if item.ID != control.OperationID {
 			continue
 		}
-		if item.Hash != claudeMessageHash(control.Text) {
+		submitted := item.Hash
+		if item.SubmittedHash != "" {
+			submitted = item.SubmittedHash
+		}
+		if submitted != claudeMessageHash(control.Text) {
 			result.Error = "This operation id already belongs to another message. Inspect its receipt; do not reuse it."
 		} else {
 			result.Accepted, result.Boundary = true, item.Boundary
@@ -67,6 +71,10 @@ func (r *claudeStructuredRunner) queuedReceipt(control proto.MessageControl, res
 				result.Boundary = "queue"
 			}
 		}
+		return *result, true
+	}
+	if r.queueCancelled(control.OperationID) {
+		result.Error = "This operation was cancelled before it was dispatched and will not be sent. Send the message again with a new operation id."
 		return *result, true
 	}
 	return *result, false

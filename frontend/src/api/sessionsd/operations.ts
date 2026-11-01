@@ -992,3 +992,40 @@ export async function retryProviderSession(sessionId: string): Promise<void> {
 export async function stopProviderRetry(sessionId: string): Promise<void> {
   await postProviderRetryAction(sessionId, '/stop');
 }
+
+// A Rich Claude session's saved next-turn messages, as its runner holds them.
+// queued entries can still change; the dispatched one is the current turn.
+export interface SavedMessage {
+  operation_id: string;
+  text: string;
+  state: 'queued' | 'dispatched';
+  position?: number;
+  enqueued_at: string;
+  edits?: number;
+}
+
+export interface SavedMessageQueue {
+  paused: boolean;
+  items: SavedMessage[];
+  code?: string;
+}
+
+export type SavedMessageChange =
+  | { action: 'edit'; operation_id: string; text: string }
+  | { action: 'cancel'; operation_id: string }
+  | { action: 'move'; operation_id: string; to: number };
+
+// Same contract as `sessions queue`. The runner decides under the lock that
+// dispatches, so a refusal (already dispatched, cancelled) changed nothing;
+// its reason is thrown as given.
+export async function changeSavedMessage(sessionId: string, change: SavedMessageChange): Promise<SavedMessageQueue> {
+  const response = await apiFetch(`${httpBase()}/api/sessions/${encodeURIComponent(sessionId)}/queue`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(change)
+  });
+  let body: (SavedMessageQueue & { error?: string }) | undefined;
+  try { body = await response.json() as SavedMessageQueue & { error?: string }; } catch { body = undefined; }
+  if (!response.ok || body?.error) {
+    throw new Error(body?.error?.trim() || `Saved message was not changed (HTTP ${response.status}).`);
+  }
+  return body ?? { paused: false, items: [] };
+}

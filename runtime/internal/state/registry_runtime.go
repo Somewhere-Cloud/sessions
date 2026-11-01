@@ -190,6 +190,14 @@ func (r *Registry) RetryProvider(ctx context.Context, id string) (SessionInfo, e
 	return session.Info(), nil
 }
 
+func (r *Registry) ControlMessageQueue(ctx context.Context, id string, control proto.QueueControl) (proto.QueueResult, error) {
+	session, ok := r.Get(id)
+	if !ok {
+		return proto.QueueResult{}, fmt.Errorf("%w: session %s", ErrSessionNotFound, id)
+	}
+	return session.ControlMessageQueue(ctx, control)
+}
+
 func (r *Registry) StopProviderRetry(ctx context.Context, id string) error {
 	session, ok := r.Get(id)
 	if !ok {

@@ -295,6 +295,7 @@ func (r *claudeStructuredRunner) serveClient(connection net.Conn) {
 		PID: os.Getpid(), ProtocolVersion: proto.ProtocolVersion, RuntimeVersion: version,
 		ClaudeSessionID: r.sessionID, Retry: r.retry.Current(), Turn: &proto.TurnState{Working: r.active},
 		MessageSubmit: true,
+		MessageQueue:  true,
 	}
 	r.mu.Unlock()
 	payload, err := json.Marshal(h)
@@ -330,6 +331,8 @@ func (r *claudeStructuredRunner) handleFrame(c *client, frame proto.Frame) error
 	switch frame.Type {
 	case proto.MessageReq:
 		return replyMessage(c, frame.Payload, r.submitMessage)
+	case proto.QueueReq:
+		return replyQueue(c, frame.Payload, r.controlClaudeQueue)
 	case proto.Input:
 		r.handleInput(string(frame.Payload))
 	case proto.ModelReq:

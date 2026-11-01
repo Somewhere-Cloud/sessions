@@ -3,6 +3,8 @@ package state
 import (
 	"context"
 	"errors"
+	"fmt"
+
 	"github.com/somewhere-tech/sessions/runtime/internal/proto"
 )
 
@@ -39,4 +41,27 @@ func (s *Session) LateMessageResult(operationID string) (proto.MessageResult, bo
 		return proto.MessageResult{}, false
 	}
 	return runner.LateMessageResult(operationID)
+}
+
+// ControlMessageQueue forwards one saved-message request to a structured
+// Claude runner that advertised the capability. Codex keeps no runner queue:
+// a message sent while it works steers the active turn.
+func (s *Session) ControlMessageQueue(ctx context.Context, control proto.QueueControl) (proto.QueueResult, error) {
+	s.mu.RLock()
+	runner, supported := s.runner.(proto.QueueRunner)
+	info := s.info
+	s.mu.RUnlock()
+	switch {
+	case info.Kind == KindCodexAppServer:
+		return proto.QueueResult{}, fmt.Errorf("%w: Codex keeps no saved messages; a message sent while it works steers the active turn", ErrQueueUnsupported)
+	case info.Kind != KindClaudeStructured:
+		return proto.QueueResult{}, fmt.Errorf("%w: only Rich Claude sessions save messages for the next turn", ErrQueueUnsupported)
+	case info.Exited:
+		return proto.QueueResult{}, ErrSessionEnded
+	case !supported || !info.MessageQueue:
+		return proto.QueueResult{}, fmt.Errorf("%w: this Claude runner predates queue changes; resume the conversation with the current Sessions runtime", ErrRunnerProtocol)
+	case info.Unreachable:
+		return proto.QueueResult{}, fmt.Errorf("%w: its runner is unreachable right now", ErrQueueUnsupported)
+	}
+	return runner.ControlQueue(ctx, control)
 }

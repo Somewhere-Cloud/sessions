@@ -69,6 +69,7 @@ type observedRecord struct {
 	Type             string `json:"type"`
 	Subtype          string `json:"subtype"`
 	Operation        string `json:"operation"`
+	Source           string `json:"source"`
 	IsMeta           bool   `json:"isMeta"`
 	IsCompactSummary bool   `json:"isCompactSummary"`
 	Timestamp        any    `json:"timestamp"`
@@ -212,7 +213,19 @@ func QueuedInput(events []json.RawMessage) bool {
 		if !ok || record.Type != "queue-operation" {
 			continue
 		}
-		return record.Operation == "enqueue"
+		switch record.Operation {
+		case "remove":
+			// A Sessions cancel withdraws one saved message; others may
+			// remain, so keep looking rather than report the queue empty.
+			if record.Source == "sessions-next-turn" {
+				continue
+			}
+			return false
+		case "enqueue", "edit", "reorder":
+			return true
+		default:
+			return false
+		}
 	}
 	return false
 }

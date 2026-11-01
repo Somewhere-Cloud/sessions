@@ -99,6 +99,11 @@ export interface DispatchMessage {
   // belongs on the composer, where the person is waiting, not in the record of
   // what was said.
   pendingQueue?: boolean;
+  // A saved message changed before dispatch: the text it was first saved
+  // with, when edited since, and whether it was withdrawn. Either resolves the
+  // composer's local copy of the original send.
+  supersededContent?: string;
+  withdrawn?: boolean;
   // Number of identical provider-history turns that existed when sessionsd
   // began this submission, BEFORE network IO. A later occurrence replaces
   // the local copy even when provider history arrives before the receipt.
@@ -125,6 +130,8 @@ export interface AutoTitleStatus {
 export interface SessionInfo {
   workspaceGit?: { iconDataUrl?: string; state: 'branch' | 'detached' | 'unavailable' | 'not-repository'; branch?: string; revision?: string; observedAt: number };
   messageSubmit?: boolean;
+  // The runner can edit, cancel and reorder saved next-turn messages.
+  messageQueue?: boolean;
   id: string;
   name?: string;
   name_source?: 'launch' | 'provider' | 'explicit' | 'generated';

@@ -118,6 +118,16 @@ func (s *Server) deliveryReceiptBody(record delivery.Record, duplicate bool) (ma
 	}
 	if evidence, ok := s.claudeDeliveryEvidence(record, status); ok {
 		body["evidence"] = evidence
+		// The runner's history records a cancellation even when the receipt
+		// write that should follow it did not happen.
+		if evidence.Dispatch == delivery.DispatchCancelled && status == delivery.StatusAccepted {
+			status = delivery.StatusCancelled
+			body["status"], body["delivered"], body["retry"] = status, false, false
+			body["reason"] = "cancelled before dispatch; it was never sent to the provider"
+		}
+	}
+	if record.Edits > 0 {
+		body["edits"], body["edited_at_ms"] = record.Edits, record.EditedAtMS
 	}
 	return body, status
 }
@@ -127,7 +137,7 @@ func (s *Server) deliveryReceiptBody(record delivery.Record, duplicate bool) (ma
 // dispatched, and dispatch does not say what the provider did with it. It is
 // read from retained history each time, never stored in the receipt.
 func (s *Server) claudeDeliveryEvidence(record delivery.Record, status delivery.Status) (delivery.ClaudeEvidence, bool) {
-	if status != delivery.StatusAccepted || (record.Acceptance != "queue" && record.Acceptance != "runner") {
+	if (status != delivery.StatusAccepted && status != delivery.StatusCancelled) || (record.Acceptance != "queue" && record.Acceptance != "runner") {
 		return delivery.ClaudeEvidence{}, false
 	}
 	current, ok := s.registry.Get(record.SessionID)

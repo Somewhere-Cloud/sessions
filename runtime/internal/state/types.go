@@ -135,6 +135,7 @@ type SessionInfo struct {
 	RunnerProtocol    int               `json:"runnerProtocol"`
 	RunnerVersion     string            `json:"runnerVersion,omitempty"`
 	MessageSubmit     bool              `json:"messageSubmit,omitempty"`
+	MessageQueue      bool              `json:"messageQueue,omitempty"`
 	Tool              SessionTool       `json:"tool"`
 	// Launching is a process-local Create call with a recorded identity but
 	// no registered runner yet. It does not claim the command started.

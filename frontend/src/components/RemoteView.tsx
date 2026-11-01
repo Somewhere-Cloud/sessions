@@ -28,6 +28,7 @@ import { useProviderControl } from '../hooks/useProviderControl';
 import { retryProviderSession } from '../api/sessionsd';
 import type { MessageSubmission } from '../lib/messageDelivery';
 import '../styles/queued-messages.css';
+import { SavedMessageList } from './SavedMessageList';
 
 const LostConversationCard = lazy(() => import('./LostConversationCard').then((module) => ({ default: module.LostConversationCard })));
 
@@ -43,6 +44,10 @@ function renderFileReference(path: string, cwd = ''): string {
 function countProviderUserMessages(messages: DispatchMessage[]): Map<string, number> {
   const counts = new Map<string, number>();
   for (const message of messages) {
+    // Text edited away or withdrawn before dispatch will never arrive as a
+    // provider turn; counting it resolves the composer's local copy.
+    const resolved = message.supersededContent ?? (message.withdrawn ? message.content : undefined);
+    if (message.pendingQueue && resolved !== undefined) counts.set(resolved.trim(), (counts.get(resolved.trim()) ?? 0) + 1);
     if (message.role !== 'user' || message.status !== 'sent' || message.pendingQueue) continue;
     const content = message.content.trim();
     counts.set(content, (counts.get(content) ?? 0) + 1);
@@ -58,6 +63,7 @@ function mergeRemoteMessages(eventMessages: DispatchMessage[], dispatchMessages:
   for (const message of eventMessages) {
     const content = message.content.trim();
     if (message.pendingQueue) queuedCounts.set(content, (queuedCounts.get(content) ?? 0) + 1);
+    if (message.pendingQueue && message.supersededContent) queuedCounts.set(message.supersededContent.trim(), (queuedCounts.get(message.supersededContent.trim()) ?? 0) + 1);
     if (message.status === 'accepted' && message.blockId?.startsWith('sessions-message:') && message.errorResponse) uncertainCounts.set(content, (uncertainCounts.get(content) ?? 0) + 1);
     if (message.role === 'user' && message.status === 'failed') providerFailures.set(content, (providerFailures.get(content) ?? 0) + 1);
   }
@@ -121,6 +127,8 @@ interface Props {
   sessionId: string;
   draftMachineId?: string;
   usageScope?: ComposerUsageScope;
+  // The runner can edit, cancel and reorder saved next-turn messages.
+  queueControl?: boolean;
   // Provider-neutral structured history. Claude supplies JSONL records;
   // Codex supplies normalized rollout or app-server notifications.
   events: ClaudeSessionEvent[];
@@ -185,7 +193,7 @@ interface Props {
 // cycle.
 
 export function RemoteView({
-  sessionId, draftMachineId, usageScope,
+  sessionId, draftMachineId, usageScope, queueControl = false,
   events,
   historyPending,
   sendConfirmed,
@@ -285,7 +293,7 @@ export function RemoteView({
   // the composer where they are waiting.
   const transcript = useMemo(() => messages.filter((m) => !m.pendingQueue), [messages]);
   const queuedSend = useMemo(
-    () => messages.filter((m) => m.pendingQueue || m.status === 'queued'),
+    () => messages.filter((m) => (m.pendingQueue && !m.withdrawn) || m.status === 'queued'),
     [messages]
   );
   const visibleMessages = useMemo(() => {
@@ -600,7 +608,7 @@ export function RemoteView({
 
 
       <div className="remote-input-wrap">
-        {queuedSend.length ? <QueuedComposerStatus messages={queuedSend} providerName={providerName} sessionId={sessionId} resumable={!terminalAvailable && provider === 'claude-code'} working={sidebar.isWorking} /> : null}
+        {queuedSend.length ? <QueuedComposerStatus messages={queuedSend} providerName={providerName} sessionId={sessionId} resumable={!terminalAvailable && provider === 'claude-code'} changeable={queueControl && provider === 'claude-code'} working={sidebar.isWorking} /> : null}
         <InputBar
           send={sendConfirmed}
           submitMessage={submitMessage}
@@ -709,7 +717,7 @@ function QueuedBadge({ agentName }: { agentName: string }): JSX.Element {
 // asks; the runner decides from its own turn and queue, starts at most the
 // next undispatched message, and its refusal is shown as given. Nothing here
 // resends, interrupts, or retries on its own.
-function QueuedComposerStatus({ messages, providerName, sessionId, resumable, working }: { messages: DispatchMessage[]; providerName: string; sessionId: string; resumable: boolean; working: boolean }): JSX.Element {
+function QueuedComposerStatus({ messages, providerName, sessionId, resumable, changeable, working }: { messages: DispatchMessage[]; providerName: string; sessionId: string; resumable: boolean; changeable: boolean; working: boolean }): JSX.Element {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const resume = async (): Promise<void> => {
@@ -723,7 +731,7 @@ function QueuedComposerStatus({ messages, providerName, sessionId, resumable, wo
     <div className="remote-provider-retry remote-queued-status" role="status">
       <span aria-hidden>⏳</span>
       <span>{messages.length} saved for {providerName}'s next turn · not dispatched yet</span>
-      <details><summary>View saved messages</summary>{messages.map((message) => <p key={message.id} className="remote-queued-text">{message.content}</p>)}</details>
+      <SavedMessageList messages={messages} sessionId={sessionId} changeable={changeable} providerName={providerName} />
       {resumable ? <Button type="button" variant="secondary" className="" disabled={busy} onClick={() => void resume()}
         title="Ask Claude's runner to retry the failed turn, if any, or else to start the next saved message not yet dispatched. It refuses, and says why, while its turn is still open. A dispatched message is never sent again.">{busy ? 'Asking…' : 'Continue saved messages'}</Button> : null}
       {resumable && working && !error ? <span className="remote-queued-hint">{providerName} may still be in a turn; its runner decides and says why if it cannot continue.</span> : null}

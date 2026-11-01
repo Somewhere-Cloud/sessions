@@ -64,6 +64,7 @@ Daily workflows:
   fanout                   give one request to a lane per provider and join them
   approve                  answer the permission a Rich lane is waiting on
   retry                    retry a failed Rich provider turn, or continue saved Claude messages
+  queue                    list, edit, cancel or reorder saved Claude messages
   projects                 list or name the projects sessions are grouped under
   send                     send a message to a session
   send-status              inspect a durable message-delivery receipt
@@ -735,6 +736,29 @@ Examples:
 --json may appear before the command or among its options. --machine, --direct, --host, and --port must appear before the command. Arguments after `sessions run --` always belong to the child command.
 ```
 
+## `sessions queue`
+
+```text
+Usage:
+  sessions queue <session-id> [list | edit <op> <text...> | cancel <op> | move <op> --to N | next <op>]
+
+list, edit, cancel or reorder saved Claude messages
+
+A busy or paused Rich Claude session saves messages for its next turn (`sessions send` reports them as queue-accepted). `queue` lists them with their operation ids and positions, and changes one that has not been dispatched yet: `edit` replaces its text, `cancel` withdraws it, `move --to N` puts it at position N (1 is next), and `next` is `move --to 1`. Claude cannot take a message in the middle of a turn, so `next` does not steer: the message is still sent when the current turn ends, just before the others. An operation id may be shortened to a unique prefix of one listed.
+
+The runner decides each change under the same lock that dispatches messages. A message already dispatched to Claude cannot be edited, moved or cancelled; the refusal says so, nothing changes, and it is never sent again. A cancelled message's receipt (`sessions send-status`) says cancelled and the message is never sent; an edited one keeps its operation id and receipt, counts the edit, and sends the edited text. A message currently being answered is listed as `now`. Codex keeps no saved messages: a message sent while it works steers the active turn (`sessions send --steer`). With --json, a refusal prints ok:false with the reason, a code (dispatched, cancelled, not-found, full, storage, stopping) and the queue as it stands, and exits 1.
+
+Examples:
+  sessions queue 0123abcd
+  sessions queue 0123abcd edit 7f3e 'Run only the unit tests.'
+  sessions queue 0123abcd cancel 7f3e
+  sessions queue 0123abcd move 7f3e --to 2
+  sessions queue 0123abcd next 7f3e
+  sessions --json queue 0123abcd
+
+--json may appear before the command or among its options. --machine, --direct, --host, and --port must appear before the command. Arguments after `sessions run --` always belong to the child command.
+```
+
 ## `sessions projects`
 
 ```text
@@ -768,7 +792,7 @@ send a message to a session
 
 Send a message. Every send records a durable operation before runner input and returns its operation_id. If the caller disconnects after Sessions may have delivered the message, the result is unknown with retry:false; inspect it with `sessions send-status <operation-id>` instead of creating a duplicate writer. --operation-id lets an automated caller supply a UUID so retrying the same request is idempotent, including across a daemon restart. Reusing it for different content or a different target is refused.
 
---steer submits the text to a working Rich Codex turn for delivery at its next safe provider boundary. It requires a current structured Codex runner and is refused before anything is written when that capability is unavailable; omit --steer to send an ordinary follow-up. A structured runner's typed acknowledgement is success at the reported runner or provider boundary, so Sessions does not retry with terminal Enter. A refusal remains recoverable and is never reported as delivered. A busy or paused structured Claude session saves the message for its next turn (queue-accepted): it is saved, not yet dispatched to Claude, and must not be resent; `sessions send-status` reports when it is dispatched, and `sessions retry` continues a paused queue.
+--steer submits the text to a working Rich Codex turn for delivery at its next safe provider boundary. It requires a current structured Codex runner and is refused before anything is written when that capability is unavailable; omit --steer to send an ordinary follow-up. A structured runner's typed acknowledgement is success at the reported runner or provider boundary, so Sessions does not retry with terminal Enter. A refusal remains recoverable and is never reported as delivered. A busy or paused structured Claude session saves the message for its next turn (queue-accepted): it is saved, not yet dispatched to Claude, and must not be resent; `sessions send-status` reports when it is dispatched, `sessions queue` edits, cancels or reorders it before then, and `sessions retry` continues a paused queue.
 
 Claude and Codex terminal sessions use one bracketed paste and return success only after a fresh provider user event matches the complete intended message (allowing terminal newline and outer-whitespace normalization). A suffix, unrelated event, or Working state is not confirmation. Sessions never repeats Enter automatically; --no-wait is retained for script compatibility but never disables that delivery check. --file reads the complete message body from a UTF-8 file before delivery begins. --from records a durable, content-free source-lane attribution, so a delegate can see which session asked and reply to it by id; agents running inside Sessions inherit their source lane automatically, and the target may be running the other provider. An unrecognized option in front of the message is refused rather than typed into the session; put -- before a message that must begin with dashes.
 
@@ -792,7 +816,7 @@ Usage:
 
 inspect a durable message-delivery receipt
 
-Read the durable receipt for a send operation. The acceptance field states the evidence: runner or provider is a typed structured acknowledgment; queue means a structured Claude runner saved the message for its next turn, which is not dispatch; transcript means the complete legacy terminal message was observed in fresh provider history. For a structured Claude message accepted at the runner or queue boundary, evidence says what that runner's records show since: when it saved the message, whether and when it dispatched it to a Claude turn (or cannot know, after a runner restart), when Claude's process wrote its first record for that turn, and what Claude's result for that turn said. Each time is when the runner observed it, and a fact no retained record shows is reported as not observed, never as not having happened. None of this says the model read or understood the message, and none of it is a reason to resend. Older receipts without that evidence do not establish complete provider delivery. not-delivered with retry:true is the only result that authorizes an automatic retry. unknown or text-delivered means the message may already be visible to the provider and must not be resent automatically. Receipts survive daemon restarts and contain no message text.
+Read the durable receipt for a send operation. The acceptance field states the evidence: runner or provider is a typed structured acknowledgment; queue means a structured Claude runner saved the message for its next turn, which is not dispatch; transcript means the complete legacy terminal message was observed in fresh provider history. For a structured Claude message accepted at the runner or queue boundary, evidence says what that runner's records show since: when it saved the message, whether and when it dispatched it to a Claude turn (or cannot know, after a runner restart), when Claude's process wrote its first record for that turn, and what Claude's result for that turn said. Each time is when the runner observed it, and a fact no retained record shows is reported as not observed, never as not having happened. None of this says the model read or understood the message, and none of it is a reason to resend. Older receipts without that evidence do not establish complete provider delivery. cancelled means `sessions queue` withdrew a saved Claude message before dispatch: it was never sent, and resending the same operation id only reads this receipt. A saved message edited before dispatch keeps its receipt, which counts the edits (edits, edited_at_ms) while its content hash stays that of the original request. not-delivered with retry:true is the only result that authorizes an automatic retry. unknown or text-delivered means the message may already be visible to the provider and must not be resent automatically. Receipts survive daemon restarts and contain no message text.
 
 Examples:
   sessions send-status 11111111-2222-4333-8444-555555555555

@@ -961,7 +961,7 @@ export function eventsToMessages(events: ClaudeSessionEvent[]): DispatchMessage[
     }
 
     if (ev.type === 'queue-operation') {
-      if (appendUnknownQueueDispatch(ev, out)) continue;
+      if (appendUnknownQueueDispatch(ev, out) || applySavedMessageChange(ev, out)) continue;
       const op = (ev as Record<string, unknown>).operation;
       const text = (ev as Record<string, unknown>).content;
       if (op !== 'enqueue' || typeof text !== 'string' || !text.trim() || isHarnessOnly(text)) continue;
@@ -1024,6 +1024,37 @@ function appendUnknownQueueDispatch(ev: ClaudeSessionEvent, out: DispatchMessage
     role: 'user', content: ev.content, status: 'accepted', createdAt: timestampMs(ev.timestamp),
     errorResponse });
   return true;
+}
+
+// Sessions' runner records edits, cancellations and reorders of a saved
+// message before dispatch. Each changes only the still-pending entry it
+// names; a message already dispatched has no pending entry left to change.
+function applySavedMessageChange(ev: ClaudeSessionEvent, out: DispatchMessage[]): boolean {
+  const record = ev as Record<string, unknown>;
+  if (ev.source !== 'sessions-next-turn' || typeof record.operation_id !== 'string') return false;
+  const id = record.operation_id;
+  const pending = (message: DispatchMessage): boolean => Boolean(message.pendingQueue) && message.blockId === id;
+  if (ev.operation === 'edit' && typeof record.content === 'string') {
+    for (const message of out) {
+      if (!pending(message)) continue;
+      message.supersededContent ??= message.content;
+      message.content = record.content;
+    }
+    return true;
+  }
+  if (ev.operation === 'remove') {
+    // Kept as a hidden marker so the composer's local copy resolves too.
+    for (const message of out) if (pending(message)) message.withdrawn = true;
+    return true;
+  }
+  if (ev.operation === 'reorder' && Array.isArray(record.order)) {
+    const order = record.order.filter((value): value is string => typeof value === 'string');
+    const slots = out.flatMap((message, index) => (message.pendingQueue && message.blockId && order.includes(message.blockId) ? [index] : []));
+    const moved = slots.map((index) => out[index]!).sort((a, b) => order.indexOf(a.blockId!) - order.indexOf(b.blockId!));
+    slots.forEach((slot, index) => { out[slot] = moved[index]!; });
+    return true;
+  }
+  return false;
 }
 
 function filterConsumedQueue(out: DispatchMessage[]): DispatchMessage[] {

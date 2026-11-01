@@ -25,6 +25,7 @@ type SocketRunner struct {
 	replayMu sync.Mutex
 	modelMu  sync.Mutex
 	retryMu  sync.Mutex
+	queueMu  sync.Mutex
 	mu       sync.Mutex
 	info     RunnerInfo
 	exited   bool
@@ -34,6 +35,7 @@ type SocketRunner struct {
 	replay   *replayRequest
 	model    *modelRequest
 	retry    *modelRequest
+	queue    *queueRequest
 	messages map[string]chan MessageResult
 	// Acknowledgments this connection received after their caller stopped
 	// waiting, oldest operation id first, so an interrupted client can still
@@ -409,6 +411,8 @@ func (r *SocketRunner) handleFrame(frame Frame) bool {
 		r.handleRetryResponse(frame.Payload)
 	case MessageRes:
 		r.handleMessageResponse(frame.Payload)
+	case QueueRes:
+		r.handleQueueResponse(frame.Payload)
 	case Hello, SnapshotRes:
 		// HELLO is consumed during DialRunner. Extra HELLO and legacy
 		// snapshot replies are harmless forward-compatible traffic.
@@ -538,6 +542,14 @@ func (r *SocketRunner) closeWithLoss(cleanExit bool) {
 		case <-r.retry.done:
 		default:
 			close(r.retry.done)
+		}
+	}
+	if r.queue != nil {
+		select {
+		case <-r.queue.done:
+		default:
+			r.queue.err = net.ErrClosed
+			close(r.queue.done)
 		}
 	}
 	if !cleanExit && !r.exited {

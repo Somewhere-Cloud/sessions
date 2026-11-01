@@ -764,7 +764,7 @@ function SessionViewInner({ sessionId, onStatusChange, isActive = false, onResum
         </div>
         <ConversationPane>
           <RemoteView
-            sessionId={sessionId} draftMachineId={getActiveServer().id}
+            sessionId={sessionId} draftMachineId={getActiveServer().id} queueControl={Boolean(session?.messageQueue)}
             usageScope={session ? { sessionId: session.id, machineId: sourceServerId, provider: session.tool, profile: session.profile, configDir: session.configDir } : undefined}
             events={term.claudeEvents}
             historyPending={term.historyPending}
