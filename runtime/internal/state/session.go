@@ -93,6 +93,20 @@ func kindKeepsTerminalMirror(kind string) bool {
 	}
 }
 
+// sessionToolFor names the tool a runner hosts: its command, unless its kind
+// already says which provider or lane it is.
+func sessionToolFor(kind, cmd string) SessionTool {
+	switch kind {
+	case KindLane:
+		return SessionTool("lane:" + filepath.Base(cmd))
+	case KindCodexAppServer:
+		return ToolCodex
+	case KindClaudeStructured:
+		return ToolClaude
+	}
+	return classifyTool(cmd)
+}
+
 func newSession(ctx context.Context, info proto.RunnerInfo, runner proto.Runner, metadata SessionMetadata) (*Session, error) {
 	var terminal *mirror.Mirror
 	if kindKeepsTerminalMirror(metadata.Kind) {
@@ -102,14 +116,7 @@ func newSession(ctx context.Context, info proto.RunnerInfo, runner proto.Runner,
 		}
 		terminal = created
 	}
-	tool := classifyTool(info.Cmd)
-	if metadata.Kind == KindLane {
-		tool = SessionTool("lane:" + filepath.Base(info.Cmd))
-	} else if metadata.Kind == KindCodexAppServer {
-		tool = ToolCodex
-	} else if metadata.Kind == KindClaudeStructured {
-		tool = ToolClaude
-	}
+	tool := sessionToolFor(metadata.Kind, info.Cmd)
 	model, effort, fast := spawnControls(tool, info.Args)
 	now := time.Now().UnixMilli()
 	session := &Session{
