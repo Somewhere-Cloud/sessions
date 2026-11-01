@@ -8,6 +8,8 @@ import { EmptyState } from './components/EmptyState';
 // These surfaces are only opened on demand, so keep them out of the entry bundle.
 const NewSessionDialog = lazy(() => import('./components/NewSessionDialog').then((module) => ({ default: module.NewSessionDialog })));
 const ResumeDialog = lazy(() => import('./components/ResumeDialog').then((module) => ({ default: module.ResumeDialog })));
+// Background bookkeeping: unread marks and the one toast slot. Nothing waits on it.
+const SessionAttentionLayer = lazy(() => import('./components/SessionAttentionLayer').then((module) => ({ default: module.SessionAttentionLayer })));
 const ForkConfirmationDialog = lazy(() => import('./components/ForkConfirmationDialog').then((module) => ({ default: module.ForkConfirmationDialog })));
 const UsageDashboard = lazy(() => import('./components/UsageDashboard').then((module) => ({ default: module.UsageDashboard })));
 const DailyView = lazy(() => import('./components/DailyView').then((module) => ({ default: module.DailyView })));
@@ -776,7 +778,7 @@ function ConnectedApp({ nativeClientOnly = false }: { nativeClientOnly?: boolean
       <div className="operations-frame">
         {sessionWorkspace && !isMobile ? sessionNavigator : null}
         <section className="operations-content">
-          <TailnetAccessInbox /><LaneLinkOpener onOpen={openFleetSession} />
+          <TailnetAccessInbox /><LaneLinkOpener onOpen={openFleetSession} /><Suspense fallback={null}><SessionAttentionLayer viewingId={sessionWorkspace && (!isMobile || mobileSessionDetail) ? activeId : null} onOpen={openSession} /></Suspense>
           {nativeClientOnly && onboardingPending ? <section className="client-onboarding-note" role="status" aria-live="polite"><strong>Finish setup on {machine}:</strong><span>Open Sessions on that computer once.</span></section> : null}
           {recoveryVisible ? (
             <MachineRecoveryNotice

@@ -8,7 +8,6 @@ import { resolvedSessionLabel } from '../lib/tabLabels';
 import { canContinueSession, classifySession, endedAtLabel, endedSummary, type SessionStatusState } from '../lib/sessionStatus';
 import { sessionModeName } from '../lib/sessionMode';
 import { ProviderBadge, normalizeProvider } from './ProviderBadge';
-import { useSessions } from '../store/sessions';
 import { PIN_UNAVAILABLE_WHEN_ENDED } from '../lib/workingSet';
 
 // Long-form expansions of the classifier's one-word state. Same ordering,
@@ -48,7 +47,7 @@ export function SessionDetails({ session, allSessions, onEnd, onResume }: Props)
   // The pin is daemon state, so the panel reports what the daemon stored and
   // says so when the call fails. Flipping the checkbox optimistically would
   // show a protection the session does not actually have.
-  const updatePinned = useSessions((state) => state.updatePinned);
+  const updatePinned = (id: string, pinned: boolean): Promise<void> => import('../store/sessionActions').then((actions) => actions.pinWithUndo(id, pinned));
   const [pinning, setPinning] = useState(false);
   const [pinError, setPinError] = useState<string | null>(null);
   const displayParentID = session.displayParentSessionId !== undefined

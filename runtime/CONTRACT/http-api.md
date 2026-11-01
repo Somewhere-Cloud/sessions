@@ -40,7 +40,7 @@ This document records the behavior of the normative Go daemon in
   the per-session suffixes served by `handleSessionRoute` (`/snapshot`,
   `/events`, `/model-options`, `/model`, `/input`, `/submit`, `/approve`, `/retry`, `/retry/stop`, `/name`,
   `/tags`, `/upload`, `/display-parent`, `/set-aside`, the bare `DELETE`)
-  still fall through to the 404 body. `/pin`, `/wait`, `/wait-state`,
+  still fall through to the 404 body. `/pin`, `/read-state`, `/wait`, `/wait-state`,
   `/verdict`, `/pr`, `/pr/refresh`, `/prs`, `/prs/refresh`, and `/tasks` return 405. Either way the request is authenticated before the
   method is judged, so a wrong method on an API path normally requires auth
   before returning 404 or 405. Each route entry below states its own
@@ -180,6 +180,10 @@ fields. Optional fields are omitted when their value is `undefined`.
 | `setAsideAt` | number, optional | Unix epoch milliseconds when the live session was removed from the native app's default working set; this is organization, not lifecycle |
 | `setAsideUntil` | number, optional | Unix epoch milliseconds when the daemon brings the set-aside session back on its own; omitted for an open-ended set-aside |
 | `pinned` | boolean, always present | whether the user marked this live session as a workbench: it sorts first in every listing and any future automatic cleanup policy must leave it alone. Always present, including as `false`, so a caller can tell "not pinned" from a daemon that predates the field |
+| `seenAt` | number, optional | Unix epoch milliseconds when a person last opened this session through a Sessions client or `sessions seen` |
+| `attentionAt` | number, optional | Unix epoch milliseconds when the daemon last reported that this agent session finished a turn, failed, or needs input. Stamped where the matching desktop notification is queued, whether or not that notification is enabled. Shells and lanes never carry it |
+| `markedUnread` | boolean, optional | present as `true` when a person explicitly marked the session unread |
+| `unread` | boolean, always present | the daemon's single unread answer: false for an ended session; otherwise true when `markedUnread`, or when `attentionAt` is later than both `seenAt` and `lastHumanMessageAt`. A session with neither `seenAt` nor `lastHumanMessageAt` is never unread by attention alone, so sessions an agent started for its own work stay calm. Always present so a caller can tell "read" from a daemon that predates the field |
 | `memoryBytes` | number, optional | resident memory of the session's whole process tree at `resourceSampledAt`. **Omitted, never zero, when unknown** — no live process, a process the daemon may not inspect, or a platform without sampling. A client that treats a missing value as `0` will report a saturated machine as idle |
 | `cpuPercent` | number, optional | percent of one core the process tree used between the two most recent samples. It is a rate, not an average over the life of the process; a tree spanning cores exceeds 100. Omitted when unknown, which includes the first sample of a tree, because a rate needs two readings. Omitted is not zero; a measured zero is sent as `0` |
 | `resourceProcesses` | number, optional | how many processes `memoryBytes` and `cpuPercent` cover. Present exactly when `memoryBytes` is |
@@ -1723,6 +1727,25 @@ runner metadata write preserves whatever the daemon last stored. Unknown
 sessions return 404. Ended records return 409 because a pin marks a live
 workbench; archive is the organizational verb for ended records. Any method
 other than `PUT` returns 405.
+
+### `PUT /api/sessions/:id/read-state`
+
+Auth required. Body is `{"unread":true|false}`; a body without a boolean
+`unread` is 400. `false` stamps the session seen now and clears an explicit
+mark; `true` sets the explicit mark until the session is next seen. The answer
+is what the daemon stored and derived:
+
+```json
+{"unread":false,"seenAt":1750000000000,"attentionAt":1749999990000}
+```
+
+`seenAt` and `attentionAt` are `null` when unknown. The values are persisted in
+runner metadata as `seen_at`, `attention_at`, and `marked_unread`, are
+daemon-owned like the pin, and survive daemon restart and runner re-adoption.
+Unknown sessions return 404. Marking an ended record unread returns 409,
+because an ended session is never reported unread; marking one seen succeeds.
+Nothing is sent and the runner is not touched. Any method other than `PUT`
+returns 405.
 
 ### `GET /api/sessions/:id/tags`
 

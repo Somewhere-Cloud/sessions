@@ -68,6 +68,7 @@ func (r *runtimeSession) notifyDone(summary string) {
 	r.mu.Lock()
 	r.faultNotified = false
 	r.mu.Unlock()
+	r.markAttention()
 	body := summary
 	if body == "" {
 		body = "finished"
@@ -83,6 +84,7 @@ func (r *runtimeSession) notifyDone(summary string) {
 // classified provider fault, in the same words as the waiting reminder for a
 // failed turn.
 func (r *runtimeSession) notifyFailedTurn(info state.SessionInfo, line string) {
+	r.markAttention()
 	body := line
 	if body == "" {
 		body = "provider turn failed"
@@ -104,6 +106,7 @@ func (r *runtimeSession) notifyProviderFault(info state.SessionInfo, fault provi
 	}
 	r.faultNotified = true
 	r.mu.Unlock()
+	r.markAttention()
 	provider := providerDisplayName(info.FailureProvider)
 	if provider == "Provider" {
 		provider = providerDisplayName(providerForSession(info))
@@ -192,6 +195,9 @@ func (r *runtimeSession) scheduleWaiting(summary string) {
 		r.fireWaiting(generation, summary)
 	})
 	r.mu.Unlock()
+	// The reminder waits so a quick reply does not buzz anyone; the unread
+	// mark does not, because a quiet bold row costs nothing.
+	r.markAttention()
 }
 
 // fireWaiting runs in the transition sequence: a start edge either precedes

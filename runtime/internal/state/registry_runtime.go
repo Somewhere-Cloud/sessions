@@ -389,6 +389,9 @@ type RunnerMetadata struct {
 	SetAsideAt             *int64
 	SetAsideUntil          *int64
 	Pinned                 bool
+	SeenAt                 *int64
+	AttentionAt            *int64
+	MarkedUnread           bool
 	LastHumanMessageAt     *int64
 	LastAgentMessageAt     *int64
 	DelegationKind         string
@@ -432,6 +435,8 @@ func parseRunnerMetadata(encoded []byte) (RunnerMetadata, error) {
 		Description: metadata.Description, DescriptionSource: metadata.DescriptionSource,
 		Tags: CloneTags(metadata.Tags), DisplayParentSessionID: cloneStringPointer(metadata.DisplayParentSessionID),
 		SetAsideAt: cloneInt64Pointer(metadata.SetAsideAt), SetAsideUntil: cloneInt64Pointer(metadata.SetAsideUntil), Pinned: metadata.Pinned,
+		SeenAt: cloneInt64Pointer(metadata.SeenAt), AttentionAt: cloneInt64Pointer(metadata.AttentionAt),
+		MarkedUnread:       metadata.MarkedUnread,
 		LastHumanMessageAt: cloneInt64Pointer(metadata.LastHumanMessageAt),
 		LastAgentMessageAt: cloneInt64Pointer(metadata.LastAgentMessageAt),
 		DelegationKind:     metadata.DelegationKind,
