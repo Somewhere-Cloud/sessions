@@ -15,6 +15,7 @@ const UsageDashboard = lazy(() => import('./components/UsageDashboard').then((mo
 const DailyView = lazy(() => import('./components/DailyView').then((module) => ({ default: module.DailyView })));
 const AccountsView = lazy(() => import('./components/AccountsView').then((module) => ({ default: module.AccountsView })));
 const SettingsView = lazy(() => import('./components/SettingsView').then((module) => ({ default: module.SettingsView })));
+const CommandPalette = lazy(() => import('./components/CommandPalette').then((module) => ({ default: module.CommandPalette })));
 const SearchView = lazy(() => import('./components/SearchView').then((module) => ({ default: module.SearchView })));
 const ConnectScreen = lazy(() => import('./components/ConnectScreen').then((module) => ({ default: module.ConnectScreen })));
 const FleetRelaySync = lazy(() => import('./components/FleetRelaySync').then((module) => ({ default: module.FleetRelaySync })));
@@ -23,7 +24,6 @@ import { ConnectionStatus } from './components/ConnectionStatus';
 import { GridView } from './components/GridView';
 import { ProductSidebar, type ProductView, type ThemeMode } from './components/ProductSidebar';
 import { SessionNavigator, focusTreeRow } from './components/SessionNavigator';
-import { CommandPalette } from './components/CommandPalette';
 import { SessionsWorkspaceSkeleton } from './components/LoadingShell';
 import { OnboardingDialog } from './components/OnboardingDialog';
 import { DaemonBanner, SinglePopOut } from './AppAuxiliaryViews';
@@ -933,15 +933,15 @@ function ConnectedApp({ nativeClientOnly = false }: { nativeClientOnly?: boolean
         }}
       />
 
-      <CommandPalette
-        open={commandPaletteOpen}
+      {commandPaletteOpen ? <Suspense fallback={null}><CommandPalette
+        open
         sessions={sessions}
         onClose={() => setCommandPaletteOpen(false)}
         onNavigate={navigateProduct}
         onNewSession={openNewSession}
         onContinue={() => setDialogOpen('resume')}
         onOpenSession={openSession}
-      />
+      /></Suspense> : null}
 
       {dialogOpen === 'resume' || (dialogOpen && typeof dialogOpen === 'object' && 'resumeProviderId' in dialogOpen) ? (
         <Suspense fallback={null}>
