@@ -1,4 +1,4 @@
-import { httpBaseForServer, json, requestedServer, serverFetch } from './core';
+import { apiFetch, featureJSON, httpBase, httpBaseForServer, json, requestedServer, serverFetch } from './core';
 
 export interface PullRequestStatus {
   session_id: string;
@@ -49,4 +49,44 @@ export async function refreshPullRequest(sessionId: string, serverId?: string): 
     headers: { 'content-type': 'application/json' },
     body: '{}',
   });
+}
+
+// Background automation on the active machine. Both switches default on.
+export interface PullRequestWatchStatus {
+  enabled: boolean;
+  intervalMs: number;
+  settleQuietMs: number;
+  lastPass?: { at: string; watched: number; read: number; recorded: number; failed: number; unavailable?: boolean; paused_until?: string; last_error?: string };
+  lastSettled?: string[];
+}
+
+export interface WorktreeAutoCleanStatus {
+  enabled: boolean;
+  intervalMs: number;
+  graceMs: number;
+  plan?: Array<{ session: string; session_name?: string; worktree_path: string; branch: string; action: string; reason?: string }>;
+  lastRun?: { at: string; results: Array<{ worktree_path: string; action: string; reason?: string }>; error?: string };
+}
+
+async function automationSwitch<T>(path: string, feature: string, enabled?: boolean, signal?: AbortSignal): Promise<T> {
+  const init: RequestInit = enabled === undefined
+    ? { signal }
+    : { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ enabled }), signal };
+  return featureJSON<T>(await apiFetch(`${httpBase()}${path}`, init), feature);
+}
+
+export function fetchPullRequestWatch(signal?: AbortSignal): Promise<PullRequestWatchStatus> {
+  return automationSwitch('/api/pull-request-watch', 'Pull request watch', undefined, signal);
+}
+
+export function updatePullRequestWatch(enabled: boolean): Promise<PullRequestWatchStatus> {
+  return automationSwitch('/api/pull-request-watch', 'Pull request watch', enabled);
+}
+
+export function fetchWorktreeAutoClean(signal?: AbortSignal): Promise<WorktreeAutoCleanStatus> {
+  return automationSwitch('/api/worktrees/auto', 'Automatic worktree cleanup', undefined, signal);
+}
+
+export function updateWorktreeAutoClean(enabled: boolean): Promise<WorktreeAutoCleanStatus> {
+  return automationSwitch('/api/worktrees/auto', 'Automatic worktree cleanup', enabled);
 }

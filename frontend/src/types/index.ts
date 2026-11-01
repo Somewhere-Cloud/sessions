@@ -236,6 +236,18 @@ export interface SessionInfo {
   // User-controlled visual grouping. Undefined preserves trusted creator
   // lineage; an empty string deliberately promotes the session to a root.
   displayParentSessionId?: string;
+  // The primary linked pull request as last recorded by the daemon. The
+  // daemon's watch keeps it current; reading it never contacts GitHub.
+  pullRequest?: {
+    url: string;
+    number: number;
+    state: 'open' | 'closed' | 'merged' | 'unknown';
+    draft?: boolean;
+    checks: 'passing' | 'failing' | 'pending' | 'none' | 'unknown';
+    others?: number;
+    allMerged: boolean;
+    observedAt?: number;
+  };
   // Daemon-owned working-set organization. A live session remains running,
   // searchable, countable, and CLI-visible while set aside.
   setAsideAt?: number | null;

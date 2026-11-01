@@ -1015,12 +1015,29 @@ function SessionRowMeta({ when, whenTitle, project, session, label, machine, sho
   const stamp = <span className="session-nav-stamp">
     <span className="session-nav-time" title={whenTitle}>{when}</span>
     <span className={showMachine ? undefined : 'sr-only'}><MachineMark machine={machine} size={14} /></span>
+    <SessionRowPullRequest session={session} />
     {providerName ? <ProviderBadge provider={providerName} compact /> : null}
   </span>;
   return <>
     {project ? <span className="session-nav-meta"><span className="session-nav-project" title={`Project: ${project}`}><ProjectMark name={project} icon={session.workspaceGit?.iconDataUrl} /><span className="session-nav-project-label">{project}</span></span>{stamp}</span> : null}
     <span className="session-nav-heading"><span className="session-nav-title" title={label}>{label}</span>{!project ? stamp : null}</span>
   </>;
+}
+
+// The linked pull request in a few characters: its number, tinted by state,
+// with a dot only when checks are failing or still running. The title says the
+// rest; the session header carries the full chip.
+function SessionRowPullRequest({ session }: { session: SessionInfo }): JSX.Element | null {
+  const pr = session.pullRequest;
+  if (!pr) return null;
+  const state = pr.state === 'open' && pr.draft ? 'draft' : pr.state;
+  const checks = pr.state === 'open' && (pr.checks === 'failing' || pr.checks === 'pending') ? pr.checks : null;
+  const words = [`Pull request #${pr.number}`, state === 'unknown' ? 'not read yet' : state];
+  if (pr.state === 'open') words.push(pr.checks === 'none' ? 'no checks' : `checks ${pr.checks}`);
+  if (pr.others) words.push(`${pr.others} more linked`);
+  return <span className={`session-nav-pr is-${state}`} title={words.join(' · ')} aria-label={words.join(', ')}>
+    #{pr.number}{checks ? <span className={`session-nav-pr-checks is-${checks}`} aria-hidden /> : null}
+  </span>;
 }
 
 function DisclosureChevron({ open }: { open: boolean }): JSX.Element {
