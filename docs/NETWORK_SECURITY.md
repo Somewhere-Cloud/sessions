@@ -538,8 +538,20 @@ Linking a lane to a pull request (`sessions pr link`, `PUT
 `https://github.com/OWNER/REPO/pull/NUMBER`, and records the canonical link in
 the ledger. It sends nothing.
 
-Reading the pull request is a separate explicit action, `sessions pr refresh`
-or `POST /api/sessions/:id/pr/refresh`. There is no background polling.
+Reading the pull request happens on an explicit `sessions pr refresh` (`POST
+/api/sessions/:id/pr/refresh`) and, unless turned off, on the daemon's
+background watch (`sessions pr watch`, `GET|PUT /api/pull-request-watch`). The
+watch is on by default because linking a pull request is already the user
+asking Sessions to follow it; it uses exactly the same read and adds only a
+schedule:
+
+- every 5 minutes for an open pull request of a running lane, every 30 minutes
+  for a closed one or one whose lane ended, and never again once it is merged;
+- at most 20 reads per one-minute pass, one at a time;
+- a failed read backs off exponentially to at most an hour, and a missing or
+  signed-out `gh` pauses every read for an hour;
+- nothing is read while no pull request is linked, and
+  `sessions pr watch off` stops all background reads on that machine.
 
 - **Destination:** GitHub, reached by the user's installed GitHub CLI (`gh pr
   view <url> --json ...`). The host is always `github.com`, taken from the
@@ -554,15 +566,22 @@ or `POST /api/sessions/:id/pr/refresh`. There is no background polling.
   names, head and merge commit IDs, check counts, mergeability) is appended to
   the local ledger when it differs from the last one. Titles, bodies, comments,
   and check names are not kept.
-- **Timeout and retry:** one call bounded at 20 seconds, with no retry. A
-  failure is reported by kind (`gh_missing`, `auth`, `not_found`, `network`,
-  `rate_limited`, `timeout`, ...) and records nothing.
-- **Disable:** do not refresh, or `sessions pr unlink` the lane. Signing out of
-  `gh` revokes the capability without touching Sessions.
+- **Timeout and retry:** one call bounded at 20 seconds, never retried within
+  the request. A failure is reported by kind (`gh_missing`, `auth`,
+  `not_found`, `network`, `rate_limited`, `timeout`, ...) and records nothing;
+  the background watch backs off as above.
+- **Disable:** `sessions pr watch off` (or the Settings switch) stops the
+  background reads; `sessions pr unlink` the lane to stop following one pull
+  request. Signing out of `gh` revokes the capability without touching
+  Sessions.
 
 A merged pull request is reported as merged for that pull request only; it is
-not treated as proof that the lane's task is done, and it never ends a runner
-(`runtime/internal/pullrequest`, `runtime/internal/session/pull_request.go`).
+not treated as proof that the lane's task is done, and it never ends a runner.
+When every pull request linked to a live, quiet session has merged, the watch
+sets the session aside, the same reversible organization as `sessions aside`
+(`runtime/internal/pullrequest`, `runtime/internal/session/pull_request.go`,
+`runtime/internal/session/pull_request_watch.go`,
+`runtime/internal/api/pull_request_watch.go`).
 
 ## Feedback and support tickets
 

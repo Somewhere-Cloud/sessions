@@ -291,7 +291,7 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 	if s.handleOnboardingRoute(response, request, corsOrigin) {
 		return
 	}
-	if s.handleAutoArchiveRoute(response, request, corsOrigin) {
+	if s.handleAutomationRoute(response, request, corsOrigin) {
 		return
 	}
 	if s.handleIdleCompactionRoute(response, request, corsOrigin) || s.handleLimitRecoveryRoute(response, request, corsOrigin) ||

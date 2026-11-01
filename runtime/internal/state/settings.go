@@ -293,6 +293,14 @@ type Settings struct {
 	// Titles is the machine-wide switch for automatic session titles.
 	// Missing means on.
 	Titles *TitleSettings `json:"titles,omitempty"`
+	// PullRequestWatch lets the daemon read linked pull requests on a slow
+	// schedule and set a session aside once every linked pull request merged.
+	// Missing means on.
+	PullRequestWatch *EnabledSetting `json:"pullRequestWatch,omitempty"`
+	// WorktreeCleanup lets the daemon remove worktrees Sessions created once
+	// the same checks `sessions worktrees clean` uses all pass. Missing means
+	// on.
+	WorktreeCleanup *EnabledSetting `json:"worktreeCleanup,omitempty"`
 	// LimitRecovery is the machine-wide default for resuming a session when
 	// its provider usage limit resets. Missing means on; per-session choices
 	// live with the plans in the state root.
@@ -317,6 +325,21 @@ type TitleSettings struct {
 // turned off.
 func (s Settings) TitlesEnabled() bool {
 	return s.Titles == nil || s.Titles.Enabled
+}
+
+// EnabledSetting is an on/off machine choice whose missing value is on.
+type EnabledSetting struct {
+	Enabled bool `json:"enabled"`
+}
+
+// PullRequestWatchEnabled reports the machine choice, on unless turned off.
+func (s Settings) PullRequestWatchEnabled() bool {
+	return s.PullRequestWatch == nil || s.PullRequestWatch.Enabled
+}
+
+// WorktreeCleanupEnabled reports the machine choice, on unless turned off.
+func (s Settings) WorktreeCleanupEnabled() bool {
+	return s.WorktreeCleanup == nil || s.WorktreeCleanup.Enabled
 }
 
 type IdleCompactionSettings struct {

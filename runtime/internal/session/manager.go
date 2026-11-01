@@ -194,6 +194,7 @@ type Manager struct {
 	// startup.go: a daemon that is still loading is not one that lost your work.
 	startup      *startupProgress
 	pullRequests pullRequestLinks
+	prWatch      pullRequestWatcher
 	usage        UsageRecorder
 	notify       func(PushPayload)
 	listModels   func(context.Context, string) ([]codexapp.Model, error)

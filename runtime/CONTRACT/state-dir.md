@@ -72,6 +72,7 @@ control the user turn. Dispatch is not proof of provider acceptance or recall.
 ├── push-subscriptions.json
 ├── idle-compaction.json
 ├── limit-recovery.json
+├── pull-request-settle.json
 ├── delivery-operations/
 │   └── <operation-id>.json
 ├── parent-reports/
@@ -125,6 +126,7 @@ override:
 - `usage.sqlite3` and `errors.jsonl`;
 - `idle-compaction.json`, the idle compaction schedule and per-lane choices;
 - `limit-recovery.json`, usage-limit resume plans and per-session choices;
+- `pull-request-settle.json`, which merges already set a session aside;
 - `history-cache.json`, what the history listing has already computed about each
   transcript file — its message count, its recorded last activity, and the card
   the provider scan read out of that file's head — keyed by path with the size
@@ -435,6 +437,23 @@ transcript attribution; it stores only the fixed resume text and time.
 Entries and overrides of a session absent for ten minutes after startup
 discovery are forgotten. A file that cannot be read or decoded, or has another
 version, pauses limit recovery and is never overwritten.
+
+### `pull-request-settle.json`
+
+Mode-0600 JSON written by the daemon's pull request watch
+(`runtime/internal/api/pull_request_watch.go`), replaced atomically. It follows
+`SESSIONS_STATE_DIR`; the on/off choice lives in `settings.json` as
+`pullRequestWatch.enabled` (missing means on).
+
+```json
+{"settled":{"<session id>":"<primary pull request URL>+<count of other links>"}}
+```
+
+An entry means the session's linked pull requests, as identified by the value,
+already set it aside once (or it was already set aside when they merged), so a
+session the user restores is not set aside again for the same merges. A file
+that cannot be decoded pauses settling with an instructional log line and is
+never overwritten; remove it to start fresh. An older daemon ignores the file.
 
 ### `idle/<id>`
 
@@ -794,7 +813,9 @@ failure path is stricter as described above.
 
 ## Automatic working-set organization
 
-`settings.json` adds optional `autoArchive` (boolean; absent means false).
+`settings.json` adds optional `autoArchive` (boolean; absent means false),
+`pullRequestWatch` (`{"enabled":bool}`; absent means on), and
+`worktreeCleanup` (`{"enabled":bool}`; absent means on).
 The authenticated `/api/auto-archive` preference is per daemon machine. Eligible
 structured sessions reuse runner metadata `set_aside_at`; there is no separate
 archive store. Runner metadata may also carry `set_aside_until` (Unix ms), the

@@ -16,8 +16,9 @@ import (
 	"github.com/somewhere-tech/sessions/runtime/internal/ledger"
 )
 
-// FetchTimeout bounds one status read. There is no retry: a refresh is an
-// explicit request, and its failure is reported rather than hidden.
+// FetchTimeout bounds one status read. A read is never retried within the
+// request: an explicit refresh reports its failure, and the background watch
+// backs off before its next scheduled read.
 const FetchTimeout = 20 * time.Second
 
 const (

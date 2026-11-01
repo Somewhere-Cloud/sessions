@@ -40,6 +40,7 @@ import { AutoArchiveCard } from './AutoArchiveCard';
 import { IdleCompactionCard } from './IdleCompactionCard';
 import { LimitRecoveryCard } from './LimitRecoveryCard';
 import { AutoTitlesCard } from './AutoTitlesCard';
+import { CleanupAutomationCard } from './CleanupAutomationCard';
 
 const StorageView = lazy(() => import('./StorageView').then((module) => ({ default: module.StorageView })));
 
@@ -476,6 +477,7 @@ function AgentSettings(props: AgentSettingsProps): JSX.Element {
         {props.claudeMessage ? <Status>{props.claudeMessage}</Status> : null}
       </SettingsSection></Surface>
       <AutoArchiveCard hostName={props.hostName} />
+      <CleanupAutomationCard hostName={props.hostName} />
       <IdleCompactionCard clientOnly={props.clientOnly} hostName={props.hostName} showHostChoice={false} />
       <LimitRecoveryCard clientOnly={props.clientOnly} hostName={props.hostName} showHostChoice={false} />
       <AutoTitlesCard clientOnly={props.clientOnly} />

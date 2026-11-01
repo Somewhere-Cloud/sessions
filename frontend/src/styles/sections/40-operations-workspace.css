@@ -548,6 +548,15 @@ button.session-tree-group-head { width: 100%; }
 .session-nav-title { flex: 1; min-width: 0; }
 .session-nav-stamp { display: flex; flex: 0 0 auto; align-items: center; gap: 5px; margin-left: auto; color: var(--fg-faint); font-size: 12px; }
 .session-nav-stamp .provider-badge { font-size: 0; filter: grayscale(1); opacity: .6; }
+/* Linked pull request: a quiet number. Merged reads a step brighter, closed
+   unmerged is struck through, and only running or failing checks add a dot. */
+.session-nav-pr { display: inline-flex; align-items: center; gap: 3px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.session-nav-pr.is-merged { color: var(--fg-dim); }
+.session-nav-pr.is-closed { text-decoration: line-through; }
+.session-nav-pr.is-draft,
+.session-nav-pr.is-unknown { opacity: .7; }
+.session-nav-pr-checks { width: 5px; height: 5px; border-radius: 50%; background: var(--fg-faint); }
+.session-nav-pr-checks.is-failing { background: var(--danger); opacity: .75; }
 .session-nav-row:hover .session-nav-stamp .provider-badge,
 .session-nav-row.is-active .session-nav-stamp .provider-badge { filter: none; opacity: 1; }
 .project-mark { position: relative; display: inline-grid; flex: 0 0 20px; width: 20px; height: 18px; place-items: center; border-radius: 5px; background: hsl(var(--project-hue, 210) 55% 52% / 0.2); color: hsl(var(--project-hue, 210) 70% 68%); font-size: 12px; font-weight: 700; letter-spacing: -0.06em; line-height: 1; overflow: hidden; }

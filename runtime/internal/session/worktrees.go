@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/somewhere-tech/sessions/runtime/internal/ledger"
 )
@@ -41,9 +42,19 @@ type WorktreeStatus struct {
 	Cleaned         bool   `json:"cleaned"`
 	CleanedAtMS     int64  `json:"cleaned_at,omitempty"`
 	BranchRemoved   bool   `json:"branch_removed"`
+	// MergedVia says how the branch is known to be merged: "base" when it is
+	// an ancestor of its base, "pull_request" when a linked pull request was
+	// recorded merged with exactly the branch's current commit as its head.
+	MergedVia         string `json:"merged_via,omitempty"`
+	MergedPullRequest string `json:"merged_pull_request,omitempty"`
 
 	cleanRequested  bool
 	cleanBranchHead string
+	// mergedHeads maps the head commit of each linked pull request recorded
+	// merged to its URL.
+	mergedHeads map[string]string
+	// endedAtMS is when the lane's runner was last observed to end.
+	endedAtMS int64
 }
 
 type WorktreeCleanResult struct {
@@ -306,6 +317,7 @@ func (m *Manager) Worktrees(ctx context.Context, includeCleaned bool) ([]Worktre
 			WorktreePath: lane.WorktreePath, Branch: lane.Branch, Base: lane.Base, SourceRepo: lane.SourceRepo,
 			SessionState: "live", TreeState: "missing",
 			cleanRequested: lane.WorktreeCleanRequested, cleanBranchHead: lane.WorktreeCleanBranchHead,
+			mergedHeads: mergedPullRequestHeads(lane), endedAtMS: max(lane.ClosedAtMS, lane.LastLifecycleAtMS),
 		}
 		// Kill intent is written before process termination and therefore is
 		// not evidence that a session is dead. Cleanup requires an observed
@@ -383,10 +395,12 @@ func inspectWorktree(ctx context.Context, status *WorktreeStatus) {
 	encoded, mergeErr := command.CombinedOutput()
 	if mergeErr == nil {
 		status.MergedIntoBase = true
+		status.MergedVia = "base"
 		return
 	}
 	var exit *exec.ExitError
 	if errors.As(mergeErr, &exit) && exit.ExitCode() == 1 {
+		inspectMergedPullRequest(ctx, status)
 		return
 	}
 	detail := strings.TrimSpace(string(encoded))
@@ -398,7 +412,15 @@ func inspectWorktree(ctx context.Context, status *WorktreeStatus) {
 	status.TreeState = "error"
 }
 
+// CleanWorktrees is the explicit `sessions worktrees clean`.
 func (m *Manager) CleanWorktrees(ctx context.Context, dryRun bool) ([]WorktreeCleanResult, error) {
+	return m.cleanWorktrees(ctx, dryRun, ledger.ActorUser, 0)
+}
+
+// cleanWorktrees removes every Sessions-created worktree whose checks all
+// pass, and reports why each other one was left in place. grace is how long a
+// session must have been ended first; the explicit command uses none.
+func (m *Manager) cleanWorktrees(ctx context.Context, dryRun bool, actor ledger.Actor, grace time.Duration) ([]WorktreeCleanResult, error) {
 	worktrees, err := m.Worktrees(ctx, false)
 	if err != nil {
 		return nil, err
@@ -407,72 +429,110 @@ func (m *Manager) CleanWorktrees(ctx context.Context, dryRun bool) ([]WorktreeCl
 	for _, worktree := range worktrees {
 		result := WorktreeCleanResult{WorktreeStatus: worktree, Action: "skipped"}
 		switch {
-		case worktree.SessionState != "exited":
-			result.Reason = "session is live"
-		case worktree.InspectionError != "":
-			result.Reason = worktree.InspectionError
-		case !worktree.Exists && worktree.cleanRequested && !dryRun:
+		case worktree.SessionState == "exited" && worktree.InspectionError == "" && !worktree.Exists && worktree.cleanRequested && !dryRun:
 			m.finishRequestedWorktreeClean(ctx, &result, true)
-		case !worktree.Exists:
-			result.Reason = "worktree path is missing"
-		case worktree.Dirty:
-			result.Reason = "worktree is DIRTY"
-		case !worktree.MergedIntoBase:
-			result.Reason = "branch is not fully merged into base " + worktree.Base
+		case worktreeCleanBlocker(worktree) != "":
+			result.Reason = worktreeCleanBlocker(worktree)
+		case grace > 0 && time.Since(time.UnixMilli(worktree.endedAtMS)) < grace:
+			result.Reason = fmt.Sprintf("session ended less than %s ago", grace)
 		case dryRun:
 			result.Action = "would-remove"
 		default:
-			if m.worktrees == nil {
-				result.Reason = "worktree cleanup ledger is unavailable; worktree was left untouched"
-				break
-			}
-			fresh := worktree
-			fresh.Dirty = false
-			fresh.MergedIntoBase = false
-			fresh.InspectionError = ""
-			fresh.Exists = false
-			fresh.TreeState = "missing"
-			inspectWorktree(ctx, &fresh)
-			if fresh.InspectionError != "" {
-				result.Reason = "final safety check: " + fresh.InspectionError
-				break
-			}
-			if fresh.Dirty {
-				result.Reason = "final safety check: worktree is DIRTY"
-				break
-			}
-			if !fresh.Exists {
-				result.Reason = "final safety check: worktree path is missing"
-				break
-			}
-			if !fresh.MergedIntoBase {
-				result.Reason = "final safety check: branch is not fully merged into base " + fresh.Base
-				break
-			}
-			branchHead, err := gitOutput(ctx, fresh.SourceRepo, "rev-parse", "--verify", "refs/heads/"+fresh.Branch+"^{commit}")
-			if err != nil {
-				result.Reason = "final safety check: cannot resolve branch: " + err.Error()
-				break
-			}
-			branchHead = strings.TrimSpace(branchHead)
-			if err := m.worktrees.RecordWorktreeCleanRequested(ctx, ledger.WorktreeCleanRequested{
-				Meta:         ledger.Meta{LaneID: fresh.SessionID, Actor: ledger.ActorUser},
-				WorktreePath: fresh.WorktreePath, Branch: fresh.Branch, BranchHead: branchHead,
-			}); err != nil {
-				result.Reason = "record cleanup intent before removal: " + err.Error()
-				break
-			}
-			if _, err := gitOutput(ctx, worktree.SourceRepo, "worktree", "remove", "--", worktree.WorktreePath); err != nil {
-				result.Reason = "git worktree remove refused: " + err.Error()
-				break
-			}
-			result.cleanRequested = true
-			result.cleanBranchHead = branchHead
-			m.finishRequestedWorktreeClean(ctx, &result, false)
+			m.removeWorktree(ctx, &result, actor)
 		}
 		results = append(results, result)
 	}
 	return results, nil
+}
+
+// worktreeCleanBlocker is why a worktree must stay, or "" when every check
+// passed: the session ended, Git could inspect it, it exists on the branch
+// Sessions created, nothing is uncommitted, and its commits are known to have
+// landed (in its base, or as the head of a linked pull request that merged).
+func worktreeCleanBlocker(worktree WorktreeStatus) string {
+	switch {
+	case worktree.SessionState != "exited":
+		return "session is live"
+	case worktree.InspectionError != "":
+		return worktree.InspectionError
+	case !worktree.Exists:
+		return "worktree path is missing"
+	case worktree.Dirty:
+		return "worktree is DIRTY"
+	case worktree.MergedVia == "":
+		return "branch is not fully merged into base " + worktree.Base + ", and no linked pull request merged at its current commit"
+	}
+	return ""
+}
+
+// removeWorktree re-inspects the worktree, records the intent, and removes it.
+func (m *Manager) removeWorktree(ctx context.Context, result *WorktreeCleanResult, actor ledger.Actor) {
+	if m.worktrees == nil {
+		result.Reason = "worktree cleanup ledger is unavailable; worktree was left untouched"
+		return
+	}
+	fresh := result.WorktreeStatus
+	fresh.Dirty, fresh.MergedIntoBase, fresh.MergedVia, fresh.MergedPullRequest = false, false, "", ""
+	fresh.InspectionError, fresh.Exists, fresh.TreeState = "", false, "missing"
+	inspectWorktree(ctx, &fresh)
+	if blocker := worktreeCleanBlocker(fresh); blocker != "" {
+		result.Reason = "final safety check: " + blocker
+		return
+	}
+	branchHead, err := gitOutput(ctx, fresh.SourceRepo, "rev-parse", "--verify", "refs/heads/"+fresh.Branch+"^{commit}")
+	if err != nil {
+		result.Reason = "final safety check: cannot resolve branch: " + err.Error()
+		return
+	}
+	branchHead = strings.TrimSpace(branchHead)
+	if err := m.worktrees.RecordWorktreeCleanRequested(ctx, ledger.WorktreeCleanRequested{
+		Meta:         ledger.Meta{LaneID: fresh.SessionID, Actor: actor},
+		WorktreePath: fresh.WorktreePath, Branch: fresh.Branch, BranchHead: branchHead,
+	}); err != nil {
+		result.Reason = "record cleanup intent before removal: " + err.Error()
+		return
+	}
+	if _, err := gitOutput(ctx, fresh.SourceRepo, "worktree", "remove", "--", fresh.WorktreePath); err != nil {
+		result.Reason = "git worktree remove refused: " + err.Error()
+		return
+	}
+	result.cleanRequested = true
+	result.cleanBranchHead = branchHead
+	m.finishRequestedWorktreeClean(ctx, result, false)
+}
+
+// mergedPullRequestHeads maps each merged link's recorded head commit to its
+// URL. A merge recorded without a head commit proves nothing about a branch.
+func mergedPullRequestHeads(lane ledger.LaneState) map[string]string {
+	var heads map[string]string
+	for _, link := range lane.PullRequests {
+		if !link.Merged || link.Observation.HeadSHA == "" {
+			continue
+		}
+		if heads == nil {
+			heads = make(map[string]string)
+		}
+		heads[strings.ToLower(link.Observation.HeadSHA)] = link.URL
+	}
+	return heads
+}
+
+// inspectMergedPullRequest marks the branch merged when its current commit is
+// exactly the head a linked pull request merged with: every local commit is
+// then part of that pull request on GitHub, even after a squash or rebase
+// merge that left the branch outside its base.
+func inspectMergedPullRequest(ctx context.Context, status *WorktreeStatus) {
+	if len(status.mergedHeads) == 0 {
+		return
+	}
+	head, err := gitOutput(ctx, status.SourceRepo, "rev-parse", "--verify", "refs/heads/"+status.Branch+"^{commit}")
+	if err != nil {
+		return
+	}
+	if url, ok := status.mergedHeads[strings.ToLower(strings.TrimSpace(head))]; ok {
+		status.MergedVia = "pull_request"
+		status.MergedPullRequest = url
+	}
 }
 
 func (m *Manager) finishRequestedWorktreeClean(ctx context.Context, result *WorktreeCleanResult, recovering bool) {
@@ -524,4 +584,16 @@ func (m *Manager) finishRequestedWorktreeClean(ctx context.Context, result *Work
 	} else {
 		result.Action = "removed"
 	}
+}
+
+// WorktreeAutoCleanGrace is how long a session must have been ended before
+// automatic cleanup considers its worktree, so a session ended a moment ago
+// can still be looked at or resumed where it was.
+const WorktreeAutoCleanGrace = time.Hour
+
+// AutoCleanWorktrees is the daemon's automatic cleanup: exactly the checks of
+// `sessions worktrees clean`, plus the grace period, recorded as the daemon's
+// action. dryRun reports what would happen and changes nothing.
+func (m *Manager) AutoCleanWorktrees(ctx context.Context, dryRun bool) ([]WorktreeCleanResult, error) {
+	return m.cleanWorktrees(ctx, dryRun, ledger.ActorDaemon, WorktreeAutoCleanGrace)
 }

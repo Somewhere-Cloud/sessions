@@ -5,6 +5,8 @@ import (
 	"io"
 )
 
+const worktreesUsage = "usage: sessions worktrees [--all | clean [--dry-run] | auto [status|on|off]]"
+
 type worktreeStatus struct {
 	SessionID       string `json:"session"`
 	SessionName     string `json:"session_name,omitempty"`
@@ -21,6 +23,8 @@ type worktreeStatus struct {
 	Cleaned         bool   `json:"cleaned"`
 	CleanedAtMS     int64  `json:"cleaned_at,omitempty"`
 	BranchRemoved   bool   `json:"branch_removed"`
+	MergedVia         string `json:"merged_via,omitempty"`
+	MergedPullRequest string `json:"merged_pull_request,omitempty"`
 }
 
 type worktreeCleanResult struct {
@@ -36,13 +40,16 @@ func (a *app) cmdWorktrees(args []string) error {
 	if len(args) == 1 && args[0] == "--all" {
 		return a.listWorktrees(true)
 	}
+	if args[0] == "auto" {
+		return a.cmdWorktreesAuto(args[1:])
+	}
 	if args[0] != "clean" {
-		return fail(1, "usage: sessions worktrees [--all | clean [--dry-run]]")
+		return fail(1, "%s", worktreesUsage)
 	}
 	dryRun := false
 	for _, argument := range args[1:] {
 		if argument != "--dry-run" || dryRun {
-			return fail(1, "usage: sessions worktrees [--all | clean [--dry-run]]")
+			return fail(1, "%s", worktreesUsage)
 		}
 		dryRun = true
 	}
@@ -118,6 +125,8 @@ func (a *app) listWorktrees(includeCleaned bool) error {
 		merged := "no"
 		if worktree.MergedIntoBase {
 			merged = "yes"
+		} else if worktree.MergedVia == "pull_request" {
+			merged = "pr"
 		}
 		tree := worktree.TreeState
 		if worktree.InspectionError != "" {

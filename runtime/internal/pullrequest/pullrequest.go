@@ -1,7 +1,8 @@
 // Package pullrequest links a Sessions lane to one hosted pull request and
 // reports what is known about it. Linking is local and validated; reading the
-// pull request's state happens only on an explicit refresh, through the user's
-// own GitHub CLI, and never writes to GitHub.
+// pull request's state happens on an explicit refresh or the daemon's slow,
+// switchable background watch, always through the user's own GitHub CLI, and
+// never writes to GitHub.
 package pullrequest
 
 import (
