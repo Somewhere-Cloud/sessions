@@ -309,7 +309,7 @@ try {
     $Digest = Get-Sha256Hex -Path $OutputInstaller
     "$Digest  $($Installer.Name)" | Set-Content -Encoding ascii "$OutputInstaller.sha256"
 
-    $ArtifactUrl = "https://github.com/somewhere-tech/sessions/releases/download/v$Version/$($Installer.Name)"
+    $ArtifactUrl = "https://github.com/Somewhere-Cloud/sessions/releases/download/v$Version/$($Installer.Name)"
     $Manifest = Join-Path $OutputDirectory $(if ($BaseManifest) { "latest.json" } else { "latest.windows.json" })
     $Arguments = @(
         (Join-Path $RepoRoot "scripts\render-updater-manifest.mjs"),

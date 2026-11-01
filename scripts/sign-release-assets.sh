@@ -83,7 +83,7 @@ node "$ROOT/scripts/verify-updater-signature.mjs" --public-key "$ROOT/release/up
   --artifact "$OUTPUT/Sessions.app.tar.gz" --signature "$OUTPUT/Sessions.app.tar.gz.sig"
 node "$ROOT/scripts/render-updater-manifest.mjs" --version "$VERSION" \
   --artifact "$OUTPUT/Sessions.app.tar.gz" \
-  --url "https://github.com/somewhere-tech/sessions/releases/download/v$VERSION/Sessions.app.tar.gz" \
+  --url "https://github.com/Somewhere-Cloud/sessions/releases/download/v$VERSION/Sessions.app.tar.gz" \
   --target darwin-aarch64 --notes-file "$NOTES" --output "$OUTPUT/latest.json"
 ditto -c -k --norsrc --noextattr --noqtn --noacl --keepParent "$APP" "$OUTPUT/Sessions_${VERSION}_darwin_arm64.zip"
 python3 "$ROOT/scripts/unpack-release-app.py" "$OUTPUT/Sessions_${VERSION}_darwin_arm64.zip" "$OUTPUT/verified-zip"

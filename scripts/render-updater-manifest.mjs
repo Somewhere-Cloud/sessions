@@ -9,7 +9,7 @@ function usage(message) {
   console.error(`usage: node scripts/render-updater-manifest.mjs \\
   --version 1.2.3 \\
   --artifact /path/to/Sessions.app.tar.gz \\
-  --url https://github.com/somewhere-tech/sessions/releases/download/v1.2.3/Sessions.app.tar.gz \\
+  --url https://github.com/Somewhere-Cloud/sessions/releases/download/v1.2.3/Sessions.app.tar.gz \\
   --target darwin-aarch64 \\
   --output /path/to/latest.json \\
   [--base /path/to/existing.json] \\
