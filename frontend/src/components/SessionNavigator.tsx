@@ -2,6 +2,7 @@ import { Input, Select } from './ui/Field';
 import { Button, IconButton } from './ui/Button';
 import { lazy, Suspense, useEffect, useMemo, useState, type DragEvent } from 'react';
 import { createPortal } from 'react-dom';
+import { LazyAutomationsSection } from './LazyAutomationsSection';
 import { ArchivedLiveSessions } from './ArchivedLiveSessions';
 import { SessionArchiveButton } from './SessionArchiveButton';
 import { archivedLiveIds, usesClaudeRemoteControl } from '../lib/sessionOrganization';
@@ -188,8 +189,7 @@ export function SessionNavigator({
   sessions,
   activeId,
   machine,
-  onOpen,
-  onOpenMachineSession,
+  onOpen, onOpenMachineSession,
   onNew,
   onAddProjectAgent,
   onContinue,
@@ -911,6 +911,7 @@ export function SessionNavigator({
         {!showingAllMachines && sessions.length === 0 ? <div className="session-tree-empty">No sessions on {machine}.</div> : null}
         {showingAllMachines && configuredMachines.length === 0 ? <div className="session-tree-empty">Connect a computer to see its sessions here.</div> : null}
       </div>
+      <LazyAutomationsSection defaultCwd={sessions.find((session) => session.id === activeId)?.cwd} onOpenSession={onOpen} />
       {movePickerSession ? (
         <div className="session-move-sheet" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setMovePickerId(null); }}>
           <section role="dialog" aria-modal="true" aria-labelledby="move-session-title">
