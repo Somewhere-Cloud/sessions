@@ -13,7 +13,9 @@ import (
 )
 
 const (
-	somewhereMCPURL = "https://mcp.somewhere.tech/mcp"
+	// The Somewhere MCP server moved here from mcp.somewhere.tech, which now
+	// answers 410; a server still pointed there is not a working Somewhere.
+	somewhereMCPURL = "https://mcp.somewhere.cloud/mcp"
 
 	// Current Claude Code builds present an interactive "resume from summary"
 	// picker for old, large conversations unless this process-local threshold

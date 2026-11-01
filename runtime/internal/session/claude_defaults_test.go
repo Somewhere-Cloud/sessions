@@ -185,7 +185,7 @@ func TestClaudeStructuredForcesRemoteControlOff(t *testing.T) {
 func TestClaudePerSessionOverridesAndExistingSomewhereConfig(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	if err := os.WriteFile(filepath.Join(home, ".claude.json"), []byte(`{"mcpServers":{"renamed":{"type":"http","url":"https://mcp.somewhere.tech/mcp"}}}`), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(home, ".claude.json"), []byte(`{"mcpServers":{"renamed":{"type":"http","url":"https://mcp.somewhere.cloud/mcp"}}}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	settingsPath := filepath.Join(home, "settings.json")
@@ -257,6 +257,7 @@ func TestClaudeSomewhereMCPConflictFailsClosed(t *testing.T) {
 
 func TestClaudeSomewhereMCPUsesManagerDefaultWorkspace(t *testing.T) {
 	home := t.TempDir()
+	t.Setenv("HOME", home)
 	workspace := filepath.Join(home, "workspace")
 	if err := os.MkdirAll(workspace, 0o700); err != nil {
 		t.Fatal(err)
