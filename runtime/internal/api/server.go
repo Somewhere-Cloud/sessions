@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/somewhere-tech/sessions/runtime/internal/automation"
 	"github.com/somewhere-tech/sessions/runtime/internal/backup"
 	"github.com/somewhere-tech/sessions/runtime/internal/codexapp"
 	"github.com/somewhere-tech/sessions/runtime/internal/delivery"
@@ -84,6 +85,7 @@ type Server struct {
 	teamChanges        teamChanges
 	storageScan        sync.Mutex
 	idleCompaction     *idleCompactionService
+	automations        *automation.Scheduler
 }
 
 func (s *Server) logLANFallbackOnce(fallbacks []fleetendpoint.Candidate) {
@@ -222,7 +224,7 @@ func NewWithUsage(config state.Config, registry sessionService, localUsage *usag
 		localUsage = usage.NewLocalService(config)
 	}
 	server.usage = localUsage
-	server.idleCompaction = newIdleCompaction(server, deliveryRoot)
+	server.initScheduledWork(deliveryRoot)
 	server.smartSearch = smartsearch.NewService()
 	server.lan = newLANListener(config, server, identity)
 	server.remote = newRemoteManager(config, server.lan.settingsPath)

@@ -71,6 +71,7 @@ control the user turn. Dispatch is not proof of provider acceptance or recall.
 ├── vapid.json
 ├── push-subscriptions.json
 ├── idle-compaction.json
+├── automations.json
 ├── delivery-operations/
 │   └── <operation-id>.json
 ├── parent-reports/
@@ -123,6 +124,7 @@ override:
 - `parent-reports/`, delegated lanes' pending outcome reports to their managers;
 - `usage.sqlite3` and `errors.jsonl`;
 - `idle-compaction.json`, the idle compaction schedule and per-lane choices;
+- `automations.json`, scheduled agents and their run history;
 - `history-cache.json`, what the history listing has already computed about each
   transcript file — its message count, its recorded last activity, and the card
   the provider scan read out of that file's head — keyed by path with the size
@@ -395,6 +397,31 @@ text and time, never conversation content. Entries and overrides of a lane
 absent for ten minutes after startup discovery are forgotten. A file that
 cannot be read or decoded, or has another version, pauses idle compaction and
 is never overwritten; move it aside to reset. An older daemon ignores the file.
+
+### `automations.json`
+
+Version-1, mode-0600 JSON written by the daemon's automation scheduler
+(`runtime/internal/automation/store.go`), replaced atomically through a synced
+temporary file. It follows `SESSIONS_STATE_DIR`.
+
+```json
+{"version":1,
+ "automations":{"1a2b3c4d":{"id":"1a2b3c4d","name":"…","prompt":"…","cwd":"/abs",
+   "agent":"claude","access":"full","schedule":{"kind":"daily","at":"09:00"},
+   "enabled":true,"createdAtMs":0,"updatedAtMs":0,"nextRunAtMs":0}},
+ "runs":[{"id":"…","automationId":"1a2b3c4d","trigger":"schedule","outcome":"starting",
+   "operationId":"<uuid>","promptOperationId":"<uuid>","startedAtMs":0,"updatedAtMs":0}]}
+```
+
+A run is appended with outcome `starting`, together with the automation's next
+`nextRunAtMs`, before its session is created, so a restart cannot fire the same
+slot twice. A `starting` run found after a restart is matched to the session
+whose start receipt carries its `operationId` once startup discovery ends, or
+becomes `unknown`; it is never started again. Each automation keeps its latest
+200 runs. The file stores the prompt the person wrote, never conversation
+content. A file that cannot be read or decoded, or has another version, pauses
+every automation and is never overwritten; move it aside to reset. An older
+daemon ignores the file.
 
 ### `idle/<id>`
 
