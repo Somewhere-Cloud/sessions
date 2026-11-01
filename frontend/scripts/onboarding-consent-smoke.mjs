@@ -9,6 +9,7 @@ const api = readSessionsdSourceSync();
 const onboarding = source('src/components/OnboardingDialog.tsx')
   + source('src/components/OnboardingSteps.tsx');
 const settings = source('src/components/SettingsView.tsx');
+const updateSettings = source('src/components/UpdateSettings.tsx');
 const settingsMenu = source('src/components/SettingsMenu.tsx');
 const connections = source('src/components/ConnectionsView.tsx');
 const newSession = source('src/components/NewSessionDialog.tsx');
@@ -51,7 +52,7 @@ assert.match(settings, /Approval questions stay open under Waiting for you/);
 assert.match(settings, /Chosen on \{hostName\}/);
 assert.match(settings, /disabled=\{props\.clientOnly \|\| props\.claudeBusy/);
 assert.match(settings, /disabled=\{props\.clientOnly \|\| props\.delegationBusy/);
-assert.match(settings, /if \(clientOnly \|\| providerBusy\) return;/);
+assert.match(updateSettings, /if \(clientOnly \|\| busy\) return;/);
 assert.match(settingsMenu, /disabled=\{clientOnly \|\| aiBusy/);
 assert.match(connections, /isTauri\(\) && !clientOnly/);
 assert.match(connections, /disabled=\{clientOnly \|\| busy !== null\}/);

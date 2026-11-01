@@ -23,13 +23,9 @@ import {
 } from '../lib/newSessionDefaults';
 import { ServerSelector } from './ServerSelector';
 import { TagEditor } from './TagEditor';
-import {
-  checkForNativeUpdate,
-  installNativeUpdate,
-  isTauri,
-  type NativeUpdateInfo,
-  type NativeUpdateProgress
-} from '../lib/tauriBridge';
+import { isTauri } from '../lib/tauriBridge';
+import { useAppUpdate } from '../lib/appUpdate';
+import { MenuAppUpdate } from './UpdateSettings';
 import { useSessions } from '../store/sessions';
 
 export interface SettingsMenuProps {
@@ -99,10 +95,7 @@ export function SettingsMenu({ clientOnly = false, hostName = 'this computer', t
   const [pushEnabled, setPushEnabled] = useState(readPushEnabled);
   const [pushBusy, setPushBusy] = useState(false);
   const [pushMessage, setPushMessage] = useState<string | null>(null);
-  const [updateInfo, setUpdateInfo] = useState<NativeUpdateInfo | null>(null);
-  const [updateProgress, setUpdateProgress] = useState<NativeUpdateProgress | null>(null);
-  const [updateBusy, setUpdateBusy] = useState(false);
-  const [updateMessage, setUpdateMessage] = useState<string | null>(null);
+  const updateInfo = useAppUpdate((state) => state.info);
   const [aiSettings, setAISettings] = useState<AISettings>({ provider: 'codex' });
   const [aiBusy, setAIBusy] = useState(false);
   const [aiAvailable, setAIAvailable] = useState(true);
@@ -251,41 +244,6 @@ export function SettingsMenu({ clientOnly = false, hostName = 'this computer', t
       setPushMessage((err as Error).message);
     } finally {
       setPushBusy(false);
-    }
-  };
-
-  const checkForUpdate = async (): Promise<void> => {
-    if (updateBusy) return;
-    setUpdateBusy(true);
-    setUpdateMessage(null);
-    setUpdateProgress(null);
-    try {
-      const available = await checkForNativeUpdate();
-      setUpdateInfo(available);
-      setUpdateMessage(available ? null : 'Sessions is up to date');
-    } catch (error) {
-      setUpdateInfo(null);
-      setUpdateMessage(error instanceof Error ? error.message : 'Could not check for updates');
-    } finally {
-      setUpdateBusy(false);
-    }
-  };
-
-  const installUpdate = async (): Promise<void> => {
-    if (!updateInfo || updateBusy) return;
-    setUpdateBusy(true);
-    setUpdateMessage('Downloading update…');
-    try {
-      await installNativeUpdate((progress) => {
-        setUpdateProgress(progress);
-        if (progress.totalBytes) {
-          const percent = Math.min(100, Math.round((progress.downloadedBytes / progress.totalBytes) * 100));
-          setUpdateMessage(`Downloading update… ${percent}%`);
-        }
-      });
-    } catch (error) {
-      setUpdateMessage(error instanceof Error ? error.message : 'Could not install update');
-      setUpdateBusy(false);
     }
   };
 
@@ -443,60 +401,7 @@ export function SettingsMenu({ clientOnly = false, hostName = 'this computer', t
           {isTauri() ? (
             <>
               <div className="settings-menu-divider" />
-              <div className="settings-menu-section" aria-label="App updates">
-                <div className="settings-menu-section-title">Sessions updates</div>
-                {updateInfo ? (
-                  <Button
-                    type="button"
-                    className="settings-menu-row settings-menu-clickable"
-                    disabled={updateBusy}
-                    onClick={() => void installUpdate()}
-                  >
-                    <span className="settings-menu-icon">↥</span>
-                    <span className="settings-menu-label">Install Sessions {updateInfo.version}</span>
-                    <span className="settings-menu-value">
-                      {workingAgents === null ? 'Agents keep running' : workingAgents > 0 ? `${workingAgents} continue` : 'No agents running'}
-                    </span>
-                  </Button>
-                ) : (
-                  <Button
-                    type="button"
-                    className="settings-menu-row settings-menu-clickable"
-                    disabled={updateBusy}
-                    onClick={() => void checkForUpdate()}
-                  >
-                    <span className="settings-menu-icon">↻</span>
-                    <span className="settings-menu-label">Check for updates</span>
-                    <span className="settings-menu-value">{updateBusy ? 'Checking…' : ''}</span>
-                  </Button>
-                )}
-                {updateMessage ? (
-                  <div className="settings-menu-status" role="status">{updateMessage}</div>
-                ) : null}
-                {updateInfo ? (
-                  <div className="settings-menu-status">
-                    {workingAgents === null
-                      ? 'Safe to install: this updates the client. Agents and open sessions on every host keep running.'
-                      : workingAgents > 0
-                      ? 'Safe to install: working agents keep their current runner. New sessions use the updated runner after relaunch.'
-                      : 'No agents are working. The app can update now without losing open sessions.'}
-                  </div>
-                ) : null}
-                {updateBusy && updateProgress?.totalBytes ? (
-                  <progress
-                    className="settings-menu-progress"
-                    value={updateProgress.downloadedBytes}
-                    max={updateProgress.totalBytes}
-                    aria-label="Update download progress"
-                  />
-                ) : null}
-                {updateInfo?.notes ? (
-                  <div className="settings-menu-update-notes">{updateInfo.notes}</div>
-                ) : null}
-                {updateInfo ? (
-                  <div className="settings-menu-update-safe">Sessions keep running while the app restarts.</div>
-                ) : null}
-              </div>
+              <MenuAppUpdate workingAgents={workingAgents} />
             </>
           ) : null}
           {onOpenConnections ? (

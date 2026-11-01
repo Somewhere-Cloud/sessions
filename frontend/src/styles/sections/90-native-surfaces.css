@@ -745,3 +745,16 @@
 .settings-status-card p { margin: 0; overflow-wrap: anywhere; }
 .settings-status-card code { overflow-wrap: anywhere; }
 .settings-status-card .settings-static-row { padding-block: var(--space-3); }
+
+/* Settings › Notifications & updates: one block per computer, one row per agent tool. */
+.fleet-provider-computer {
+  display: grid;
+  gap: 4px;
+  padding: 8px 0;
+}
+.fleet-provider-computer + .fleet-provider-computer {
+  border-top: 1px solid var(--border);
+}
+.fleet-provider-computer > small {
+  color: var(--fg-dim);
+}
