@@ -1454,6 +1454,32 @@ every root must be an absolute folder, and a root already belonging to another
 project is rejected; each of these is `400 {"error":"<message>"}`. Returns 200
 with the stored `Project`, including `created_at` and `updated_at`.
 
+Every session whose folder sits under the scratch folder `~/Projects/scratch`
+resolves to one implicit project, `{"id":"scratch","name":"No project"}`,
+whose root is the scratch folder, unless a stored project claims its folder.
+Suggesting a name for such a folder offers that one scratch folder as the root.
+
+### `POST /api/projects/new`
+
+Auth required. Body `{"name":"Weather Bot"}`. Makes `~/Projects/<folder>`,
+where the folder is the name with every run of characters other than ASCII
+letters, digits, `.`, `_` and `-` replaced by one `-`; a taken folder gets
+`-2`, `-3` and so on. Writes `README.md`, runs `git init` on the global
+`init.defaultBranch` (default `main`), and stores a project with the exact
+name and the folder as its root. Returns
+`200 {"path":"/abs/folder","name":"Weather Bot","git":true,"project_id":"p_..."}`.
+When git is missing or fails the folder is still made, `git` is false and
+`git_error` says why. When the project could not be stored, `project_id` is
+absent and `warning` says why. A name with no usable characters is
+`400 {"error":"<message>"}`.
+
+### `POST /api/projects/scratch`
+
+Auth required. Body `{"hint":"<opening prompt>"}`, which may be empty. Makes a
+new folder `~/Projects/scratch/<YYYY-MM-DD>-<up to four words of hint>-<8 hex>`
+and returns `200 {"path":"/abs/folder","name":"No project","project_id":"scratch"}`.
+Both routes return 501 when the runtime has no home folder.
+
 ### `DELETE /api/projects/:id`
 
 Auth required. Forgets a stored project; its sessions become implicit again.

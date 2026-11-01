@@ -605,3 +605,8 @@
 
 .settings-select-row > .ui-control { width: min(280px, 100%); flex-shrink: 0; }
 @media (max-width: 600px) { .settings-select-row { flex-wrap: wrap; } .settings-select-row > .ui-control { width: 100%; } }
+
+/* New-session picker: start with no project, or make a new one. */
+.launcher-project-choices { display: grid; gap: 10px; margin-bottom: 10px; }
+.launcher-new-project { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 8px; align-items: center; }
+.launcher-new-project small { grid-column: 1 / -1; color: var(--fg-muted); font-size: 12px; }

@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -59,6 +60,9 @@ func projectViews(store *project.Store, sessions []state.SessionInfo) ([]project
 				Roots: []string{resolved.TopLevel}, GitHub: resolved.GitHub, Somewhere: resolved.Somewhere,
 				SessionIDs: []string{},
 			}
+			if resolved.ProjectID == project.ScratchProjectID {
+				view.Roots = []string{filepath.Dir(resolved.TopLevel)}
+			}
 			views[resolved.ProjectID] = view
 			order = append(order, resolved.ProjectID)
 		}
@@ -94,6 +98,8 @@ func projectViews(store *project.Store, sessions []state.SessionInfo) ([]project
 //	GET    /api/projects                 stored and implicit projects with their sessions
 //	GET    /api/projects/suggest?cwd=P   what "Name this project" should start from
 //	PUT    /api/projects                 create or update a stored project (JSON body)
+//	POST   /api/projects/new             make a named project folder with a git repository
+//	POST   /api/projects/scratch         make a scratch folder for a session with no project
 //	DELETE /api/projects/{id}            forget a stored project; its sessions become implicit
 func (s *Server) handleProjectsRoute(response http.ResponseWriter, request *http.Request, corsOrigin string) bool {
 	path := request.URL.Path
@@ -136,6 +142,8 @@ func (s *Server) handleProjectsRoute(response http.ResponseWriter, request *http
 			return true
 		}
 		s.sendJSON(response, http.StatusOK, saved, corsOrigin)
+	case (path == "/api/projects/new" || path == "/api/projects/scratch") && request.Method == http.MethodPost:
+		s.handleNewProjectFolder(response, request, corsOrigin)
 	case strings.HasPrefix(path, "/api/projects/") && request.Method == http.MethodDelete:
 		id := strings.TrimPrefix(path, "/api/projects/")
 		if id == "" || strings.Contains(id, "/") {
@@ -151,4 +159,47 @@ func (s *Server) handleProjectsRoute(response http.ResponseWriter, request *http
 		s.sendJSON(response, http.StatusMethodNotAllowed, map[string]any{"error": "method not allowed", "path": path}, corsOrigin)
 	}
 	return true
+}
+
+// handleNewProjectFolder makes the folder a new session starts in. A named
+// project is also stored under its exact name, since its folder name is the
+// name with unsafe characters replaced.
+func (s *Server) handleNewProjectFolder(response http.ResponseWriter, request *http.Request, corsOrigin string) {
+	if s.folders.ProjectsRoot == "" {
+		s.sendJSON(response, http.StatusNotImplemented, map[string]any{"error": "this runtime has no home folder to create projects in"}, corsOrigin)
+		return
+	}
+	var body struct {
+		Name string `json:"name"`
+		Hint string `json:"hint"`
+	}
+	if err := readJSON(request, &body); err != nil {
+		s.sendJSON(response, http.StatusBadRequest, map[string]any{"error": err.Error()}, corsOrigin)
+		return
+	}
+	if request.URL.Path == "/api/projects/scratch" {
+		created, err := s.folders.NewScratch(body.Hint)
+		if err != nil {
+			s.sendJSON(response, http.StatusInternalServerError, map[string]any{"error": "Sessions could not make a scratch folder: " + err.Error()}, corsOrigin)
+			return
+		}
+		s.sendJSON(response, http.StatusOK, map[string]any{"path": created.Path, "name": created.Name, "project_id": project.ScratchProjectID}, corsOrigin)
+		return
+	}
+	created, err := s.folders.NewProject(request.Context(), body.Name)
+	if err != nil {
+		s.sendJSON(response, http.StatusBadRequest, map[string]any{"error": "Sessions could not make the project: " + err.Error()}, corsOrigin)
+		return
+	}
+	stored, err := s.projects.Upsert(project.Project{Name: created.Name, Roots: []string{created.Path}})
+	result := map[string]any{"path": created.Path, "name": created.Name, "git": created.Git}
+	if created.GitError != "" {
+		result["git_error"] = created.GitError
+	}
+	if err != nil {
+		result["warning"] = "The folder was made but could not be saved as a named project: " + err.Error()
+	} else {
+		result["project_id"] = stored.ID
+	}
+	s.sendJSON(response, http.StatusOK, result, corsOrigin)
 }

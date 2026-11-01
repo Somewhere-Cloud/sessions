@@ -191,10 +191,10 @@ var commandTable = []commandSpec{
 		examples: []string{"sessions retry 0123abcd", "sessions retry 0123abcd --stop", "sessions --json retry 0123abcd"}, run: (*app).cmdRetry,
 	},
 	{
-		name: "projects", usage: "projects [name <folder> <name> | forget <project-id>]",
+		name: "projects", usage: "projects [new <name> | scratch [hint...] | name <folder> <name> | forget <project-id>]",
 		summary: "list or name the projects sessions are grouped under", group: dailyCommandGroup, localJSON: true,
-		longHelp: "A project is the work a session belongs to: a folder, a git checkout together with every worktree of it, or a Somewhere project. Sessions find their project by working directory, so every folder shows up here on day one as an implicit project named after itself; `name` claims a folder under a name of your choosing (a GitHub origin suggests owner/repo), and `forget` drops a stored project so its sessions return to their folder's implicit one. The inbox groups sessions by these projects.",
-		examples: []string{"sessions projects", "sessions projects name ~/Sessions Sessions", "sessions --json projects", "sessions projects forget p_0123"}, run: (*app).cmdProjects,
+		longHelp: "A project is the work a session belongs to: a folder, a git checkout together with every worktree of it, or a Somewhere project. Sessions find their project by working directory, so every folder shows up here on day one as an implicit project named after itself; `name` claims a folder under a name of your choosing (a GitHub origin suggests owner/repo), and `forget` drops a stored project so its sessions return to their folder's implicit one. The inbox groups sessions by these projects.\n\n`new` makes ~/Projects/<name> (a taken name gets a number), writes a README, runs git init and stores the project under the exact name you gave; if git is unavailable the folder is still made and the result says why. `scratch` makes a fresh dated folder in ~/Projects/scratch, named after the first words of its hint, for work that has no project yet; every scratch folder groups under No project until you name it. Both print the new folder's path, so `sessions new --cwd \"$(sessions projects scratch)\"` starts a session there.",
+		examples: []string{"sessions projects", "sessions projects new \"Weather Bot\"", "sessions projects scratch try a parser", "sessions projects name ~/Sessions Sessions", "sessions --json projects", "sessions projects forget p_0123"}, run: (*app).cmdProjects,
 	},
 	{
 		name: "send", usage: "send <id> [--steer] [--from SESSION] [--timeout D] [--no-wait] [--file PATH] [--operation-id UUID] [--] <text...>",

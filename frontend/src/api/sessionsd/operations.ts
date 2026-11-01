@@ -909,6 +909,36 @@ export async function fetchProjects(signal?: AbortSignal, target?: ServerConfig)
   return body.projects ?? [];
 }
 
+export interface ProjectFolder {
+  path: string;
+  name: string;
+  project_id?: string;
+  git?: boolean;
+  git_error?: string;
+  warning?: string;
+}
+
+// makeProjectFolder asks a computer for the folder new work starts in: a named
+// project under ~/Projects set up as a git repository, or a fresh scratch folder
+// for a session with no project yet. `sessions projects new|scratch` is the CLI
+// equivalent.
+export async function makeProjectFolder(
+  kind: 'new' | 'scratch',
+  text: string,
+  serverId?: string
+): Promise<ProjectFolder> {
+  const server = requestedServer(serverId);
+  const r = await serverFetch(server, `${httpBaseForServer(server)}/api/projects/${kind}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(kind === 'new' ? { name: text } : { hint: text })
+  });
+  if (r.status === 404 || r.status === 405) {
+    throw new Error('This computer runs an older Sessions that cannot make project folders. Update it, or choose a folder.');
+  }
+  return json<ProjectFolder>(r);
+}
+
 // approveSession answers the permission a Rich lane is waiting on.
 // fromSessionId attributes the decision to a lane, the way `sessions approve`
 // run inside a manager does; a person deciding passes nothing.

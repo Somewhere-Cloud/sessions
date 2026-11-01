@@ -124,4 +124,41 @@ describe('capability: create a session', () => {
     await waitFor(() => expect(daemon.created).toHaveLength(1));
     await waitFor(() => expect(daemon.delivered[daemon.created[0]!.id]).toEqual(['Inspect this repository']));
   });
+
+  it('starts a session with no project in a fresh scratch folder', async () => {
+    const machine = localMachine();
+    const daemon = installFakeDaemon([machine]);
+    useFakeMachines([machine]);
+    const user = userEvent.setup();
+    render(<Launcher />);
+    await user.click(screen.getByRole('button', { name: /^Folder:/ }));
+    await user.click(screen.getByRole('button', { name: /No project/ }));
+    expect(screen.getByRole('button', { name: 'Folder: No project' })).toBeInTheDocument();
+    await user.type(screen.getByRole('textbox', { name: 'First request (optional)' }), 'Try a parser');
+    await user.click(screen.getByRole('button', { name: 'Start session' }));
+    await waitFor(() => expect(daemon.created).toHaveLength(1));
+    const scratch = daemon.requests.find((request) => request.path === '/api/projects/scratch');
+    expect(scratch?.body).toEqual({ hint: 'Try a parser' });
+    const create = daemon.requests.find((request) => request.method === 'POST' && request.path === '/api/sessions');
+    expect(create?.body).toMatchObject({ cwd: '/Users/example/Projects/scratch/2026-10-31-try-a-parser-ab12cd34' });
+  });
+
+  it('makes a new project and starts the session in it', async () => {
+    const machine = localMachine();
+    const daemon = installFakeDaemon([machine]);
+    useFakeMachines([machine]);
+    const user = userEvent.setup();
+    render(<Launcher />);
+    await user.click(screen.getByRole('button', { name: /^Folder:/ }));
+    await user.click(screen.getByRole('button', { name: /New project/ }));
+    await user.type(screen.getByRole('textbox', { name: 'New project name' }), 'Weather Bot');
+    expect(screen.getByText('Creates ~/Projects/Weather-Bot')).toBeInTheDocument();
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Folder: Weather-Bot' })).toBeInTheDocument());
+    expect(daemon.created).toHaveLength(0);
+    await user.click(screen.getByRole('button', { name: 'Start session' }));
+    await waitFor(() => expect(daemon.created).toHaveLength(1));
+    const create = daemon.requests.find((request) => request.method === 'POST' && request.path === '/api/sessions');
+    expect(create?.body).toMatchObject({ cwd: '/Users/example/Projects/Weather-Bot' });
+  });
 });

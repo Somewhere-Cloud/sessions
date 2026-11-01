@@ -5,6 +5,8 @@ import { PageHeader } from './ui/Layout';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSessions } from '../store/sessions';
 import { DirectoryBrowser } from './DirectoryBrowser';
+import { LauncherProjectChoices } from './LauncherProjectChoices';
+import { NO_PROJECT_CWD, startFolder } from '../lib/projectFolders';
 import {
   fetchProfiles,
   listDirectories,
@@ -323,7 +325,7 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
       setCwd((current) => {
         if (projectSeed?.serverId === machineId && current === projectSeed.cwd) return current;
         const currentCandidate = items.find((item) => item.path === current);
-        if (currentCandidate) return current;
+        if (currentCandidate || current === NO_PROJECT_CWD) return current;
         return items.find((item) => item.kind === 'somewhere')?.path
           || items.find((item) => item.kind === 'project')?.path
           || items.find((item) => item.kind === 'common')?.path
@@ -396,7 +398,7 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
         ? recentWorkspaces
         : fallbackWorkspaces(initialDefaults.cwd || cwd);
       const safer = candidates.filter((item) => item.kind !== 'home');
-      const selected = cwd && candidates.every((item) => item.path !== cwd)
+      const selected = cwd && cwd !== NO_PROJECT_CWD && candidates.every((item) => item.path !== cwd)
         ? {
             path: cwd,
             label: cwd.split('/').filter(Boolean).slice(-1)[0] ?? cwd,
@@ -455,6 +457,7 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
         selectActiveMachine(machineId);
         setServerScope(machineId);
       }
+      const folder = await startFolder(cwd, task.trim(), machineId, setCwd);
       const { cmd, args } = resolveCommand(tool, access, codexModel, codexEffort, claudeSafeMode);
       const resolvedClaudeOptions: ClaudeSessionOptions = {
         ...claudeOptions,
@@ -469,7 +472,7 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
           : tool === 'claude-code' && runtimeMode === 'rich'
           ? 'claude-structured'
           : undefined,
-        cwd: cwd.trim() || undefined,
+        cwd: folder.trim() || undefined,
         cols: initialDefaults.cols,
         rows: initialDefaults.rows,
         name: task.trim() ? sessionTitleFromPrompt(task) : undefined,
@@ -486,7 +489,7 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
       // Open the durable record before prompt delivery; permission dialogs and
       // provider readiness must not strand a created session behind the launcher.
       if (profileTool && !parentSession) {
-        rememberAccount(machineId, profileTool, cwd.trim(), selectedProfile);
+        rememberAccount(machineId, profileTool, folder.trim(), selectedProfile);
       }
       const promptOperation = recordedPromptOperationId(info, ids.prompt);
       if (task.trim()) {
@@ -512,10 +515,7 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
     }
   };
 
-  const submit = (e: React.FormEvent): void => {
-    e.preventDefault();
-    void startSession();
-  };
+  const submit = (e: React.FormEvent): void => { e.preventDefault(); void startSession(); };
 
   const isDelegate = parentSession !== null;
   const selectedTool = TOOLS.find((item) => item.id === tool) ?? TOOLS[0];
@@ -546,7 +546,7 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
   };
   const selectedWorkspace = recentWorkspaces.find((item) => item.path === cwd)
     ?? displayedWorkspaces.find((item) => item.path === cwd);
-  const workspaceTitle = selectedWorkspace?.label
+  const workspaceTitle = (cwd === NO_PROJECT_CWD ? 'No project' : null) ?? selectedWorkspace?.label
     ?? cwd.split('/').filter(Boolean).pop()
     ?? 'this project';
   const machineTitle = selectedMachine
@@ -652,6 +652,7 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
             <section className="launcher-workspace-shell">
               {browserOpen ? (
                 <div className="launcher-workspace-picker">
+                  <LauncherProjectChoices serverId={machineId} cwd={cwd} onChoose={(path) => { setCwd(path); setBrowserOpen(false); }} />
                   {displayedWorkspaces.length > 0 ? (
                     <div className="recent-workspaces">
                       {displayedWorkspaces.map((item) => (
@@ -664,7 +665,7 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
                     </div>
                   ) : null}
                   <div className="launcher-directory-picker">
-                    <DirectoryBrowser serverId={machineId} value={cwd} onChange={(path, confirmed) => { setCwd(path); if (confirmed) setBrowserOpen(false); }} />
+                    <DirectoryBrowser serverId={machineId} value={cwd === NO_PROJECT_CWD ? '' : cwd} onChange={(path, confirmed) => { setCwd(path); if (confirmed) setBrowserOpen(false); }} />
                   </div>
                 </div>
               ) : null}

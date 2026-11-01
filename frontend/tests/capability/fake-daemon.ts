@@ -768,6 +768,16 @@ export function installFakeDaemon(machines: FakeMachine[]): FakeDaemon {
     if (path === '/api/providers' && method === 'GET') {
       return jsonResponse({ providers: machine.providers ?? [] });
     }
+    if ((path === '/api/projects/new' || path === '/api/projects/scratch') && method === 'POST') {
+      // Like sessionsd: a named project goes in ~/Projects, a scratch folder
+      // in ~/Projects/scratch named after the first words of its hint.
+      const request = (body ?? {}) as { name?: string; hint?: string };
+      if (path === '/api/projects/new') {
+        return jsonResponse({ path: `/Users/example/Projects/${(request.name ?? '').replace(/[^A-Za-z0-9._-]+/g, '-')}`, name: request.name, git: true, project_id: 'p_new' });
+      }
+      const words = (request.hint ?? '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean).slice(0, 4).join('-');
+      return jsonResponse({ path: `/Users/example/Projects/scratch/2026-10-31-${words}-ab12cd34`, name: 'No project', project_id: 'scratch' });
+    }
     if (path === '/api/projects' && machine.projectFailure) {
       return jsonResponse({ error: machine.projectFailure.message }, machine.projectFailure.status);
     }

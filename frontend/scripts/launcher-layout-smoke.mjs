@@ -77,6 +77,14 @@ try {
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'expanded options fit');
         await page.screenshot({ path: join(process.env.LAUNCHER_SCREENSHOT_DIR, `launcher-${width}-${theme}-options.png`), fullPage: true });
         await page.click('.launcher-advanced > summary');
+        await page.click('.is-workspace');
+        await page.evaluate(() => [...document.querySelectorAll('.launcher-project-choices button')].find((el) => el.textContent.includes('New project')).click());
+        await page.waitForSelector('[aria-label="New project name"]');
+        await page.type('[aria-label="New project name"]', 'Weather Bot');
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'project choices fit');
+        await page.screenshot({ path: join(process.env.LAUNCHER_SCREENSHOT_DIR, `launcher-${width}-${theme}-picker.png`), fullPage: true });
+        // Browsing moves the folder; choosing the recent project closes the picker on it again.
+        await page.evaluate(() => [...document.querySelectorAll('.launcher-workspace-picker button')].find((el) => el.textContent.includes('platform')).click());
       }
     }
     await page.focus('textarea');

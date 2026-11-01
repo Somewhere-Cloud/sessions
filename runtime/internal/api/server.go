@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
@@ -44,6 +45,7 @@ var Version = "0.2.28"
 type Server struct {
 	config               state.Config
 	projects             *project.Store
+	folders              project.Folders
 	autoArchive          autoArchivePolicy
 	registry             sessionService
 	push                 pushService
@@ -256,6 +258,10 @@ func NewWithUsage(config state.Config, registry sessionService, localUsage *usag
 	}
 	if projectsRoot != "" {
 		server.projects = project.NewStore(filepath.Join(projectsRoot, "projects.json"), nil)
+		if home, err := os.UserHomeDir(); err == nil && home != "" {
+			server.folders = project.DefaultFolders(home)
+			server.projects.SetScratchRoot(server.folders.ScratchRoot)
+		}
 	}
 	return server
 }

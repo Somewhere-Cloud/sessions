@@ -62,9 +62,10 @@ type Store struct {
 	path string
 	now  func() time.Time
 
-	mu       sync.Mutex
-	projects []Project
-	loaded   bool
+	mu          sync.Mutex
+	projects    []Project
+	loaded      bool
+	scratchRoot string
 }
 
 func NewStore(path string, now func() time.Time) *Store {
@@ -281,6 +282,11 @@ func (s *Store) resolveLocked(cwd string) Resolution {
 	if bestLen >= 0 {
 		return Resolution{ProjectID: best.ID, Name: best.Name, TopLevel: top, GitHub: best.GitHub, Somewhere: best.Somewhere}
 	}
+	if folder := s.scratchFolder(top); folder != "" {
+		// TopLevel stays the session's own scratch folder, so naming it
+		// claims that folder rather than every scratch session at once.
+		return Resolution{ProjectID: ScratchProjectID, Name: ScratchName, Implicit: true, TopLevel: folder}
+	}
 	name := repo.github
 	if name == "" {
 		name = filepath.Base(top)
@@ -310,7 +316,11 @@ func (s *Store) Suggest(cwd string) (Project, error) {
 			}
 		}
 	}
-	return Project{Name: resolution.Name, Roots: []string{resolution.TopLevel}, GitHub: resolution.GitHub, Somewhere: resolution.Somewhere}, nil
+	name := resolution.Name
+	if resolution.ProjectID == ScratchProjectID {
+		name = filepath.Base(resolution.TopLevel)
+	}
+	return Project{Name: name, Roots: []string{resolution.TopLevel}, GitHub: resolution.GitHub, Somewhere: resolution.Somewhere}, nil
 }
 
 func newID(root string, now int64) string {

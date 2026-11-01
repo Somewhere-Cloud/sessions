@@ -40,11 +40,15 @@ type projectRecord struct {
 //	                                         every worktree of it) under a name
 //	sessions projects forget <id>            drop a stored project; sessions return
 //	                                         to their folder's implicit project
+//	sessions projects new <name>             make ~/Projects/<name> as a git repository
+//	sessions projects scratch [hint...]      make a scratch folder with no project
 func (a *app) cmdProjects(args []string) error {
 	if len(args) == 0 {
 		return a.listProjects()
 	}
 	switch args[0] {
+	case "new", "scratch":
+		return a.makeProjectFolder(args[0], args[1:])
 	case "name":
 		if len(args) != 3 {
 			return fail(1, "usage: sessions projects name <folder> <name>")
@@ -64,7 +68,7 @@ func (a *app) cmdProjects(args []string) error {
 		_, err := io.WriteString(a.stdout, "forgot project "+args[1]+"\n")
 		return err
 	default:
-		return fail(1, "usage: sessions projects [name <folder> <name> | forget <project-id>]")
+		return fail(1, "usage: sessions projects [new <name> | scratch [hint...] | name <folder> <name> | forget <project-id>]")
 	}
 }
 
@@ -159,4 +163,33 @@ func (a *app) deleteJSON(path string, target any) error {
 		return nil
 	}
 	return json.Unmarshal(response.body, target)
+}
+
+// makeProjectFolder asks the daemon for a new project or scratch folder and
+// prints its path alone, so the output can feed `sessions new --cwd`.
+func (a *app) makeProjectFolder(kind string, args []string) error {
+	body := map[string]string{}
+	if kind == "new" {
+		if len(args) == 0 || strings.TrimSpace(strings.Join(args, " ")) == "" {
+			return fail(1, "usage: sessions projects new <name>")
+		}
+		body["name"] = strings.Join(args, " ")
+	} else {
+		body["hint"] = strings.Join(args, " ")
+	}
+	var made map[string]any
+	if err := a.postJSON("/api/projects/"+kind, body, &made, 2); err != nil {
+		return err
+	}
+	if a.wantJSON {
+		return writeJSON(a.stdout, made, true)
+	}
+	path, _ := made["path"].(string)
+	for _, key := range []string{"git_error", "warning"} {
+		if note, _ := made[key].(string); note != "" {
+			_, _ = io.WriteString(a.stderr, note+"\n")
+		}
+	}
+	_, err := io.WriteString(a.stdout, path+"\n")
+	return err
 }
