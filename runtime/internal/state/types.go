@@ -285,6 +285,10 @@ type SessionInfo struct {
 	// and its pull request links. They are stated links, not activity, and
 	// never move lastDataAt.
 	TaskRefs []TaskRef `json:"taskRefs,omitempty"`
+	// PullRequest summarizes the session's primary linked pull request as last
+	// recorded in the ledger, so a listing can show it without a call per
+	// session. Absent when no pull request is linked.
+	PullRequest *PullRequestSummary `json:"pullRequest,omitempty"`
 
 	// Observations is the factual, runtime-aware view of what Sessions has
 	// observed about this session, with sources. See observations.go.
@@ -460,4 +464,19 @@ type ClaudeEventsWindow struct {
 	TotalCount int64
 	StartIndex int64
 	EndIndex   int64
+}
+
+// PullRequestSummary is the last recorded state of a session's primary linked
+// pull request. State and Checks use the values of `/api/sessions/:id/pr`;
+// "unknown" means it has not been read yet. AllMerged is true only when every
+// linked pull request is known to be merged.
+type PullRequestSummary struct {
+	URL        string `json:"url"`
+	Number     int    `json:"number"`
+	State      string `json:"state"`
+	Draft      bool   `json:"draft,omitempty"`
+	Checks     string `json:"checks"`
+	Others     int    `json:"others,omitempty"`
+	AllMerged  bool   `json:"allMerged"`
+	ObservedAt int64  `json:"observedAt,omitempty"`
 }

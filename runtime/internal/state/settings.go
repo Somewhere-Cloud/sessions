@@ -290,6 +290,29 @@ type Settings struct {
 	// lanes before their prompt cache expires. Missing means on; per-lane
 	// choices live with the schedule in the state root.
 	IdleCompaction *IdleCompactionSettings `json:"idleCompaction,omitempty"`
+	// PullRequestWatch lets the daemon read linked pull requests on a slow
+	// schedule and set a session aside once every linked pull request merged.
+	// Missing means on.
+	PullRequestWatch *EnabledSetting `json:"pullRequestWatch,omitempty"`
+	// WorktreeCleanup lets the daemon remove worktrees Sessions created once
+	// the same checks `sessions worktrees clean` uses all pass. Missing means
+	// on.
+	WorktreeCleanup *EnabledSetting `json:"worktreeCleanup,omitempty"`
+}
+
+// EnabledSetting is an on/off machine choice whose missing value is on.
+type EnabledSetting struct {
+	Enabled bool `json:"enabled"`
+}
+
+// PullRequestWatchEnabled reports the machine choice, on unless turned off.
+func (s Settings) PullRequestWatchEnabled() bool {
+	return s.PullRequestWatch == nil || s.PullRequestWatch.Enabled
+}
+
+// WorktreeCleanupEnabled reports the machine choice, on unless turned off.
+func (s Settings) WorktreeCleanupEnabled() bool {
+	return s.WorktreeCleanup == nil || s.WorktreeCleanup.Enabled
 }
 
 type IdleCompactionSettings struct {

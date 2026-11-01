@@ -398,11 +398,13 @@ Examples:
 
 ```text
 Usage:
-  sessions worktrees [--all | clean [--dry-run]]
+  sessions worktrees [--all | clean [--dry-run] | auto [status|on|off]]
 
 list or safely clean Sessions-created worktrees
 
-List worktrees recorded in the Sessions ledger with dirty, merge, and session state. Worktrees successfully removed by clean are omitted by default; --all includes their durable cleaned records. clean removes only worktrees whose session has exited, whose tree is clean, and whose branch is fully merged into its recorded base; every other worktree is skipped with a reason. --dry-run shows the plan without mutation. There is no force option, and killing a session never cleans its worktree automatically.
+List worktrees recorded in the Sessions ledger with dirty, merge, and session state. Worktrees successfully removed by clean are omitted by default; --all includes their durable cleaned records. clean removes only worktrees whose session has exited, whose tree is clean, and whose branch is known to have landed: fully merged into its recorded base, or exactly at the head commit of a linked pull request recorded as merged (so squash and rebase merges count, and a commit added after the merge does not). Every other worktree is skipped with a reason. --dry-run shows the plan without mutation. There is no force option, and killing a session never removes its worktree at that moment.
+
+auto shows or sets automatic cleanup, on by default per machine: every 10 minutes the daemon runs the same checks as clean and removes a worktree only when they all pass and its session has been ended for at least an hour. Only worktrees Sessions created are considered; anything doubtful is left in place. auto status (the default) reports the switch, the last automatic run, and a dry-run plan naming what would be removed and why each other worktree stays.
 
 Examples:
   sessions worktrees
@@ -410,6 +412,8 @@ Examples:
   sessions --json worktrees
   sessions worktrees clean --dry-run
   sessions worktrees clean
+  sessions --json worktrees auto
+  sessions worktrees auto off
 
 --json may appear before the command or among its options. --machine, --direct, --host, and --port must appear before the command. Arguments after `sessions run --` always belong to the child command.
 ```
@@ -1226,7 +1230,7 @@ Examples:
 
 ```text
 Usage:
-  sessions pr <session> | pr list <session> | pr link <session> <url> | pr add <session> <url> [--task REF ...] [--task-project P] | pr unlink <session> [<url>] | pr refresh <session> [<url> | --all]
+  sessions pr <session> | pr list <session> | pr link <session> <url> | pr add <session> <url> [--task REF ...] [--task-project P] | pr unlink <session> [<url>] | pr refresh <session> [<url> | --all] | pr watch [status|on|off]
 
 link a lane to its GitHub pull requests and read their status
 
@@ -1234,7 +1238,9 @@ Associate a Sessions lane with its GitHub pull requests and report each one's st
 
 A lane can hold several pull requests; one of them is the primary, which `sessions pr <session>` shows and which single-link clients see. link validates and canonicalizes a https://github.com/OWNER/REPO/pull/NUMBER URL and makes it the primary, replacing the previous primary exactly as before; linking the URL already primary records nothing. add links one more pull request without replacing any (it becomes the primary only when there is none), and --task REF (repeatable, with --task-project) records the task references that pull request carries; `sessions task link --pr URL` adds more later. unlink without a URL removes the primary, and the most recently linked remaining one becomes the primary; unlink with a URL removes exactly that one. list shows every link with its own state and task references. None of these contacts GitHub, and all are recorded in the append-only ledger.
 
-refresh is the only command that reads GitHub: without a URL it reads the primary, with a URL exactly that link, and with --all every link one at a time. It runs `gh pr view --json` once per pull request with the GitHub CLI login you already have, with a 20-second timeout and no retry; Sessions never reads, stores, or forwards that credential and never writes to GitHub. A failed read records nothing, keeps the last observation with its real age, names the failure (gh_missing, auth, not_found, network, rate_limited, timeout, cancelled, malformed_response, mismatch, link_changed, failed), and exits 1. gh_missing and auth mean GitHub status is unavailable on this machine, not that anything failed: the result carries unavailable:true, the command says so on stderr and exits 0, and --all stops asking after the first such answer. cancelled means the caller stopped waiting before gh answered and says nothing about GitHub. An answer is accepted only when gh names exactly the linked URL; a relink during the read, even one back to the same URL, is reported as link_changed and nothing is recorded. When refreshes overlap, a read that began before another one whose answer was already applied is dropped as superseded rather than overwriting the newer answer. There is no background polling.
+refresh reads GitHub on request: without a URL it reads the primary, with a URL exactly that link, and with --all every link one at a time. It runs `gh pr view --json` once per pull request with the GitHub CLI login you already have, with a 20-second timeout and no retry; Sessions never reads, stores, or forwards that credential and never writes to GitHub. A failed read records nothing, keeps the last observation with its real age, names the failure (gh_missing, auth, not_found, network, rate_limited, timeout, cancelled, malformed_response, mismatch, link_changed, failed), and exits 1. gh_missing and auth mean GitHub status is unavailable on this machine, not that anything failed: the result carries unavailable:true, the command says so on stderr and exits 0, and --all stops asking after the first such answer. cancelled means the caller stopped waiting before gh answered and says nothing about GitHub. An answer is accepted only when gh names exactly the linked URL; a relink during the read, even one back to the same URL, is reported as link_changed and nothing is recorded. When refreshes overlap, a read that began before another one whose answer was already applied is dropped as superseded rather than overwriting the newer answer.
+
+watch shows or sets the background watch, on by default per machine: the daemon reads each linked pull request that is not merged through the same read-only path, every 5 minutes for an open pull request of a running lane and every 30 minutes for a closed one or one whose lane ended, backing off after failures up to an hour and pausing for an hour when gh is missing or signed out. Once every pull request linked to a live session is merged, the session is set aside (the reversible organization `sessions aside` performs) when it is quiet: not working, launching, waiting for an answer, or pinned, and without output for 2 minutes. A working session is only marked merged and is set aside later. Each set of merges sets a session aside once, so restoring it with `sessions aside ID --clear` is respected. A closed, unmerged pull request is shown and never settles anything. watch status (the default) reports the switch and the last pass.
 
 Merged is tracked per pull request and says only that the pull request landed, never that the lane's task is done; while another linked pull request is not known to be merged, the closure line says so. Sessions never ends a runner because its pull request merged: a live or paused lane is kept and the closure line says how to end it yourself; a lane whose runner already ended is offered `sessions archive`. Under global --machine, --host, --port or --direct, commands in the closure line carry the same flags.
 
@@ -1244,6 +1250,8 @@ Examples:
   sessions pr refresh 0123abcd --all
   sessions --json pr list 0123abcd
   sessions pr unlink 0123abcd https://github.com/acme/app/pull/43
+  sessions --json pr watch
+  sessions pr watch off
 
 --json may appear before the command or among its options. --machine, --direct, --host, and --port must appear before the command. Arguments after `sessions run --` always belong to the child command.
 ```

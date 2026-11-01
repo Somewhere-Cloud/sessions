@@ -47,6 +47,8 @@ type Server struct {
 	projects             *project.Store
 	folders              project.Folders
 	autoArchive          autoArchivePolicy
+	prWatch              pullRequestWatchPolicy
+	worktreeClean        worktreeCleanPolicy
 	registry             sessionService
 	push                 pushService
 	tokens               tokenStore

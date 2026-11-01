@@ -14,7 +14,8 @@ const prUsage = "usage: sessions pr <session>\n" +
 	"       sessions pr link <session> <https://github.com/OWNER/REPO/pull/NUMBER>\n" +
 	"       sessions pr add <session> <url> [--task REF ...] [--task-project P]\n" +
 	"       sessions pr unlink <session> [<url>]\n" +
-	"       sessions pr refresh <session> [<url> | --all]"
+	"       sessions pr refresh <session> [<url> | --all]\n" +
+	"       sessions pr watch [status|on|off]"
 
 // pullRequestLinks mirrors the daemon's multi-link answer.
 type pullRequestLinks struct {
@@ -29,6 +30,9 @@ type pullRequestLinks struct {
 }
 
 func (a *app) cmdPR(args []string) error {
+	if len(args) > 0 && args[0] == "watch" {
+		return a.cmdPRWatch(args[1:])
+	}
 	all := removeFirst(&args, "--all")
 	taskRefs, taskProject, err := pluckTaskRefs(&args)
 	if err != nil {

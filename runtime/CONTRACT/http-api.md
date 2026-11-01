@@ -145,6 +145,7 @@ fields. Optional fields are omitted when their value is `undefined`.
 | `lastDataAt` | number | Unix epoch milliseconds of latest PTY output. A record restored from the ledger after its runner is gone reports its newest recorded human or provider activity; renames, pull request and task links, refreshes, and archive facts never move it. A live runner this daemon re-adopted after a restart or reconnect does not count attaching as activity: until it produces new output it reports what an earlier connection observed, else its persisted human/agent message time or the ledger's recorded activity, else its `createdAt` with `lastDataUnknown:true` |
 | `observations` | object, optional | the factual observation block, version 1, described below. Present on live records and, with only `capabilities` and `runner`, on records restored from the ledger, paused, or still launching |
 | `taskRefs` | array, optional | task references recorded in the ledger for this session and its pull request links, each `{"ref","scope","project"?,"pull_request"?,"ambiguous"?,"inherited_from"?}` with the meanings of `/tasks`; `pull_request` is set for a reference stated on that link. Present on live and restored records, so a listing needs no call per session. Linking is not activity and never moves `lastDataAt` |
+| `pullRequest` | object, optional | the primary linked pull request as last recorded in the ledger: `{"url","number","state","draft"?,"checks","others"?,"allMerged","observedAt"?}`. `state` and `checks` use the values of `/pr` (`unknown` until read); `others` counts the other links; `allMerged` is true only when every linked pull request is known to be merged. Absent when nothing is linked. Never contacts GitHub |
 | `lastDataUnknown` | boolean, optional | `true` when a restored record has no recorded activity, so `lastDataAt` is only its `createdAt` floor. Omitted when the time was observed. `sessions status` reports the same fact as `last_activity_unknown`, which differs only when the provider transcript recorded a later turn (`lastUserMessageAt`). A producer verdict's `emitted_at` is a report time and never counts as activity |
 | `lastUserMessageAt` | number or null | latest user-role record in the provider transcript. Transcript-derived, so it includes the provider's own internal injections — a scheduled prompt or cron tick is written straight into the transcript and is indistinguishable there from a person. Do not read it as human contact; use `lastHumanMessageAt` for that |
 | `lastHumanMessageAt` | number or null | Unix epoch milliseconds of the latest input that reached Sessions **without** source-session attribution: a person at a keyboard, a composer, an attached terminal, `sessions send` run by hand. Stamped at the input boundary, which a provider's internal injection never crosses. Null means no person has spoken into this session |
@@ -1350,8 +1351,12 @@ Git inspection and ledger filtering live in
 
 Auth required. Body is `{"dry_run":true|false}`. Cleanup considers only
 Sessions-created worktrees and removes one only when its session is durably
-exited, its tree is clean, and its branch is fully merged into its recorded
-base. It uses non-forced Git removal and branch deletion; all ineligible or
+exited, its tree is clean, and its branch is known to have landed: fully
+merged into its recorded base (`merged_via:"base"`), or exactly at the head
+commit of a linked pull request recorded as merged
+(`merged_via:"pull_request"`, with `merged_pull_request` naming it), which
+covers squash and rebase merges and excludes any commit added after the
+merge. Worktree rows carry both optional fields. It uses non-forced Git removal and branch deletion; all ineligible or
 refused operations return `action:"skipped"` with a `reason`. Dry-run returns
 `action:"would-remove"` without changing the repository. Success is:
 
@@ -1367,6 +1372,28 @@ fact after the final safety check. After removal it records `worktree_cleaned`,
 so the row remains auditable through `GET /api/worktrees?all=true` but no longer
 clutters the default listing. An interrupted cleanup intent is reconciled by a
 later clean without weakening the original safety decision.
+
+### `GET|PUT /api/worktrees/auto`
+
+Auth required. Machine-scoped automatic cleanup, on by default (`settings.json`
+`worktreeCleanup.enabled`, missing means on). Every 10 minutes the daemon runs
+the checks of `POST /api/worktrees/clean` and additionally requires the
+session to have been ended for at least an hour; removals are recorded with
+the daemon as actor. GET answers:
+
+```json
+{"enabled":true,"intervalMs":600000,"graceMs":3600000,
+ "plan":[{"session":"<id>","worktree_path":"…","action":"would-remove|skipped","reason":"…"}],
+ "lastRun":{"at":"<RFC3339>","results":[],"error":"…"}}
+```
+
+`plan` is a dry run of the next automatic run (same row shape as clean
+results); `lastRun` lists only the rows the last run acted on and is absent
+until a run happened since the daemon started. PUT requires
+`{"enabled":true|false}` (otherwise 400) and returns the same shape. Wrong
+methods are 405. `sessions worktrees auto [status|on|off]`, including
+`--json`, is equivalent
+([`internal/api/worktree_auto_clean.go`](../internal/api/worktree_auto_clean.go)).
 
 ### `GET /api/storage` and `GET /api/storage/preview`
 
@@ -1924,7 +1951,8 @@ becomes the primary. Neither contacts GitHub.
 
 `GET` never contacts GitHub. `POST .../pr/refresh` runs
 `gh pr view <url> --json ...` once with the user's existing GitHub CLI login,
-a 20-second timeout, and no retry. Sessions never reads, stores, or forwards
+a 20-second timeout, and no retry. The daemon's background watch
+(`/api/pull-request-watch`) uses the same read on a schedule. Sessions never reads, stores, or forwards
 that credential and never writes to GitHub. A read that differs from the last
 recorded observation is appended as `pull_request_observed`; an identical read
 appends nothing and refreshes freshness for this daemon's lifetime only. A
@@ -3746,6 +3774,39 @@ a bounded file prefix as the newest conversation. Authored text whitespace is
 preserved; adjacent text blocks are concatenated without inserted separators.
 Unreadable saved handoff receipts make discovery fail explicitly with the
 receipt filename, rather than silently returning an incomplete operation list.
+
+### `GET /api/pull-request-watch`, `PUT /api/pull-request-watch`
+
+Authenticated machine-scoped background watch of linked pull requests, on by
+default (`settings.json` `pullRequestWatch.enabled`, missing means on). GET
+answers:
+
+```json
+{"enabled":true,"intervalMs":300000,"settleQuietMs":120000,
+ "settle":"set-aside-when-every-linked-pull-request-merged",
+ "lastPass":{"at":"<RFC3339>","watched":2,"read":1,"recorded":1,"failed":0,
+             "unavailable":false,"paused_until":"<RFC3339>","last_error":"…"},
+ "lastSettled":["<session id>"]}
+```
+
+PUT requires `{"enabled":true|false}` (otherwise 400) and returns the same
+shape; wrong methods are 405. `sessions pr watch [status|on|off]`, including
+`--json`, is equivalent. Each minute the daemon reads, through the same path
+as `POST /api/sessions/:id/pr/refresh`, every linked pull request not known to
+be merged that is due: every 5 minutes for an open pull request of a running
+lane, every 30 minutes for a closed one or an ended lane's, at most 20 per
+pass. A failed read doubles that lane's interval up to an hour; `gh_missing`
+or `auth` pauses all reads for an hour (`unavailable:true`). Then each live
+session whose every linked pull request is merged is set aside (runner
+metadata `set_aside_at`, exactly `sessions aside`) once it is unpinned, not
+working, launching, waiting for an answer or retrying, reachable, without
+observed queued input, and without output for `settleQuietMs`. A session
+working when its pull request merged is settled on a later pass. Each set of
+merges settles a session once (`pull-request-settle.json`), so a restore is
+respected. Closed unmerged pull requests never settle anything, and no runner
+is ended or signalled
+([`internal/api/pull_request_watch.go`](../internal/api/pull_request_watch.go),
+[`internal/session/pull_request_watch.go`](../internal/session/pull_request_watch.go)).
 
 ### `GET /api/auto-archive`, `PUT /api/auto-archive`
 

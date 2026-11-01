@@ -144,6 +144,7 @@ func ensureObservations(info *state.SessionInfo) {
 // including those inherited from continued sessions, and recorded activity.
 func applyLedgerFacts(info *state.SessionInfo, lane ledger.LaneState, inheritance taskInheritance) {
 	info.TaskRefs = listingTaskRefs(lane, inheritance.inherited(lane.LaneID))
+	info.PullRequest = pullRequestSummary(lane)
 	overlayLedgerActivity(info, lane)
 }
 
