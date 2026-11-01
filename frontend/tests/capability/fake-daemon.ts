@@ -162,6 +162,10 @@ export interface FakeDaemon {
   archived: string[];
   /** Conversations adopted through POST /api/recovery/adopt. */
   adopted: string[];
+  /** Read-state writes through PUT /api/sessions/:id/read-state, in order. */
+  readStateWrites: Array<{ id: string; unread: boolean }>;
+  /** The daemon's desktop-notification switches, served from GET /api/notify. */
+  notify: { done: boolean; waiting: boolean; lost: boolean };
   /** Continuation job ids canceled through the job API. */
   continuationCanceled: string[];
   machineFor(origin: string): FakeMachine | undefined;
@@ -338,6 +342,8 @@ export function installFakeDaemon(machines: FakeMachine[]): FakeDaemon {
     retryStopped: [],
     archived: [],
     adopted: [],
+    readStateWrites: [],
+    notify: { done: true, waiting: true, lost: true },
     continuationCanceled: [],
     machineFor: (origin) => byOrigin.get(origin),
     session: (id) => machines.flatMap((m) => m.sessions).find((s) => s.id === id),
@@ -486,6 +492,19 @@ export function installFakeDaemon(machines: FakeMachine[]): FakeDaemon {
       const pinned = (body as { pinned?: unknown })?.pinned === true;
       target.pinned = pinned;
       return jsonResponse({ pinned });
+    }
+    if (sessionRoute && sessionTail === '/read-state' && method === 'PUT') {
+      if (!target) return jsonResponse({ error: 'session not found' }, 404);
+      const unread = (body as { unread?: unknown })?.unread;
+      if (typeof unread !== 'boolean') return jsonResponse({ error: 'body must say unread' }, 400);
+      if (unread && target.exited) return jsonResponse({ error: 'session ended' }, 409);
+      target.markedUnread = unread;
+      if (!unread) target.seenAt = Date.now();
+      // The daemon's rule, internal/state/read_state.go SessionUnread.
+      const baseline = Math.max(target.seenAt ?? -1, target.lastHumanMessageAt ?? -1);
+      target.unread = !target.exited && (unread || (target.attentionAt != null && baseline >= 0 && target.attentionAt > baseline));
+      daemon.readStateWrites.push({ id: sessionId, unread });
+      return jsonResponse({ unread: target.unread, seenAt: target.seenAt ?? null, attentionAt: target.attentionAt ?? null });
     }
     if (sessionRoute && sessionTail === '/set-aside' && method === 'PUT') {
       if (!target) return jsonResponse({ error: 'session not found' }, 404);
@@ -816,6 +835,7 @@ export function installFakeDaemon(machines: FakeMachine[]): FakeDaemon {
         }
       });
     }
+    if (path === '/api/notify' && method === 'GET') return jsonResponse({ notify: daemon.notify, subscribed: false });
     if (path === '/api/access/requests') return jsonResponse({ requests: [] });
     if (path === '/api/usage') {
       return jsonResponse({

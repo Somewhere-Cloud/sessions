@@ -526,6 +526,9 @@ button.session-tree-group-head { width: 100%; }
 .session-nav-status.is-unavailable { border-color: var(--fg-faint); background: var(--fg-faint); opacity: .55; }
 .session-nav-copy { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 2px; }
 .session-nav-title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg); font-size: 13px; line-height: 1.35; font-weight: 400; }
+/* Unread: a quiet weight change and one small accent dot, never a badge. */
+.session-nav-row.is-unread .session-nav-title { font-weight: 600; }
+.session-nav-row.is-unread .session-nav-title::before { content: ""; display: inline-block; width: 6px; height: 6px; margin: 0 6px 1px 0; border-radius: 50%; background: var(--accent); vertical-align: middle; }
 .session-nav-ended { color: var(--fg-dim); font-size: 12px; font-weight: 600; }
 .session-nav-ended.is-attention { color: var(--warn); }
 .session-nav-ended.is-completed { color: var(--ok); }

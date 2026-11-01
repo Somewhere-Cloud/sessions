@@ -83,6 +83,7 @@ function reconcileSessions(prev: SessionInfo[], fresh: SessionInfo[]): SessionIn
       // Without this the refresh diff treats a pin change as no change at all,
       // and a toggle the user just made is silently reverted on the next poll.
       old.pinned === f.pinned &&
+      old.unread === f.unread && old.seenAt === f.seenAt && old.attentionAt === f.attentionAt &&
       old.creatorKind === f.creatorKind &&
       old.creatorId === f.creatorId &&
       old.rootCreatorKind === f.rootCreatorKind &&

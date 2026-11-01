@@ -3,7 +3,6 @@ import { Button, IconButton } from './ui/Button';
 import { lazy, Suspense, useEffect, useMemo, useState, type DragEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { ArchivedLiveSessions } from './ArchivedLiveSessions';
-import { SessionArchiveButton } from './SessionArchiveButton';
 import { archivedLiveIds, usesClaudeRemoteControl } from '../lib/sessionOrganization';
 import { RestartConversation } from './RestartConversation';
 import type { SessionInfo } from '../types';
@@ -41,6 +40,8 @@ import { useFleetProjects } from '../hooks/useFleetProjects';
 import { groupAgents, recentAgents, resolvedProjects, projectMembershipKey, matchesResolvedProject, navigationProjectOptions } from '../lib/projectAgents';
 
 const ContinueElsewhereButton = lazy(() => import('./ContinueElsewhereButton').then((module) => ({ default: module.ContinueElsewhereButton })));
+// Menu-only: loaded when a row menu first opens.
+const SessionRowMarks = lazy(() => import('./SessionRowMarks').then((module) => ({ default: module.SessionRowMarks })));
 const ProjectAgents = lazy(() => import('./ProjectAgents').then((module) => ({ default: module.ProjectAgents })));
 
 type PrimaryFilter = 'all' | 'needs' | 'working' | 'ended';
@@ -202,9 +203,9 @@ export function SessionNavigator({
 }: Props): JSX.Element {
   const archiveSessions = useSessions((state) => state.archive);
   const endSession = useSessions((state) => state.kill);
-  // The same store action the details panel's toggle calls. One write path, so
-  // pinning from the row and pinning from the panel cannot drift.
-  const updatePinned = useSessions((state) => state.updatePinned);
+  // The same undoable action the details panel's toggle calls. One write path,
+  // so pinning from the row and pinning from the panel cannot drift.
+  const updatePinned = (id: string, pinned: boolean): Promise<void> => import('../store/sessionActions').then((actions) => actions.pinWithUndo(id, pinned));
   const configuredMachines = useServers((state) => state.servers);
   const activeMachineId = useServers((state) => state.activeId);
   const sourceServerId = useSessions((state) => state.serverId) ?? undefined;
@@ -587,7 +588,7 @@ export function SessionNavigator({
         <div
           role="treeitem"
           tabIndex={0}
-          className={`session-nav-row ${status.className}${session.id === activeRowId ? ' is-active' : ''}${draggingId === session.id ? ' is-dragging' : ''}${dropTargetId === session.id ? ' is-drop-target' : ''}`}
+          className={`session-nav-row ${status.className}${session.unread && !session.exited && session.id !== activeRowId ? ' is-unread' : ''}${session.id === activeRowId ? ' is-active' : ''}${draggingId === session.id ? ' is-dragging' : ''}${dropTargetId === session.id ? ' is-drop-target' : ''}`}
           data-session-id={session.id}
           style={{ '--tree-depth': 0 } as React.CSSProperties}
           onClick={() => selectingEnded && session.exited ? toggleEndedSelection(session.id) : onOpen(session.id)}
@@ -690,7 +691,7 @@ export function SessionNavigator({
                     : isPinned(session) ? 'Unpin' : 'Pin'}
                   {session.exited ? <small>ended · archive instead</small> : null}
                 </button>
-                {!session.exited ? <SessionArchiveButton session={session} appearance="menuitem" onArchived={(id) => { setActionMenuId(null); onCloseView(id); }} /> : null}
+                <Suspense fallback={null}><SessionRowMarks session={session} onDone={() => setActionMenuId(null)} onArchived={(id) => { setActionMenuId(null); onCloseView(id); }} /></Suspense>
                 {end && canContinueSession(session) ? <button type="button" role="menuitem" onClick={() => { setActionMenuId(null); onResumeSession(session); }}>Continue conversation…</button> : null}
                 {providerName ? (
                   <details className="session-action-submenu">

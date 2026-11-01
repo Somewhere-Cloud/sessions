@@ -14,7 +14,6 @@ interface Props {
 // separate daemon operation; neither branch ever terminates a runner.
 export function SessionArchiveButton({ session, onArchived, appearance }: Props): JSX.Element {
   const archive = useSessions((state) => state.archive);
-  const updateSetAside = useSessions((state) => state.updateSetAside);
   const serverId = useSessions((state) => state.serverId);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,16 +22,19 @@ export function SessionArchiveButton({ session, onArchived, appearance }: Props)
     if (busy) return;
     setBusy(true);
     setError(null);
+    // Loaded on first use, with the Undo toast it offers.
+    const actions = import('../store/sessionActions');
     try {
       if (!session.exited) {
         // Flush the mounted composer's latest edit before its view can close.
         // Stored drafts are retained, including drafts on other clients.
         if (!restoring) flushDraft(draftStorageKey(serverId ?? '', session.id));
-        await updateSetAside(session.id, !restoring);
+        await (await actions).setAsideWithUndo(session.id, !restoring);
       } else {
         const result = await archive([session.id]);
         const refused = result.items.find((item) => item.id === session.id && item.status === 'skipped');
         if (refused) throw new Error(refused.reason ?? 'The daemon did not archive this session.');
+        (await actions).noteArchived(session);
       }
       if (!restoring && useSessions.getState().serverId === serverId) onArchived?.(session.id);
     } catch (reason) {

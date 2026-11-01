@@ -243,6 +243,12 @@ export interface SessionInfo {
   // is excluded from delegated-work review suggestions. The daemon always sends
   // it, so undefined means an older daemon that never learned the field.
   pinned?: boolean;
+  // Daemon-owned read state. `unread` is the daemon's single answer, shared by
+  // every client and the CLI; undefined means an older daemon without it.
+  seenAt?: number | null;
+  attentionAt?: number | null;
+  markedUnread?: boolean;
+  unread?: boolean;
   creatorAncestry?: string[];
   rootCreatorKind?: string;
   rootCreatorId?: string;
