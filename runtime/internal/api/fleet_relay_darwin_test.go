@@ -73,9 +73,9 @@ func fleetMachineRow(t *testing.T, daemon testDaemon) fleetMachineView {
 }
 
 // EHOSTUNREACH is what macOS returns whether or not the Local Network switch is
-// off, so the row keeps the transport failure and the address that produced it
-// and offers the permission only as a candidate cause.
-func TestFleetLANFailureReportsPossibleCauseWithoutClaimingDenial(t *testing.T) {
+// off, so without evidence the row keeps the transport failure and the address
+// that produced it, says the machine looks away, and never names the setting.
+func TestFleetLANFailureIsCalmWithoutEvidence(t *testing.T) {
 	defer routedFleetTransport(t, nil, nil)()
 	daemon := newTestDaemon(t)
 	saveFleetMachineForTest(t, daemon, fleetSavedMachine{
@@ -83,19 +83,86 @@ func TestFleetLANFailureReportsPossibleCauseWithoutClaimingDenial(t *testing.T) 
 	}, fleetHostCredential)
 
 	row := fleetMachineRow(t, daemon)
-	if row.Reachable || row.Reason != localnetwork.Reason {
+	if row.Reachable || row.Reason != localnetwork.ReasonUnreachable || row.UnreachableEndpoint != fleetTestLANEndpoint {
 		t.Fatalf("fleet machine = %+v", row)
 	}
-	for _, want := range []string{fleetTestLANEndpoint, "no route to host", localnetwork.PossibleCause} {
+	for _, want := range []string{fleetTestLANEndpoint, "no route to host", localnetwork.UnreachableCause} {
 		if !strings.Contains(row.Message, want) {
 			t.Fatalf("message %q does not preserve %q", row.Message, want)
 		}
+	}
+	if strings.Contains(row.Message, "System Settings") {
+		t.Fatalf("undiagnosed failure named the setting: %q", row.Message)
 	}
 	if got := daemon.handler.lan.state().Permission.Status; got != "not-yet-asked" {
 		t.Fatalf("permission = %q, want the unproven state to survive an unreachable dial", got)
 	}
 	if settings, err := state.LoadSettings(daemon.handler.lan.settingsPath); err == nil && settings.LocalNetworkPermission != "" {
 		t.Fatalf("persisted permission = %q, want no recorded verdict", settings.LocalNetworkPermission)
+	}
+}
+
+// A CLI run from Terminal is exempt from Local Network privacy. When it reached
+// the address and this daemon, trying again, still has no route, that is the
+// evidence: the permission wording appears, for this and later failures, and
+// is never persisted.
+func TestLocalNetworkCheckRecordsVerifiedBlock(t *testing.T) {
+	defer routedFleetTransport(t, nil, nil)()
+	daemon := newTestDaemon(t)
+	saveFleetMachineForTest(t, daemon, fleetSavedMachine{
+		MachineID: "machine-b", Name: "B", Endpoint: fleetTestLANEndpoint, Transport: "nearby",
+	}, fleetHostCredential)
+
+	response := serve(t, daemon.handler, http.MethodPost, "/api/lan/local-network-check",
+		strings.NewReader(`{"endpoint":"`+fleetTestLANEndpoint+`"}`), "127.0.0.1:1234", nil)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	var diagnosis localnetwork.Diagnosis
+	decodeBody(t, response, &diagnosis)
+	if diagnosis.Reason != localnetwork.ReasonBlocked || !strings.Contains(diagnosis.Message, localnetwork.SettingsPath) {
+		t.Fatalf("diagnosis = %+v", diagnosis)
+	}
+	permission := daemon.handler.lan.state().Permission
+	if permission.Status != "blocked" || permission.Reason != localnetwork.ReasonBlocked || permission.Endpoint != fleetTestLANEndpoint {
+		t.Fatalf("permission = %+v", permission)
+	}
+	row := fleetMachineRow(t, daemon)
+	if row.Reason != localnetwork.ReasonBlocked || !strings.Contains(row.Message, localnetwork.SettingsPath) {
+		t.Fatalf("fleet machine after verified block = %+v", row)
+	}
+	if settings, err := state.LoadSettings(daemon.handler.lan.settingsPath); err == nil && settings.LocalNetworkPermission != "" {
+		t.Fatalf("persisted permission = %q, want a block never to outlive this process", settings.LocalNetworkPermission)
+	}
+}
+
+// The incident this guards: a dial failed once just after a restart, then the
+// same daemon reached the machine. A re-dial that succeeds says momentary and
+// proves the route works, so it can never become a permission claim.
+func TestLocalNetworkCheckReportsMomentaryFailure(t *testing.T) {
+	peer := fleetIdentityServer(t, "machine-b")
+	defer routedFleetTransport(t, map[string]string{"10.0.0.32:8787": peer.Listener.Addr().String()}, nil)()
+	daemon := newTestDaemon(t)
+	response := serve(t, daemon.handler, http.MethodPost, "/api/lan/local-network-check",
+		strings.NewReader(`{"endpoint":"`+fleetTestLANEndpoint+`"}`), "127.0.0.1:1234", nil)
+	var diagnosis localnetwork.Diagnosis
+	decodeBody(t, response, &diagnosis)
+	if diagnosis.Reason != localnetwork.ReasonReachableNow {
+		t.Fatalf("diagnosis = %+v", diagnosis)
+	}
+	if got := daemon.handler.lan.state().Permission.Status; got != "granted" {
+		t.Fatalf("permission = %q, want granted after the daemon reached a private address", got)
+	}
+}
+
+func TestLocalNetworkCheckRejectsNonPrivateEndpoints(t *testing.T) {
+	daemon := newTestDaemon(t)
+	for _, endpoint := range []string{"http://100.100.20.30:8787", "https://10.0.0.32:8787", "http://example.com", "http://10.0.0.32:8787/api"} {
+		response := serve(t, daemon.handler, http.MethodPost, "/api/lan/local-network-check",
+			strings.NewReader(`{"endpoint":"`+endpoint+`"}`), "127.0.0.1:1234", nil)
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("%s: status=%d body=%s", endpoint, response.Code, response.Body.String())
+		}
 	}
 }
 
@@ -208,5 +275,42 @@ func TestFleetLANSuccessReconcilesEarlierFailedObservation(t *testing.T) {
 	settings, err := state.LoadSettings(daemon.handler.lan.settingsPath)
 	if err != nil || settings.LocalNetworkPermission != "granted" {
 		t.Fatalf("persisted permission = %q, err=%v", settings.LocalNetworkPermission, err)
+	}
+}
+
+// Local Network privacy does not cover a VPN interface, so when this host is on
+// a tailnet a peer's tailnet route is used ahead of its LAN route.
+func TestFleetPrefersTailnetRouteWhenThisHostHasOne(t *testing.T) {
+	original := hostHasTailnet
+	hostHasTailnet = func() bool { return true }
+	defer func() { hostHasTailnet = original }()
+	peer := fleetIdentityServer(t, "machine-b")
+	defer routedFleetTransport(t, map[string]string{
+		"10.0.0.32:8787":     peer.Listener.Addr().String(),
+		"100.100.20.30:8787": peer.Listener.Addr().String(),
+	}, nil)()
+	daemon := newTestDaemon(t)
+	saveFleetMachineForTest(t, daemon, fleetSavedMachine{
+		MachineID: "machine-b", Name: "B", Endpoint: fleetTestLANEndpoint, Transport: "nearby",
+		LANEndpoint: fleetTestLANEndpoint, TailnetIPEndpoint: fleetTestTailnetEndpoint,
+	}, fleetHostCredential)
+	if row := fleetMachineRow(t, daemon); !row.Reachable || row.Transport != "tailnet-ip" {
+		t.Fatalf("with both routes up and a local tailnet, row = %+v", row)
+	}
+
+	// The LAN route is still the fallback when the tailnet route is down.
+	defer routedFleetTransport(t, map[string]string{"10.0.0.32:8787": peer.Listener.Addr().String()}, nil)()
+	if row := fleetMachineRow(t, daemon); !row.Reachable || row.Transport != "lan" {
+		t.Fatalf("with the tailnet route down, row = %+v", row)
+	}
+
+	// Without a local tailnet the saved LAN-first order is kept.
+	hostHasTailnet = func() bool { return false }
+	defer routedFleetTransport(t, map[string]string{
+		"10.0.0.32:8787":     peer.Listener.Addr().String(),
+		"100.100.20.30:8787": peer.Listener.Addr().String(),
+	}, nil)()
+	if row := fleetMachineRow(t, daemon); !row.Reachable || row.Transport != "lan" {
+		t.Fatalf("without a local tailnet, row = %+v", row)
 	}
 }

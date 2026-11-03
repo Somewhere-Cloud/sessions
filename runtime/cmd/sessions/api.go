@@ -247,6 +247,11 @@ func (c *apiClient) requestWithHeaders(
 	if err != nil {
 		return apiResponse{}, err
 	}
+	if response.StatusCode == http.StatusBadGateway {
+		// The daemon could not reach a peer. If that was a private address,
+		// check it from here, where macOS Local Network privacy does not apply.
+		encoded = c.diagnoseFailureBody(encoded)
+	}
 	return apiResponse{status: response.StatusCode, header: response.Header.Clone(), body: encoded}, nil
 }
 

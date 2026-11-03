@@ -252,11 +252,24 @@ func writeDoctorFleetAccount(writer io.Writer, value any) {
 	fmt.Fprint(writer, "\n\n")
 }
 
+// doctorLocalNetwork reports the daemon's Local Network observation. On this
+// machine's own daemon it first checks every saved machine, diagnosing any
+// private-address failure from this terminal, so a verified block is on record
+// before the observation is read.
 func (a *app) doctorLocalNetwork() any {
+	var checks []fleetReachability
+	if cliHostIsLoopback(a.api.host) && a.api.pathPrefix == "" {
+		if registry, err := readMachineRegistry(a.home); err == nil && len(registry.Machines) > 0 {
+			checks, _ = a.daemonFleetReachability()
+		}
+	}
 	var lan any
 	response, err := a.api.request(context.Background(), "GET", "/api/lan", nil, 0)
 	if err == nil && response.status < 400 {
 		_ = json.Unmarshal(response.body, &lan)
+	}
+	if state, ok := lan.(map[string]any); ok && checks != nil {
+		state["fleet"] = checks
 	}
 	return lan
 }
@@ -276,27 +289,37 @@ func writeDoctorLocalNetwork(writer io.Writer, state any) {
 	if !ok {
 		return
 	}
+	if checks, ok := lan["fleet"].([]fleetReachability); ok {
+		writeDoctorFleetReachability(writer, checks)
+	}
 	permission, ok := lan["permission"].(map[string]any)
 	if !ok {
 		return
 	}
 	status, _ := permission["status"].(string)
 	switch status {
+	case "blocked":
+		// The one definitive state: a CLI run from Terminal, which macOS exempts,
+		// reached this address while the daemon, trying again, could not.
+		endpoint, _ := permission["endpoint"].(string)
+		fmt.Fprintf(writer, "local network: blocked — Terminal reached %s but the Sessions background service could not. Turn on Sessions in %s\n\n",
+			endpoint, localnetwork.SettingsPath)
 	case "denied":
 		// Only a host on an older version still reports a denial, and it was an
 		// inference from one errno. Attribute the claim to that host instead of
 		// restating it as a macOS state this CLI cannot read.
 		message, _ := permission["message"].(string)
 		if message == "" {
-			message = localnetwork.PossibleCause
+			message = "a guess from one failed connection"
 		}
-		fmt.Fprintf(writer, "local network: the host (older version) reported denied — %s\n\n", message)
+		fmt.Fprintf(writer, "local network: the host (older version) reported denied — %s. Run `sessions machines` from Terminal to check\n\n", message)
 	case "granted":
 		// A last observation, not a live check: macOS has no readable switch, so
 		// this says nearby contact worked when it was last attempted.
 		fmt.Fprint(writer, "local network: nearby access worked at the host's last observation; this is not a live check\n\n")
 	case "not-yet-asked":
-		fmt.Fprint(writer, "local network: not confirmed; nearby access has not succeeded yet. Open Fleet in Sessions to try it, or check System Settings › Privacy & Security › Local Network › Sessions\n\n")
+		// Nothing is known either way, so nothing is claimed about the switch.
+		fmt.Fprint(writer, "local network: not confirmed; nearby access has not succeeded yet. `sessions machines` checks each saved machine and names the setting only if macOS is blocking Sessions\n\n")
 	}
 }
 
@@ -593,4 +616,21 @@ func jsonScalar(value any) string {
 		}
 	}
 	return fmt.Sprint(value)
+}
+
+func writeDoctorFleetReachability(writer io.Writer, checks []fleetReachability) {
+	if len(checks) == 0 {
+		return
+	}
+	for _, check := range checks {
+		switch {
+		case check.Reachable:
+			fmt.Fprintf(writer, "machine %s: reachable via %s\n", check.Name, check.Transport)
+		case check.Message != "":
+			fmt.Fprintf(writer, "machine %s: %s\n", check.Name, check.Message)
+		default:
+			fmt.Fprintf(writer, "machine %s: unreachable\n", check.Name)
+		}
+	}
+	fmt.Fprint(writer, "\n")
 }

@@ -26,8 +26,11 @@ func TestDiscoverWithNoPeersReportsWhatWasObserved(t *testing.T) {
 	if strings.Contains(got, "has not allowed") {
 		t.Fatalf("discover output asserted a macOS denial: %q", got)
 	}
-	if runtime.GOOS == "darwin" && !strings.Contains(got, localnetwork.PossibleCause) {
-		t.Fatalf("discover output = %q, want the permission offered as a possible cause", got)
+	if strings.Contains(got, "System Settings") {
+		t.Fatalf("discover output = %q guessed at the permission without evidence", got)
+	}
+	if runtime.GOOS == "darwin" && !strings.Contains(got, "off, asleep, or on another network") {
+		t.Fatalf("discover output = %q, want the calm wording", got)
 	}
 }
 
@@ -54,6 +57,16 @@ func TestDoctorLocalNetworkReportsObservationsNotVerdicts(t *testing.T) {
 		"legacy denial from an older daemon": {
 			map[string]any{"status": "denied", "message": "older host sentence"},
 			"local network: the host (older version) reported denied — older host sentence", "System Settings",
+		},
+		// The unproven state names no setting: nothing is known either way.
+		"unproven names no setting": {
+			map[string]any{"status": "not-yet-asked"},
+			"`sessions machines` checks each saved machine", "System Settings",
+		},
+		// A verified block is the one state that names the setting.
+		"verified block": {
+			map[string]any{"status": "blocked", "endpoint": "http://10.0.0.32:8787"},
+			"blocked — Terminal reached http://10.0.0.32:8787 but the Sessions background service could not. Turn on Sessions in " + localnetwork.SettingsPath, "denied",
 		},
 	}
 	for name, test := range tests {

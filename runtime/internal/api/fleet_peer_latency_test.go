@@ -432,8 +432,8 @@ func TestSlowerPreferredRouteStillWins(t *testing.T) {
 	}
 }
 
-// Every route silent is still the peer budget, and the refusal names each
-// address that was tried rather than one of them.
+// Every route silent is still bounded by the peer budget, and the refusal names
+// each address that was tried rather than one of them.
 func TestEverySilentRouteStillSpendsTheBudgetAndNamesEachAddress(t *testing.T) {
 	dialer := &peerDialer{stall: map[string]time.Duration{
 		"10.0.0.32:8787": time.Minute,
@@ -455,8 +455,11 @@ func TestEverySilentRouteStillSpendsTheBudgetAndNamesEachAddress(t *testing.T) {
 	if response.Code != http.StatusBadGateway {
 		t.Fatalf("away peer = %d %s", response.Code, response.Body.String())
 	}
-	if elapsed < fleetPeerBudget || elapsed > fleetPeerBudget+2*time.Second {
-		t.Fatalf("deciding a wholly silent peer took %v, want about the %v budget", elapsed, fleetPeerBudget)
+	// Each silent route ends at its own dial timeout, which the transient
+	// retry does not extend (a timeout is not retried), and the peer budget
+	// bounds the whole.
+	if elapsed < fleetDialTimeout || elapsed > fleetPeerBudget+2*time.Second {
+		t.Fatalf("deciding a wholly silent peer took %v, want between the %v dial timeout and the %v budget", elapsed, fleetDialTimeout, fleetPeerBudget)
 	}
 	body := response.Body.String()
 	for _, address := range []string{"http://10.0.0.32:8787", "http://100.100.32.1:8787"} {

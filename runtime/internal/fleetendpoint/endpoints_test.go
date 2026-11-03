@@ -64,3 +64,33 @@ func TestPlainAndLegacyPairingLinksRemainReadable(t *testing.T) {
 		}
 	}
 }
+
+func TestPreferTailnetPutsTailnetRoutesFirstOnlyWhenBothHaveOne(t *testing.T) {
+	all := OrderedWithRelay(
+		"http://192.168.1.20:8787",
+		"https://mini.example.ts.net",
+		"http://100.100.20.30:8787",
+		"https://relay.example/m/mini",
+	)
+	got := PreferTailnet(all, true)
+	want := []Candidate{
+		{Endpoint: "https://mini.example.ts.net", Transport: "tailnet"},
+		{Endpoint: "http://100.100.20.30:8787", Transport: "tailnet-ip"},
+		{Endpoint: "http://192.168.1.20:8787", Transport: "lan"},
+		{Endpoint: "https://relay.example/m/mini", Transport: "relay"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("with a local tailnet = %#v, want %#v", got, want)
+	}
+	if got := PreferTailnet(all, false); !reflect.DeepEqual(got, all) {
+		t.Fatalf("without a local tailnet the order changed: %#v", got)
+	}
+	lanOnly := OrderedWithRelay("http://192.168.1.20:8787", "", "", "https://relay.example/m/mini")
+	if got := PreferTailnet(lanOnly, true); !reflect.DeepEqual(got, lanOnly) {
+		t.Fatalf("a machine without a tailnet route changed order: %#v", got)
+	}
+	ipOnly := Ordered("http://192.168.1.20:8787", "", "http://100.100.20.30:8787")
+	if got := PreferTailnet(ipOnly, true); got[0].Transport != "tailnet-ip" || got[1].Transport != "lan" {
+		t.Fatalf("tailnet-ip route not preferred: %#v", got)
+	}
+}

@@ -440,11 +440,14 @@ export interface LANState {
   };
   permission?: {
     // What the host has observed, never a reading of the macOS switch: 'granted'
-    // once nearby contact succeeded, 'not-yet-asked' while nothing is proven.
-    // 'denied' only arrives from a host running an older daemon.
-    status: 'granted' | 'denied' | 'not-yet-asked' | 'not-required';
-    reason?: 'local-network-permission';
+    // once nearby contact succeeded, 'not-yet-asked' while nothing is proven,
+    // 'blocked' only on evidence (a Terminal check reached `endpoint` while the
+    // Sessions service could not). 'denied' only arrives from an older daemon.
+    status: 'granted' | 'denied' | 'blocked' | 'not-yet-asked' | 'not-required';
+    reason?: 'local-network-permission' | 'local-network-blocked';
     message?: string;
+    endpoint?: string;
+    checked_at?: string;
   };
 }
 

@@ -52,6 +52,16 @@ func (s *Server) handleLANClientRoute(response http.ResponseWriter, request *htt
 		}
 		s.serveLANDiscover(response, request, corsOrigin)
 		return true
+	case "/api/lan/local-network-check":
+		if request.Method != http.MethodPost {
+			s.sendJSON(response, http.StatusMethodNotAllowed, map[string]any{"error": "method not allowed"}, corsOrigin)
+			return true
+		}
+		if !s.requireLocalPrincipal(response, request, corsOrigin, "local-network check") {
+			return true
+		}
+		s.serveLocalNetworkCheck(response, request, corsOrigin)
+		return true
 	case "/api/lan/connect":
 		if request.Method != http.MethodPost {
 			s.sendJSON(response, http.StatusMethodNotAllowed, map[string]any{"error": "method not allowed"}, corsOrigin)
@@ -100,7 +110,9 @@ func (s *Server) serveLANDiscover(response http.ResponseWriter, request *http.Re
 func (s *Server) verifiedLANCandidates(ctx context.Context, candidates []discovery.Candidate) []lanDiscoveredMachine {
 	machines := make([]lanDiscoveredMachine, 0, len(candidates))
 	for _, candidate := range candidates {
-		health, err := fetchLANHealth(ctx, candidate.Endpoint, "")
+		// A sweep learns more from a quick answer per announcement than from
+		// waiting out each absent one, so these dials do not retry.
+		health, err := fetchLANHealth(localnetwork.WithoutRetry(ctx), candidate.Endpoint, "")
 		if err != nil || !health.OK || health.Name != "sessionsd" {
 			continue
 		}
@@ -253,7 +265,7 @@ func (s *Server) connectLANMachineCandidates(ctx context.Context, candidates []f
 func (s *Server) selectLANConnectCandidate(ctx context.Context, candidates []fleetendpoint.Candidate) (fleetendpoint.Candidate, error) {
 	var lastErr error
 	for index, candidate := range candidates {
-		probeCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		probeCtx, cancel := context.WithTimeout(localnetwork.WithoutRetry(ctx), 2*time.Second)
 		health, err := fetchLANHealth(probeCtx, candidate.Endpoint, "")
 		cancel()
 		if err == nil && health.OK && health.Name == "sessionsd" {
@@ -262,24 +274,24 @@ func (s *Server) selectLANConnectCandidate(ctx context.Context, candidates []fle
 		if err == nil {
 			err = errors.New("endpoint did not identify itself as sessionsd")
 		}
-		lastErr = fmt.Errorf("reach %s: %w", candidate.Endpoint, localnetwork.Explain(candidate.Endpoint, err))
-		if index == 0 && localnetwork.IsPossiblePermissionError(lastErr) {
+		lastErr = fleetEndpointError(candidate.Endpoint, err, s.lan.localNetworkBlocked())
+		if index == 0 && localnetwork.IsLocalUnreachable(lastErr) {
 			s.logLANFallbackOnce(candidates[1:])
 		}
 	}
 	return fleetendpoint.Candidate{}, lastErr
 }
 
-// sendLANClientError reports the transport failure that actually happened. The
-// local-network permission travels as a candidate cause, never as a verdict:
-// this daemon cannot read the macOS switch, so it does not answer 403 as though
-// the operating system had refused.
+// sendLANClientError reports the transport failure that actually happened.
+// This daemon cannot read the macOS switch, so a private-address no-route is
+// machine-unreachable unless a verified block is on record; the endpoint lets
+// an exempt caller check that address itself.
 func (s *Server) sendLANClientError(response http.ResponseWriter, err error, corsOrigin string) {
-	reason := ""
-	if localnetwork.IsPossiblePermissionError(err) {
-		reason = localnetwork.Reason
+	body := fleetFailureBody(err)
+	if _, ok := body["reason"]; !ok {
+		body["reason"] = ""
 	}
-	s.sendJSON(response, http.StatusBadGateway, map[string]any{"error": err.Error(), "reason": reason}, corsOrigin)
+	s.sendJSON(response, http.StatusBadGateway, body, corsOrigin)
 }
 
 func connectLANMachine(ctx context.Context, endpoint, transport, clientID, name string, timeout time.Duration) (pairingClaimResponse, error) {

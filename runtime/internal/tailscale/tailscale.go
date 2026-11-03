@@ -246,3 +246,20 @@ func firstLine(text string) string {
 	}
 	return text
 }
+
+// HostHasTailnetAddress reports whether any local interface holds an address in
+// Tailscale's CGNAT range. It reads interface addresses only, so it is cheap
+// enough for every route decision and never runs the tailscale CLI.
+func HostHasTailnetAddress() bool {
+	addresses, err := net.InterfaceAddrs()
+	if err != nil {
+		return false
+	}
+	values := make([]string, 0, len(addresses))
+	for _, address := range addresses {
+		if prefix, ok := address.(*net.IPNet); ok {
+			values = append(values, prefix.IP.String())
+		}
+	}
+	return TailnetIPv4(values) != ""
+}

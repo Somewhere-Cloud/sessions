@@ -22,6 +22,9 @@ func TestMain(m *testing.M) {
 	autoTitleRunner = func(context.Context, string, string, string, string) (string, error) {
 		return "", errors.New("test refused a real provider call")
 	}
+	// Route order must not depend on whether the machine running the tests is
+	// on a tailnet; tests that exercise the preference set it themselves.
+	hostHasTailnet = func() bool { return false }
 	os.Exit(m.Run())
 }
 

@@ -115,3 +115,30 @@ func parseApplicationPairingLink(parsed *url.URL) ([]string, string, error) {
 	}
 	return endpoints, strings.TrimSpace(tickets[0]), nil
 }
+
+// PreferTailnet moves a machine's tailnet routes ahead of its LAN route when
+// this host is on a tailnet too. macOS Local Network privacy does not cover a
+// VPN interface such as Tailscale, so a tailnet route cannot be refused by that
+// switch and does not depend on both machines sharing one Wi-Fi. The LAN route
+// stays as the fallback, and without a local tailnet the order is unchanged.
+// The relative order of everything else is kept.
+func PreferTailnet(candidates []Candidate, localTailnet bool) []Candidate {
+	if !localTailnet {
+		return candidates
+	}
+	result := make([]Candidate, 0, len(candidates))
+	for _, candidate := range candidates {
+		if candidate.Transport == "tailnet" || candidate.Transport == "tailnet-ip" {
+			result = append(result, candidate)
+		}
+	}
+	if len(result) == 0 {
+		return candidates
+	}
+	for _, candidate := range candidates {
+		if candidate.Transport != "tailnet" && candidate.Transport != "tailnet-ip" {
+			result = append(result, candidate)
+		}
+	}
+	return result
+}
