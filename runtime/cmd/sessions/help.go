@@ -444,10 +444,10 @@ var commandTable = []commandSpec{
 		examples: []string{"sessions uninstall"}, run: (*app).cmdUninstall,
 	},
 	{
-		name: "update", usage: "update [--check]",
-		summary: "securely update Sessions.app", group: adminCommandGroup, localJSON: true,
-		longHelp: "Check or install the latest macOS Sessions release. The updater accepts no URL or key overrides: it fetches only the public Somewhere release manifest, requires the pinned Minisign key, validates the exact immutable GitHub artifact path, and verifies the Developer ID and notarization before an atomic app swap. Only the Sessions UI is restarted; sessionsd and runners are never stopped.",
-		examples: []string{"sessions update", "sessions update --check", "sessions --json update --check"}, run: (*app).cmdUpdate,
+		name: "update", usage: "update [--check] [--all]",
+		summary: "securely update Sessions on this or another computer", group: adminCommandGroup, localJSON: true,
+		longHelp: "Check or install the latest macOS Sessions release. The updater accepts no URL or key overrides: it fetches only the public Somewhere release manifest, requires the pinned Minisign key, validates the exact immutable GitHub artifact path, and verifies the Developer ID and notarization before an atomic app swap. Only the Sessions UI is restarted; sessionsd and runners are never stopped. After the swap the app reopens, moves the background service to the new runtime, and the command waits until every live session has reconnected.\n\nWith --machine (or a non-loopback --host) the update runs on that computer instead: its own daemon starts the same verified updater as a detached job that outlives the daemon restart, and this command follows the job's phases until it ends. A computer whose app was closed is left closed once its background service is on the new version. `--check` there only compares that computer's installed version with the latest release.\n\n`--all` updates every saved paired computer, at most two at a time, and this computer last. `--check --all` shows each computer's version and the latest release without changing anything. Each computer reports its own result (updated, current, installed, unsupported, unreachable, or unknown); JSON reports complete and machines, and any unconfirmed computer makes the command exit 2. A lost answer is unknown, not proof that the update failed; check that computer before trying again. --all cannot be combined with a selected --machine, --host or --port.",
+		examples: []string{"sessions update", "sessions update --check", "sessions --machine mac-mini update", "sessions update --check --all", "sessions update --all", "sessions --json update --check"}, run: (*app).cmdUpdate,
 	},
 	{
 		name: "pair", usage: "pair [--ttl 10m] [--name NAME]",

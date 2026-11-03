@@ -24,6 +24,7 @@ cmd/sessions internal/state
 cmd/sessions internal/storage
 cmd/sessions internal/tailscale
 cmd/sessions internal/tokenstore
+cmd/sessions internal/updatejob
 cmd/sessions internal/usage
 cmd/sessions internal/verdict
 cmd/sessions internal/waitcond
@@ -79,6 +80,7 @@ internal/api internal/state
 internal/api internal/storage
 internal/api internal/tailscale
 internal/api internal/tokenstore
+internal/api internal/updatejob
 internal/api internal/usage
 internal/api internal/verdict
 internal/api internal/watch

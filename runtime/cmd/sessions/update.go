@@ -24,6 +24,8 @@ import (
 	"time"
 
 	"golang.org/x/crypto/blake2b"
+
+	"github.com/somewhere-tech/sessions/runtime/internal/updatejob"
 )
 
 const (
@@ -42,7 +44,11 @@ type nativeUpdateResult struct {
 	LatestVersion  string `json:"latestVersion"`
 	Updated        bool   `json:"updated"`
 	Reopened       bool   `json:"reopened"`
-	Detail         string `json:"detail"`
+	Preserved      int    `json:"preservedSessions,omitempty"`
+	// Converged is true once the background service answered on the new
+	// version with every live session reconnected.
+	Converged bool   `json:"converged,omitempty"`
+	Detail    string `json:"detail"`
 }
 
 type updateConvergenceBaseline struct {
@@ -100,31 +106,57 @@ type nativeUpdater struct {
 
 func (a *app) cmdUpdate(args []string) error {
 	checkOnly := removeFirst(&args, "--check")
-	if len(args) != 0 {
-		return fail(1, "usage: sessions update [--check]")
+	all := removeFirst(&args, "--all")
+	jobPath, job := pluck(&args, "--job")
+	if len(args) != 0 || (job && (checkOnly || all || strings.TrimSpace(jobPath) == "")) {
+		return fail(1, "usage: sessions update [--check] [--all]")
 	}
-	if runtime.GOOS != "darwin" {
-		return fail(2, "sessions update currently requires macOS; this command updates Sessions.app, not a remote daemon")
+	switch {
+	case all:
+		return a.updateFleet(checkOnly)
+	case a.remoteUpdateTarget():
+		return a.updateRemote(checkOnly)
+	case job:
+		return a.runUpdateJob(jobPath)
 	}
-	if os.Geteuid() == 0 {
-		return fail(2, "do not run `sessions update` with sudo; update from the macOS user who owns Sessions.app")
-	}
-	ctx := context.Background()
-	baseline, baselineReady := a.captureUpdateConvergenceBaseline(ctx, checkOnly)
-	result, err := a.runUpdate(ctx, checkOnly)
+	result, err := a.updateThisMac(context.Background(), checkOnly)
 	if err != nil {
 		return err
 	}
+	if a.wantJSON {
+		return writeJSON(a.stdout, result, true)
+	}
+	_, err = fmt.Fprintln(a.stdout, result.Detail)
+	return err
+}
+
+// updateThisMac runs the verified updater against this Mac's Sessions.app and,
+// after a real update, waits for the background service to come back on the
+// new runtime with every live session preserved.
+func (a *app) updateThisMac(ctx context.Context, checkOnly bool) (nativeUpdateResult, error) {
+	if runtime.GOOS != "darwin" {
+		return nativeUpdateResult{}, fail(2, "sessions update currently requires macOS; this command updates Sessions.app, not a remote daemon")
+	}
+	if os.Geteuid() == 0 {
+		return nativeUpdateResult{}, fail(2, "do not run `sessions update` with sudo; update from the macOS user who owns Sessions.app")
+	}
+	baseline, baselineReady := a.captureUpdateConvergenceBaseline(ctx, checkOnly)
+	result, err := a.runUpdate(ctx, checkOnly)
+	if err != nil {
+		return result, err
+	}
 	if result.Updated && result.Reopened && baselineReady {
+		reportUpdateProgress(ctx, updatejob.PhaseRestarting, result.LatestVersion)
 		preserved, convergenceErr := a.waitForUpdateConvergence(ctx, result.LatestVersion, baseline)
 		if convergenceErr != nil {
-			return fail(
+			return result, fail(
 				2,
 				"Sessions %s was installed and the app reopened, but the background update has not finished: %s. Existing runners were not stopped",
 				result.LatestVersion,
 				convergenceErr,
 			)
 		}
+		result.Preserved, result.Converged = preserved, true
 		result.Detail = fmt.Sprintf(
 			"Updated Sessions %s → %s. The app, CLI, and background service are current; %d live sessions were preserved.",
 			result.CurrentVersion,
@@ -132,11 +164,7 @@ func (a *app) cmdUpdate(args []string) error {
 			preserved,
 		)
 	}
-	if a.wantJSON {
-		return writeJSON(a.stdout, result, true)
-	}
-	_, err = fmt.Fprintln(a.stdout, result.Detail)
-	return err
+	return result, nil
 }
 
 func (a *app) captureUpdateConvergenceBaseline(
@@ -329,6 +357,7 @@ func (updater nativeUpdater) run(ctx context.Context, checkOnly bool) (nativeUpd
 	if updater.client == nil {
 		return nativeUpdateResult{}, fail(2, "secure update client is unavailable")
 	}
+	reportUpdateProgress(ctx, updatejob.PhaseChecking, "")
 	currentVersion, err := installedAppVersion(updater.appPath)
 	if err != nil {
 		return nativeUpdateResult{}, fail(2, "%s", err)
@@ -369,9 +398,11 @@ func (updater nativeUpdater) run(ctx context.Context, checkOnly bool) (nativeUpd
 		return nativeUpdateResult{}, fail(2, "secure update staging directory: %s", err)
 	}
 	artifactPath := filepath.Join(tempDirectory, "Sessions.app.tar.gz")
+	reportUpdateProgress(ctx, updatejob.PhaseDownloading, manifest.Version)
 	if err := updater.downloadVerifiedArtifact(ctx, platform, artifactPath); err != nil {
 		return nativeUpdateResult{}, fail(2, "%s", err)
 	}
+	reportUpdateProgress(ctx, updatejob.PhaseInstalling, manifest.Version)
 	if err := installVerifiedAppArchive(artifactPath, updater.appPath, currentVersion, manifest.Version); err != nil {
 		return nativeUpdateResult{}, fail(2, "%s", err)
 	}
