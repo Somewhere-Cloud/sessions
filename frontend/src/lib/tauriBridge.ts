@@ -674,7 +674,7 @@ export async function notifyNativeUpdate(info: NativeUpdateInfo): Promise<void> 
   if (!granted) return;
   notification.sendNotification({
     title: `Sessions ${info.version} is ready`,
-    body: 'Restart Sessions when convenient. Only the window restarts; your sessions keep running.'
+    body: 'Restart Sessions when convenient, or it installs when you quit. Only the window restarts; your sessions keep running.'
   });
 }
 
@@ -694,32 +694,21 @@ export async function notifyProviderUpdate(name: string, version: string): Promi
 
 let downloadedUpdateVersion: string | null = null;
 
-function trackProgress(onProgress?: (progress: NativeUpdateProgress) => void) {
-  let downloadedBytes = 0;
-  let totalBytes: number | null = null;
-  return (event: { event: 'Started'; data: { contentLength?: number } } | { event: 'Progress'; data: { chunkLength: number } } | { event: 'Finished' }) => {
-    if (event.event === 'Started') {
-      downloadedBytes = 0;
-      totalBytes = event.data.contentLength ?? null;
-    } else if (event.event === 'Progress') {
-      downloadedBytes += event.data.chunkLength;
-    } else if (event.event === 'Finished' && totalBytes !== null) {
-      downloadedBytes = totalBytes;
-    }
-    onProgress?.({ downloadedBytes, totalBytes });
-  };
-}
-
-// Downloads and verifies the signed update without installing it. Nothing on
-// disk changes until installDownloadedNativeUpdate, so this is safe to run in
-// the background while sessions work.
+// Downloads and verifies the signed update without installing it. The native
+// shell holds the verified bytes, so the download survives into a quit: if
+// Sessions quits with an update ready, the shell installs it and the next
+// launch is the new version. Nothing on disk changes until then, so this is
+// safe to run in the background while sessions work.
 export async function downloadNativeUpdate(
   onProgress?: (progress: NativeUpdateProgress) => void
 ): Promise<void> {
   if (!isTauri()) throw new Error('Updates are available only in Sessions.app');
   if (!pendingUpdate) throw new Error('Check for an update first');
   if (downloadedUpdateVersion === pendingUpdate.version) return;
-  await pendingUpdate.download(trackProgress(onProgress));
+  const { Channel } = await import('@tauri-apps/api/core');
+  const channel = new Channel<NativeUpdateProgress>();
+  channel.onmessage = (progress) => onProgress?.(progress);
+  await invoke<void>('native_update_download', { version: pendingUpdate.version, onProgress: channel });
   downloadedUpdateVersion = pendingUpdate.version;
 }
 
@@ -728,9 +717,18 @@ export async function downloadNativeUpdate(
 export async function installDownloadedNativeUpdate(): Promise<void> {
   if (!isTauri()) throw new Error('Updates are available only in Sessions.app');
   if (!pendingUpdate || downloadedUpdateVersion !== pendingUpdate.version) throw new Error('Download the update first');
-  await pendingUpdate.install();
-  const { relaunch } = await import('@tauri-apps/plugin-process');
-  await relaunch();
+  await invoke<void>('native_update_install');
+}
+
+/** "Check for Updates…" in the macOS app menu. Returns a stop function. */
+export function onNativeUpdateCheckRequest(handler: () => void): () => void {
+  if (!isTauri()) return () => {};
+  let stopped = false;
+  let unlisten: (() => void) | null = null;
+  void import('@tauri-apps/api/event').then(({ listen }) => listen('sessions://check-for-updates', () => handler()))
+    .then((stop) => { if (stopped) stop(); else unlisten = stop; })
+    .catch(() => { /* the in-app controls remain available */ });
+  return () => { stopped = true; unlisten?.(); };
 }
 
 export async function installNativeUpdate(

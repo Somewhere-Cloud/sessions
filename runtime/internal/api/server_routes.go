@@ -304,7 +304,7 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 	if s.handleClaudeSettingsRoute(response, request, corsOrigin) {
 		return
 	}
-	if s.handleProvidersRoute(response, request, corsOrigin) {
+	if s.handleUpdateRoute(response, request, corsOrigin) || s.handleProvidersRoute(response, request, corsOrigin) {
 		return
 	}
 	if s.handleHandoffRoute(response, request, corsOrigin) {

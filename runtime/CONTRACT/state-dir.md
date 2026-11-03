@@ -142,7 +142,9 @@ override:
 These do **not** follow it, and resolve from the user state root, which is
 always derived from the home directory: `settings.json`, `machine-id`,
 `clients.json` and `clients/`, `devices.json`, `profiles/`, `search-index.db`,
-VAPID/subscriptions, and the `idle/` sentinels. Neither does the lane ledger,
+VAPID/subscriptions, the `idle/` sentinels, and `update-job.json` /
+`update-job.log` (the last Sessions self-update started through
+`POST /api/update`). Neither does the lane ledger,
 which has its own `SESSIONS_LEDGER_PATH` override, nor
 `~/Library/LaunchAgents`. A safe isolated test must therefore set `HOME`,
 `SESSIONS_STATE_DIR`, and `SESSIONS_LEDGER_PATH` together, plus `SESSIONS_PORT`

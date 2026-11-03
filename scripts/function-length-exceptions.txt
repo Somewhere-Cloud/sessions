@@ -103,6 +103,6 @@ typescript frontend/src/components/SessionDetails.tsx SessionDetails 166
 typescript frontend/src/store/sessions.ts useSessions 156
 typescript frontend/src/hooks/useSessionSidebar.ts useSessionSidebar 155
 typescript frontend/src/components/ComposerModelControl.tsx ComposerModelControl 152
-typescript frontend/src/components/FleetView.tsx FleetServerGroup 149
+typescript frontend/src/components/FleetView.tsx FleetServerGroup 132
 typescript frontend/src/hooks/useTerminal.ts onMessage 134
 typescript frontend/src/components/DirectoryBrowser.tsx DirectoryBrowser 140

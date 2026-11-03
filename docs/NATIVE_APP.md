@@ -156,9 +156,25 @@ downloads and verifies the signed update in the background; nothing on disk
 changes. The sidebar then shows **Update ready — Restart**. Installation remains
 an explicit user or authorized local-agent action (`sessions update`): Restart
 replaces the app and relaunches only the window, and the daemon and every
-runner keep running. A failed automatic check stays silent; a failed download
-or install is reported with a retry. Update checks do not send session
-content (`frontend/src/lib/appUpdate.ts`).
+runner keep running. Quitting Sessions with an update ready installs it on the
+way out (macOS), so the next launch is the new version; the native shell holds
+the verified download for that (`src-tauri/src/native_update.rs`). A failed
+automatic check stays silent; a failed download or install is reported with a
+retry. **Sessions › Check for Updates…** in the macOS app menu runs the same
+check and answers in the window, including when Sessions is already current.
+Update checks do not send session content (`frontend/src/lib/appUpdate.ts`).
+
+Other paired computers update from here too. When a computer runs an older
+Sessions than this one, the sidebar shows **Mac mini · Sessions X → Y ·
+Update** (one **Update all** for several), the Fleet view adds Update to that
+computer's version notice, and Settings › Notifications & updates lists every
+computer's version and update state. Each update runs on that computer, through
+its own daemon (`POST /api/update`), as the same verified `sessions update`
+in a detached job that outlives its daemon restart; this window follows the
+job's persisted record to its outcome (`frontend/src/lib/sessionsFleet.ts`).
+The CLI equivalents are `sessions --machine <name> update`,
+`sessions update --check --all`, and `sessions update --all` (this computer
+last).
 
 ## Login and crash recovery
 

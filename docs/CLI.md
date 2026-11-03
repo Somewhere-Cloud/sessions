@@ -110,7 +110,7 @@ Admin/operational:
   install                  install the per-user daemon service
   relay                    configure or install the optional relay
   uninstall                remove daemon service integration
-  update                   securely update Sessions.app
+  update                   securely update Sessions on this or another computer
   pair                     show a one-time device pairing code
   account                  manage the optional Somewhere fleet account
   devices                  list or revoke paired devices
@@ -1588,15 +1588,22 @@ Examples:
 
 ```text
 Usage:
-  sessions update [--check]
+  sessions update [--check] [--all]
 
-securely update Sessions.app
+securely update Sessions on this or another computer
 
-Check or install the latest macOS Sessions release. The updater accepts no URL or key overrides: it fetches only the public Somewhere release manifest, requires the pinned Minisign key, validates the exact immutable GitHub artifact path, and verifies the Developer ID and notarization before an atomic app swap. Only the Sessions UI is restarted; sessionsd and runners are never stopped.
+Check or install the latest macOS Sessions release. The updater accepts no URL or key overrides: it fetches only the public Somewhere release manifest, requires the pinned Minisign key, validates the exact immutable GitHub artifact path, and verifies the Developer ID and notarization before an atomic app swap. Only the Sessions UI is restarted; sessionsd and runners are never stopped. After the swap the app reopens, moves the background service to the new runtime, and the command waits until every live session has reconnected.
+
+With --machine (or a non-loopback --host) the update runs on that computer instead: its own daemon starts the same verified updater as a detached job that outlives the daemon restart, and this command follows the job's phases until it ends. A computer whose app was closed is left closed once its background service is on the new version. `--check` there only compares that computer's installed version with the latest release.
+
+`--all` updates every saved paired computer, at most two at a time, and this computer last. `--check --all` shows each computer's version and the latest release without changing anything. Each computer reports its own result (updated, current, installed, unsupported, unreachable, or unknown); JSON reports complete and machines, and any unconfirmed computer makes the command exit 2. A lost answer is unknown, not proof that the update failed; check that computer before trying again. --all cannot be combined with a selected --machine, --host or --port.
 
 Examples:
   sessions update
   sessions update --check
+  sessions --machine mac-mini update
+  sessions update --check --all
+  sessions update --all
   sessions --json update --check
 
 --json may appear before the command or among its options. --machine, --direct, --host, and --port must appear before the command. Arguments after `sessions run --` always belong to the child command.

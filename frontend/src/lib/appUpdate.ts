@@ -5,6 +5,7 @@ import {
   installDownloadedNativeUpdate,
   isTauri,
   notifyNativeUpdate,
+  onNativeUpdateCheckRequest,
   type NativeUpdateInfo,
   type NativeUpdateProgress
 } from './tauriBridge';
@@ -20,7 +21,11 @@ import {
 // - When a newer version exists, download and verify it in the background.
 //   Downloading changes nothing on disk, so it is safe while agents work.
 // - Installing is the person's choice: "Restart" replaces the app and
-//   relaunches only the window. The daemon and every runner keep running.
+//   relaunches only the window. Quitting with an update ready installs it,
+//   so the next launch is the new version. The daemon and every runner keep
+//   running either way.
+// - "Check for Updates…" in the macOS app menu is a manual check whose
+//   answer is shown even when Sessions is already current.
 // - Failures are calm and retryable; an automatic check never shows an error.
 
 export type AppUpdatePhase = 'idle' | 'checking' | 'current' | 'available' | 'downloading' | 'ready' | 'installing' | 'error';
@@ -32,13 +37,16 @@ export interface AppUpdateState {
   error: string | null;
   errorStage: 'check' | 'download' | 'install' | null;
   checkedAt: number | null;
+  /** When a person asked to check (Settings or the app menu), so the answer is shown even when nothing changed. */
+  requestedAt: number | null;
 }
 
 export const APP_UPDATE_STARTUP_DELAY = 15_000;
 export const APP_UPDATE_INTERVAL = 60 * 60 * 1000;
 const NOTIFIED_KEY = 'sessions:native-update-notified-version';
 
-const initial: AppUpdateState = { phase: 'idle', info: null, progress: null, error: null, errorStage: null, checkedAt: null };
+const initial: AppUpdateState = { phase: 'idle', info: null, progress: null, error: null, errorStage: null, checkedAt: null, requestedAt: null };
+export const APP_UPDATE_ANSWER_VISIBLE = 15_000;
 
 export const useAppUpdate = create<AppUpdateState>(() => ({ ...initial }));
 
@@ -87,6 +95,7 @@ export async function downloadAppUpdate(manual = false): Promise<void> {
 
 /** Checks the feed. Automatic checks stay silent on failure; manual ones explain. */
 export async function checkAppUpdate(manual = false): Promise<void> {
+  if (manual) useAppUpdate.setState({ requestedAt: Date.now() });
   if (!isTauri() || busy(useAppUpdate.getState().phase)) return;
   const previous = useAppUpdate.getState();
   useAppUpdate.setState({ phase: 'checking', error: null, errorStage: null });
@@ -121,9 +130,19 @@ export async function restartToUpdate(): Promise<void> {
   }
 }
 
+/**
+ * Whether a person's own check should be answered on screen right now: a
+ * menu "Check for Updates…" that found nothing new still says so.
+ */
+export function appUpdateAnswerVisible(state: AppUpdateState, now = Date.now()): boolean {
+  return state.requestedAt !== null && now - state.requestedAt < APP_UPDATE_ANSWER_VISIBLE
+    && (state.phase === 'checking' || state.phase === 'current' || (state.phase === 'error' && state.errorStage === 'check'));
+}
+
 /** Starts the automatic schedule once per window. Returns a stop function. */
 export function startAppUpdateWatcher(): () => void {
   if (!isTauri()) return () => {};
+  const stopMenu = onNativeUpdateCheckRequest(() => void checkAppUpdate(true));
   const due = (): boolean => {
     const { checkedAt } = useAppUpdate.getState();
     return checkedAt === null || Date.now() - checkedAt >= APP_UPDATE_INTERVAL;
@@ -133,6 +152,7 @@ export function startAppUpdateWatcher(): () => void {
   const interval = window.setInterval(tick, APP_UPDATE_INTERVAL);
   window.addEventListener('focus', tick);
   return () => {
+    stopMenu();
     window.clearTimeout(startup);
     window.clearInterval(interval);
     window.removeEventListener('focus', tick);

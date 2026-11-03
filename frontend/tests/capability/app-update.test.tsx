@@ -5,7 +5,8 @@ const native = vi.hoisted(() => ({
   check: vi.fn(),
   download: vi.fn(),
   install: vi.fn(),
-  notify: vi.fn()
+  notify: vi.fn(),
+  menuHandler: null as null | (() => void)
 }));
 vi.mock('../../src/lib/tauriBridge', () => ({
   isTauri: () => true,
@@ -13,7 +14,8 @@ vi.mock('../../src/lib/tauriBridge', () => ({
   downloadNativeUpdate: native.download,
   installDownloadedNativeUpdate: native.install,
   notifyNativeUpdate: native.notify,
-  notifyProviderUpdate: vi.fn(async () => {})
+  notifyProviderUpdate: vi.fn(async () => {}),
+  onNativeUpdateCheckRequest: (handler: () => void) => { native.menuHandler = handler; return () => { native.menuHandler = null; }; }
 }));
 
 import { AppUpdateCard } from '../../src/components/SidebarUpdateCards';
@@ -50,7 +52,7 @@ describe('capability: Sessions updates download quietly and restart on request',
     }
     render(<AppUpdateCard />);
     expect(screen.getByText('Update ready')).toBeInTheDocument();
-    expect(screen.getByText('Only the window restarts. Your sessions keep running.')).toBeInTheDocument();
+    expect(screen.getByText('Only the window restarts, or it installs when you quit. Your sessions keep running.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Restart to update to Sessions 0.2.46' }));
     await waitFor(() => expect(native.install).toHaveBeenCalledTimes(1));
   });
@@ -76,5 +78,14 @@ describe('capability: Sessions updates download quietly and restart on request',
     expect(useAppUpdate.getState()).toMatchObject({ phase: 'idle', error: null });
     const { container } = render(<AppUpdateCard />);
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it('answers Check for Updates… from the app menu even when Sessions is current', async () => {
+    native.check.mockResolvedValue(null);
+    render(<AppUpdateCard />);
+    expect(native.menuHandler).not.toBeNull();
+    await act(async () => { native.menuHandler?.(); });
+    await screen.findByText('Sessions is up to date.');
+    expect(native.download).not.toHaveBeenCalled();
   });
 });

@@ -1359,6 +1359,54 @@ human-readable `detail` sentence naming both, and bounded installer output.
 Unknown, absent, failed, or timed-out providers return 4xx/5xx without changing
 Sessions itself or any running session.
 
+### `GET /api/update`, `POST /api/update`
+
+Sessions itself on this computer, so another computer can update it (CLI:
+`sessions --machine <name> update [--check]`, `sessions update [--check] --all`).
+Both work directly and through the fleet relay
+(`/api/fleet/<machine-id>/api/update`).
+
+`GET` (auth required) returns this daemon's version and the last update job:
+
+```json
+{"version":"0.2.45","os":"darwin","supported":true,"job":{"id":"update-1788389151693000000","phase":"restarting","fromVersion":"0.2.45","toVersion":"0.2.46","startedAt":"2026-11-02T10:00:00Z","updatedAt":"2026-11-02T10:00:40Z","detail":"Moving the background service to Sessions 0.2.46; sessions reconnect on their own.","pid":4242,"appWasRunning":false}}
+```
+
+`supported` is false, with a `reason`, on a non-macOS host or a daemon that was
+not installed by Sessions.app (no bundled `sessions` beside `sessionsd`). `job`
+is absent when this computer has never been updated this way. `phase` is one of
+`starting`, `checking`, `downloading`, `installing`, `restarting` (the job has
+not ended) or `updated`, `installed` (the app is installed but Sessions.app
+could not be opened to move the background service), `current`, `failed`, and
+`interrupted`. `interrupted` is never written by a job: the daemon reports it
+when a job that has not ended no longer has a live process (after a 15-second
+grace for a job that has not yet recorded its pid). It does not say whether the
+app changed; check the installed version before trying again. Terminal jobs
+carry `finishedAt`; `failed` carries `error`; `updated` may carry
+`preservedSessions`.
+
+`POST` requires the same authority as a provider update (loopback, master
+token, or paired device; anonymous open access is 403). `{"check":true}` runs
+the bundled `sessions update --check` and returns
+`{"version","currentVersion","latestVersion","updateAvailable","detail"}`
+without changing anything; a feed failure is 502 and an unsupported host is
+501. An empty body or `{}` records a `starting` job in `update-job.json` under
+the user state root, then starts the bundled `sessions update --job <path>` as
+a detached process in its own session (output in `update-job.log` beside it)
+and returns 202 `{"job":{...}}`. That process is the same verified updater as
+`sessions update`: signed manifest, pinned Minisign key, Developer ID and
+notarization checks, atomic app swap, reopening the app so the background
+service moves to the new runtime, and waiting until every live session has
+reconnected. It rewrites the job record at each phase, so the record survives
+the daemon restart the update causes and the new daemon serves it back. If the
+app was not running before, the job closes it again once the move is confirmed;
+closing the app never stops the daemon or a runner. A second `POST` while a job
+has not ended returns 409 with that `job`. A daemon without this route answers
+404; clients say that computer needs `sessions update` run there once. The
+route is implemented in
+[`internal/api/update_handlers.go`](../internal/api/update_handlers.go) and the
+job record in [`internal/updatejob`](../internal/updatejob/updatejob.go).
+
 ### `GET /api/worktrees`
 
 Auth required. Returns worktrees created by Sessions according to ledger
