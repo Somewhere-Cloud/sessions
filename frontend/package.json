@@ -73,7 +73,8 @@
     "test:provider-handoff": "node scripts/provider-handoff-smoke.mjs",
     "test:ui-foundation": "node scripts/ui-foundation-smoke.mjs",
     "test:conversation-ui": "node scripts/conversation-smoke.mjs",
-    "test:history-search-ui": "node scripts/history-search-smoke.mjs"
+    "test:history-search-ui": "node scripts/history-search-smoke.mjs",
+    "test:fleet-update": "node scripts/fleet-update-smoke.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.0",

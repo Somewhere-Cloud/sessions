@@ -27,6 +27,7 @@ import {
 import { MachinePlatformIcon } from './MachineMark';
 import { FleetMachineAccounts, accountsMissingOn, type AccountElsewhere } from './FleetMachineAccounts';
 import { refreshDaemonAccountFleet } from '../lib/accountFleet';
+import { compareReleaseVersions, runSessionsUpdates, sessionsJobLabel, sessionsJobRunning, useSessionsFleet } from '../lib/sessionsFleet';
 import { collapseConversationRuntimes, isAgentLedChild, isSetAside } from '../lib/workingSet';
 
 const POLL_INTERVAL_MS = 3_000;
@@ -591,12 +592,7 @@ function FleetServerGroup({
         {snapshot.health?.system?.arch ? <span>{snapshot.health.system.arch}</span> : null}
         <span className="is-version">{version ? `Sessions ${version}` : 'Version unavailable'}</span>
       </div>
-      {versionState ? (
-        <div className={`fleet-version-notice is-${versionState.tone}`} title={versionState.fullDetail}>
-          <strong>{versionState.title}</strong>
-          <span>{versionState.detail}</span>
-        </div>
-      ) : null}
+      {versionState ? <FleetVersionNotice state={versionState} serverId={server.id} machineName={serverDisplayName(server)} /> : null}
 
       {!unavailable && !server.directoryOnly && snapshot.sessionsLoaded ? (
         <FleetMachineAccounts
@@ -707,6 +703,28 @@ function serverTransportCandidates(server: ServerConfig): NonNullable<ServerConf
 	].filter((candidate) => candidate.endpoint !== '');
 }
 
+// An older Sessions on another computer is a calm notice with the action that
+// fixes it: the same daemon update as `sessions --machine <name> update`.
+function FleetVersionNotice({ state, serverId, machineName }: {
+  state: NonNullable<ReturnType<typeof machineVersionState>>;
+  serverId: string;
+  machineName: string;
+}): JSX.Element {
+  const computer = useSessionsFleet((fleet) => fleet.computers[serverId]);
+  const job = computer?.job;
+  const running = sessionsJobRunning(job);
+  return (
+    <div className={`fleet-version-notice is-${state.tone}`} title={state.fullDetail}>
+      <strong>{running && job ? sessionsJobLabel(job) : state.title}</strong>
+      <span>{running && job?.detail ? job.detail : computer?.error || state.detail}</span>
+      {state.tone === 'older' && !running && computer?.supported !== false ? (
+        <Button type="button" variant="ghost" aria-label={`Update Sessions on ${machineName}`}
+          onClick={() => void runSessionsUpdates([serverId])}>Update</Button>
+      ) : null}
+    </div>
+  );
+}
+
 function machineVersionState(
   machineVersion: string | undefined,
   localVersion: string | undefined,
@@ -738,21 +756,6 @@ function machineVersionState(
     detail: `${shortVersion(machineVersion)} here · Compatible`,
     fullDetail: `${machineName} runs ${machineVersion}; ${localMachineName} runs ${localVersion}. Their API ranges are compatible.`
   };
-}
-
-function compareReleaseVersions(left: string, right: string): -1 | 0 | 1 | null {
-  const parse = (value: string): [number, number, number] | null => {
-    const match = value.trim().match(/^v?(\d+)\.(\d+)\.(\d+)/);
-    return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null;
-  };
-  const a = parse(left);
-  const b = parse(right);
-  if (!a || !b) return null;
-  for (let index = 0; index < a.length; index += 1) {
-    if (a[index] < b[index]) return -1;
-    if (a[index] > b[index]) return 1;
-  }
-  return 0;
 }
 
 type Platform = 'macos' | 'windows' | 'linux' | 'server';

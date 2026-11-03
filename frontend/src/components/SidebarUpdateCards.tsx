@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from './ui/Button';
-import { downloadPercent, restartToUpdate, startAppUpdateWatcher, useAppUpdate, downloadAppUpdate } from '../lib/appUpdate';
+import { APP_UPDATE_ANSWER_VISIBLE, appUpdateAnswerVisible, downloadPercent, restartToUpdate, startAppUpdateWatcher, useAppUpdate, downloadAppUpdate } from '../lib/appUpdate';
 import { isTauri, notifyProviderUpdate } from '../lib/tauriBridge';
 import {
   outdatedTargets,
@@ -11,6 +11,16 @@ import {
   useProviderFleet
 } from '../lib/providerFleet';
 import { useServers } from '../lib/servers';
+import {
+  fleetTargetVersion,
+  outdatedComputers,
+  refreshSessionsFleet,
+  runSessionsUpdates,
+  SESSIONS_FLEET_REFRESH,
+  sessionsJobLabel,
+  sessionsJobRunning,
+  useSessionsFleet
+} from '../lib/sessionsFleet';
 
 const PROVIDER_UPDATE_NOTIFIED_KEY = 'sessions:provider-update-notified:';
 const RECENT_RESULT = 10 * 60 * 1000;
@@ -21,8 +31,22 @@ const RECENT_RESULT = 10 * 60 * 1000;
  * CLI equivalent: `sessions update` (`--check` to only look).
  */
 export function AppUpdateCard(): JSX.Element | null {
-  const { phase, info, progress, error, errorStage } = useAppUpdate();
+  const state = useAppUpdate();
+  const { phase, info, progress, error, errorStage } = state;
   useEffect(() => startAppUpdateWatcher(), []);
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (state.requestedAt === null) return;
+    const timer = window.setTimeout(() => setTick((tick) => tick + 1), APP_UPDATE_ANSWER_VISIBLE + 100);
+    return () => window.clearTimeout(timer);
+  }, [state.requestedAt]);
+  if (appUpdateAnswerVisible(state)) {
+    // The answer to "Check for Updates…" when there is nothing to install.
+    const failed = phase === 'error';
+    return <small className={failed ? 'product-update-error' : 'product-update-safe'} role={failed ? 'alert' : 'status'}>
+      {phase === 'checking' ? 'Checking for updates…' : failed ? error : 'Sessions is up to date.'}
+    </small>;
+  }
   if (!info || phase === 'current' || phase === 'idle' || phase === 'checking' || (phase === 'error' && errorStage === 'check')) return null;
   const percent = downloadPercent(progress);
   const title = phase === 'ready' || phase === 'installing' || errorStage === 'install' ? 'Update ready' : phase === 'downloading' ? 'Downloading update' : 'Update available';
@@ -34,7 +58,7 @@ export function AppUpdateCard(): JSX.Element | null {
     <div><span>Sessions {info.version}</span><strong>{title}</strong></div>
     <Button variant="ghost" type="button" disabled={phase === 'downloading' || phase === 'installing'} onClick={run}
       aria-label={action === 'Restart' ? `Restart to update to Sessions ${info.version}` : undefined}>{action}</Button>
-    <small className="product-update-safe">Only the window restarts. Your sessions keep running.</small>
+    <small className="product-update-safe">Only the window restarts, or it installs when you quit. Your sessions keep running.</small>
     {error ? <small role="alert">{error}</small> : null}
   </div>;
 }
@@ -106,6 +130,54 @@ export function ProviderUpdateCard(): JSX.Element | null {
   </div>;
 }
 
+function useSessionsFleetWatcher(): void {
+  const servers = useServers((state) => state.servers);
+  const serverKey = servers.map((server) => `${server.id}|${server.host}|${server.port}|${server.directoryOnly ? 'd' : ''}`).join(',');
+  useEffect(() => {
+    const startup = window.setTimeout(() => void refreshSessionsFleet(useServers.getState().servers), 1_500);
+    const interval = window.setInterval(() => void refreshSessionsFleet(useServers.getState().servers), SESSIONS_FLEET_REFRESH);
+    return () => { window.clearTimeout(startup); window.clearInterval(interval); };
+  }, [serverKey]);
+}
+
+/**
+ * Another computer runs an older Sessions than this one: update it from here.
+ * CLI equivalent: `sessions --machine <name> update`, or `sessions update --all`.
+ */
+export function SessionsFleetUpdateCard(): JSX.Element | null {
+  useSessionsFleetWatcher();
+  const computers = useSessionsFleet((state) => state.computers);
+  const appVersion = useAppUpdate((state) => state.info?.currentVersion ?? null);
+  const target = fleetTargetVersion(computers, appVersion);
+  const running = Object.values(computers).filter((computer) => !computer.isLocal && sessionsJobRunning(computer.job));
+  const outdated = outdatedComputers(computers, target).filter((computer) => !sessionsJobRunning(computer.job));
+  if (running.length === 0 && outdated.length === 0) {
+    const recent = Object.values(computers).filter((computer) => !computer.isLocal && computer.job?.finishedAt
+      && Date.now() - Date.parse(computer.job.finishedAt) < RECENT_RESULT)
+      .sort((left, right) => Date.parse(right.job?.finishedAt ?? '') - Date.parse(left.job?.finishedAt ?? ''))[0];
+    if (!recent?.job) return null;
+    const bad = recent.job.phase === 'failed' || recent.job.phase === 'interrupted';
+    return <small className={bad ? 'product-update-error' : 'product-update-safe'} role={bad ? 'alert' : 'status'}>
+      {recent.name}: {recent.job.detail || sessionsJobLabel(recent.job)}
+    </small>;
+  }
+  const busy = running.length > 0;
+  const single = !busy && outdated.length === 1 ? outdated[0] : busy && running.length === 1 ? running[0] : undefined;
+  const label = single
+    ? `${single.name} · Sessions ${single.job && busy ? single.job.toVersion || target : `${single.version} → ${target}`}`
+    : busy ? `Sessions on ${running.length} computers` : `Sessions on ${outdated.length} computers`;
+  const detail = busy
+    ? (single?.job?.detail || 'Updating. Sessions on those computers keep running.')
+    : single?.error || (single ? 'Its sessions keep running through the update.' : `${outdated.map((computer) => computer.name).join(', ')} · their sessions keep running`);
+  return <div className="product-update-card is-fleet">
+    <div><span>{label}</span><strong>{busy ? (single?.job ? sessionsJobLabel(single.job) : 'Updating…') : 'Update available'}</strong></div>
+    <Button variant="ghost" type="button" disabled={busy}
+      aria-label={single ? `Update Sessions on ${single.name}` : 'Update Sessions on every computer'}
+      onClick={() => void runSessionsUpdates(outdated.map((computer) => computer.serverId))}>{busy ? 'Updating…' : single ? 'Update' : 'Update all'}</Button>
+    <small>{detail}</small>
+  </div>;
+}
+
 export function SidebarUpdateCards(): JSX.Element {
-  return <><AppUpdateCard /><ProviderUpdateCard /></>;
+  return <><AppUpdateCard /><SessionsFleetUpdateCard /><ProviderUpdateCard /></>;
 }
