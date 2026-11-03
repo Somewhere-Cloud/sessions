@@ -36,6 +36,9 @@ type machineProviderUpdate struct {
 	Status   string          `json:"status"`
 	Provider *providerStatus `json:"provider,omitempty"`
 	Detail   string          `json:"detail,omitempty"`
+	// Reason is the daemon's machine-readable cause when it gave one, such as
+	// machine-unreachable or local-network-blocked.
+	Reason string `json:"reason,omitempty"`
 }
 
 type machineProviderStatus struct {
@@ -45,6 +48,9 @@ type machineProviderStatus struct {
 	Providers   []providerStatus     `json:"providers,omitempty"`
 	UpdateCheck *providerUpdateCheck `json:"updateCheck,omitempty"`
 	Detail      string               `json:"detail,omitempty"`
+	// Reason is the daemon's machine-readable cause when it gave one, such as
+	// machine-unreachable or local-network-blocked.
+	Reason string `json:"reason,omitempty"`
 }
 
 type providerTarget struct {
@@ -79,7 +85,7 @@ func providerStatusOnClient(client *apiClient) (providerStatusList, error) {
 		return result, err
 	}
 	if response.status >= 400 {
-		return result, fmt.Errorf("%s", apiErrorMessage(response.body))
+		return result, &apiReasonError{message: apiErrorMessage(response.body), reason: apiErrorReason(response.body)}
 	}
 	return result, json.Unmarshal(response.body, &result)
 }
@@ -153,7 +159,7 @@ func (a *app) fleetProviderStatus() error {
 	eachTarget(targets, func(index int) {
 		status, statusErr := providerStatusOnClient(targets[index].client)
 		if statusErr != nil {
-			results[index].Detail = statusErr.Error()
+			results[index].Detail, results[index].Reason = statusErr.Error(), errorReason(statusErr)
 			return
 		}
 		results[index].Status, results[index].Providers, results[index].UpdateCheck = "ok", status.Providers, status.UpdateCheck
@@ -215,7 +221,7 @@ func updateTargetProviders(target providerTarget, provider string) []machineProv
 	if provider == "" {
 		status, err := providerStatusOnClient(target.client)
 		if err != nil {
-			base.Status, base.Detail = "unknown", err.Error()
+			base.Status, base.Detail, base.Reason = "unknown", err.Error(), errorReason(err)
 			return []machineProviderUpdate{base}
 		}
 		providers = nil

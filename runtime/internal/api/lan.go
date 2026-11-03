@@ -15,6 +15,7 @@ import (
 
 	"github.com/somewhere-tech/sessions/runtime/internal/discovery"
 	lanutil "github.com/somewhere-tech/sessions/runtime/internal/lan"
+	"github.com/somewhere-tech/sessions/runtime/internal/localnetwork"
 	"github.com/somewhere-tech/sessions/runtime/internal/state"
 )
 
@@ -35,11 +36,23 @@ type LANState struct {
 // of the macOS switch, which has no supported API. Reason and Message stay in
 // the shape for clients that still receive a "denied" observation from an older
 // host; this daemon reports only the states it can actually establish.
+//
+// "blocked" is the one negative state this daemon reports, and only on
+// evidence: a process macOS exempts from Local Network privacy (the CLI run
+// from Terminal or SSH) reached Endpoint while this daemon, dialling it again,
+// could not. It lives in memory, expires, and is cleared by any nearby success.
 type LocalNetworkPermission struct {
-	Status  string `json:"status"`
-	Reason  string `json:"reason,omitempty"`
-	Message string `json:"message,omitempty"`
+	Status    string `json:"status"`
+	Reason    string `json:"reason,omitempty"`
+	Message   string `json:"message,omitempty"`
+	Endpoint  string `json:"endpoint,omitempty"`
+	CheckedAt string `json:"checked_at,omitempty"`
 }
+
+// localNetworkBlockedTTL bounds how long one verified block is reported. The
+// user is expected to flip the switch; after that the next nearby success
+// clears it, and a tailnet-preferred fleet may not attempt the LAN again soon.
+const localNetworkBlockedTTL = 15 * time.Minute
 
 type lanListener struct {
 	opMu              sync.Mutex
@@ -59,6 +72,8 @@ type lanListener struct {
 	host              string
 	url               string
 	permission        string
+	blockedEndpoint   string
+	blockedAt         time.Time
 	tailnetEndpoint   string
 	tailnetIPEndpoint string
 }
@@ -118,7 +133,34 @@ func (l *lanListener) stateLocked() LANState {
 }
 
 func (l *lanListener) permissionLocked() LocalNetworkPermission {
-	return LocalNetworkPermission{Status: l.permission}
+	if l.permission == "blocked" && time.Since(l.blockedAt) > localNetworkBlockedTTL {
+		l.permission, l.blockedEndpoint, l.blockedAt = "not-yet-asked", "", time.Time{}
+	}
+	if l.permission != "blocked" {
+		return LocalNetworkPermission{Status: l.permission}
+	}
+	return LocalNetworkPermission{
+		Status: "blocked", Reason: localnetwork.ReasonBlocked, Message: localnetwork.BlockedCause,
+		Endpoint: l.blockedEndpoint, CheckedAt: l.blockedAt.UTC().Format(time.RFC3339),
+	}
+}
+
+// markBlocked records verified evidence of a Local Network block (see
+// LocalNetworkPermission). It is never persisted: the next start re-learns it.
+func (l *lanListener) markBlocked(endpoint string) {
+	if initialLocalNetworkPermission() == "not-required" {
+		return
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.permission, l.blockedEndpoint, l.blockedAt = "blocked", endpoint, time.Now()
+}
+
+// localNetworkBlocked reports whether a verified block is current.
+func (l *lanListener) localNetworkBlocked() bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.permissionLocked().Status == "blocked"
 }
 
 // markPermission records an observation. Successful nearby contact is the only
@@ -133,9 +175,9 @@ func (l *lanListener) markPermission(status string) {
 		l.mu.Unlock()
 		return
 	}
-	l.permission = status
+	l.permission, l.blockedEndpoint, l.blockedAt = status, "", time.Time{}
 	l.mu.Unlock()
-	if status == "not-required" || status == "not-yet-asked" {
+	if status == "not-required" || status == "not-yet-asked" || status == "blocked" {
 		return
 	}
 	if err := state.UpdateSettings(l.settingsPath, func(settings *state.Settings) error {

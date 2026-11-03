@@ -139,6 +139,13 @@ type fleetMachineView struct {
 	InUse      *fleetendpoint.Candidate  `json:"in_use,omitempty"`
 	Credential bool                      `json:"credential"`
 	LastSeenAt string                    `json:"last_seen_at,omitempty"`
+	// Reachable is the daemon's live probe of a saved machine, absent when it
+	// was not asked (--direct, or no saved credential). Reason is
+	// machine-unreachable, local-network-blocked (verified from this
+	// terminal), or reachable-now (the failure was momentary).
+	Reachable *bool  `json:"reachable,omitempty"`
+	Reason    string `json:"reason,omitempty"`
+	Message   string `json:"message,omitempty"`
 }
 
 func (a *app) cmdMachines(args []string) error {
@@ -344,7 +351,7 @@ func (a *app) writeDiscoveredMachines(machines []discoveredMachine) error {
 	if len(machines) == 0 {
 		// An empty browse is not a failure and not proof of a macOS denial: the
 		// other machines may simply be off or have LAN access turned off. Report
-		// what was observed and name the permission as one thing worth checking.
+		// what was observed without guessing at the permission.
 		_, err := fmt.Fprintf(a.stdout,
 			"No nearby Sessions machines found. Make sure LAN access is enabled on the other machine.%s\n",
 			nearbyPermissionHint())
@@ -698,13 +705,16 @@ func (a *app) finishMachineConnect(endpoint, transport, alias string, claim acce
 	return err
 }
 
-// nearbyPermissionHint names the local-network permission as a possible cause
-// on macOS, where discovery needs it, without claiming it was refused.
+// nearbyPermissionHint is calm on purpose. An empty or failed browse looks the
+// same whether the other machines are away or macOS is blocking Sessions, and
+// guessing the permission sent people to a setting that was already on.
+// `sessions machines` checks a saved machine from this terminal, which macOS
+// exempts, and only then names the setting.
 func nearbyPermissionHint() string {
 	if runtime.GOOS != "darwin" {
 		return ""
 	}
-	return " (" + localnetwork.PossibleCause + ")"
+	return " Machines that are off, asleep, or on another network do not answer; `sessions machines` checks each saved machine and says so if macOS is blocking Sessions."
 }
 
 func (a *app) listSavedMachines() error {
@@ -716,6 +726,13 @@ func (a *app) listSavedMachines() error {
 	registry, claimWarnings := a.claimAccountMachines(registry, account)
 	warnings = append(warnings, claimWarnings...)
 	machines := mergeMachineSources(registry.Machines, nearby, account)
+	if !a.direct && len(registry.Machines) > 0 {
+		if rows, err := a.daemonFleetReachability(); err != nil {
+			warnings = append(warnings, "reachability: "+err.Error())
+		} else {
+			applyFleetReachability(machines, rows)
+		}
+	}
 	if a.wantJSON {
 		return writeJSON(a.stdout, struct {
 			Machines []fleetMachineView `json:"machines"`
@@ -727,19 +744,20 @@ func (a *app) listSavedMachines() error {
 		return err
 	}
 	writer := tabwriter.NewWriter(a.stdout, 0, 4, 2, ' ', 0)
-	if _, err := fmt.Fprintln(writer, "ALIAS\tNAME\tSOURCES\tCANDIDATES\tIN USE"); err != nil {
+	if _, err := fmt.Fprintln(writer, "ALIAS\tNAME\tSOURCES\tCANDIDATES\tIN USE\tSTATUS"); err != nil {
 		return err
 	}
 	for _, machine := range machines {
-		if _, err := fmt.Fprintf(writer, "%s\t%s\t%s\t%s\t%s\n",
+		if _, err := fmt.Fprintf(writer, "%s\t%s\t%s\t%s\t%s\t%s\n",
 			machine.Alias, machine.Name, strings.Join(machine.Sources, ","),
-			formatMachineCandidates(machine.Candidates), formatMachineInUse(machine.InUse)); err != nil {
+			formatMachineCandidates(machine.Candidates), formatMachineInUse(machine.InUse), formatMachineStatus(machine)); err != nil {
 			return err
 		}
 	}
 	if err := writer.Flush(); err != nil {
 		return err
 	}
+	writeMachineNotes(a.stdout, machines)
 	for _, warning := range warnings {
 		fmt.Fprintln(a.stderr, "warning:", warning)
 	}

@@ -24,7 +24,7 @@ import (
 
 const (
 	fleetRegistryVersion = 1
-	fleetProbeTimeout    = 7 * time.Second
+	fleetProbeTimeout    = 9 * time.Second
 	fleetRegistryLimit   = 256 * 1024
 
 	// fleetDialTimeout bounds one dial to one saved address.
@@ -34,7 +34,11 @@ const (
 	// reach one peer. A machine that is off, mid-install, or on another network
 	// used to cost this once per saved address in turn, so a peer with three
 	// routes held a request for three dial timeouts before anyone was told.
-	fleetPeerBudget = 5 * time.Second
+	// It leaves room for the brief transient-failure retry each dial makes
+	// (localnetwork.TransientRetryDelays), so a peer that is momentarily
+	// unroutable -- this daemon was just restarted by an update -- is reached
+	// rather than reported.
+	fleetPeerBudget = 8 * time.Second
 
 	// fleetNextRouteDelay is how long a higher-preference route gets to itself
 	// before the next one starts in parallel. A reachable LAN peer answers well
@@ -72,11 +76,21 @@ type fleetMachineView struct {
 	Reachable         bool   `json:"reachable"`
 	Reason            string `json:"reason,omitempty"`
 	Message           string `json:"message,omitempty"`
+	// UnreachableEndpoint is the private address that failed with no route,
+	// for a caller that can check it from outside Local Network privacy.
+	UnreachableEndpoint string `json:"unreachable_endpoint,omitempty"`
 }
+
+// hostHasTailnet decides whether a peer's tailnet routes are preferred over
+// its LAN route. Tests replace it to pin either order.
+var hostHasTailnet = tailscale.HostHasTailnetAddress
 
 var fleetRelayTransport = &http.Transport{
 	Proxy:                 nil,
-	DialContext:           (&net.Dialer{Timeout: fleetDialTimeout, KeepAlive: 30 * time.Second}).DialContext,
+	DialContext: localnetwork.RetryDial(
+		(&net.Dialer{Timeout: fleetDialTimeout, KeepAlive: 30 * time.Second}).DialContext,
+		localnetwork.TransientRetryDelays,
+	),
 	ForceAttemptHTTP2:     true,
 	MaxIdleConns:          32,
 	IdleConnTimeout:       90 * time.Second,
@@ -133,7 +147,7 @@ func (s *Server) handleFleetRelay(
 		// Every saved route was unusable or unanswered. That is a statement
 		// about the destination, not about this host, so it must not read as
 		// this daemon having failed.
-		body := map[string]any{"error": err.Error()}
+		body := fleetFailureBody(err)
 		if errors.Is(err, errFleetEndpointUnusable) {
 			body["reason"] = fleetEndpointUnusableReason
 		}
@@ -181,12 +195,8 @@ func (s *Server) fleetRelayProxy(route fleetRelayRoute) *httputil.ReverseProxy {
 		},
 		ErrorHandler: func(writer http.ResponseWriter, _ *http.Request, proxyErr error) {
 			log.Printf("sessionsd: fleet relay failed machine=%s device_id=%s: %v", route.machineID, route.deviceID, proxyErr)
-			explained := fleetEndpointError(route.selected.Endpoint, proxyErr)
-			body := map[string]any{"error": explained.Error()}
-			if localnetwork.IsPossiblePermissionError(explained) {
-				body["reason"] = localnetwork.Reason
-			}
-			s.sendJSON(writer, http.StatusBadGateway, body, route.corsOrigin)
+			explained := fleetEndpointError(route.selected.Endpoint, proxyErr, s.lan.localNetworkBlocked())
+			s.sendJSON(writer, http.StatusBadGateway, fleetFailureBody(explained), route.corsOrigin)
 		},
 	}
 }
@@ -276,13 +286,14 @@ func (s *Server) fleetMachineReachability(parent context.Context, machine fleetS
 		// Selection returns the candidate it reached, or the only saved endpoint
 		// without probing it; either way that is the address this row failed at.
 		if err = probeFleetEndpoint(ctx, target, credential, machine.MachineID, fleetRelayTransport); err != nil {
-			err = fleetEndpointError(selected.Endpoint, err)
+			err = fleetEndpointError(selected.Endpoint, err, s.lan.localNetworkBlocked())
 		}
 	}
 	if err != nil {
 		switch {
-		case localnetwork.IsPossiblePermissionError(err):
-			view.Reason, view.Message = localnetwork.Reason, err.Error()
+		case localnetwork.IsLocalUnreachable(err):
+			view.Reason, view.Message = localnetwork.ReasonFor(err), err.Error()
+			view.UnreachableEndpoint = localUnreachableEndpoint(err)
 		case errors.Is(err, errFleetEndpointUnusable):
 			view.Reason, view.Message = fleetEndpointUnusableReason, err.Error()
 		}
@@ -296,8 +307,54 @@ func (s *Server) fleetMachineReachability(parent context.Context, machine fleetS
 // fleetEndpointError names the endpoint this attempt actually dialled. The
 // machine's saved primary address is not evidence about a fallback route that
 // failed, and attributing a tailnet failure to it invented LAN problems.
-func fleetEndpointError(endpoint string, err error) error {
-	return fmt.Errorf("reach %s: %w", endpoint, localnetwork.Explain(endpoint, err))
+// blocked is this daemon's verified Local Network evidence; without it a
+// private-address failure is described as the machine being away.
+func fleetEndpointError(endpoint string, err error, blocked bool) error {
+	return &fleetEndpointFailure{endpoint: endpoint, err: localnetwork.ExplainWithEvidence(endpoint, err, blocked)}
+}
+
+// fleetEndpointFailure keeps the dialled address inspectable, so a caller
+// exempt from Local Network privacy can check that exact address itself.
+type fleetEndpointFailure struct {
+	endpoint string
+	err      error
+}
+
+func (e *fleetEndpointFailure) Error() string { return "reach " + e.endpoint + ": " + e.err.Error() }
+func (e *fleetEndpointFailure) Unwrap() error { return e.err }
+
+// localUnreachableEndpoint is the first dialled address whose failure was a
+// private-address no-route, or "" when none was.
+func localUnreachableEndpoint(err error) string {
+	switch value := err.(type) {
+	case *fleetEndpointFailure:
+		if localnetwork.IsLocalUnreachable(value.err) {
+			return value.endpoint
+		}
+	case interface{ Unwrap() []error }:
+		for _, inner := range value.Unwrap() {
+			if endpoint := localUnreachableEndpoint(inner); endpoint != "" {
+				return endpoint
+			}
+		}
+	case interface{ Unwrap() error }:
+		return localUnreachableEndpoint(value.Unwrap())
+	}
+	return ""
+}
+
+// fleetFailureBody is the 502 answer for a peer this daemon could not reach.
+// reason and endpoint let a CLI run from Terminal -- which macOS exempts from
+// Local Network privacy -- check the same address and say which it was.
+func fleetFailureBody(err error) map[string]any {
+	body := map[string]any{"error": err.Error()}
+	if reason := localnetwork.ReasonFor(err); reason != "" {
+		body["reason"] = reason
+		if endpoint := localUnreachableEndpoint(err); endpoint != "" {
+			body["endpoint"] = endpoint
+		}
+	}
+	return body
 }
 
 // observeFleetTransport records the only local-network fact this daemon can
@@ -358,8 +415,8 @@ func (s *Server) awaitFleetRoute(
 			outstanding--
 			reported[probe.index] = true
 			if probe.err != nil {
-				failures[probe.index] = fleetEndpointError(probe.candidate.Endpoint, probe.err)
-				if probe.index == 0 && localnetwork.IsPossiblePermissionError(failures[0]) {
+				failures[probe.index] = fleetEndpointError(probe.candidate.Endpoint, probe.err, s.lan.localNetworkBlocked())
+				if probe.index == 0 && localnetwork.IsLocalUnreachable(failures[0]) {
 					s.logLANFallbackOnce(candidates[1:])
 				}
 				continue
@@ -416,7 +473,7 @@ func fleetRoutesFailure(candidates []fleetendpoint.Candidate, failures []error, 
 			continue
 		}
 		if budgetErr != nil {
-			attempted = append(attempted, fleetEndpointError(candidates[index].Endpoint, budgetErr))
+			attempted = append(attempted, fleetEndpointError(candidates[index].Endpoint, budgetErr, false))
 		}
 	}
 	if len(attempted) == 1 {
@@ -625,7 +682,9 @@ func validatedFleetEndpoints(machine fleetSavedMachine) ([]fleetendpoint.Candida
 			relayEndpoint = machine.Endpoint
 		}
 	}
-	candidates := fleetendpoint.OrderedWithRelay(lan, tailnet, tailnetIP, relayEndpoint)
+	candidates := fleetendpoint.PreferTailnet(
+		fleetendpoint.OrderedWithRelay(lan, tailnet, tailnetIP, relayEndpoint), hostHasTailnet(),
+	)
 	for _, candidate := range candidates {
 		if err := validateFleetCandidate(machine.MachineID, candidate); err != nil {
 			return nil, err

@@ -451,16 +451,28 @@ not itself been approved on.
 
 Each row carries every saved origin additively. `transport` records the origin
 currently in use and is `lan`, `tailnet`, or `tailnet-ip`. The host tries LAN,
-then Tailscale HTTPS, then direct Tailscale-IP HTTP, making authenticated `GET
-/api/machine` probes with its saved credential and requiring the returned stable
-identity to match `id`. Offline machines remain in the array with
-`reachable:false`. When a Darwin probe of a private or link-local destination
-fails with `EHOSTUNREACH`, that row additionally carries
-`reason:"local-network-permission"` and a `message` that reports the transport
-error, the endpoint the probe actually dialled, and the Local Network permission
-as one possible cause. macOS returns the same errno for a machine that is off or
-on another network, so neither field asserts that the permission was refused,
-and the endpoint named is the failed candidate rather than the saved primary.
+then Tailscale HTTPS, then direct Tailscale-IP HTTP — except that when this host
+itself has a Tailscale address (100.64.0.0/10 on a local interface), a
+machine's Tailscale routes are tried before its LAN route, because macOS Local
+Network privacy does not apply to a VPN interface; LAN stays the fallback. It
+makes authenticated `GET /api/machine` probes with its saved credential and
+requires the returned stable identity to match `id`. Each dial that fails with
+no route to the host or network, or a refused connection, is tried again on a
+short bounded schedule (about five seconds in all) inside the per-machine
+budget, so a peer that is momentarily unroutable — this daemon was just
+restarted by an update — is reached rather than reported; a healthy first dial
+is never delayed. Offline machines remain in the array with `reachable:false`.
+When a Darwin probe of a private or link-local destination fails with
+`EHOSTUNREACH`, that row additionally carries `reason:"machine-unreachable"`, an
+`unreachable_endpoint` naming the private address that failed, and a `message`
+that reports the transport error, that endpoint, and says the machine looks
+off, asleep, or on another network. macOS returns the same errno when its Local
+Network privacy switch refuses this daemon, so the daemon alone never names the
+setting; only after a caller exempt from that check has verified it (see `POST
+/api/lan/local-network-check`) is the reason `local-network-blocked` and the
+message the System Settings path. Older hosts sent
+`reason:"local-network-permission"` for the undiagnosed case, and clients keep
+accepting it.
 A saved machine whose addresses this host has no transport for — a row claimed
 from the account directory is stored with the addresses that directory
 published, which this host never validated — is listed with `reachable:false`,
@@ -508,9 +520,13 @@ identity. Other headers, including `X-Sessions-Creator-Session` and
 relayed request is logged at info level with method, destination path, machine
 ID, and calling device ID (or `local`), but never with a request body or token.
 A private or link-local Darwin dial that fails with `EHOSTUNREACH` keeps its
-transport error, names the endpoint the relay dialled, adds the Local Network
-permission as a possible cause, and carries `reason:"local-network-permission"`
-beside the `error` field.
+transport error, names the endpoint the relay dialled, and carries
+`reason:"machine-unreachable"` (or `local-network-blocked` once verified, as
+above) and `endpoint` beside the `error` field. The `sessions` CLI, which macOS
+exempts from Local Network privacy when it runs from Terminal or SSH, answers
+such a 502 from its loopback daemon by probing `endpoint` `/api/health` itself
+and, if it gets through, calling `POST /api/lan/local-network-check`; it then
+reports the diagnosis's `reason` and `message` in place of the daemon's.
 
 ### `GET /api/push/vapid`
 
@@ -3272,8 +3288,13 @@ empty. The `_sessions._tcp` TXT record always carries `lan=<origin>` and adds
 Tailscale reports them; all three are hints and the client must still verify
 health and obtain a device credential. `permission.status` is the daemon's last
 observed Local Network state and never a reading of the macOS switch, which has
-no supported API. It is `granted` or `not-yet-asked` on Darwin and
-`not-required` elsewhere. There is no permission preflight. Successful nearby
+no supported API. It is `granted`, `not-yet-asked`, or `blocked` on Darwin and
+`not-required` elsewhere. `blocked` is the one negative state and is reported
+only on evidence from `POST /api/lan/local-network-check`; it then carries
+`reason:"local-network-blocked"`, a `message` naming System Settings › Privacy &
+Security › Local Network › Sessions, the `endpoint` that proved it, and
+`checked_at`. It is held in memory only, expires after fifteen minutes, and any
+nearby success replaces it with `granted`. There is no permission preflight. Successful nearby
 contact — a verified discovery peer, a completed nearby connect, or a LAN fleet
 probe — records `granted` and persists across daemon restarts; nothing else is
 provable, so a failed dial leaves the observation unproven rather than recording
@@ -3310,11 +3331,33 @@ than 15 seconds and defaults to `3s`. Success is:
 
 An invalid timeout is 400. A browse failure is 502 with
 `{"error":"<transport failure>","reason":"<reason>"}`, where `reason` is
-`local-network-permission` when the failure was a Darwin private or link-local
-dial and empty otherwise. The daemon cannot read the macOS switch, so it never
+`machine-unreachable` (with `endpoint`) when the failure was a Darwin private or
+link-local no-route dial, `local-network-blocked` when a verified block is on
+record, and empty otherwise. Discovery and connect-route health probes do not
+use the transient retry. The daemon cannot read the macOS switch, so it never
 answers 403 as though the operating system had refused, and an empty browse —
 including one while this daemon is itself advertising — is 200 with an empty
 `machines` array. Other methods return 405.
+
+### `POST /api/lan/local-network-check`
+
+Auth required, local-principal only. Body `{"endpoint":"http://<private or
+link-local address>:<port>"}`; any other scheme, a path, query, fragment,
+userinfo, or a non-private address is 400. The caller asserts that it — a
+process macOS exempts from Local Network privacy, such as the CLI run from
+Terminal — reached that address just now. sessionsd then probes the address's
+`/api/health` itself, with the transient retry, and answers 200 with a
+diagnosis:
+
+```json
+{"reason":"local-network-blocked","endpoint":"http://192.168.1.24:8787","message":"This terminal reached http://192.168.1.24:8787, but the Sessions background service could not: macOS is blocking Sessions from the local network. Turn on Sessions in System Settings › Privacy & Security › Local Network › Sessions, then try again."}
+```
+
+`reason` is `local-network-blocked` when the daemon still gets no route (and
+`GET /api/lan` then reports `blocked`), `reachable-now` when it gets any HTTP
+answer (the earlier failure was momentary; `granted` is recorded), and
+`machine-unreachable` when it fails some other way, which a Local Network block
+does not explain. Other methods return 405.
 
 ### `POST /api/lan/connect`
 
@@ -3338,8 +3381,8 @@ the other machine's user accepts or denies it. Acceptance returns 201:
 The credential crosses only this authenticated loopback response; the CLI
 stores it in the existing separate owner-readable credential file. Invalid
 input is 400. A peer denial or expired request is 502. A failed Darwin private
-or link-local dial is the same 502 error and `local-network-permission` reason
-as `GET /api/lan/discover`, naming the candidate endpoint that failed. Other
+or link-local dial is the same 502 error, `reason`, and `endpoint` as `GET
+/api/lan/discover`, naming the candidate endpoint that failed. Other
 methods return 405.
 
 When `ticket` is present, the daemon skips the request/accept exchange, probes

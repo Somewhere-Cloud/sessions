@@ -19,7 +19,12 @@ export type LocalNetworkCheck =
   // The check itself failed. Its error is fresh evidence and must stay visible.
   | 'failed';
 
-export type LocalNetworkGuideMode = 'hidden' | 'confirmed' | 'previously-worked' | 'guide';
+// 'blocked' is the only mode that names the macOS setting, and the host reports
+// it only on evidence: a CLI run from Terminal, which macOS exempts from Local
+// Network privacy, reached a machine the Sessions service could not. Every
+// other failure reads the same whether a machine is away or the switch is off,
+// so 'unconfirmed' and 'not-found' stay calm and point at that check instead.
+export type LocalNetworkGuideMode = 'hidden' | 'confirmed' | 'previously-worked' | 'unconfirmed' | 'not-found' | 'blocked';
 
 export interface LocalNetworkGuideInput {
   status?: string;
@@ -31,7 +36,11 @@ export interface LocalNetworkGuideInput {
 export function localNetworkGuideMode({ status, sawUnproven, lastCheck }: LocalNetworkGuideInput): LocalNetworkGuideMode {
   if (!status || status === 'not-required') return 'hidden';
   if (lastCheck === 'reached') return 'confirmed';
-  if (lastCheck === 'failed' || lastCheck === 'none-found') return 'guide';
+  if (status === 'blocked') return 'blocked';
+  if (lastCheck === 'failed' || lastCheck === 'none-found') return 'not-found';
   if (status === 'granted') return sawUnproven ? 'previously-worked' : 'hidden';
-  return status === 'denied' || status === 'not-yet-asked' ? 'guide' : 'hidden';
+  return status === 'denied' || status === 'not-yet-asked' ? 'unconfirmed' : 'hidden';
 }
+
+/** The CLI check that tells an absent machine from a Local Network block. */
+export const LOCAL_NETWORK_CLI_CHECK = 'sessions machines';

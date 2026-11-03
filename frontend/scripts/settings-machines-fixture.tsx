@@ -72,7 +72,7 @@ if (new URLSearchParams(location.search).get('screen') === 'accounts-empty') mac
 const daemon = installFakeDaemon(machines);
 const fakeFetch = window.fetch;
 window.fetch = async (input, init) => {
-  if (String(input).endsWith('/api/lan')) return new Response(JSON.stringify({enabled:false, permission:{status:'denied'}}), {headers:{'content-type':'application/json'}});
+  if (String(input).endsWith('/api/lan')) return new Response(JSON.stringify({enabled:false, permission:{status:'blocked', reason:'local-network-blocked', endpoint:'http://192.168.1.24:8787'}}), {headers:{'content-type':'application/json'}});
   return fakeFetch(input, init);
 };
 useFakeMachines(machines, 'local');

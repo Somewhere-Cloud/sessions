@@ -3,7 +3,7 @@ import { Button } from './ui/Button';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchLANState, requestLocalNetworkAccess, type LANState } from '../api/sessionsd';
 import { connectionSettingsTarget } from '../lib/connectionSettingsTarget';
-import { localNetworkGuideMode, type LocalNetworkCheck } from '../lib/localNetworkGuide';
+import { LOCAL_NETWORK_CLI_CHECK, localNetworkGuideMode, type LocalNetworkCheck } from '../lib/localNetworkGuide';
 import { isLocalServer, serverDisplayName, useServers } from '../lib/servers';
 import { isNativeMobileRuntime, isTauri, openLocalNetworkSettings } from '../lib/tauriBridge';
 
@@ -24,7 +24,7 @@ export function LocalNetworkGuide({ onState }: { onState?: (state: LANState) => 
   const refresh = useCallback(async (signal: AbortSignal): Promise<void> => {
     const next = await fetchLANState(signal);
     if (signal.aborted) return;
-    if (next.permission?.status === 'denied' || next.permission?.status === 'not-yet-asked') sawUnproven.current = true;
+    if (next.permission?.status === 'denied' || next.permission?.status === 'not-yet-asked' || next.permission?.status === 'blocked') sawUnproven.current = true;
     setState(next);
     onStateRef.current?.(next);
   }, []);
@@ -49,12 +49,11 @@ export function LocalNetworkGuide({ onState }: { onState?: (state: LANState) => 
       const reached = local ? await requestLocalNetworkAccess(controller.signal) : null;
       await refresh(controller.signal);
       setLastCheck(reached === null ? 'none' : reached > 0 ? 'reached' : 'none-found');
-      setMessage(reached !== null && reached > 0
-        ? null
-        : 'Check complete. If access is not confirmed yet, check the switch below, then try again.');
+      // An empty check is described by the not-found card itself.
+      setMessage(reached === null ? 'Check complete. This re-read the host’s last observation.' : null);
     } catch {
       setLastCheck('failed');
-      setMessage('Couldn’t confirm nearby access. If Sessions is already on, leave it on. You can still try your saved computer connection in Fleet. Your sessions have not been stopped.');
+      setMessage('Couldn’t confirm nearby access. You can still try your saved computer connection in Fleet. Your sessions have not been stopped.');
     } finally {
       window.clearTimeout(timeout); checking.current = false; setBusy(false);
     }
@@ -72,12 +71,21 @@ export function LocalNetworkGuide({ onState }: { onState?: (state: LANState) => 
     {message ? <p>{message}</p> : null}
     <div className="local-network-guide-actions">{checkAgain}</div>
   </div>;
+  if (mode === 'unconfirmed' || mode === 'not-found') return <div className="local-network-guide" role="status">
+    <p>{mode === 'not-found'
+      ? `No nearby computer answered the check from ${name}. Computers that are off, asleep, or on another network don’t appear.`
+      : `Nearby access hasn’t been confirmed on ${name} yet.`}</p>
+    <p>If a computer you expect is on, run <code>{LOCAL_NETWORK_CLI_CHECK}</code> in Terminal on {name}. It checks each saved computer from outside Sessions and says so if macOS is blocking Sessions from the local network.</p>
+    {message ? <p>{message}</p> : null}
+    <div className="local-network-guide-actions">{checkAgain}</div>
+  </div>;
+  const endpoint = state?.permission?.endpoint;
   return <Surface role="region" className="local-network-guide" aria-label={`Nearby access on ${name}`}>
-    <PageHeader level={3} title="Find nearby devices" />
-    <p>Check Local Network access on <strong>{name}</strong>. It helps Sessions find and connect to computers on the same Wi-Fi. Your saved conversations stay here.</p>
+    <PageHeader level={3} title="macOS is blocking Sessions from the local network" />
+    <p>A check from Terminal on <strong>{name}</strong> reached {endpoint ? <code>{endpoint}</code> : 'a nearby computer'}, but the Sessions background service could not. Your saved conversations stay here.</p>
     <ol>
       <li>On {name}, open <strong>System Settings → Privacy &amp; Security → Local Network</strong>.</li>
-      <li>Turn on <strong>Sessions</strong>. If it is already on, leave it on.</li>
+      <li>Turn on <strong>Sessions</strong>. If it is already on, turn it off and on again.</li>
       <li>Return to Sessions and choose <strong>Check again</strong>.</li>
     </ol>
     <div className="local-network-guide-actions">
@@ -88,8 +96,8 @@ export function LocalNetworkGuide({ onState }: { onState?: (state: LANState) => 
     <details><summary>Don’t see Sessions in the list?</summary>
       <p>{local ? 'Choose Check again to ask macOS for access. If a prompt appears, choose Allow.' : `Open Sessions on ${name}, go to Fleet, and choose Check again. Approve the macOS prompt there.`} If no prompt appears, reopen the Sessions app and try again. Closing the app does not stop your agents.</p>
     </details>
-    <details><summary>Already on, but the check still fails?</summary>
-      <p>A failed network check does not necessarily mean macOS blocked access. Leave the switch on. Try opening a saved computer in Fleet; if it connects, you can keep working. Otherwise, check that both devices are online and use the same private Wi-Fi or Tailscale.</p>
+    <details><summary>Both computers use Tailscale?</summary>
+      <p>Sessions prefers a Tailscale route when both computers have one, and macOS does not apply this setting to Tailscale. Your saved computer may still connect that way.</p>
     </details>
   </Surface>;
 }

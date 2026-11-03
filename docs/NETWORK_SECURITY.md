@@ -431,18 +431,44 @@ and reconciles any earlier failed attempt. Nothing re-verifies it afterwards, so
 `sessions doctor` says so in words and the UI never presents a stored `granted`
 as a live connection.
 
-Nothing records a denial. A private or link-local Darwin dial failing with
+Nothing guesses a denial. A private or link-local Darwin dial failing with
 `EHOSTUNREACH` looks identical whether the switch is off or the other machine is
-asleep, powered down, or on another network, so the API, CLI, and doctor keep
-the transport error and the endpoint that failed and add the permission as one
-possible cause: “macOS may not have allowed Sessions to use the local network —
-check System Settings › Privacy & Security › Local Network › Sessions; a machine
-that is off, asleep, or on another network fails the same way.” The
-machine-readable `reason` stays `local-network-permission`, which classifies the
-failure rather than asserting a verdict. An empty browse likewise establishes
-nothing. Tailnet addresses are outside this classification and remain exempt; a
-tailnet route that works is never evidence about the LAN. Older hosts may still
-report `denied`, and clients keep accepting it.
+asleep, powered down, or on another network, so on its own the daemon reports
+`reason:"machine-unreachable"` with the transport error, the endpoint that
+failed, and the calm wording “the machine looks off, asleep, or on another
+network”. It does not mention System Settings. Tailnet addresses are outside
+this classification: Apple's TN3179 does not count a VPN interface such as
+Tailscale as the local network, and a tailnet route that works is never
+evidence about the LAN. Older hosts sent `reason:"local-network-permission"`
+with a possible-cause sentence, and clients keep accepting it.
+
+The permission is named only on evidence. Command-line tools run from Terminal
+or SSH are not subject to Local Network privacy, so when the `sessions` CLI
+receives that failure from its own loopback daemon it probes the same
+address's `/api/health` itself. If the CLI also fails, it says the machine looks
+off, asleep, or on another network. If the CLI gets through, it asks the daemon
+to try again (`POST /api/lan/local-network-check`): a daemon that now succeeds
+reports the earlier failure as momentary, and a daemon that still has no route
+is the definitive case — “macOS is blocking the Sessions background service from
+the local network … Turn on Sessions in System Settings › Privacy & Security ›
+Local Network › Sessions”, with reason `local-network-blocked`. The daemon then
+reports `permission.status:"blocked"` for fifteen minutes or until any nearby
+contact succeeds, so the app shows the permission steps only while that evidence
+stands. A CLI started inside a Sessions session descends from the daemon and is
+not exempt; it says so and points to Terminal instead of guessing. `sessions
+machines`, `sessions doctor`, and `sessions providers --all` (field `reason`)
+apply this check, as does any relayed command that hits the failure.
+
+Two further rules keep a momentary failure from becoming a story. Fleet dials
+that fail with no route to the host or network, or a refused connection, are
+retried on a short bounded schedule (about five seconds in all) before a machine
+is reported unreachable, which covers a daemon just restarted by an update and a
+peer daemon mid-restart; a healthy first dial is never delayed, and Bonjour
+verification and pairing-route probes do not retry. And when this Mac has a
+Tailscale address, a paired machine's Tailscale routes are preferred over its LAN
+route, so a Mac on the same tailnet never depends on the Local Network switch at
+all; the LAN route stays the fallback, and without a local tailnet the order is
+LAN first as before.
 
 Fleet and Settings show a numbered recovery guide whenever nearby access is not
 confirmed. **Open System Settings** opens the local Mac's privacy pane; it never
@@ -453,7 +479,8 @@ reached a nearby machine. A check that completes with nothing found, or one that
 fails, keeps the steps and its own error on screen even when the host still
 reports an earlier `granted`; that stored success is described as the host's
 last observation instead. A `denied` from an older host is attributed to that
-host rather than restated as a macOS verdict. Older macOS versions may open the
+host rather than restated as a macOS verdict. A `blocked` host shows the
+definitive wording and the endpoint that proved it. Older macOS versions may open the
 main privacy pane; the written navigation remains available beside the button.
 
 ## Native update traffic
