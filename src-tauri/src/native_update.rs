@@ -144,7 +144,11 @@ fn install_staged_update_on_quit(app: &AppHandle) {
 #[cfg(target_os = "macos")]
 fn install_app_menu(app: &tauri::App) -> tauri::Result<()> {
     let menu = Menu::default(app.handle())?;
-    if let Some(app_menu) = menu.items()?.first().and_then(|item| item.as_submenu().cloned()) {
+    if let Some(app_menu) = menu
+        .items()?
+        .first()
+        .and_then(|item| item.as_submenu().cloned())
+    {
         let check = MenuItem::with_id(
             app,
             CHECK_FOR_UPDATES_MENU_ID,
