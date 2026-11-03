@@ -467,7 +467,13 @@ telemetry. The app checks 15 seconds after launch and then at most hourly.
 When a newer version is announced it downloads that release's signed artifact
 in the background, with the same anonymous request shape, and verifies it
 against the pinned updater key; nothing is installed until the person chooses
-Restart or runs `sessions update`. Installation is explicit.
+Restart, quits Sessions with the update ready, or runs `sessions update`.
+Installation is explicit.
+
+Updating another computer sends no new outbound traffic from this one: it is
+an authenticated `POST /api/update` to that computer's daemon (directly or
+through the fleet relay), and that computer then makes the same anonymous
+release requests itself.
 
 `sessions update` then accepts only the exact immutable GitHub release path for
 the announced version; GitHub's asset redirect is restricted to

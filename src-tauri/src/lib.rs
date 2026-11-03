@@ -335,6 +335,7 @@ include!("native_commands.rs");
 include!("native_external.rs");
 include!("native_connections.rs");
 include!("native_tray.rs");
+include!("native_update.rs");
 
 // The uninstall entry point, invoked by the NSIS uninstaller before it deletes
 // the package and available by hand on macOS, which ships as a bundle with no
@@ -372,6 +373,7 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(TrayState::default())
+        .manage(StagedUpdate::default())
         .manage(native_links::PendingLaneLink::default())
         .invoke_handler(tauri::generate_handler![
             open_scoped_window,
@@ -400,7 +402,9 @@ pub fn run() {
             open_local_network_settings,
             open_support_page,
             somewhere_cli_status,
-            take_lane_link
+            take_lane_link,
+            native_update_download,
+            native_update_install
         ])
         .setup(|app| {
             #[cfg(mobile)]
@@ -429,6 +433,9 @@ pub fn run() {
                 status: Mutex::new(runtime_status),
                 port: Mutex::new(configured_port),
             });
+
+            #[cfg(target_os = "macos")]
+            install_app_menu(app)?;
 
             #[cfg(desktop)]
             {
@@ -501,6 +508,9 @@ pub fn run() {
             if let Some(store) = _app.try_state::<WindowGeometryStore>() {
                 store.flush();
             }
+            // A downloaded update installs on quit; the daemon and runners are
+            // untouched, and the next launch is the new version.
+            install_staged_update_on_quit(_app);
         }
         #[cfg(target_os = "macos")]
         if let tauri::RunEvent::Reopen { .. } = _event {
