@@ -1,6 +1,6 @@
 {
   "name": "@somewhere-tech/sessions",
-  "version": "0.2.47",
+  "version": "0.2.48",
   "description": "The native Go Sessions CLI, daemon, and durable runner",
   "license": "MIT",
   "repository": {
