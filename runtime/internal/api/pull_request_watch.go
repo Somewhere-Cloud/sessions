@@ -50,6 +50,9 @@ func (s *Server) handleAutomationRoute(w http.ResponseWriter, r *http.Request, o
 	case worktreeAutoCleanRoute:
 		s.handleWorktreeAutoClean(w, r, origin)
 		return true
+	case childQuestionsRoute:
+		s.handleChildQuestions(w, r, origin)
+		return true
 	}
 	return s.handleAutoArchiveRoute(w, r, origin)
 }

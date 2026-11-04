@@ -308,6 +308,14 @@ type Settings struct {
 	// its provider usage limit resets. Missing means on; per-session choices
 	// live with the plans in the state root.
 	LimitRecovery *LimitRecoverySettings `json:"limitRecovery,omitempty"`
+	// ChildQuestions tells a manager session when a lane it started stops to
+	// ask a question or for permission. Missing means on.
+	ChildQuestions *EnabledSetting `json:"childQuestions,omitempty"`
+}
+
+// ChildQuestionsEnabled reports the machine choice, on unless turned off.
+func (s Settings) ChildQuestionsEnabled() bool {
+	return s.ChildQuestions == nil || s.ChildQuestions.Enabled
 }
 
 type LimitRecoverySettings struct {

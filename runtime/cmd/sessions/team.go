@@ -61,6 +61,9 @@ func (a *app) cmdTeam(args []string) error {
 	if hasSince && strings.TrimSpace(since) == "" {
 		return fail(1, "--since needs the next_cursor from the previous team response")
 	}
+	if len(args) > 0 && args[0] == "questions" {
+		return a.cmdTeamQuestions(args[1:])
+	}
 	if removeFirst(&args, "--all") {
 		if len(args) > 0 || hasSince {
 			return fail(1, "usage: sessions team --all")

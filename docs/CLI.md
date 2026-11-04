@@ -710,7 +710,7 @@ Examples:
 
 ```text
 Usage:
-  sessions team [lane-id] [--since CURSOR] | team --all
+  sessions team [lane-id] [--since CURSOR] | team --all | team questions [status|on|off]
 
 show the lanes a manager delegated and their state
 
@@ -722,11 +722,14 @@ Handoffs report commits, tests, artifacts and remaining work only when the produ
 
 --all is the view from the top: every session that has delegated lanes, with how many are working, lost, or waiting on you.
 
+When a lane started from another Claude or Codex session stops to ask a question or for permission, Sessions sends that manager one short message, attributed to the lane, naming the lane and what it is waiting for and how to answer (`sessions send <id> ...`). It is sent once per waiting episode, after the manager's current turn, and never to a manager that has ended, been archived, or been set aside; a question answered before delivery is dropped. `sessions --json status <id>` carries the same line as waitingFor. team questions shows or changes this per machine; it is on by default, and off leaves waiting lanes only in Waiting for you.
+
 Examples:
   sessions team
   sessions team 0123abcd
   sessions --json team 0123abcd
   sessions team --all
+  sessions team questions off
 
 --json may appear before the command or among its options. --machine, --direct, --host, and --port must appear before the command. Arguments after `sessions run --` always belong to the child command.
 ```

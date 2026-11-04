@@ -52,6 +52,11 @@ type parentReport struct {
 	Attempts      int    `json:"attempts,omitempty"`
 	NextAttemptMS int64  `json:"next_attempt_ms,omitempty"`
 	LastReason    string `json:"last_reason,omitempty"`
+	// Kind is "question" for a child that stopped to ask; empty is an outcome.
+	Kind string `json:"kind,omitempty"`
+	// Episode names the waiting episode a question belongs to, so a question
+	// the child no longer asks is dropped instead of delivered.
+	Episode string `json:"episode,omitempty"`
 }
 
 type parentReports struct {
@@ -62,6 +67,12 @@ type parentReports struct {
 	mu     sync.Mutex
 	subs   map[string]parentSubscription
 	loaded bool
+
+	// scanMu serializes child-question scans; questions maps a waiting child
+	// to the episode its parent was already told about.
+	scanMu          sync.Mutex
+	questions       map[string]string
+	questionsLoaded bool
 }
 
 func newParentReports(root string) *parentReports {
