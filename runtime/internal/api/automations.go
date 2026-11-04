@@ -26,7 +26,10 @@ const (
 // receipts.
 func (s *Server) initScheduledWork(root string) {
 	s.idleCompaction, s.limitRecovery = newIdleCompaction(s, root), newLimitRecovery(s, root)
-	s.restartContinuation = newRestartContinuation(s, root)
+	s.restartContinuation, s.usageCap = newRestartContinuation(s, root), newUsageCap(root)
+	if gated, ok := s.registry.(usageCapGateInstaller); ok {
+		gated.SetCreateAccountGate(s.usageCapCreateGate)
+	}
 	s.automations = newAutomations(s, root)
 }
 

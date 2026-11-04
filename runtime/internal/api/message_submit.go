@@ -15,6 +15,15 @@ type messageSubmitService interface {
 }
 
 func (s *Server) handleSubmitControl(response http.ResponseWriter, request *http.Request, info state.SessionInfo, data, operationID, mode, corsOrigin string, attribution state.InputAttribution) bool {
+	if reason, held := s.usageCapSendRefusal(info); held {
+		record, err := s.deliveries.Complete(operationID, delivery.StatusNotDelivered, false, true, reason)
+		if err != nil {
+			s.sendInputError(response, err, corsOrigin)
+		} else {
+			s.sendDeliveryRecord(response, record, false, corsOrigin)
+		}
+		return true
+	}
 	if info.MessageSubmit {
 		s.submitStructuredMessage(response, request, info.ID, data, operationID, mode, corsOrigin, attribution)
 		return true

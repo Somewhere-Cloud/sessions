@@ -159,8 +159,9 @@ fields. Optional fields are omitted when their value is `undefined`.
 | `failureDetail` | string, optional | concise provider fault in Sessions' words; also becomes `lastSummary` for the failed turn |
 | `failureProvider` | `"claude" \| "codex"`, optional | provider that produced the current fault |
 | `failureAt` | number, optional | Unix epoch milliseconds when the current provider fault was observed |
-| `limitRecovery` | object, optional | the daemon's plan to resume this session after a provider usage limit, derived from `limit-recovery.json`: `state` (`scheduled`, `sending`, `sent`, `unconfirmed`, `failed`, `cancelled`, or `stopped`), `resumeAt` (Unix ms the resume fires), `resetAt` (Unix ms the limit resets; omitted when unknown), `source` (`provider-message`, `account-usage`, or `unknown`), `attempt`, `detail`, `updatedAt`. Omitted when the session never had one since this daemon started. See `GET /api/limit-recovery` |
+| `limitRecovery` | object, optional | the daemon's plan to resume this session after a provider usage limit, derived from `limit-recovery.json`: `state` (`scheduled`, `sending`, `sent`, `unconfirmed`, `failed`, `cancelled`, `stopped`, `switching`, or `switched`), `resumeAt` (Unix ms the resume fires), `resetAt` (Unix ms the limit resets; omitted when unknown), `source` (`provider-message`, `account-usage`, or `unknown`), `attempt`, `detail`, `updatedAt`. Omitted when the session never had one since this daemon started. See `GET /api/limit-recovery` |
 | `restartContinuation` | object, optional | the daemon carrying this session on after a reboot, update, or crash cut its turn short, derived from `restart-continuation.json`: `reason` (`reboot`, `update`, `crash`, or `unknown`), `evidence`, `kind` (`restarted`, `paused`, or `lost`), `state` (`pending`, `reopening`, `sending`, `sent`, `unconfirmed`, `failed`, `skipped`, or `stopped`), `sourceId` (on a session resumed in place of a lost one), `targetId`, `attempt`, `detail`, `interruptedAt`, `sentAt`, `updatedAt` (Unix ms). Present only on a session the daemon holds and only since this daemon started. See `GET /api/restart-continuation` |
+| `usageCap` | object, optional | the daemon's usage cap state for this session, derived and never persisted: `state` (`waiting`: its account is at or past the cap so a new turn waits; `switched`: Sessions started or continued this work on another account), `tool`, `account` (`""` is the default login), `accountLabel`, `usedPercent`, `cap`, `window`, `resetsAt` (Unix ms), `detail`, `switchAccount` and `switchLabel` (an account with headroom, present together), `switchedTo` (the session continuing the work), `switchedFrom` (the account a switched session left), `updatedAt`. See `GET /api/usage-cap` |
 | `retry` | object, optional | runner-owned automatic Rich-turn retry schedule: `attempt` (the next retry, 1–5), `max` (5), `nextAt` (Unix epoch milliseconds), and `kind` (the current `failureKind`). Present while a retry is scheduled or running; omitted after success, cancellation, or exhaustion |
 | `pendingApproval` | object, optional | permission a Rich session is waiting on, with `id`, `kind` (`command`, `file-change`, or `permissions`), `summary`, `command`, `cwd`, `reason`, and `at`; absent when no approval is pending |
 | `exited` | boolean | whether Sessions reaped a real status for the session's process: an EXIT frame, a signal, or a completed user-requested end. It is never set because the daemon lost contact with a runner |
@@ -1288,6 +1289,9 @@ are omitted when the provider did not report them. Optional `plan`, `reached`
 (`{"has_credits","unlimited","balance"}`) are copied when present. `identity`
 is what the provider reported during that read; it is not proof that a future
 request will succeed.
+`usage_cap` (percent) is this computer's usage cap for the account's provider,
+added to every account while the cap is on (`GET /api/usage-cap`); clients draw
+it as a line on each window's meter.
 
 Codex readings come from a private stdio `codex app-server` in the account's
 own provider home, with the same environment as sign-in, calling `account/read`
@@ -3811,6 +3815,85 @@ Accepts `{"override": "on" | "off" | "default"}` for a Rich Claude or Codex
 session, live, paused after a reboot, or lost, and returns the status above.
 `default` removes the session's choice. An unknown session returns 404; any
 other kind of session returns 400.
+
+### `GET /api/usage-cap`
+
+The usage cap holds back new turns on a Claude or Codex account that has used
+a share of any metered window (the 5-hour session window, weekly, a
+model-specific weekly limit) at or past the cap, and switches work to another
+signed-in account of the same provider with headroom. Both are on unless the
+user turns them off; the cap defaults to 90%. Returns the setting, each
+account's verdict, and every live session that waits, switched, or has its own
+choice:
+
+```json
+{"enabled":true,"percent":90,"tools":{"claude":90,"codex":90},"switch":true,
+ "accounts":[{"tool":"claude","name":"","label":"","state":"over","cap":90,"usedPercent":92,
+   "window":"weekly","resetsAt":0,"detail":"92% of weekly, resets Tue 09:00"}],
+ "lanes":[{"id":"<id>","name":"Parser","tool":"claude","account":"","override":null,"enabled":true,
+   "hold":{"state":"waiting","tool":"claude","account":"","accountLabel":"the default claude login",
+     "usedPercent":92,"cap":90,"window":"weekly","resetsAt":0,"switchAccount":"work","switchLabel":"claude/work"}}]}
+```
+
+An account's `state` is `under`, `over`, or `unknown`. A window counts while
+its reset is ahead (or unreported); a provider-reported `reached` limit is
+over. `window` names the window the verdict rests on: the over window that
+resets last, else the fullest one. A stale, unavailable, signed-out, or
+unanswered reading is `unknown` and never holds anything back. Readings come
+from the account usage cache, so no provider is asked more than once a minute;
+a status read waits at most five seconds for answers. `name` `""` is the
+provider's default login.
+
+While the cap applies to a session (its own choice, else `enabled`):
+
+- `POST /api/sessions/:id/submit` to it while its account is over answers the
+  delivery receipt `not-delivered` with `retry: true` and a reason naming the
+  reading, the reset, and the next action; nothing reaches the provider. The
+  check reads only the cached reading and never waits on a provider.
+- A new Claude or Codex start (`POST /api/sessions`, `POST /api/lanes`,
+  automations) whose resolved account is over moves to the account with the
+  most headroom when the request named no account (`profile` and
+  `defaultProfile` absent): the created session carries `usageCap` with
+  `state: "switched"` and `switchedFrom`. When the request named the account,
+  or no account has headroom, the start is refused with 409 and nothing is
+  launched. Resumed conversations, continuations and handoffs keep their
+  account.
+- Every minute the daemon reads the accounts of active sessions (all accounts
+  every fifth minute) and marks each idle session on an over account with
+  `usageCap.state: "waiting"` and, when switching is on, the account it could
+  move to. A turn in progress is never stopped.
+- Limit recovery (`GET /api/limit-recovery`) does not resume a session while
+  its account is over the cap; it moves the plan to the over window's reset.
+
+With `switch` on, a session limit recovery is waiting on (a provider usage
+limit, or the cap at resume time) is continued once on the account with the
+most headroom below the cap (below 100% when the cap is off): the daemon
+copies its conversation into a new top-level session in that account's own
+provider home exactly as `POST /api/recovery/collaborator` with
+`contextMode: "conversation"` and `profile` does, then sends `Switched to
+account <label> (<old> at 92% of weekly, resets Tue 09:00). Continue where you
+left off.` there as Limit recovery automation input. Credentials are never
+copied and the original session is left as it was. The limit recovery entry
+becomes `switched` with `switchedTo` and `switchedAccount`; both sessions carry
+`usageCap.state: "switched"` (`switchedTo` on the original, `switchedFrom` on
+the new one). A switch is attempted at most once per limit; `switching` is
+written first and a daemon restart turns it into `unconfirmed`, never a second
+switch.
+
+### `PUT /api/usage-cap`
+
+Accepts any of `{"enabled": bool}`, `{"percent": 1..100}`,
+`{"percent": 0..100, "tool": "claude"|"codex"}` (0 returns that provider to
+the machine cap), and `{"switch": bool}`. Persists them under `usageCap` in
+`settings.json` and returns the status above. An empty body, a percent out of
+range, or a `tool` without `percent` returns 400.
+
+### `PUT /api/usage-cap/lanes/:id`
+
+Accepts `{"override": "on" | "off" | "default"}` for a live Claude or Codex
+session and returns the status above. `off` lifts the cap and switching for
+that session. A session the daemon does not hold returns 404; any other
+session returns 400.
 
 ### `GET /api/automations`
 

@@ -193,6 +193,10 @@ type SessionInfo struct {
 	// after a reboot, update, or crash cut its turn short. It is derived from
 	// the restart continuation store and never written to metadata.
 	RestartContinuation *RestartContinuation `json:"restartContinuation,omitempty"`
+	// UsageCap says this session's account is at or past the usage cap, so
+	// its next turn waits, or that Sessions moved its work to another account.
+	// It is derived by the daemon and never written to metadata.
+	UsageCap *UsageCapHold `json:"usageCap,omitempty"`
 	// PendingApproval is the permission a Rich lane is waiting on right now.
 	// It is derived from the lane's structured stream, so it survives a
 	// daemon restart as long as the runner is still holding the request.
@@ -414,9 +418,13 @@ type CreateSessionRequest struct {
 	// DefaultProfile explicitly chooses the provider's default login. Without
 	// it, an omitted profile lets a same-provider child start on its parent's
 	// recorded account; with it, the child uses the default login instead.
-	DefaultProfile bool   `json:"defaultProfile,omitempty"`
-	Worktree       bool   `json:"worktree,omitempty"`
-	Base           string `json:"base,omitempty"`
+	DefaultProfile bool `json:"defaultProfile,omitempty"`
+	// UsageCapNote is set by the daemon when the usage cap moved this start
+	// to another account; it is shown on the new session, never read from a
+	// caller.
+	UsageCapNote *UsageCapHold `json:"-"`
+	Worktree     bool          `json:"worktree,omitempty"`
+	Base         string        `json:"base,omitempty"`
 	// NoWorktree declines the worktree an agent-created child would otherwise
 	// get by default, so a lane can deliberately share its manager's checkout.
 	NoWorktree bool   `json:"noWorktree,omitempty"`
@@ -541,6 +549,40 @@ type RestartContinuation struct {
 	InterruptedAt int64  `json:"interruptedAt,omitempty"`
 	SentAt        int64  `json:"sentAt,omitempty"`
 	UpdatedAt     int64  `json:"updatedAt,omitempty"`
+}
+
+// Usage cap hold states.
+const (
+	// UsageCapWaiting: the account is at or past the cap; the next turn waits
+	// for its window to reset or for a switch to another account.
+	UsageCapWaiting = "waiting"
+	// UsageCapSwitched: Sessions started or continued this work on another
+	// account because of the cap or a provider limit.
+	UsageCapSwitched = "switched"
+)
+
+// UsageCapHold is one session's usage cap state as session reads show it.
+type UsageCapHold struct {
+	State string `json:"state"`
+	// Tool and Account name the account the verdict is about ("" is the
+	// provider's default login); AccountLabel is how people know it.
+	Tool         string `json:"tool,omitempty"`
+	Account      string `json:"account"`
+	AccountLabel string `json:"accountLabel,omitempty"`
+	UsedPercent  int    `json:"usedPercent,omitempty"`
+	Cap          int    `json:"cap,omitempty"`
+	Window       string `json:"window,omitempty"`
+	ResetsAt     int64  `json:"resetsAt,omitempty"`
+	Detail       string `json:"detail,omitempty"`
+	// SwitchAccount is an account with headroom Sessions would move to
+	// ("" is the default login), present when SwitchLabel is.
+	SwitchAccount string `json:"switchAccount,omitempty"`
+	SwitchLabel   string `json:"switchLabel,omitempty"`
+	// SwitchedTo is the session continuing this work on another account;
+	// SwitchedFrom is the account a switched start or continuation left.
+	SwitchedTo   string `json:"switchedTo,omitempty"`
+	SwitchedFrom string `json:"switchedFrom,omitempty"`
+	UpdatedAt    int64  `json:"updatedAt,omitempty"`
 }
 
 // PullRequestSummary is the last recorded state of a session's primary linked

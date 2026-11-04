@@ -194,6 +194,9 @@ export interface SessionInfo {
   // The daemon carrying this session on after a reboot, update, or crash
   // cut its turn short; `sessions continuation` is the CLI view.
   restartContinuation?: RestartContinuation | null;
+  // The account is at or past the usage cap so the next turn waits, or
+  // Sessions moved this work to another account. `sessions cap` is the CLI.
+  usageCap?: UsageCapHold | null;
   // The permission a Rich Codex lane is holding open, when it is not
   // autonomous. Answered with approveSession, never with a reply.
   pendingApproval?: PendingApproval | null;
@@ -583,13 +586,30 @@ export interface RestartContinuation {
   detail?: string;
   interruptedAt?: number;
   sentAt?: number;
+// A session's usage cap state. waiting: its account is at or past the cap,
+// so a new turn waits for the window to reset. switched: Sessions started or
+// continued this work on another account.
+export interface UsageCapHold {
+  state: 'waiting' | 'switched';
+  tool?: 'claude' | 'codex';
+  account: string;
+  accountLabel?: string;
+  usedPercent?: number;
+  cap?: number;
+  window?: string;
+  resetsAt?: number;
+  detail?: string;
+  switchAccount?: string;
+  switchLabel?: string;
+  switchedTo?: string;
+  switchedFrom?: string;
   updatedAt?: number;
 }
 
 // A session's resume-after-usage-limit plan. At resumeAt Sessions sends
 // "Continue where you left off." once; `sessions limits` is the CLI view.
 export interface LimitRecovery {
-  state: 'scheduled' | 'sending' | 'sent' | 'unconfirmed' | 'failed' | 'cancelled' | 'stopped';
+  state: 'scheduled' | 'sending' | 'sent' | 'unconfirmed' | 'failed' | 'cancelled' | 'stopped' | 'switching' | 'switched';
   resumeAt?: number;
   resetAt?: number;
   source?: 'provider-message' | 'account-usage' | 'unknown';

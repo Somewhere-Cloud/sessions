@@ -88,6 +88,9 @@ type AccountUsage struct {
 	// read than CheckedAt because the latest one did not produce a reading.
 	ReadAt int64 `json:"read_at,omitempty"`
 	Stale  bool  `json:"stale,omitempty"`
+	// UsageCap is this computer's usage cap for the account's provider, in
+	// percent, when the cap is on; the daemon adds it to each answer.
+	UsageCap int `json:"usage_cap,omitempty"`
 }
 
 // accountUsageReader asks one provider home for its reading.

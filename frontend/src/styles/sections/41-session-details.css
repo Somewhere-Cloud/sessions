@@ -514,3 +514,6 @@ button.session-parent-breadcrumb:hover, button.session-parent-breadcrumb:focus-v
 .settings-page .settings-host-choice { font-size: var(--type-body); background: transparent; padding: 0; }
 .session-ended-summary:not(.is-attention) { border-color: transparent; box-shadow: var(--shadow-1); }
 .session-ended-summary .session-ended-read-only, .session-ended-summary .session-ended-actions > span { font-size: var(--type-body); }
+.settings-toggle > .usage-cap-percent { flex-direction: row; flex-shrink: 0; }
+.usage-cap-percent { display: inline-flex; align-items: center; gap: 6px; color: var(--fg-faint); }
+.usage-cap-percent input { width: 64px; min-height: 32px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-base); color: var(--fg); font: inherit; text-align: right; }

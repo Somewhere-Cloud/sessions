@@ -65,6 +65,7 @@ type session struct {
 	Retry                  *providerRetry             `json:"retry,omitempty"`
 	LimitRecovery          *state.LimitRecovery       `json:"limitRecovery,omitempty"`
 	RestartContinuation    *state.RestartContinuation `json:"restartContinuation,omitempty"`
+	UsageCap               *state.UsageCapHold        `json:"usageCap,omitempty"`
 	Model                  string                     `json:"model,omitempty"`
 	Effort                 string                     `json:"effort,omitempty"`
 	Exited                 bool                       `json:"exited"`

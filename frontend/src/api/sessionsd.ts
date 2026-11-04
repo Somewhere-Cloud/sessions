@@ -7,3 +7,4 @@ export * from './sessionsd/pullRequests';
 export * from './sessionsd/limits';
 export * from './sessionsd/continuation';
 export * from './sessionsd/projectDefaults';
+export * from './sessionsd/usageCap';

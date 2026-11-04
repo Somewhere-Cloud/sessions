@@ -140,7 +140,8 @@ func (s *Server) handleCreateSession(response http.ResponseWriter, request *http
 		status := http.StatusBadRequest
 		var live *sessionruntime.ConversationLiveError
 		var moved *sessionruntime.ConversationMovedError
-		if errors.As(err, &live) || errors.As(err, &moved) {
+		var capped *usageCapRefusal
+		if errors.As(err, &live) || errors.As(err, &moved) || errors.As(err, &capped) {
 			status = http.StatusConflict
 		}
 		s.sendJSON(response, status, map[string]any{"error": err.Error()}, corsOrigin)

@@ -346,6 +346,10 @@ func (s *Session) Info() SessionInfo {
 		continuation := *s.info.RestartContinuation
 		info.RestartContinuation = &continuation
 	}
+	if s.info.UsageCap != nil {
+		hold := *s.info.UsageCap
+		info.UsageCap = &hold
+	}
 	info.MemoryBytes = cloneUint64Pointer(s.info.MemoryBytes)
 	info.CPUPercent = cloneFloat64Pointer(s.info.CPUPercent)
 	info.ResourceProcesses = cloneIntPointer(s.info.ResourceProcesses)
@@ -456,6 +460,19 @@ func (s *Session) SetRestartContinuation(value *RestartContinuation) {
 	}
 	copy := *value
 	s.info.RestartContinuation = &copy
+}
+
+// SetUsageCap publishes the daemon's usage cap state for this session; nil
+// clears it.
+func (s *Session) SetUsageCap(value *UsageCapHold) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if value == nil {
+		s.info.UsageCap = nil
+		return
+	}
+	copy := *value
+	s.info.UsageCap = &copy
 }
 
 func (s *Session) setReadState(seenAt, attentionAt *int64, marked bool) {

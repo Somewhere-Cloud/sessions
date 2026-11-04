@@ -57,6 +57,25 @@ type Lane struct {
 	LastMessageAtMS int64
 }
 
+// Target is another account with headroom for a limited lane.
+type Target struct {
+	Account string
+	// Note says why, for the conversation and the plan's detail.
+	Note string
+}
+
+// Switched is the outcome of continuing a lane on another account. An empty
+// State means nothing was created and the plan waits for the reset instead.
+type Switched struct {
+	State    string
+	Detail   string
+	TargetID string
+	// Text and OperationID are the message sent to the new session, kept so
+	// a transcript reader attributes it to Sessions.
+	Text        string
+	OperationID string
+}
+
 // Delivery is the outcome of sending one resume. An empty State means the
 // lane changed before anything was sent and the plan stays scheduled.
 type Delivery struct {
@@ -75,10 +94,15 @@ type Options struct {
 	Deliver func(ctx context.Context, lane Lane, operationID string) Delivery
 	// Publish reports each lane's current entry so session reads can show it;
 	// nil clears it.
-	Publish     func(id string, entry *Entry)
-	Discovering func() bool
-	Now         func() time.Time
-	Logf        func(string, ...any)
+	Publish func(id string, entry *Entry)
+	// SwitchTarget names another account with headroom for a waiting lane.
+	// Switch continues the lane's conversation there under operationID. Both
+	// are optional; without them a lane waits for its own reset.
+	SwitchTarget func(ctx context.Context, lane Lane) (Target, bool)
+	Switch       func(ctx context.Context, lane Lane, target Target, operationID string) Switched
+	Discovering  func() bool
+	Now          func() time.Time
+	Logf         func(string, ...any)
 }
 
 // LaneStatus is one lane's setting, current plan, and latest outcome.
@@ -271,7 +295,12 @@ func (s *Scheduler) step(ctx context.Context, lane Lane, global bool, now time.T
 		s.publish(lane.ID, entry, hasEntry || entry.State != "")
 		return entry, false
 	}
-	if now.UnixMilli() >= entry.FireAtMS && !lane.Unavailable {
+	if !entry.SwitchTried && !lane.Unavailable && s.options.Switch != nil && s.options.SwitchTarget != nil {
+		if target, ok := s.options.SwitchTarget(ctx, lane); ok {
+			entry, scheduled = s.switchLane(ctx, lane, entry, target, now)
+		}
+	}
+	if scheduled && now.UnixMilli() >= entry.FireAtMS && !lane.Unavailable {
 		entry, scheduled = s.fire(ctx, lane, entry, now)
 	}
 	s.publish(lane.ID, entry, true)
@@ -363,7 +392,7 @@ func (s *Scheduler) fire(ctx context.Context, lane Lane, entry Entry, now time.T
 	if at, ok := s.probe(ctx, lane); ok && at.Add(Margin).UnixMilli() > now.UnixMilli() {
 		entry.ResetAtMS, entry.Source = at.UnixMilli(), SourceUsage
 		entry.FireAtMS, entry.UpdatedAtMS = at.Add(Margin).UnixMilli(), now.UnixMilli()
-		entry.Detail = "The account is still at its limit; waiting for its reset."
+		entry.Detail = "The account is still at its limit or usage cap; waiting for its reset."
 		s.write(s.options.Store.Put(lane.ID, entry))
 		return entry, true
 	}
@@ -395,6 +424,32 @@ func (s *Scheduler) deliver(ctx context.Context, lane Lane, entry Entry) (Entry,
 	}
 	s.options.Logf("[limit-recovery] %s resume to %s (attempt %d, reset %s): %s",
 		outcome.State, lane.ID, entry.Attempt, entry.Source, outcome.Detail)
+	return entry, false
+}
+
+// switchLane continues a waiting lane on another account, once per limit.
+// The switching state is written first, so a crash never switches twice.
+func (s *Scheduler) switchLane(ctx context.Context, lane Lane, entry Entry, target Target, now time.Time) (Entry, bool) {
+	previous := entry
+	entry.State, entry.OperationID, entry.SwitchTried, entry.UpdatedAtMS = StateSwitching, newOperationID(), true, now.UnixMilli()
+	if err := s.options.Store.Put(lane.ID, entry); err != nil {
+		s.options.Logf("[limit-recovery] not switching %s to another account: %v", lane.ID, err)
+		return previous, true
+	}
+	result := s.options.Switch(ctx, lane, target, entry.OperationID)
+	entry.UpdatedAtMS = s.options.Now().UnixMilli()
+	if result.State == "" {
+		entry.State, entry.OperationID, entry.Detail = StateScheduled, "", result.Detail
+		s.write(s.options.Store.Put(lane.ID, entry))
+		return entry, true
+	}
+	entry.State, entry.Detail = result.State, result.Detail
+	entry.SwitchedTo, entry.SwitchedAccount = result.TargetID, target.Account
+	s.write(s.options.Store.Put(lane.ID, entry))
+	if result.TargetID != "" && result.Text != "" && result.OperationID != "" {
+		s.write(s.options.Store.AddSent(result.TargetID, SentRecord{OperationID: result.OperationID, Text: result.Text, AtMS: entry.UpdatedAtMS}))
+	}
+	s.options.Logf("[limit-recovery] %s %s to account %q: %s", result.State, lane.ID, target.Account, result.Detail)
 	return entry, false
 }
 

@@ -30,6 +30,7 @@ const RemoteView = lazy(() => import('./RemoteView').then((module) => ({ default
 // Both render only while something is wrong, so neither belongs on the entry path.
 const ProviderFaultCard = lazy(() => import('./ProviderFaultCard').then((module) => ({ default: module.ProviderFaultCard })));
 const StartReceiptNote = lazy(() => import('./StartReceiptNote').then((module) => ({ default: module.StartReceiptNote })));
+const UsageCapChip = lazy(() => import('./UsageCapChip').then((module) => ({ default: module.UsageCapChip })));
 const PullRequestChip = lazy(() => import('./PullRequestChip').then((module) => ({ default: module.PullRequestChip })));
 import { classifySession, lostSessionNote } from '../lib/sessionStatus';
 import { sessionMode, sessionModeName, sessionModeShort } from '../lib/sessionMode';
@@ -140,12 +141,17 @@ function TerminalProviderFault({ session, onOpenTerminal, onConnectAccount }: { 
 
 // Keep actionable start and recovery information near the title without
 // repeating the conversation's last message in the header.
-function SessionHeaderNotes({ session, onOpenAccounts }: { session: SessionInfo; onOpenAccounts?: () => void }): JSX.Element {
+function SessionHeaderNotes({ session, onOpenAccounts, onOpenSession, serverId }: {
+  session: SessionInfo; onOpenAccounts?: () => void; onOpenSession?: (id: string) => void; serverId?: string;
+}): JSX.Element {
   const lost = lostSessionNote(session);
   const startPhase = session.start?.phase;
   return (
     <>
       {lost ? <span className="session-last-message" role="status">{lost}</span> : null}
+      {session.usageCap ? (
+        <Suspense fallback={null}><UsageCapChip session={session} serverId={serverId} onOpenSession={onOpenSession} /></Suspense>
+      ) : null}
       {startPhase && startPhase !== 'working' && startPhase !== 'completed' ? (
         <Suspense fallback={null}><StartReceiptNote session={session} onOpenAccounts={onOpenAccounts} /></Suspense>
       ) : null}
@@ -619,7 +625,7 @@ function SessionViewInner({ sessionId, onStatusChange, isActive = false, onResum
               </span>
             ) : null}
           </div>
-          {session ? <SessionHeaderNotes session={session} onOpenAccounts={onOpenAccounts} /> : null}
+          {session ? <SessionHeaderNotes session={session} onOpenAccounts={onOpenAccounts} onOpenSession={onOpenSession} serverId={sourceServerId} /> : null}
         </div>
         <div className="session-active-actions">
           {subagents.length > 0 && onOpenSession && onReparent ? (

@@ -71,6 +71,11 @@ func (s *Server) handleAccountUsageRoute(w http.ResponseWriter, r *http.Request,
 		s.sendJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()}, origin)
 		return true
 	}
+	if policy, err := s.usageCapPolicy(); err == nil && policy.enabled {
+		for index := range accounts {
+			accounts[index].UsageCap = policy.cap(accounts[index].Tool)
+		}
+	}
 	s.sendJSON(w, http.StatusOK, map[string]any{
 		"accounts": accounts, "checked_at": time.Now().UnixMilli(), "ttl_seconds": 60,
 	}, origin)

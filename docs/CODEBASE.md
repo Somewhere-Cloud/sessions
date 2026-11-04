@@ -476,6 +476,17 @@ probe, sends `Continue where you left off.` as automation input, publishes each
 plan on `SessionInfo.limitRecovery`, and serves `GET/PUT /api/limit-recovery`
 for `sessions limits` and the Settings card
 (`frontend/src/components/LimitRecoveryCard.tsx`).
+`runtime/internal/usagecap` judges an account's usage reading against the usage
+cap (any window at or past it, unknown for stale or missing readings) and picks
+the account with the most headroom. `runtime/internal/api/usage_cap*.go` reads
+accounts through the account usage cache, refuses sends and moves or refuses
+new starts over the cap (`usage_cap_gate.go`, with the session manager's
+`CreateAccountGate`), marks waiting sessions on `SessionInfo.usageCap` every
+minute (`usage_cap_watch.go`), defers limit recovery while an account is over
+and continues a waiting session on another account through the collaborator
+fork path (`usage_cap_switch.go`), and serves `GET/PUT /api/usage-cap` for
+`sessions cap` and the Settings card (`frontend/src/components/UsageCapCard.tsx`,
+`frontend/src/components/UsageCapChip.tsx`).
 `runtime/internal/api/set_aside.go` serves set-aside with a return time and
 brings a session back when that time passes.
 

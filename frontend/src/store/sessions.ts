@@ -85,6 +85,11 @@ function reconcileSessions(prev: SessionInfo[], fresh: SessionInfo[]): SessionIn
       old.limitRecovery?.resumeAt === f.limitRecovery?.resumeAt &&
       old.restartContinuation?.state === f.restartContinuation?.state &&
       old.restartContinuation?.updatedAt === f.restartContinuation?.updatedAt &&
+      old.usageCap?.state === f.usageCap?.state &&
+      old.usageCap?.resetsAt === f.usageCap?.resetsAt &&
+      old.usageCap?.usedPercent === f.usageCap?.usedPercent &&
+      old.usageCap?.switchLabel === f.usageCap?.switchLabel &&
+      old.usageCap?.switchedTo === f.usageCap?.switchedTo &&
       // Without this the refresh diff treats a pin change as no change at all,
       // and a toggle the user just made is silently reverted on the next poll.
       old.pinned === f.pinned &&
