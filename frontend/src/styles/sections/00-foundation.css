@@ -91,8 +91,11 @@ button:active:not(:disabled),
  * the session UI: after a successful health probe the gate unmounts and the
  * normal app shell takes over without navigating through a relay page. */
 .connect-screen {
-  min-height: 100%;
+  /* A fixed height, not min-height: #root clips overflow, so the screen must
+   * scroll itself or a phone cannot reach the lower connection options. */
+  height: 100%;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: clamp(28px, 6vw, 72px) 20px;
   background:
     radial-gradient(circle at 18% 8%, rgba(45, 212, 191, 0.14), transparent 32rem),
@@ -550,7 +553,7 @@ button:active:not(:disabled),
 .connect-recovery-detail p { margin: 9px 0 0; overflow-wrap: anywhere; font-family: var(--font-mono); line-height: 1.55; }
 .connect-recovery-note { margin: 10px 0 0; color: var(--fg-faint); font-size: 12px; }
 .connect-setup ol { display: grid; gap: 15px; margin: 0; padding-left: 24px; }
-.connect-setup li { padding-left: 7px; color: var(--fg-dim); font-size: 13px; line-height: 1.5; }
+.connect-setup li { min-width: 0; padding-left: 7px; color: var(--fg-dim); font-size: 13px; line-height: 1.5; }
 .connect-setup li::marker { color: var(--accent); font-family: var(--font-mono); }
 .connect-setup code {
   display: block;

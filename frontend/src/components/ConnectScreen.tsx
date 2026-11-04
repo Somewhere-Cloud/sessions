@@ -9,7 +9,8 @@ import { formatServerEndpoint } from '../lib/serverEndpoint';
 import { useServers, type ServerConfig } from '../lib/servers';
 import {
   isNativeMobileRuntime,
-  scanPairingCode
+  scanPairingCode,
+  setAndroidSystemBarsDark
 } from '../lib/tauriBridge';
 import type { ClientFleetStatus } from '../lib/clientFleetAccount';
 
@@ -26,6 +27,8 @@ export function ConnectScreen({
   onRetry
 }: ConnectScreenProps = {}): JSX.Element {
   const servers = useServers((state) => state.servers);
+  // The connect screen is always dark, whatever the app theme.
+  useEffect(() => setAndroidSystemBarsDark(true), []);
   const setActive = useServers((state) => state.setActive);
   const removeServer = useServers((state) => state.removeServer);
   const pairingError = useServers((state) => state.pairingError);
@@ -279,9 +282,9 @@ export function ConnectScreen({
         </section>
 
         <p className="connect-privacy">
-          Endpoint and revocable device token stay on this device. Native Windows
-          protects saved tokens for the signed-in user; URL-fragment connect links
-          are scrubbed before the app starts.
+          {isMobileClient
+            ? 'Endpoint and revocable device token stay on this device, in its protected credential store. Forget the machine to revoke it.'
+            : 'Endpoint and revocable device token stay on this device. Native Windows protects saved tokens for the signed-in user; URL-fragment connect links are scrubbed before the app starts.'}
         </p>
       </section>
     </main>

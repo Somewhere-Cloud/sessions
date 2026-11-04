@@ -2,7 +2,10 @@ import { FooterUsage, type FooterUsageProps } from './FooterUsage';
 import { ModalDialog } from './ui/ModalDialog';
 import { PageHeader } from './ui/Layout';
 import { Button } from './ui/Button';
-import { useState, type ReactNode } from 'react';
+import { lazy, Suspense, useState, type ReactNode } from 'react';
+
+const AppUpdateCard = lazy(() => import('./SidebarUpdateCards').then((module) => ({ default: module.AppUpdateCard })));
+const MobileUpdateDot = lazy(() => import('./MobileUpdateDot').then((module) => ({ default: module.MobileUpdateDot })));
 
 type MobileLayout = 'home' | 'tabs' | 'today' | 'fleet' | 'search' | 'usage' | 'accounts' | 'settings' | 'connections';
 
@@ -44,13 +47,14 @@ export function MobileNav({
         <MobileDestination label="Sessions" icon={<SessionsIcon />} active={layoutMode === 'tabs'} onClick={onShowSessions} detail={showingSessionDetail} />
         <MobileDestination label="Search" icon={<SearchIcon />} active={layoutMode === 'search'} onClick={() => go('search')} />
         <FooterUsage usageScope={usageScope} onOpenUsage={() => go('usage')} onOpenDaily={() => go('today')} />
-        <MobileDestination label="More" icon={<MoreIcon />} active={moreActive || moreOpen} onClick={() => setMoreOpen(true)} />
+        <MobileDestination label="More" icon={<MoreIcon />} active={moreActive || moreOpen} onClick={() => setMoreOpen(true)} badge={<Suspense fallback={null}><MobileUpdateDot /></Suspense>} />
       </nav>
 
       {moreOpen ? (
         <ModalDialog className="dialog mobile-more-sheet" labelledBy="mobile-more-title" onClose={() => setMoreOpen(false)}>
             <div className="mobile-more-heading"><PageHeader title="More" titleId="mobile-more-title" level={2}
               actions={<Button variant="ghost" aria-label="Close" onClick={() => setMoreOpen(false)}>×</Button>} /></div>
+            <Suspense fallback={null}><AppUpdateCard watch={false} /></Suspense>
             <div className="mobile-more-grid">
               <MoreDestination title="Accounts & computers" detail="Sign-ins, computers, and connections" icon={<AccountsIcon />} onClick={() => go('accounts')} />
               <MoreDestination title="Settings" detail="Agents, access, and appearance" icon={<SettingsIcon />} onClick={() => go('settings')} />
@@ -73,13 +77,15 @@ function MobileDestination({
   icon,
   active,
   onClick,
-  detail = false
+  detail = false,
+  badge
 }: {
   label: string;
   icon: ReactNode;
   active: boolean;
   onClick: () => void;
   detail?: boolean;
+  badge?: ReactNode;
 }): JSX.Element {
   return (
     <Button variant="ghost"
@@ -92,6 +98,7 @@ function MobileDestination({
       <span className="mn-destination-icon" aria-hidden>{icon}</span>
       <span>{label}</span>
       {detail ? <span className="mn-detail-dot" aria-hidden /> : null}
+      {badge}
     </Button>
   );
 }

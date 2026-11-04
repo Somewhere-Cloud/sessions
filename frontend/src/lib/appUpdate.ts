@@ -3,6 +3,7 @@ import {
   checkForNativeUpdate,
   downloadNativeUpdate,
   installDownloadedNativeUpdate,
+  isNativeAndroidRuntime,
   isTauri,
   notifyNativeUpdate,
   onNativeUpdateCheckRequest,
@@ -66,6 +67,8 @@ export function downloadPercent(progress: NativeUpdateProgress | null): number |
 }
 
 function message(error: unknown, fallback: string): string {
+  // Tauri commands reject with the native error string, not an Error.
+  if (typeof error === 'string' && error.trim()) return error.trim().replace(/\.$/, '');
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
@@ -122,12 +125,24 @@ export async function restartToUpdate(): Promise<void> {
   useAppUpdate.setState({ phase: 'installing', error: null, errorStage: null });
   try {
     await installDownloadedNativeUpdate();
+    // Android's installer is now asking the person. If they cancel, this app
+    // keeps running with the verified download ready for another try.
+    if (isNativeAndroidRuntime()) useAppUpdate.setState({ phase: 'ready' });
   } catch (error) {
     useAppUpdate.setState({
       phase: 'error', errorStage: 'install',
-      error: `The update didn’t install: ${message(error, 'unknown error')}. Sessions is unchanged and your sessions keep running; try Restart again or run \`sessions update\`.`
+      error: isNativeAndroidRuntime()
+        ? `The update didn’t install: ${message(error, 'unknown error')}. Sessions is unchanged; tap Install to try again.`
+        : `The update didn’t install: ${message(error, 'unknown error')}. Sessions is unchanged and your sessions keep running; try Restart again or run \`sessions update\`.`
     });
   }
+}
+
+/** The words for installing on this platform: desktop restarts its window; Android hands off to its installer. */
+export function appUpdateWords(): { install: string; installLabel: string; installing: string; safe: string } {
+  return isNativeAndroidRuntime()
+    ? { install: 'Install', installLabel: 'Install Sessions', installing: 'Opening installer…', safe: 'Android asks you to confirm. Sessions on your computers keep running.' }
+    : { install: 'Restart', installLabel: 'Restart to update to Sessions', installing: 'Restarting…', safe: 'Only the window restarts, or it installs when you quit. Your sessions keep running.' };
 }
 
 /**

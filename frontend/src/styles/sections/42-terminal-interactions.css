@@ -451,7 +451,10 @@
   .home-session-copy { grid-column: 2 / 4; }
   .home-session-list .provider-badge { grid-column: 2; justify-self: start; }
   .home-session-time { grid-column: 3; }
-  .settings-view { grid-template-columns: 1fr; padding-bottom: 70px; overflow-y: auto; }
+  /* One scroller on phones: the section picker scrolls away with the page,
+   * and the in-flow bottom navigation needs no reserved band. */
+  .settings-view { grid-template-columns: 1fr; grid-template-rows: auto auto; align-content: start; padding-bottom: var(--space-4); overflow-y: auto; }
+  .settings-view > .settings-panel { overflow: visible; }
   .settings-sections { min-height: auto; padding: 16px; border-right: 0; border-bottom: 1px solid var(--border); }
   .operations-content:has(> .client-onboarding-note) .settings-sections { padding-top: 16px; }
   .settings-sections { display: grid; grid-template-columns: repeat(2, 1fr); }

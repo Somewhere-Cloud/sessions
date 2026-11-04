@@ -75,7 +75,9 @@ try {
   }
   assert.match(hook, /beforeTerminalMutation\(\);\s*term\.write\(data,[\s\S]*afterTerminalMutation\(\);/,
     'live output must preserve the current viewport intent');
-  assert.match(hook, /beforeTerminalMutation\(\);\s*try \{\s*fit\.fit\(\);[\s\S]*afterTerminalMutation\(\);/,
+  // The Android legacy-zoom correction changes xterm's font size, which also
+  // reflows, so it belongs inside the same viewport-intent bracket.
+  assert.match(hook, /beforeTerminalMutation\(\);\s*try \{\s*(?:const container = containerElRef\.current;\s*if \(container\) neutralizeLegacyZoom\(container, term\);\s*)?fit\.fit\(\);[\s\S]*afterTerminalMutation\(\);/,
     'FitAddon resize must preserve the current viewport intent');
 } finally {
   await rm(scratch, { recursive: true, force: true });

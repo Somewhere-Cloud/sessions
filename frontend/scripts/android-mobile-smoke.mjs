@@ -66,7 +66,12 @@ try {
   assert.match(app, /mobileSessionDetail[^\n]*setMobileSessionDetail\(false\)/);
   assert.match(app, /effectiveLayout !== 'tabs'[^\n]*setLayoutMode\('tabs'\)/);
   assert.match(appBack, /registerAndroidBackHandler/);
-  assert.match(appBack, /mobile-more-heading button/);
+  assert.match(appBack, /dismissForemostModal\(\)/, 'Back closes any open shared modal before App navigation');
+  assert.match(activity, /moveTaskToBack\(true\)/, 'root Back backgrounds the task instead of tearing down Tauri');
+  assert.doesNotMatch(activity, /\bfinish\(\)/);
+  assert.match(activity, /setOnApplyWindowInsetsListener[\s\S]*systemBars\(\)[\s\S]*Type\.ime\(\)[\s\S]*WindowInsetsCompat\.CONSUMED/,
+    'the WebView container clears the navigation bar and keyboard');
+  assert.match(activity, /@JavascriptInterface[\s\S]*fun setSystemBarsDark/);
   assert.match(mobileNav, /mobile-more-heading/);
   assert.match(connect, /visualViewport/);
   assert.match(connect, /scrollIntoView\(\{ block: 'center'/);
@@ -76,7 +81,10 @@ try {
   assert.match(machineMark, /platform === 'darwin' \|\| platform === 'macos'/);
   assert.match(terminalHook, /visualViewport\?\.addEventListener\('resize', onResize\)/);
   assert.match(terminalHook, /visualViewport\?\.removeEventListener\('resize', onResize\)/);
-  assert.match(terminalHook, /Android[\s\S]*--interface-scale[\s\S]*term\.resize\(Math\.floor\(term\.cols \* scale\), term\.rows\)/);
+  assert.match(terminalHook, /function neutralizeLegacyZoom[\s\S]*getBoundingClientRect\(\)\.width \/ container\.offsetWidth[\s\S]*container\.style\.zoom[\s\S]*term\.options\.fontSize = fontSize/,
+    'legacy-zoom WebViews take xterm out of the shell zoom and scale its font instead');
+  assert.match(terminalHook, /neutralizeLegacyZoom\(container, term\);\s*fit\.fit\(\)/, 'fit measures after the zoom is neutralized');
+  assert.doesNotMatch(terminalHook, /term\.cols \* scale|Math\.floor\(cols \* scale\)/);
   assert.match(terminalStyles, /\.terminal-host \.xterm \{[\s\S]*width: 100%;/);
   assert.doesNotMatch(newSession, /launcher-send-hint/, 'the launcher carries no keyboard hint line');
 
@@ -179,6 +187,37 @@ try {
         assert.ok(header.scrollWidth <= width, `header caused horizontal scrolling at ${width}px`);
       }
     }
+    // Scrolling surfaces inside the clipped app root: the connect screen and
+    // phone Settings must scroll themselves, with no band reserved for a
+    // navigation bar that is already in flow.
+    await page.setViewport({ width: 390, height: 844 });
+    await page.setContent(`<style>${styles}</style><div id="root">
+      <main class="connect-screen connect-screen-client"><div style="height: 2000px"></div></main></div>`);
+    const connectScroll = await page.evaluate(() => {
+      const screen = document.querySelector('.connect-screen');
+      return { client: screen.clientHeight, scroll: screen.scrollHeight };
+    });
+    assert.ok(connectScroll.client <= 844 && connectScroll.scroll > connectScroll.client,
+      `the phone connect screen must scroll inside the viewport (${JSON.stringify(connectScroll)})`);
+    await page.setContent(`<style>${styles}</style><main class="connect-screen connect-screen-client">
+      <section class="connect-setup"><ol><li><span>Install</span><code>brew install somewhere-tech/tap/sessions &amp;&amp; sessions install</code></li></ol></section></main>`);
+    const setup = await page.evaluate(() => ({
+      card: document.querySelector('.connect-setup').getBoundingClientRect().right,
+      code: document.querySelector('.connect-setup code').getBoundingClientRect().right
+    }));
+    assert.ok(setup.code <= setup.card, `the setup command overflowed its card (${JSON.stringify(setup)})`);
+    await page.setContent(`<style>${styles}</style><div class="settings-view" style="height: 600px">
+      <aside class="settings-sections"><button>General</button></aside>
+      <main class="settings-panel"><div id="last" style="height: 1500px"></div></main></div>`);
+    const settingsScroll = await page.evaluate(() => {
+      const view = document.querySelector('.settings-view');
+      view.scrollTop = view.scrollHeight;
+      const last = document.getElementById('last').getBoundingClientRect();
+      return { panelOverflow: getComputedStyle(document.querySelector('.settings-panel')).overflowY,
+        gap: view.getBoundingClientRect().bottom - last.bottom };
+    });
+    assert.equal(settingsScroll.panelOverflow, 'visible', 'phone Settings has one scroller');
+    assert.ok(settingsScroll.gap <= 17, `phone Settings reserves ${settingsScroll.gap}px below its content`);
   } finally {
     await closeBrowser(browser);
   }
