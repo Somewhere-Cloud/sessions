@@ -308,6 +308,10 @@ type Settings struct {
 	// its provider usage limit resets. Missing means on; per-session choices
 	// live with the plans in the state root.
 	LimitRecovery *LimitRecoverySettings `json:"limitRecovery,omitempty"`
+	// RestartContinuation is the machine-wide default for carrying on a
+	// session whose turn a reboot, update, or crash cut short. Missing means
+	// on; per-session choices live in the state root.
+	RestartContinuation *EnabledSetting `json:"restartContinuation,omitempty"`
 }
 
 type LimitRecoverySettings struct {
@@ -317,6 +321,12 @@ type LimitRecoverySettings struct {
 // LimitRecoveryEnabled reports the machine-wide default, on unless turned off.
 func (s Settings) LimitRecoveryEnabled() bool {
 	return s.LimitRecovery == nil || s.LimitRecovery.Enabled
+}
+
+// RestartContinuationEnabled reports the machine-wide default, on unless
+// turned off.
+func (s Settings) RestartContinuationEnabled() bool {
+	return s.RestartContinuation == nil || s.RestartContinuation.Enabled
 }
 
 // TitleSettings controls automatic session titles (internal/autotitle).

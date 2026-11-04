@@ -90,6 +90,7 @@ func (m *relayMatcher) match(text string, atMS int64, operationID string) *ledge
 
 func (s *Server) messageRelayMatcher(ctx context.Context, laneID string) (*relayMatcher, error) {
 	relays := append(s.idleCompactionRelays(laneID), s.limitRecoveryRelays(laneID)...)
+	relays = append(relays, s.restartContinuationRelays(laneID)...)
 	service, ok := s.registry.(messageAttributionService)
 	if !ok {
 		return newRelayMatcher(relays), nil
@@ -192,6 +193,7 @@ func (s *Server) annotateTranscript(ctx context.Context, transcript *integration
 	}
 	relays = append(relays, s.idleCompactionRelays(transcript.Session.ID)...)
 	relays = append(relays, s.limitRecoveryRelays(transcript.Session.ID)...)
+	relays = append(relays, s.restartContinuationRelays(transcript.Session.ID)...)
 	if len(relays) == 0 {
 		return nil
 	}

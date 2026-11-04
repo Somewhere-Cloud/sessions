@@ -479,6 +479,25 @@ for `sessions limits` and the Settings card
 `runtime/internal/api/set_aside.go` serves set-aside with a return time and
 brings a session back when that time passes.
 
+### `restartcontinuation`
+
+`restartcontinuation` carries on a Rich Claude or Codex session whose turn a
+reboot, update, or crash cut short, a setting that is on by default. The
+scheduler records which sessions are working (runner process id, boot id,
+daemon version), detects a session that comes back from a runner that did not
+survive, names the reason from those facts, and persists the interruption
+before acting on it; `reopening` and `sending` are written first so a second
+restart never repeats an action
+(`runtime/internal/restartcontinuation/scheduler.go`,
+`runtime/internal/restartcontinuation/store.go`).
+`runtime/internal/api/restart_continuation.go` supplies sessions, wakes paused
+ones, resumes lost ones through the `POST /api/recovery/adopt` handler, sends
+the note as automation input, publishes each entry on
+`SessionInfo.restartContinuation`, and serves `GET/PUT /api/restart-continuation`
+for `sessions continuation` and the Settings card
+(`frontend/src/components/RestartContinuationCard.tsx`); the session view shows
+it through `frontend/src/components/SessionNotices.tsx`.
+
 ### `codexapp`
 
 `codexapp` speaks the Codex app-server JSON-RPC contract and persists provider

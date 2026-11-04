@@ -191,6 +191,9 @@ export interface SessionInfo {
   retry?: ProviderRetry;
   // The daemon's plan to resume this session when its usage limit resets.
   limitRecovery?: LimitRecovery | null;
+  // The daemon carrying this session on after a reboot, update, or crash
+  // cut its turn short; `sessions continuation` is the CLI view.
+  restartContinuation?: RestartContinuation | null;
   // The permission a Rich Codex lane is holding open, when it is not
   // autonomous. Answered with approveSession, never with a reply.
   pendingApproval?: PendingApproval | null;
@@ -564,6 +567,23 @@ export interface SessionHookObservations {
   tools: SessionObservations['tools'];
   gaps: string[];
   rejected: { foreign_launch: number; unconfirmed_conversation: number; malformed: number };
+}
+
+// A session Sessions carried on after a restart interrupted its turn. The
+// note it sent is attributed to Restart continuation, never to the person.
+// sourceId is set on a session that was reopened in place of a lost one.
+export interface RestartContinuation {
+  reason: 'reboot' | 'update' | 'crash' | 'unknown';
+  evidence?: string;
+  kind?: 'restarted' | 'paused' | 'lost';
+  state: 'pending' | 'reopening' | 'sending' | 'sent' | 'unconfirmed' | 'failed' | 'skipped' | 'stopped';
+  sourceId?: string;
+  targetId?: string;
+  attempt?: number;
+  detail?: string;
+  interruptedAt?: number;
+  sentAt?: number;
+  updatedAt?: number;
 }
 
 // A session's resume-after-usage-limit plan. At resumeAt Sessions sends

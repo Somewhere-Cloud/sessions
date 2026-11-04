@@ -160,6 +160,7 @@ fields. Optional fields are omitted when their value is `undefined`.
 | `failureProvider` | `"claude" \| "codex"`, optional | provider that produced the current fault |
 | `failureAt` | number, optional | Unix epoch milliseconds when the current provider fault was observed |
 | `limitRecovery` | object, optional | the daemon's plan to resume this session after a provider usage limit, derived from `limit-recovery.json`: `state` (`scheduled`, `sending`, `sent`, `unconfirmed`, `failed`, `cancelled`, or `stopped`), `resumeAt` (Unix ms the resume fires), `resetAt` (Unix ms the limit resets; omitted when unknown), `source` (`provider-message`, `account-usage`, or `unknown`), `attempt`, `detail`, `updatedAt`. Omitted when the session never had one since this daemon started. See `GET /api/limit-recovery` |
+| `restartContinuation` | object, optional | the daemon carrying this session on after a reboot, update, or crash cut its turn short, derived from `restart-continuation.json`: `reason` (`reboot`, `update`, `crash`, or `unknown`), `evidence`, `kind` (`restarted`, `paused`, or `lost`), `state` (`pending`, `reopening`, `sending`, `sent`, `unconfirmed`, `failed`, `skipped`, or `stopped`), `sourceId` (on a session resumed in place of a lost one), `targetId`, `attempt`, `detail`, `interruptedAt`, `sentAt`, `updatedAt` (Unix ms). Present only on a session the daemon holds and only since this daemon started. See `GET /api/restart-continuation` |
 | `retry` | object, optional | runner-owned automatic Rich-turn retry schedule: `attempt` (the next retry, 1–5), `max` (5), `nextAt` (Unix epoch milliseconds), and `kind` (the current `failureKind`). Present while a retry is scheduled or running; omitted after success, cancellation, or exhaustion |
 | `pendingApproval` | object, optional | permission a Rich session is waiting on, with `id`, `kind` (`command`, `file-change`, or `permissions`), `summary`, `command`, `cwd`, `reason`, and `at`; absent when no approval is pending |
 | `exited` | boolean | whether Sessions reaped a real status for the session's process: an EXIT frame, a signal, or a completed user-requested end. It is never set because the daemon lost contact with a runner |
@@ -3706,6 +3707,62 @@ missing or non-boolean `enabled` returns 400.
 Accepts `{"override": "on" | "off" | "default"}` for a live Claude or Codex
 session and returns the status above. `default` removes the session's choice.
 A session the daemon does not hold returns 404; any other session returns 400.
+
+### `GET /api/restart-continuation`
+
+Returns the machine-wide default for continuing sessions a restart
+interrupted, and every session that is being watched, has an interruption on
+record, or has its own choice. It is on unless the user turns it off:
+
+```json
+{"enabled":true,"bootId":"darwin-1793800000","lanes":[{"id":"<id>","name":"Parser","override":null,
+  "enabled":true,"watching":false,"last":{"key":"darwin-1793700000:4242","reason":"reboot",
+  "evidence":"the machine started again since the turn was seen working","kind":"paused",
+  "interruptedAtMs":0,"detectedAtMs":0,"attempt":1,"state":"sent","sentAtMs":0,"updatedAtMs":0}}]}
+```
+
+The daemon observes Rich Claude (`claude-structured`) and Codex
+(`codex-app-server`) sessions every two seconds after startup discovery and
+records each working one with its runner's process id and boot. A watched
+session whose turn ends on its own is forgotten. One that comes back from a
+runner that did not survive is an interruption: `restarted` (a different
+runner in the same session, as launchd restarts after a crash or at login),
+`paused` (stayed paused after a reboot), or `lost` (runner proven gone). A
+session that ended (`exited`), terminal and shell sessions, and headless lanes
+are never continued; a daemon restart on its own never interrupts a turn. The
+reason is `reboot` when the boot changed or the lost runner predates this boot,
+`update` when the daemon version changed, `crash` when the runner exited or
+restarted within one boot, and otherwise `unknown`, with `evidence` saying
+which. The daemon then brings the session back as a person would: a paused
+session is woken in place, and a lost one is resumed through
+`POST /api/recovery/adopt` with `{"historyId":id,"sourceSessionId":id,"runtimeMode":"rich"}`
+(every refusal of that route applies), its new id becoming `targetId`. When the
+session is back and idle it sends `Sessions restarted (reason: <reason>).
+Continue where you left off; check what was in progress before assuming it
+finished.` through the path `POST /api/sessions/:id/submit` uses, under the same
+per-session gate, recorded as automation. Saved next-turn messages a runner
+restart paused are kept behind the note and continued as Retry would. Event and
+transcript reads attribute it with
+`author: {"kind":"automation","id":"restart-continuation","name":"Restart continuation","client":"sessionsd"}`.
+An interruption is `skipped` when the setting is off for the session, or the
+session ended, is set aside, is working again, or received a person's message
+after the interruption was detected; `failed` when it cannot be woken or
+resumed, or does not come back within ten minutes. After three continuations
+in a row with no message from a person the entry is `stopped`. `error`
+appears, and nothing is observed or sent, when the store cannot be read.
+
+### `PUT /api/restart-continuation`
+
+Accepts `{"enabled": true}` or `{"enabled": false}`, persists it as
+`restartContinuation.enabled` in `settings.json`, and returns the status above.
+A missing or non-boolean `enabled` returns 400.
+
+### `PUT /api/restart-continuation/lanes/:id`
+
+Accepts `{"override": "on" | "off" | "default"}` for a Rich Claude or Codex
+session, live, paused after a reboot, or lost, and returns the status above.
+`default` removes the session's choice. An unknown session returns 404; any
+other kind of session returns 400.
 
 ### `GET /api/automations`
 

@@ -510,6 +510,10 @@ func sessionStateAt(value session, now time.Time) string {
 	if value.Working {
 		return "working"
 	}
+	if continuation := value.RestartContinuation; continuation != nil &&
+		(continuation.State == "pending" || continuation.State == "reopening" || continuation.State == "sending") {
+		return "continuing"
+	}
 	switch value.FailureKind {
 	case "provider-unavailable":
 		return "provider-down"

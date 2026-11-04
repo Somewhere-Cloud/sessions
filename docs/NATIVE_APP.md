@@ -197,6 +197,22 @@ that recovery evidence. When a wake fails, live commands fail with
 `SESSION_NEEDS_RECREATE`, the failure as the reason, and a resume action
 instead of returning an empty successful result.
 
+Sessions that were in the middle of a turn carry on by themselves. The daemon
+notes which Rich Claude and Codex sessions are working; when one comes back
+from a runner that did not survive the turn (a reboot, an update that ended a
+runner, or a crash), it wakes the paused session or resumes the lost one in a
+linked Rich runtime and sends one note attributed to Restart continuation:
+"Sessions restarted (reason: reboot). Continue where you left off; check what
+was in progress before assuming it finished." The reason is read from the boot,
+the daemon version, and the lost-runner evidence, and is `unknown` when none of
+them says. Each interruption is continued once, never for a session the person
+ended, archived, set aside, or wrote to after the restart, and never for
+terminal, shell, or headless sessions. The session shows **Continued after
+restart (reboot) at HH:MM**. The toggle is in Settings beside Resume after
+usage limits; the CLI equivalent is `sessions continuation [status|on|off]`,
+with `--lane SESSION` for one session
+(`runtime/internal/restartcontinuation/`).
+
 This is a safety ceiling, not a retention ceiling. It limits the process fanout
 that one login can cause while keeping every durable conversation available for
 explicit inspection or recovery.

@@ -295,6 +295,7 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 		return
 	}
 	if s.handleIdleCompactionRoute(response, request, corsOrigin) || s.handleLimitRecoveryRoute(response, request, corsOrigin) ||
+		s.handleRestartContinuationRoute(response, request, corsOrigin) ||
 		s.handleTitlesRoute(response, request, corsOrigin) {
 		return
 	}

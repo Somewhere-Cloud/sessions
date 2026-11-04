@@ -48,6 +48,8 @@ export interface FakeMachine {
   /** When false every request to this machine fails the way an unreachable one does. */
   reachable?: boolean;
   sessions: SessionInfo[];
+  /** The restart continuation default this fake daemon reports; on when unset. */
+  restartContinuationEnabled?: boolean;
   history?: HistorySession[];
   transcripts?: Record<string, HistoryMessage[]>;
   /** Structured provider history returned by /api/sessions/:id/events. */
@@ -497,6 +499,14 @@ export function installFakeDaemon(machines: FakeMachine[]): FakeDaemon {
       const pinned = (body as { pinned?: unknown })?.pinned === true;
       target.pinned = pinned;
       return jsonResponse({ pinned });
+    }
+    if (path === '/api/restart-continuation') {
+      if (method === 'PUT') machine.restartContinuationEnabled = (body as { enabled?: unknown })?.enabled === true;
+      const enabled = machine.restartContinuationEnabled ?? true;
+      const lanes = machine.sessions
+        .filter((candidate) => candidate.restartContinuation)
+        .map((candidate) => ({ id: candidate.id, override: null, enabled, last: { state: candidate.restartContinuation!.state, reason: candidate.restartContinuation!.reason } }));
+      return jsonResponse({ enabled, lanes });
     }
     if (path.startsWith('/api/limit-recovery/lanes/') && method === 'PUT') {
       const id = decodeURIComponent(path.slice('/api/limit-recovery/lanes/'.length));
