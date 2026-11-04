@@ -15,6 +15,7 @@ cmd/sessions internal/lanelink
 cmd/sessions internal/ledger
 cmd/sessions internal/localnetwork
 cmd/sessions internal/migrate
+cmd/sessions internal/project
 cmd/sessions internal/providerargs
 cmd/sessions internal/pullrequest
 cmd/sessions internal/recovery

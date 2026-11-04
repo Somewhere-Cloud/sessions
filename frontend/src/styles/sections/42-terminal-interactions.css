@@ -194,6 +194,13 @@
 .launcher-model-row span { color: var(--fg-faint); font-size: 12px; }
 .launcher-model-row strong { font-size: 12px; }
 .launcher-model-row small { grid-column: 2; color: var(--fg-faint); font-size: 12px; }
+.launcher-fleet-projects { margin-top: 10px; }
+.launcher-fleet-project { display: grid; gap: 6px; min-width: 0; }
+.launcher-fleet-project .workspace-card-copy small { display: flex; align-items: center; gap: 3px; }
+.launcher-project-defaults-note { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 14px; margin-top: 8px; color: var(--fg-dim); font-size: 12px; }
+.launcher-project-defaults-note .field-checkbox { margin: 0; }
+.launcher-project-defaults-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 11px; }
+.launcher-project-defaults-actions small { color: var(--fg-dim); }
 .launcher-claude-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px 11px; margin-top: 11px; }
 .launcher-claude-options label { display: grid; gap: 5px; color: var(--fg-faint); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
 .launcher-claude-options label.is-wide { grid-column: 1 / -1; }

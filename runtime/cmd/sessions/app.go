@@ -148,11 +148,14 @@ type app struct {
 	sleep                func(time.Duration)
 	api                  *apiClient
 	explicitTarget       bool
-	direct               bool
-	listModels           func(context.Context) ([]codexapp.Model, error)
-	runUpdate            func(context.Context, bool) (nativeUpdateResult, error)
-	cliIsCurrent         func(string) bool
-	attachSupport        func(context.Context, supportAttachmentRequest) (supportAttachmentReceipt, error)
+	// launchReceipt is set by `sessions new` when project defaults were
+	// consulted, so the start result can say where each choice came from.
+	launchReceipt *projectLaunchReceipt
+	direct        bool
+	listModels    func(context.Context) ([]codexapp.Model, error)
+	runUpdate     func(context.Context, bool) (nativeUpdateResult, error)
+	cliIsCurrent  func(string) bool
+	attachSupport func(context.Context, supportAttachmentRequest) (supportAttachmentReceipt, error)
 	// linuxService replaces systemctl and health checks in installer tests.
 	linuxService *linuxServiceManager
 	commands     []commandSpec

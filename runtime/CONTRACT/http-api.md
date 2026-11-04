@@ -1553,7 +1553,16 @@ only while a session sits in their folder:
 {"projects":[{"id":"p_...","name":"...","implicit":false,"roots":["/absolute/folder"],"github":"owner/repo","somewhere":"...","pinned":true,"session_ids":["<Sessions id>"],"live":2,"needs_input":1,"updated_at":1750000000000}]}
 ```
 
-`github`, `somewhere`, and `pinned` are omitted when empty. Order is pinned
+Each project also carries `identity`, a key that is the same on every computer
+for the same work: `git:<host>/<path>` from the checkout's origin URL with the
+scheme, user, password, port, trailing `/` and `.git` removed and the result
+lowercased (so `git@github.com:o/r.git` and `https://github.com/O/R` match),
+else `name:<lowercased stored name>`, else `name:<lowercased folder name>`; the
+No project group is `scratch`. Fleet clients group projects from several
+computers by it. `defaults` is present when the project has stored launch
+defaults (see `/api/projects/defaults`).
+
+`github`, `somewhere`, `pinned`, `identity`, and `defaults` are omitted when empty. Order is pinned
 first, then stored before implicit, then `updated_at` descending. A resolution
 failure is 500. When the project store is unavailable every `/api/projects`
 path returns `501 {"error":"projects are not available on this runtime"}`.
@@ -1608,6 +1617,45 @@ Auth required. Forgets a stored project; its sessions become implicit again.
 Returns `200 {"ok":true}`. An empty or nested id, or an unknown project, is
 404. Any other method on a `/api/projects` path is
 `405 {"error":"method not allowed","path":"<pathname>"}`.
+
+### `GET /api/projects/defaults` and `PUT /api/projects/defaults`
+
+Auth required. Launch defaults are stored by this daemon in its project store
+under a project identity, so they apply to a folder nobody has named and are
+found under the same key for the same repository on another computer that has
+them stored; nothing is synchronised between computers. The project is named
+by query (GET) or body (PUT) `cwd` (a folder, resolved like a session's
+working directory; empty means the daemon's default folder) or `project` (a
+stored or implicit project's `id`, `identity`, or case-insensitive `name`, or
+any `git:`/`name:` identity). An unknown or ambiguous `project` is
+`404 {"error":"<message>"}`.
+
+```json
+{"project":{"identity":"git:github.com/o/r","name":"r","project_id":"implicit:...","top_level":"/abs"},"defaults":{"provider":"codex","model":"gpt-5","effort":"high","worktree":"on","permissions":"ask"}}
+```
+
+Every `defaults` field is optional: `provider` is `claude` or `codex`,
+`effort` is `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`, `worktree`
+is `on` or `off`, `permissions` is `bypass` or `ask`, and `model` is one word
+of at most 128 characters. PUT takes `{"cwd"|"project", "set":{...},
+"clear":["model", ...]}`: non-empty `set` fields are stored, then each
+`clear` key (or `all`) is removed; an invalid value or key is
+`400 {"error":"<message>"}` and changes nothing. It returns the same shape.
+
+### `POST /api/projects/launch`
+
+Auth required. Body `{"cwd":"/abs","explicit":{...defaults fields}}`, where
+`explicit` holds what the person starting the session chose (any provider
+word, such as `shell`, is accepted there). Returns the GET shape plus
+`launch`, each of `provider`, `model`, `effort`, `worktree`, and
+`permissions` as `{"value":"...","source":"explicit|project|machine|built-in"}`,
+resolved in that order of precedence. The project's `model` and `effort` are
+skipped when the session runs a different provider than the project's, and a
+non-agent command takes no model. Machine defaults are this computer's Claude
+model and effort (`sessions defaults`, Settings). The built-in worktree is
+`off` and the built-in permission is `bypass`; a built-in empty provider or
+model leaves the choice to the client or provider. `sessions new` uses this
+route to fill in what was not typed and reports the result as `defaults`.
 
 ### `POST /api/retention/gc`
 

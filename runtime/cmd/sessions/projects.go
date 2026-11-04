@@ -9,19 +9,23 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/somewhere-tech/sessions/runtime/internal/project"
 )
 
 type projectView struct {
-	ID         string   `json:"id"`
-	Name       string   `json:"name"`
-	Implicit   bool     `json:"implicit"`
-	Roots      []string `json:"roots"`
-	GitHub     string   `json:"github,omitempty"`
-	Somewhere  string   `json:"somewhere,omitempty"`
-	Pinned     bool     `json:"pinned,omitempty"`
-	SessionIDs []string `json:"session_ids"`
-	Live       int      `json:"live"`
-	NeedsInput int      `json:"needs_input"`
+	ID         string            `json:"id"`
+	Name       string            `json:"name"`
+	Implicit   bool              `json:"implicit"`
+	Roots      []string          `json:"roots"`
+	GitHub     string            `json:"github,omitempty"`
+	Somewhere  string            `json:"somewhere,omitempty"`
+	Pinned     bool              `json:"pinned,omitempty"`
+	SessionIDs []string          `json:"session_ids"`
+	Live       int               `json:"live"`
+	NeedsInput int               `json:"needs_input"`
+	Identity   string            `json:"identity,omitempty"`
+	Defaults   *project.Defaults `json:"defaults,omitempty"`
 }
 
 type projectRecord struct {
@@ -42,6 +46,7 @@ type projectRecord struct {
 //	                                         to their folder's implicit project
 //	sessions projects new <name>             make ~/Projects/<name> as a git repository
 //	sessions projects scratch [hint...]      make a scratch folder with no project
+//	sessions projects defaults <project> ... read or change the project's launch defaults
 func (a *app) cmdProjects(args []string) error {
 	if len(args) == 0 {
 		return a.listProjects()
@@ -49,6 +54,8 @@ func (a *app) cmdProjects(args []string) error {
 	switch args[0] {
 	case "new", "scratch":
 		return a.makeProjectFolder(args[0], args[1:])
+	case "defaults":
+		return a.cmdProjectDefaults(args[1:])
 	case "name":
 		if len(args) != 3 {
 			return fail(1, "usage: sessions projects name <folder> <name>")
@@ -68,7 +75,7 @@ func (a *app) cmdProjects(args []string) error {
 		_, err := io.WriteString(a.stdout, "forgot project "+args[1]+"\n")
 		return err
 	default:
-		return fail(1, "usage: sessions projects [new <name> | scratch [hint...] | name <folder> <name> | forget <project-id>]")
+		return fail(1, "usage: sessions projects [new <name> | scratch [hint...] | name <folder> <name> | forget <project-id> | defaults <project> [flags]]")
 	}
 }
 

@@ -13,11 +13,13 @@ func TestNewProfileParsingAndTeachingErrors(t *testing.T) {
 	var posted createSessionRequest
 	requests := 0
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		requests++
+		// Only creates count: invalid arguments must never start a session.
+		// The read-only project-defaults lookup is not a create.
 		if request.URL.Path != "/api/sessions" || request.Method != http.MethodPost {
 			http.NotFound(response, request)
 			return
 		}
+		requests++
 		if err := json.NewDecoder(request.Body).Decode(&posted); err != nil {
 			t.Errorf("decode create request: %v", err)
 		}

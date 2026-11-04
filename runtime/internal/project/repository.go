@@ -15,6 +15,7 @@ import (
 // spawned, so resolving a few hundred sessions costs a few hundred small reads.
 type repository struct {
 	topLevel  string
+	origin    string
 	github    string
 	somewhere string
 }
@@ -24,7 +25,8 @@ func inspectRepository(cwd string) repository {
 	gitDir, workTree := findGit(cwd)
 	if workTree != "" {
 		result.topLevel = canonical(workTree)
-		result.github = githubRemote(gitDir)
+		result.origin = originURL(gitDir)
+		result.github = githubRepository(result.origin)
 	}
 	base := result.topLevel
 	if base == "" {
@@ -102,9 +104,9 @@ func commonGitDir(gitDir string) string {
 
 var githubRemotePattern = regexp.MustCompile(`github\.com[:/]([^/\s]+)/([^/\s]+?)(?:\.git)?/?$`)
 
-// githubRemote reads [remote "origin"] url from the repository config and
-// returns owner/repo when it points at github.com. Any other host yields "".
-func githubRemote(gitDir string) string {
+// originURL reads [remote "origin"] url from the repository config, as
+// written. A repository without an origin yields "".
+func originURL(gitDir string) string {
 	if gitDir == "" {
 		return ""
 	}
@@ -124,13 +126,18 @@ func githubRemote(gitDir string) string {
 		if !inOrigin || !strings.HasPrefix(line, "url") {
 			continue
 		}
-		_, value, found := strings.Cut(line, "=")
-		if !found {
-			continue
+		if _, value, found := strings.Cut(line, "="); found {
+			return strings.TrimSpace(value)
 		}
-		if match := githubRemotePattern.FindStringSubmatch(strings.TrimSpace(value)); match != nil {
-			return match[1] + "/" + match[2]
-		}
+	}
+	return ""
+}
+
+// githubRepository returns owner/repo when an origin points at github.com.
+// Any other host yields "".
+func githubRepository(origin string) string {
+	if match := githubRemotePattern.FindStringSubmatch(origin); match != nil {
+		return match[1] + "/" + match[2]
 	}
 	return ""
 }

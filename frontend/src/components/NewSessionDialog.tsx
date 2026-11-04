@@ -6,6 +6,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSessions } from '../store/sessions';
 import { DirectoryBrowser } from './DirectoryBrowser';
 import { LauncherProjectChoices } from './LauncherProjectChoices';
+import { LauncherFleetProjects } from './LauncherFleetProjects';
+import { ProjectDefaultsEditor, ProjectDefaultsNote } from './LauncherProjectDefaults';
+import { useProjectLaunch } from '../hooks/useProjectDefaults';
 import { NO_PROJECT_CWD, startFolder } from '../lib/projectFolders';
 import {
   fetchProfiles,
@@ -265,6 +268,8 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
   const [browserOpen, setBrowserOpen] = useState(false);
   const [tags, setTags] = useState<Record<string, string>>(projectSeed?.tags ?? parentSession?.tags ?? initialDefaults.tags);
   const [task, setTask] = useState('');
+  const fleetChoiceRef = useRef<{ serverId: string; cwd: string } | null>(null);
+  const projectLaunch = useProjectLaunch(machineId, cwd, !parentSession && !hidden, { chooseTool: (next) => chooseTool(next), setClaudeOptions, setCodexModel, setCodexEffort, setAccess });
   useEffect(() => {
     if (!projectSeed) return;
     setMachineId(projectSeed.serverId); setCwd(projectSeed.cwd); setTags(projectSeed.tags);
@@ -323,7 +328,7 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
       if (!active) return;
       setRecentWorkspaces(items);
       setCwd((current) => {
-        if (projectSeed?.serverId === machineId && current === projectSeed.cwd) return current;
+        if ([projectSeed, fleetChoiceRef.current].some((chosen) => chosen?.serverId === machineId && chosen.cwd === current)) return current;
         const currentCandidate = items.find((item) => item.path === current);
         if (currentCandidate || current === NO_PROJECT_CWD) return current;
         return items.find((item) => item.kind === 'somewhere')?.path
@@ -480,6 +485,7 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
         // A name sent here would count as chosen by hand.
         description: task.trim() || undefined,
         tags,
+        ...projectLaunch.requestFields,
         ...accountRequestFields(selectedProfile, Boolean(parentSession && profileTool)),
         waitReady: task.trim().length > 0,
         claude: tool === 'claude-code' ? resolvedClaudeOptions : undefined,
@@ -647,6 +653,7 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
               </div>
             </div>
           </div>
+          <ProjectDefaultsNote launch={projectLaunch} />
           {requiresProviderLogin ? <span className="field-help">Finish the new account login first. Sessions will keep this request here instead of sending it into a login screen.</span> : null}
           {isDelegate ? (
             <div className="launcher-inherited"><span>Runs with its parent</span><strong>{cwd}</strong><small>{serverDisplayName(getActiveServer(), true)} · grouped under {parentSession ? sessionLabel(parentSession) : 'the current session'}</small></div>
@@ -655,6 +662,7 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
               {browserOpen ? (
                 <div className="launcher-workspace-picker">
                   <LauncherProjectChoices serverId={machineId} cwd={cwd} onChoose={(path) => { setCwd(path); setBrowserOpen(false); }} />
+                  <LauncherFleetProjects machines={configuredMachines} machineId={machineId} cwd={cwd} onChoose={(serverId, path) => { fleetChoiceRef.current = { serverId, cwd: path }; setMachineId(serverId); setCwd(path); setBrowserOpen(false); }} />
                   {displayedWorkspaces.length > 0 ? (
                     <div className="recent-workspaces">
                       {displayedWorkspaces.map((item) => (
@@ -707,40 +715,9 @@ export function NewSessionDialog({ onClose, onStarted, onOpenResume, parentSessi
                 <summary>Tags <span>Optional organization</span></summary>
                 <TagEditor value={tags} onChange={setTags} disabled={busy} />
               </details>
-              {tool === 'claude-code' ? (
-                <details className="launcher-advanced-subsection">
-                  <summary>Claude options <span>Uses Settings by default</span></summary>
-                  <div className="launcher-claude-options">
-                    <label><span>Use Chrome</span><Select value={claudeOptions.chrome ?? ''} onChange={(event) => setClaudeOptions((current) => ({ ...current, chrome: event.currentTarget.value as ClaudeSessionOptions['chrome'] }))}>
-                      <option value="">Use Settings</option><option value="inherit">Claude default</option><option value="on">On</option><option value="off">Off</option>
-                    </Select></label>
-                    <label><span>Somewhere tools</span><Select value={claudeOptions.somewhereMcp ?? ''} onChange={(event) => setClaudeOptions((current) => ({ ...current, somewhereMcp: event.currentTarget.value as ClaudeSessionOptions['somewhereMcp'] }))}>
-                      <option value="">Use Settings</option><option value="inherit">Use Claude configuration</option><option value="ensure">Make available</option>
-                    </Select></label>
-                    <div className="launcher-claude-option-note"><strong>Remote Control</strong><small>Uses this machine’s consent choice from Settings. A session cannot turn it on by itself.</small></div>
-                  </div>
-                </details>
-              ) : null}
-              {tool === 'codex' ? (
-                <Field label="Experience" className="launcher-advanced-card launcher-experience-field" hint="Conversation is the normal Sessions view. Terminal opens Codex exactly as it appears in a shell.">
-                  <Select className="field-input" value={runtimeMode} onChange={(event) => {
-                    const nextMode = event.currentTarget.value as RuntimeMode;
-                    setRuntimeMode(nextMode);
-                  }} aria-label="Session experience">
-                    <option value="rich">Conversation</option>
-                    <option value="terminal">Terminal</option>
-                  </Select>
-                </Field>
-              ) : tool === 'claude-code' ? (
-                <Field label="Experience" className="launcher-advanced-card launcher-experience-field" hint="Conversation shows Claude's work live. Terminal runs Claude's own interactive app, which claude.ai and mobile Remote Control need; you can switch a conversation to it later.">
-                  <Select className="field-input" value={runtimeMode} onChange={(event) => {
-                    setRuntimeMode(event.currentTarget.value as RuntimeMode);
-                  }} aria-label="Session experience">
-                    <option value="rich">Conversation</option>
-                    <option value="terminal">Terminal (Remote Control)</option>
-                  </Select>
-                </Field>
-              ) : null}
+              <LauncherProviderOptions tool={tool} claudeOptions={claudeOptions} setClaudeOptions={setClaudeOptions} runtimeMode={runtimeMode} setRuntimeMode={setRuntimeMode} />
+              <ProjectDefaultsEditor launch={projectLaunch} machineId={machineId} cwd={cwd}
+                current={{ provider: tool === 'codex' ? 'codex' : tool === 'claude-code' ? 'claude' : undefined, model: selectedModel || undefined, effort: selectedEffort || undefined, permissions: access === 'full' ? 'bypass' : 'ask' }} />
               {tool === 'claude-code' ? (
                 <details className="launcher-advanced-subsection launcher-troubleshooting">
                   <summary>Troubleshooting <span>Start without Claude customizations</span></summary>
@@ -789,4 +766,46 @@ function LauncherModelOptions({ tool, selectedModel, modelOptions, loading, erro
       </Select>
     </label>
 </div>);
+}
+
+function LauncherProviderOptions({ tool, claudeOptions, setClaudeOptions, runtimeMode, setRuntimeMode }: {
+  tool: NewSessionTool; claudeOptions: ClaudeSessionOptions; setClaudeOptions: React.Dispatch<React.SetStateAction<ClaudeSessionOptions>>;
+  runtimeMode: RuntimeMode; setRuntimeMode: (mode: RuntimeMode) => void;
+}): JSX.Element {
+  return (<>
+    {tool === 'claude-code' ? (
+      <details className="launcher-advanced-subsection">
+        <summary>Claude options <span>Uses Settings by default</span></summary>
+        <div className="launcher-claude-options">
+          <label><span>Use Chrome</span><Select value={claudeOptions.chrome ?? ''} onChange={(event) => setClaudeOptions((current) => ({ ...current, chrome: event.currentTarget.value as ClaudeSessionOptions['chrome'] }))}>
+            <option value="">Use Settings</option><option value="inherit">Claude default</option><option value="on">On</option><option value="off">Off</option>
+          </Select></label>
+          <label><span>Somewhere tools</span><Select value={claudeOptions.somewhereMcp ?? ''} onChange={(event) => setClaudeOptions((current) => ({ ...current, somewhereMcp: event.currentTarget.value as ClaudeSessionOptions['somewhereMcp'] }))}>
+            <option value="">Use Settings</option><option value="inherit">Use Claude configuration</option><option value="ensure">Make available</option>
+          </Select></label>
+          <div className="launcher-claude-option-note"><strong>Remote Control</strong><small>Uses this machine’s consent choice from Settings. A session cannot turn it on by itself.</small></div>
+        </div>
+      </details>
+    ) : null}
+    {tool === 'codex' ? (
+      <Field label="Experience" className="launcher-advanced-card launcher-experience-field" hint="Conversation is the normal Sessions view. Terminal opens Codex exactly as it appears in a shell.">
+        <Select className="field-input" value={runtimeMode} onChange={(event) => {
+          const nextMode = event.currentTarget.value as RuntimeMode;
+          setRuntimeMode(nextMode);
+        }} aria-label="Session experience">
+          <option value="rich">Conversation</option>
+          <option value="terminal">Terminal</option>
+        </Select>
+      </Field>
+    ) : tool === 'claude-code' ? (
+      <Field label="Experience" className="launcher-advanced-card launcher-experience-field" hint="Conversation shows Claude's work live. Terminal runs Claude's own interactive app, which claude.ai and mobile Remote Control need; you can switch a conversation to it later.">
+        <Select className="field-input" value={runtimeMode} onChange={(event) => {
+          setRuntimeMode(event.currentTarget.value as RuntimeMode);
+        }} aria-label="Session experience">
+          <option value="rich">Conversation</option>
+          <option value="terminal">Terminal (Remote Control)</option>
+        </Select>
+      </Field>
+    ) : null}
+  </>);
 }

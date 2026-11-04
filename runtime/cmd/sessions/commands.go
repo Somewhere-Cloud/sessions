@@ -368,6 +368,7 @@ func (a *app) cmdNew(args []string) error {
 		return err
 	}
 	tool, hasTool := pluck(&args, "--tool")
+	a.applyProjectLaunch(newLaunchChoices{body.Cwd, &tool, &hasTool, &model, &effort, &body.Worktree, body.NoWorktree, &args})
 	initialInput := ""
 	fullAccess := removeFirst(&args, "--full-access")
 	if value, present := pluck(&args, "--permissions"); present {

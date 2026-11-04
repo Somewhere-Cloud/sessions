@@ -26,6 +26,10 @@ type projectView struct {
 	Live       int      `json:"live"`
 	NeedsInput int      `json:"needs_input"`
 	UpdatedAt  int64    `json:"updated_at"`
+	// Identity is the same on every computer for the same work, so a fleet
+	// client groups by it; Defaults are this project's stored launch defaults.
+	Identity string            `json:"identity,omitempty"`
+	Defaults *project.Defaults `json:"defaults,omitempty"`
 }
 
 // projectViews groups sessions by resolved project. Stored projects appear
@@ -42,6 +46,7 @@ func projectViews(store *project.Store, sessions []state.SessionInfo) ([]project
 		views[item.ID] = &projectView{
 			ID: item.ID, Name: item.Name, Roots: item.Roots, GitHub: item.GitHub,
 			Somewhere: item.Somewhere, Pinned: item.Pinned, SessionIDs: []string{}, UpdatedAt: item.UpdatedAt,
+			Identity: project.IdentityOf(item),
 		}
 		order = append(order, item.ID)
 	}
@@ -58,7 +63,7 @@ func projectViews(store *project.Store, sessions []state.SessionInfo) ([]project
 			view = &projectView{
 				ID: resolved.ProjectID, Name: resolved.Name, Implicit: true,
 				Roots: []string{resolved.TopLevel}, GitHub: resolved.GitHub, Somewhere: resolved.Somewhere,
-				SessionIDs: []string{},
+				SessionIDs: []string{}, Identity: resolved.Identity,
 			}
 			if resolved.ProjectID == project.ScratchProjectID {
 				view.Roots = []string{filepath.Dir(resolved.TopLevel)}
@@ -79,6 +84,9 @@ func projectViews(store *project.Store, sessions []state.SessionInfo) ([]project
 	}
 	result := make([]projectView, 0, len(order))
 	for _, id := range order {
+		if err := attachDefaults(store, views[id]); err != nil {
+			return nil, err
+		}
 		result = append(result, *views[id])
 	}
 	sort.SliceStable(result, func(i, j int) bool {
@@ -101,6 +109,8 @@ func projectViews(store *project.Store, sessions []state.SessionInfo) ([]project
 //	POST   /api/projects/new             make a named project folder with a git repository
 //	POST   /api/projects/scratch         make a scratch folder for a session with no project
 //	DELETE /api/projects/{id}            forget a stored project; its sessions become implicit
+//	GET|PUT /api/projects/defaults        read or change a project's launch defaults
+//	POST   /api/projects/launch          resolve a session start against those defaults
 func (s *Server) handleProjectsRoute(response http.ResponseWriter, request *http.Request, corsOrigin string) bool {
 	path := request.URL.Path
 	if path != "/api/projects" && !strings.HasPrefix(path, "/api/projects/") {
@@ -142,6 +152,8 @@ func (s *Server) handleProjectsRoute(response http.ResponseWriter, request *http
 			return true
 		}
 		s.sendJSON(response, http.StatusOK, saved, corsOrigin)
+	case path == "/api/projects/defaults" || path == "/api/projects/launch":
+		s.handleProjectDefaults(response, request, corsOrigin)
 	case (path == "/api/projects/new" || path == "/api/projects/scratch") && request.Method == http.MethodPost:
 		s.handleNewProjectFolder(response, request, corsOrigin)
 	case strings.HasPrefix(path, "/api/projects/") && request.Method == http.MethodDelete:

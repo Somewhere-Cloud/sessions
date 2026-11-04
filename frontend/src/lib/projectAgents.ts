@@ -17,6 +17,7 @@ export function projectIdentity(session: SessionInfo, server: ServerConfig, proj
   const tag = session.tags?.project?.trim() || session.tags?.product?.trim();
   if (tag) return { id: `tag:${tag}`, name: tag };
   if (project?.somewhere) return { id: `somewhere:${project.somewhere}`, name: project.name };
+  if (project?.identity) return { id: `identity:${project.identity}`, name: project.github ? project.name.split('/').pop() || project.name : project.name };
   if (project?.github) return { id: `github:${project.github.toLowerCase()}`, name: project.name.split('/').pop() || project.name };
   if (project) return { id: `${server.id}:${project.id}`, name: project.name };
   const path = session.sourceRepo || session.cwd;
@@ -66,9 +67,11 @@ export function matchesResolvedProject(session: SessionInfo, resolved: { id: str
   return !needle || haystack.includes(needle);
 }
 
-// Never merge unrelated folders just because their last component matches.
-// Shared project tags and daemon-provided repository identities are explicit
-// cross-machine evidence; otherwise retain host-qualified identities.
+// The daemon's project identity is the cross-machine evidence: the same git
+// origin (ssh or https), else the same stored or folder name, is one project
+// on every computer. Shared project tags group the same way. A daemon too old
+// to report an identity keeps host-qualified groups rather than guessing from
+// the folder path here.
 export function groupAgents(
   snapshots: Array<{ server: ServerConfig; sessions: SessionInfo[]; error: string | null; loading?: boolean }>,
   projects: Record<string, ProjectView[]>,
@@ -83,8 +86,11 @@ export function groupAgents(
     for (const session of organization === 'archived' ? collapseConversationRuntimes(snapshot.sessions) : navigatorSessions(snapshot.sessions)) {
       if (isSavedAgent(session) !== saved || !matches(session, snapshot.server.id)) continue;
       if (!saved && archived.has(session.id) !== (organization === 'archived')) continue;
-      const identity = projectIdentity(session, snapshot.server, membership.get(session.id));
+      const project = membership.get(session.id);
+      const identity = projectIdentity(session, snapshot.server, project);
       const group = groups.get(identity.id) ?? { ...identity, rows: [] };
+      // Merged from several computers, the name someone gave it wins.
+      if (project && !project.implicit) group.name = identity.name;
       group.rows.push({ session, server: snapshot.server, unavailable: Boolean(snapshot.error) });
       groups.set(identity.id, group);
     }
@@ -92,4 +98,39 @@ export function groupAgents(
   const rank = (row: Agent): number => humanEngagementAt(row.session);
   for (const group of groups.values()) group.rows.sort((a, b) => Number(isPinned(b.session)) - Number(isPinned(a.session)) || rank(b) - rank(a));
   return [...groups.values()].sort((a, b) => Math.max(...b.rows.map(rank)) - Math.max(...a.rows.map(rank)));
+}
+
+export interface FleetProjectChoice {
+  identity: string;
+  name: string;
+  /** Where the project lives on each computer that has it, most recent first. */
+  machines: Array<{ serverId: string; root: string; updatedAt: number }>;
+  /** The computer a start goes to unless the person picks another. */
+  defaultServerId: string;
+}
+
+// fleetProjectChoices is the launcher's one-row-per-project list: projects
+// from every computer merged by identity, each with the computers it is on.
+// The default computer is the one being looked at when it has the project,
+// else the one with the most recent session there. No project is offered
+// separately, so the scratch group is left out.
+export function fleetProjectChoices(projects: Record<string, ProjectView[]>, activeServerId: string, limit = 8): FleetProjectChoice[] {
+  const merged = new Map<string, FleetProjectChoice>();
+  for (const [serverId, rows] of Object.entries(projects)) {
+    for (const project of rows) {
+      const root = project.roots[0];
+      if (!project.identity || project.identity === 'scratch' || !root) continue;
+      const choice = merged.get(project.identity) ?? { identity: project.identity, name: project.name, machines: [], defaultServerId: serverId };
+      if (!project.implicit) choice.name = project.name;
+      else if (!merged.has(project.identity) && project.github) choice.name = project.name.split('/').pop() || project.name;
+      choice.machines.push({ serverId, root, updatedAt: project.updated_at ?? 0 });
+      merged.set(project.identity, choice);
+    }
+  }
+  const latest = (choice: FleetProjectChoice): number => Math.max(...choice.machines.map((machine) => machine.updatedAt));
+  return [...merged.values()].map((choice) => {
+    const machines = choice.machines.sort((a, b) => b.updatedAt - a.updatedAt);
+    const defaultServerId = machines.some((machine) => machine.serverId === activeServerId) ? activeServerId : machines[0].serverId;
+    return { ...choice, machines, defaultServerId };
+  }).sort((a, b) => latest(b) - latest(a)).slice(0, limit);
 }

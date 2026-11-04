@@ -26,6 +26,7 @@ import type {
   ContinuationPreview,
   HistoryMessage,
   HistorySession,
+  ProjectDefaults,
   ProjectView,
   ProviderStatus,
   SessionModelOption,
@@ -91,6 +92,9 @@ export interface FakeMachine {
   /** The project groups this machine reports, as GET /api/projects answers. */
   projects?: ProjectView[];
   projectFailure?: { status: number; message: string };
+  /** Launch defaults this machine stores, keyed by project identity, as
+   *  GET/PUT /api/projects/defaults read and change them. */
+  projectDefaults?: Record<string, ProjectDefaults>;
   /** How this machine answers /api/search while it is running but failing. */
   searchFailure?: { status: number; message: string };
   teamFailure?: { status: number; message: string };
@@ -819,6 +823,21 @@ export function installFakeDaemon(machines: FakeMachine[]): FakeDaemon {
       }
       const words = (request.hint ?? '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean).slice(0, 4).join('-');
       return jsonResponse({ path: `/Users/example/Projects/scratch/2026-10-31-${words}-ab12cd34`, name: 'No project', project_id: 'scratch' });
+    }
+    if (path === '/api/projects/defaults' && (method === 'GET' || method === 'PUT')) {
+      // Like sessionsd: the folder resolves to the project whose root holds
+      // it, and defaults are stored under that project's identity.
+      const request = (body ?? {}) as { cwd?: string; set?: ProjectDefaults; clear?: string[] };
+      const cwd = method === 'GET' ? url.searchParams.get('cwd') ?? '' : request.cwd ?? '';
+      const owner = (machine.projects ?? []).find((project) => project.roots.some((root) => cwd === root || cwd.startsWith(`${root}/`)));
+      const target = { identity: owner?.identity ?? `name:${(cwd.split('/').pop() ?? '').toLowerCase()}`, name: owner?.name ?? cwd.split('/').pop() ?? cwd };
+      const stored = machine.projectDefaults ??= {};
+      if (method === 'PUT') {
+        const next: Record<string, unknown> = { ...stored[target.identity], ...Object.fromEntries(Object.entries(request.set ?? {}).filter(([, value]) => value)) };
+        for (const key of request.clear ?? []) delete next[key];
+        stored[target.identity] = next as ProjectDefaults;
+      }
+      return jsonResponse({ project: target, defaults: stored[target.identity] ?? {} });
     }
     if (path === '/api/projects' && machine.projectFailure) {
       return jsonResponse({ error: machine.projectFailure.message }, machine.projectFailure.status);
