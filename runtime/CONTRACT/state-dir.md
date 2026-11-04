@@ -73,6 +73,7 @@ control the user turn. Dispatch is not proof of provider acceptance or recall.
 ├── idle-compaction.json
 ├── automations.json
 ├── limit-recovery.json
+├── restart-continuation.json
 ├── pull-request-settle.json
 ├── delivery-operations/
 │   └── <operation-id>.json
@@ -127,6 +128,8 @@ override:
 - `usage.sqlite3` and `errors.jsonl`;
 - `idle-compaction.json`, the idle compaction schedule and per-lane choices;
 - `limit-recovery.json`, usage-limit resume plans and per-session choices;
+- `restart-continuation.json`, working sessions, interruptions a restart cut
+  short, and per-session choices;
 - `pull-request-settle.json`, which merges already set a session aside;
 - `automations.json`, scheduled agents and their run history;
 - `history-cache.json`, what the history listing has already computed about each
@@ -441,6 +444,41 @@ transcript attribution; it stores only the fixed resume text and time.
 Entries and overrides of a session absent for ten minutes after startup
 discovery are forgotten. A file that cannot be read or decoded, or has another
 version, pauses limit recovery and is never overwritten.
+
+### `restart-continuation.json`
+
+Version-1, mode-0600 JSON written by the daemon's restart continuation
+scheduler (`runtime/internal/restartcontinuation/store.go`), replaced
+atomically through a synced temporary file. It follows `SESSIONS_STATE_DIR`;
+the machine-wide on/off default lives in `settings.json` as
+`restartContinuation.enabled` (missing means on).
+
+```json
+{"version":1,
+ "observed":{"<id>":{"pid":4242,"bootId":"darwin-1793800000","version":"0.2.48","atMs":0}},
+ "lanes":{"<id>":{"key":"darwin-1793800000:4242","reason":"reboot","evidence":"…","kind":"paused",
+                  "interruptedAtMs":0,"detectedAtMs":0,"attempt":1,"state":"sent","targetId":"",
+                  "operationId":"<uuid>","detail":"","sentAtMs":0,"updatedAtMs":0}},
+ "overrides":{"<id>":false},
+ "sent":{"<id>":[{"operationId":"<uuid>","text":"Sessions restarted (reason: reboot). …","atMs":0}]}}
+```
+
+`observed` is every Rich Claude or Codex session the daemon last saw working,
+with its runner's process id, the boot it ran in, and the daemon version that
+saw it; it is rewritten only when that set changes. `lanes` holds each
+session's latest interruption, keyed by the interrupted runner's boot and
+process, so one interruption is acted on at most once. `reason` is `reboot`,
+`update`, `crash`, or `unknown`; `kind` is `restarted`, `paused`, or `lost`.
+`state` is `pending`, `reopening` (written before a lost session is resumed),
+`sending` (written before the note is sent), `sent`, `unconfirmed`, `failed`,
+`skipped`, or `stopped`. On startup `sending` and `reopening` become
+`unconfirmed` and are never repeated; a `pending` entry is carried on by the
+next daemon. `targetId` names the session a lost one was resumed as. `sent`
+keeps at most 16 records per session for transcript attribution; it stores
+only the fixed note text and time. Entries, overrides and sent records of a
+session absent for ten minutes after startup discovery are forgotten. A file
+that cannot be read or decoded, or has another version, pauses restart
+continuation and is never overwritten.
 
 ### `pull-request-settle.json`
 

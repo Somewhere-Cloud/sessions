@@ -189,6 +189,10 @@ type SessionInfo struct {
 	// usage limit resets, and the latest outcome. It is derived from the
 	// limit recovery store in the state root and never written to metadata.
 	LimitRecovery *LimitRecovery `json:"limitRecovery,omitempty"`
+	// RestartContinuation is the daemon's record of carrying this session on
+	// after a reboot, update, or crash cut its turn short. It is derived from
+	// the restart continuation store and never written to metadata.
+	RestartContinuation *RestartContinuation `json:"restartContinuation,omitempty"`
 	// PendingApproval is the permission a Rich lane is waiting on right now.
 	// It is derived from the lane's structured stream, so it survives a
 	// daemon restart as long as the runner is still holding the request.
@@ -518,6 +522,25 @@ type LimitRecovery struct {
 	Attempt   int    `json:"attempt,omitempty"`
 	Detail    string `json:"detail,omitempty"`
 	UpdatedAt int64  `json:"updatedAt,omitempty"`
+}
+
+// RestartContinuation is one session's continue-after-restart record as
+// session reads show it. Reason is reboot, update, crash, or unknown; State
+// is pending, reopening, sending, sent, unconfirmed, failed, skipped, or
+// stopped. SourceID and TargetID link a lost session to the one it was
+// reopened as.
+type RestartContinuation struct {
+	Reason        string `json:"reason"`
+	Evidence      string `json:"evidence,omitempty"`
+	Kind          string `json:"kind,omitempty"`
+	State         string `json:"state"`
+	SourceID      string `json:"sourceId,omitempty"`
+	TargetID      string `json:"targetId,omitempty"`
+	Attempt       int    `json:"attempt,omitempty"`
+	Detail        string `json:"detail,omitempty"`
+	InterruptedAt int64  `json:"interruptedAt,omitempty"`
+	SentAt        int64  `json:"sentAt,omitempty"`
+	UpdatedAt     int64  `json:"updatedAt,omitempty"`
 }
 
 // PullRequestSummary is the last recorded state of a session's primary linked

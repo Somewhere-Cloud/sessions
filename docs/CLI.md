@@ -118,6 +118,7 @@ Admin/operational:
   access                   review and decide machine access requests
   lan                      manage same-network access
   limits                   resume sessions when their provider usage limit resets
+  continuation             carry on sessions a reboot, update, or crash interrupted
   compaction               compact idle Claude lanes before their prompt cache expires
   notify                   configure session push notifications
   remote                   manage tailnet-only remote access
@@ -1741,6 +1742,26 @@ Examples:
   sessions limits off --lane 1a2b3c4d
   sessions limits default --lane 1a2b3c4d
   sessions --json limits status
+
+--json may appear before the command or among its options. --machine, --direct, --host, and --port must appear before the command. Arguments after `sessions run --` always belong to the child command.
+```
+
+## `sessions continuation`
+
+```text
+Usage:
+  sessions continuation [status|on|off|default] [--lane SESSION]
+
+carry on sessions a reboot, update, or crash interrupted
+
+Inspect or change restart continuation, which is on by default. The daemon notes which Rich Claude and Codex sessions are working. When one of them comes back from a runner that did not survive the turn -- the machine rebooted, Sessions was updated, or the runner crashed -- Sessions brings the conversation back the way a person would (a runner restarted in place is used as it is, a session paused after a reboot is woken, and a lost one is resumed with `sessions resume ID --structured`, linked to it) and sends one note through the normal send path: "Sessions restarted (reason: REASON). Continue where you left off; check what was in progress before assuming it finished." The reason is reboot when the machine started again, update when the daemon version changed, crash when the runner exited or restarted within one boot, and unknown when Sessions cannot tell. A daemon restart on its own never cuts a turn, so it is never continued. Saved next-turn messages that the restart paused continue after the note. Each interruption is continued at most once; after 3 continuations in a row with no message from you, Sessions stops and waits. It never continues a session you ended, archived, or set aside, one you sent a message to after the restart, or a terminal, shell, or headless session, and it gives up on a session that does not come back within 10 minutes. The note appears in the conversation attributed to Restart continuation, not to you. Interruptions are saved before anything acts on them, so a second restart neither loses nor repeats one. `sessions ls` shows a session being brought back as continuing, and `sessions --json status ID` carries restartContinuation. on and off change the machine default; with --lane they set that session's own choice, and default returns it to the machine default.
+
+Examples:
+  sessions continuation
+  sessions continuation off
+  sessions continuation off --lane 1a2b3c4d
+  sessions continuation default --lane 1a2b3c4d
+  sessions --json continuation status
 
 --json may appear before the command or among its options. --machine, --direct, --host, and --port must appear before the command. Arguments after `sessions run --` always belong to the child command.
 ```

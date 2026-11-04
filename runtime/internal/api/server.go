@@ -66,31 +66,32 @@ type Server struct {
 	// historyAsked counts the full history listings this process has served, so
 	// the startup warm can tell "nobody is waiting" from "somebody is waiting
 	// right now, on the work I am about to duplicate".
-	historyAsked       atomic.Int64
-	usage              *usage.Service
-	smartSearch        *smartsearch.Service
-	deliveries         *delivery.Store
-	parentReports      *parentReports
-	identity           machineIdentity
-	identityError      error
-	account            *fleetaccount.Manager
-	accountError       error
-	relayConnector     *relay.Connector
-	relayMu            sync.RWMutex
-	relayDirectoryBase string
-	relayConnected     bool
-	relayWake          chan struct{}
-	submits            *sessionMutexes
-	deliveriesInFlight sync.Map
-	handoffsRunning    sync.Map
-	continuationJobs   *continuationJobStore
-	lanFallbackLog     sync.Once
-	teamChanges        teamChanges
-	storageScan        sync.Mutex
-	idleCompaction     *idleCompactionService
-	limitRecovery      *limitRecoveryService
-	autoTitles         *autotitle.Service
-	automations        *automation.Scheduler
+	historyAsked        atomic.Int64
+	usage               *usage.Service
+	smartSearch         *smartsearch.Service
+	deliveries          *delivery.Store
+	parentReports       *parentReports
+	identity            machineIdentity
+	identityError       error
+	account             *fleetaccount.Manager
+	accountError        error
+	relayConnector      *relay.Connector
+	relayMu             sync.RWMutex
+	relayDirectoryBase  string
+	relayConnected      bool
+	relayWake           chan struct{}
+	submits             *sessionMutexes
+	deliveriesInFlight  sync.Map
+	handoffsRunning     sync.Map
+	continuationJobs    *continuationJobStore
+	lanFallbackLog      sync.Once
+	teamChanges         teamChanges
+	storageScan         sync.Mutex
+	idleCompaction      *idleCompactionService
+	limitRecovery       *limitRecoveryService
+	restartContinuation *restartContinuationService
+	autoTitles          *autotitle.Service
+	automations         *automation.Scheduler
 }
 
 func (s *Server) logLANFallbackOnce(fallbacks []fleetendpoint.Candidate) {

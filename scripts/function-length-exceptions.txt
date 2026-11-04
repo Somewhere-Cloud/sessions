@@ -72,7 +72,7 @@ go runtime/internal/api/onboarding_handlers.go Server.handleOnboardingRoute 81
 typescript frontend/src/hooks/useTerminal.ts useTerminal 850
 typescript frontend/src/components/SessionNavigator.tsx SessionNavigator 778
 typescript frontend/src/App.tsx ConnectedApp 799
-typescript frontend/src/components/SessionView.tsx SessionViewInner 675
+typescript frontend/src/components/SessionView.tsx SessionViewInner 611
 typescript frontend/src/components/SearchView.tsx SearchView 578
 typescript frontend/src/components/NewSessionDialog.tsx NewSessionDialog 564
 typescript frontend/src/components/ResumeDialog.tsx ResumeDialog 501

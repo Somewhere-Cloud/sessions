@@ -44,6 +44,7 @@ import { SubagentsPanel } from './SubagentsPanel';
 import { SessionTitleRename } from './SessionTitleRename';
 
 import type { ActiveStatus } from '../lib/activeStatus';
+import { SessionNotices } from './SessionNotices';
 
 interface Props {
   sessionId: string;
@@ -714,21 +715,7 @@ function SessionViewInner({ sessionId, onStatusChange, isActive = false, onResum
           </span>
         ) : null}
       </div>
-      {session?.continuedFromHistoryId ? (
-        <div className="continuation-notice" role="status">
-          <strong>
-            Continued from {session.continuedFromProvider === 'codex' ? 'Codex' : 'Claude'}
-          </strong>
-          <span>
-            {session.continuationMode === 'bounded-handoff'
-              ? `${session.importedMessageCount ?? 0} authored text messages in the captured snapshot. Read Switch provider for creation, context and first-request status.`
-              : session.continuationMode === 'native-import'
-              ? `${session.importedMessageCount ?? 0} authored messages were imported into this Codex conversation.`
-              : `${session.importedMessageCount ?? 0} authored messages are shown here. Claude receives a local-search link on the first turn.`}
-          </span>
-          <small>The original conversation and its provider files were not modified.</small>
-        </div>
-      ) : null}
+      <SessionNotices session={session} />
       {/* xterm host stays in the DOM in both modes so the buffer + WS
           stay alive while the user is reading Remote view. CSS hides
           whichever pane the active view-mode doesn't want. */}

@@ -671,8 +671,8 @@ func (a *app) statusHookLines(hooks *state.ObservedHooks) []string {
 	return lines
 }
 
-// writeStatusWorkingSet prints the set-aside mark, its return time, and a
-// usage-limit resume plan.
+// writeStatusWorkingSet prints the set-aside mark, its return time, a
+// continuation after a restart, and a usage-limit resume plan.
 func (a *app) writeStatusWorkingSet(output statusOutput, current session) error {
 	now := time.Now()
 	if output.SetAsideAtMS != nil {
@@ -687,6 +687,11 @@ func (a *app) writeStatusWorkingSet(output statusOutput, current session) error 
 		}
 		if _, err := fmt.Fprintf(a.stdout, "  %-9s %s ago%s\n",
 			label, a.ageOf(*output.SetAsideAtMS), detail); err != nil {
+			return err
+		}
+	}
+	if line := restartContinuationLine(current.RestartContinuation, now); line != "" {
+		if _, err := fmt.Fprintf(a.stdout, "  %s\n", line); err != nil {
 			return err
 		}
 	}

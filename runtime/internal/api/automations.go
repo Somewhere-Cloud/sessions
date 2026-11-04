@@ -22,10 +22,11 @@ const (
 )
 
 // initScheduledWork prepares the daemon's own timed work: idle compaction,
-// limit recovery and automations. All keep their state beside the delivery
+// limit recovery, restart continuation and automations. All keep their state beside the delivery
 // receipts.
 func (s *Server) initScheduledWork(root string) {
 	s.idleCompaction, s.limitRecovery = newIdleCompaction(s, root), newLimitRecovery(s, root)
+	s.restartContinuation = newRestartContinuation(s, root)
 	s.automations = newAutomations(s, root)
 }
 

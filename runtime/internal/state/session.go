@@ -342,6 +342,10 @@ func (s *Session) Info() SessionInfo {
 		recovery := *s.info.LimitRecovery
 		info.LimitRecovery = &recovery
 	}
+	if s.info.RestartContinuation != nil {
+		continuation := *s.info.RestartContinuation
+		info.RestartContinuation = &continuation
+	}
 	info.MemoryBytes = cloneUint64Pointer(s.info.MemoryBytes)
 	info.CPUPercent = cloneFloat64Pointer(s.info.CPUPercent)
 	info.ResourceProcesses = cloneIntPointer(s.info.ResourceProcesses)
@@ -439,6 +443,19 @@ func (s *Session) SetLimitRecovery(value *LimitRecovery) {
 	}
 	copy := *value
 	s.info.LimitRecovery = &copy
+}
+
+// SetRestartContinuation publishes the daemon's continue-after-restart record
+// for this session; nil clears it.
+func (s *Session) SetRestartContinuation(value *RestartContinuation) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if value == nil {
+		s.info.RestartContinuation = nil
+		return
+	}
+	copy := *value
+	s.info.RestartContinuation = &copy
 }
 
 func (s *Session) setReadState(seenAt, attentionAt *int64, marked bool) {
