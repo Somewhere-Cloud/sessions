@@ -38,7 +38,7 @@ import { useIsMobile } from './hooks/useMediaQuery';
 import { useExactResume } from './hooks/useExactResume';
 import { useAndroidBackNavigation } from './hooks/useAndroidBackNavigation';
 import { readTabOrder, writeTabOrder, applyOrder, moveBefore } from './lib/tabOrder';
-import { getNativeConnectionSettings, getNativeRuntimeStatus, isTauri, notify, recoverNativeRuntime, syncTrayServers } from './lib/tauriBridge';
+import { getNativeConnectionSettings, getNativeRuntimeStatus, isTauri, notify, recoverNativeRuntime, setAndroidSystemBarsDark, syncTrayServers } from './lib/tauriBridge';
 import { readTextSize, writeTextSize, type TextSize } from './lib/textSize';
 import { INITIAL_STATUS, type ActiveStatus } from './lib/activeStatus';
 import { effectiveParentId } from './lib/workingSet';
@@ -488,6 +488,7 @@ function ConnectedApp({ nativeClientOnly = false }: { nativeClientOnly?: boolean
   useAndroidBackNavigation(() => commandPaletteOpen ? (setCommandPaletteOpen(false), true) : dialogOpen !== null ? (setDialogOpen(null), true) : mobileSessionDetail ? (setMobileSessionDetail(false), true) : effectiveLayout !== 'tabs' ? (setLayoutMode('tabs'), true) : false);
   useEffect(() => {
     try { window.localStorage.setItem(THEME_KEY, theme); } catch { /* ignore */ }
+    setAndroidSystemBarsDark(theme === 'dark');
   }, [theme]);
   useEffect(() => {
     if (pendingFleetView) {

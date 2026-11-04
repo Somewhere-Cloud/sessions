@@ -22,7 +22,7 @@
 .mobile-nav .footer-usage > summary { height: 100%; justify-content: center; gap: 4px; padding: 4px; }
 .mobile-nav .footer-usage > summary > svg { display: none; }
 .mobile-nav .footer-usage-caption { text-align: center; }
-.mobile-nav .footer-usage-caption small { font-size: 12px; line-height: 1.2; }
+.mobile-nav .footer-usage-caption small { overflow: hidden; font-size: 12px; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
 
 .footer-usage-short { display: none; }
 .product-sidebar .footer-usage-popover { position: absolute; left: 0; bottom: calc(100% + 8px); max-height: min(650px, calc(100dvh * var(--interface-scale-inverse, 1) - 300px)); }

@@ -9,7 +9,8 @@ import { formatServerEndpoint } from '../lib/serverEndpoint';
 import { useServers, type ServerConfig } from '../lib/servers';
 import {
   isNativeMobileRuntime,
-  scanPairingCode
+  scanPairingCode,
+  setAndroidSystemBarsDark
 } from '../lib/tauriBridge';
 import type { ClientFleetStatus } from '../lib/clientFleetAccount';
 
@@ -26,6 +27,8 @@ export function ConnectScreen({
   onRetry
 }: ConnectScreenProps = {}): JSX.Element {
   const servers = useServers((state) => state.servers);
+  // The connect screen is always dark, whatever the app theme.
+  useEffect(() => setAndroidSystemBarsDark(true), []);
   const setActive = useServers((state) => state.setActive);
   const removeServer = useServers((state) => state.removeServer);
   const pairingError = useServers((state) => state.pairingError);

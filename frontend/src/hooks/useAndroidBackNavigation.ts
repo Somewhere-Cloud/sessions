@@ -1,16 +1,17 @@
 import { useEffect, useRef } from 'react';
 import { registerAndroidBackHandler } from '../lib/tauriBridge';
+import { dismissForemostModal } from '../components/ui/ModalDialog';
 
 // App navigation is state rather than browser history. Keep the current layer
-// decision behind one stable native registration. A visible More sheet is the
-// only pushed layer owned below App, so close it before consulting App state.
+// decision behind one stable native registration. Any open shared modal (More,
+// automation editor, row menus, confirmations) closes first, as Escape would;
+// only then does App state decide between leaving a view and the root exit.
 export function useAndroidBackNavigation(handleBack: () => boolean): void {
   const handlerRef = useRef(handleBack);
   handlerRef.current = handleBack;
 
   useEffect(() => registerAndroidBackHandler(() => {
-    const moreClose = document.querySelector<HTMLButtonElement>('.mobile-more-heading button');
-    if (moreClose) { moreClose.click(); return true; }
+    if (dismissForemostModal()) return true;
     return handlerRef.current();
   }), []);
 }

@@ -25,3 +25,6 @@
 -keep class tech.somewhere.sessions.MachineCredentialSaveArgs { *; }
 -keep class tech.somewhere.sessions.UpdateInstallerPlugin { *; }
 -keep class tech.somewhere.sessions.UpdateInstallArgs { *; }
+-keepclassmembers class tech.somewhere.sessions.MainActivity$SystemBarsBridge {
+    @android.webkit.JavascriptInterface <methods>;
+}

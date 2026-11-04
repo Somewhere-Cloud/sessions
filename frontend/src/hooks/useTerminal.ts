@@ -107,6 +107,19 @@ function reportTerminalError(
 // fetches a bounded HTTP tail, then the WS resumes from that tail's end so
 // only race deltas replay. Hidden sessions attach without output or Claude
 // event frames and backfill when activated.
+/** Columns that fit the container, from the width xterm actually rendered. */
+function renderedColumns(container: HTMLElement, cols: number): number | null {
+  const screen = container.querySelector<HTMLElement>('.xterm-screen');
+  if (!screen || cols < 1 || container.offsetWidth <= 0) return null;
+  const cell = screen.getBoundingClientRect().width / cols;
+  if (!(cell > 0)) return null;
+  const box = container.getBoundingClientRect();
+  const style = getComputedStyle(container);
+  const zoom = box.width / container.offsetWidth;
+  const padding = (Number.parseFloat(style.paddingLeft) || 0) + (Number.parseFloat(style.paddingRight) || 0);
+  return Math.max(2, Math.floor((box.width - padding * zoom) / cell + 0.01));
+}
+
 export function useTerminal(sessionId: string | null, mountTerminal: boolean = true, isActive: boolean = true): UseTerminalResult {
   const [status, setStatus] = useState<Status>('connecting');
   const [exitInfo, setExitInfo] = useState<{ code: number | null; signal: string | null } | null>(null);
@@ -556,17 +569,16 @@ export function useTerminal(sessionId: string | null, mountTerminal: boolean = t
         beforeTerminalMutation();
         try {
           fit.fit();
-          // Android WebView applies the shell's CSS zoom to ordinary DOM but
-          // not to xterm's canvas bitmap. Fit therefore sees the inverse-scale
-          // layout width and leaves about 10% of a default-size phone unused.
-          // Add the columns represented by the shell scale; rows are already
-          // correct, and desktop/iOS never enter this compensation.
+          // Android WebView's CSS zoom makes fit's character measurement
+          // disagree with what is drawn: September's WebView left ~10% of
+          // the row unused, and multiplying by --interface-scale overshot by
+          // two columns on another. Measure instead: the rendered screen and
+          // its container are compared in the same coordinate space, and the
+          // column count is whatever whole cells fit inside the padding.
           if (isTauri() && /Android/i.test(navigator.userAgent)) {
             const container = containerElRef.current;
-            const scale = container
-              ? Number.parseFloat(getComputedStyle(container).getPropertyValue('--interface-scale'))
-              : 1;
-            if (scale > 1) term.resize(Math.floor(term.cols * scale), term.rows);
+            const columns = container ? renderedColumns(container, term.cols) : null;
+            if (columns !== null && columns !== term.cols) term.resize(columns, term.rows);
           }
         } catch {
           // Fit can throw if the container has zero dims (eg the pane is

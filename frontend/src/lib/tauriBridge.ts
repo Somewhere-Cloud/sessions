@@ -324,6 +324,15 @@ export async function discoverNativeNearbyPeers(): Promise<NativeNearbyPeer[]> {
   return invoke<NativeNearbyPeer[]>('native_nearby_discover');
 }
 
+interface SystemBarsWindow extends Window {
+  SessionsAndroid?: { setSystemBarsDark?: (dark: boolean) => void };
+}
+
+/** Android: keep status/navigation bar icons readable on the app's own theme. */
+export function setAndroidSystemBarsDark(dark: boolean): void {
+  try { (window as SystemBarsWindow).SessionsAndroid?.setSystemBarsDark?.(dark); } catch { /* not the Android shell */ }
+}
+
 /** Sessions for Android: updates install through Android's package installer. */
 export function isNativeAndroidRuntime(): boolean {
   return isTauri() && typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);

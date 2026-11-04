@@ -15,6 +15,19 @@ export const ModalScopeContext = createContext<string | undefined>(undefined);
 
 // Only the foremost shared modal owns document-level keyboard and focus events.
 const modalStack: HTMLElement[] = [];
+const closers = new WeakMap<HTMLElement, () => void>();
+
+/**
+ * Android Back closes the foremost shared modal, as Escape does. Returns true
+ * when a modal was open, even if it is busy and stays open, so Back never
+ * falls through to the page behind it.
+ */
+export function dismissForemostModal(): boolean {
+  const root = modalStack[modalStack.length - 1];
+  if (!root) return false;
+  closers.get(root)?.();
+  return true;
+}
 const focusSelector = 'button, input, select, textarea, a[href], [tabindex], [contenteditable="true"], summary';
 
 function scopeRoots(root: HTMLElement, scope: string): HTMLElement[] {
@@ -54,6 +67,7 @@ export function ModalDialog({ children, className, labelledBy, onClose, dismissi
     if (!root) return;
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     modalStack.push(root);
+    closers.set(root, () => { if (current.current.dismissible) current.current.onClose(); });
     // Focus the review itself rather than a potentially destructive action.
     root.focus();
     const foremost = (): boolean => modalStack[modalStack.length - 1] === root;

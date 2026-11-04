@@ -680,9 +680,13 @@ fn claim_pairing_endpoint(
             .and_then(|value| value.get("error")?.as_str().map(str::to_string))
             .filter(|value| !value.trim().is_empty())
             .unwrap_or_else(|| format!("the other machine returned HTTP {}", status.as_u16()));
-        return Err(format!(
-            "{detail}. Create a new pairing link and try again."
-        ));
+        // The daemon's own message usually says what to do already.
+        let detail = detail.trim().trim_end_matches('.');
+        return Err(if detail.contains("sessions pair") {
+            format!("{detail}.")
+        } else {
+            format!("{detail}. Create a new pairing link and try again.")
+        });
     }
     let claimed: PairingClaimResponse = serde_json::from_slice(&body)
         .map_err(|_| "the other machine returned an invalid device credential".to_string())?;

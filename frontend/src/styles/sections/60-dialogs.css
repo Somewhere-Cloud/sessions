@@ -839,3 +839,11 @@ select.field-input {
 .resume-card.ui-button { white-space: normal; justify-content: start; text-align: left; }
 .resume-card-content { min-width: 0; }
 .resume-preview .ui-header { align-items: flex-start; }
+
+/* Phones draw edge to edge: keep centered dialogs below the status bar and
+ * let a tall one scroll inside the space that is left. The full-screen
+ * new-session launcher pads itself. */
+@media (max-width: 720px) {
+  .dialog-backdrop:not(:has(.new-session-launcher)) { padding: calc(env(safe-area-inset-top, 0px) + 8px) 0 8px; }
+  .dialog-backdrop:not(:has(.new-session-launcher)) > .dialog { max-height: 100%; overflow-y: auto; }
+}

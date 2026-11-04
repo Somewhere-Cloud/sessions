@@ -105,9 +105,124 @@ Install it over USB debugging with:
 ```
 
 The debug APK is signed automatically by the Android development toolchain.
-A public release must use the Somewhere production Android keystore or Play App
-Signing; those credentials do not belong in this repository
+Release APKs are signed with the Sessions release keystore described below;
+those credentials do not belong in this repository
 ([`src-tauri/gen/android/app/build.gradle.kts`](../src-tauri/gen/android/app/build.gradle.kts)).
+
+## Release signing
+
+Release builds read a Java properties file kept outside the repository:
+
+```text
+~/Library/Application Support/Sessions/signing/android-release.properties   (mode 600)
+~/Library/Application Support/Sessions/signing/android-release.keystore     (mode 600)
+```
+
+```properties
+storeFile=/Users/<you>/Library/Application Support/Sessions/signing/android-release.keystore
+storePassword=...
+keyAlias=sessions
+keyPassword=...
+```
+
+`SESSIONS_ANDROID_SIGNING_PROPERTIES` points Gradle and the release script at
+another file. When the file is absent, a release build is left unsigned and
+`scripts/release-android.sh` refuses to continue. `.gitignore` excludes
+`*.keystore`, `*.jks`, and `android-release.properties` in case a copy lands in
+the tree.
+
+The keystore was created with:
+
+```sh
+keytool -genkeypair -keystore android-release.keystore -storetype PKCS12 \
+  -alias sessions -keyalg RSA -keysize 4096 -validity 36500 \
+  -dname "CN=Sessions, O=Somewhere, C=US"
+```
+
+Back up both files somewhere private. Android accepts an update only when it is
+signed by the same certificate as the installed app, so a lost keystore means
+every phone must uninstall Sessions and pair again.
+
+### Rotate the release key
+
+Android can carry trust from an old key to a new one with APK Signature Scheme
+v3 key rotation; a phone that has the old build installed then accepts an
+update signed by the new key.
+
+1. Generate the new keystore beside the old one with the command above (a new
+   file name, for example `android-release-2.keystore`).
+2. Build one release, then add the rotation proof with `apksigner`, signing
+   with the old key first and the new key second:
+
+   ```sh
+   apksigner rotate --out sessions.lineage \
+     --old-signer --ks android-release.keystore --ks-key-alias sessions \
+     --new-signer --ks android-release-2.keystore --ks-key-alias sessions
+   apksigner sign --ks android-release.keystore --ks-key-alias sessions \
+     --next-signer --ks android-release-2.keystore --ks-key-alias sessions \
+     --lineage sessions.lineage Sessions_X_android_arm64.apk
+   ```
+
+3. Install that APK over the current one and confirm it opens with paired
+   machines intact.
+4. Point `android-release.properties` at the new keystore. From then on normal
+   releases are signed with the new key; keep the old keystore and
+   `sessions.lineage` for reference.
+
+Without rotation (for example after losing the old key), each phone uninstalls
+Sessions, installs the new APK, and pairs again with `sessions pair`. Paired
+credentials live only on the phone, and every computer keeps running.
+
+## Release APK and in-app updates
+
+```sh
+scripts/release-android.sh --version X.Y.Z [--notes-file notes.md] [--base latest.json]
+```
+
+The script requires a clean worktree and versions that match
+`tauri.conf.json`, `Cargo.toml`, and `frontend/package.json`. It runs
+`tauri android build --target aarch64 --apk`, checks the APK's package name,
+version, and `versionCode` with `aapt`, checks with `apksigner` that it is
+signed by the release keystore, and writes into `release/out/vX.Y.Z/android/`:
+
+- `Sessions_X.Y.Z_android_arm64.apk` and its `.sha256`
+- `Sessions_X.Y.Z_android_arm64.apk.sig`, the Minisign signature made with the
+  same updater key as the macOS app (`SESSIONS_UPDATER_KEY_PATH`)
+
+It then renders `release/out/vX.Y.Z/latest.json` with an `android-aarch64`
+platform, merged into the macOS manifest when one is present there or passed
+with `--base`
+([`scripts/release-android.sh`](../scripts/release-android.sh)).
+
+`versionCode` is derived from the version so it always increases:
+`MAJOR*1000000 + MINOR*10000 + PATCH`, so 0.2.48 is 20048.
+
+The app checks the same release feed as the desktop app, hourly and 15 seconds
+after launch. On Android it reads the `android-<arch>` entry; a release that has
+no Android build yet counts as "no update". A newer version downloads in the
+background and the updater plugin verifies its Minisign signature against the
+key pinned in `tauri.conf.json` before Sessions keeps it. The card at the top of
+**More** (and **Settings › Notifications & updates**) then offers **Install**.
+Sessions writes the verified APK to its cache, checks that it is a newer build of
+the same package signed by the same certificate, and opens Android's package
+installer, which asks for confirmation
+([`src-tauri/src/android_update.rs`](../src-tauri/src/android_update.rs),
+[`UpdateInstallerPlugin.kt`](../src-tauri/gen/android/app/src/main/java/tech/somewhere/sessions/UpdateInstallerPlugin.kt)).
+
+The first in-app update needs one permission: Android opens **Install unknown
+apps** for Sessions; allow it, return, and tap **Install** again. Updating
+replaces only the phone app; sessions and agents keep running on the computers.
+
+## Install on a phone
+
+1. Copy `Sessions_X.Y.Z_android_arm64.apk` to the phone (download it from the
+   GitHub release, or `adb install` it over USB debugging).
+2. Open it from Files or the browser's downloads. Android asks once to allow
+   installs from that source (**Settings › Apps › Special app access › Install
+   unknown apps**); allow it and install. Check the `.sha256` first if the file
+   travelled through anything you do not trust.
+3. Open Sessions and pair it with a computer as described below. Later
+   versions arrive through the in-app update.
 
 ## Check the Android credential vault
 
