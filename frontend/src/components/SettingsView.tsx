@@ -27,7 +27,6 @@ import type { ThemeMode } from './ProductSidebar';
 import { SomewhereCard } from './SomewhereCard';
 import { useSessions } from '../store/sessions';
 import { FleetProviderUpdates } from './FleetProviderUpdates';
-import { FleetSessionsUpdates } from './FleetSessionsUpdates';
 import { AppUpdateSettings, ProviderUpdateSettings } from './UpdateSettings';
 import { NotificationDeliveryStatus } from './NotificationDeliveryStatus';
 import { NativeRuntimeStatusCard } from './NativeRuntimeStatusCard';
@@ -38,6 +37,7 @@ import { UsageCapCard } from './UsageCapCard';
 import { AutoTitlesCard } from './AutoTitlesCard';
 import { CleanupAutomationCard } from './CleanupAutomationCard';
 
+const FleetSessionsUpdates = lazy(() => import('./FleetSessionsUpdates').then((module) => ({ default: module.FleetSessionsUpdates })));
 const StorageView = lazy(() => import('./StorageView').then((module) => ({ default: module.StorageView })));
 
 type Section = 'general' | 'agents' | 'fleet' | 'cloud' | 'notifications' | 'support' | 'storage';
@@ -444,7 +444,7 @@ function NotificationSettings(props: NotificationSettingsProps): JSX.Element {
       <PageHeader eyebrow={<>Signed {props.clientOnly ? 'device' : 'desktop'} delivery</>} title={<>Notifications & updates</>} description={<>Sessions keeps itself and your agent tools current. Downloads happen in the background; installing is always your click, and running sessions are never restarted.</>} />
       <NotificationDeliveryStatus key={serverId} serverId={serverId} hostName={props.providerUpdateTarget} />
       <AppUpdateSettings native={props.native} workingAgents={props.workingAgents} liveRunners={props.liveRunners} />
-      <FleetSessionsUpdates />
+      <Suspense fallback={null}><FleetSessionsUpdates /></Suspense>
       {props.clientOnly ? <HostChoice hostName={props.hostName} /> : null}
       <ProviderUpdateSettings clientOnly={props.clientOnly} target={props.providerUpdateTarget} />
       <FleetProviderUpdates />

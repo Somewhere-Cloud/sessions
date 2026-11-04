@@ -30,6 +30,7 @@ const RemoteView = lazy(() => import('./RemoteView').then((module) => ({ default
 // Both render only while something is wrong, so neither belongs on the entry path.
 const ProviderFaultCard = lazy(() => import('./ProviderFaultCard').then((module) => ({ default: module.ProviderFaultCard })));
 const StartReceiptNote = lazy(() => import('./StartReceiptNote').then((module) => ({ default: module.StartReceiptNote })));
+const SessionNotices = lazy(() => import('./SessionNotices').then((module) => ({ default: module.SessionNotices })));
 const UsageCapChip = lazy(() => import('./UsageCapChip').then((module) => ({ default: module.UsageCapChip })));
 const PullRequestChip = lazy(() => import('./PullRequestChip').then((module) => ({ default: module.PullRequestChip })));
 import { classifySession, lostSessionNote } from '../lib/sessionStatus';
@@ -45,7 +46,6 @@ import { SubagentsPanel } from './SubagentsPanel';
 import { SessionTitleRename } from './SessionTitleRename';
 
 import type { ActiveStatus } from '../lib/activeStatus';
-import { SessionNotices } from './SessionNotices';
 
 interface Props {
   sessionId: string;
@@ -721,7 +721,7 @@ function SessionViewInner({ sessionId, onStatusChange, isActive = false, onResum
           </span>
         ) : null}
       </div>
-      <SessionNotices session={session} />
+      <Suspense fallback={null}><SessionNotices session={session} /></Suspense>
       {/* xterm host stays in the DOM in both modes so the buffer + WS
           stay alive while the user is reading Remote view. CSS hides
           whichever pane the active view-mode doesn't want. */}

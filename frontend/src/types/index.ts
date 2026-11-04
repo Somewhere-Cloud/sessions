@@ -586,6 +586,9 @@ export interface RestartContinuation {
   detail?: string;
   interruptedAt?: number;
   sentAt?: number;
+  updatedAt?: number;
+}
+
 // A session's usage cap state. waiting: its account is at or past the cap,
 // so a new turn waits for the window to reset. switched: Sessions started or
 // continued this work on another account.
