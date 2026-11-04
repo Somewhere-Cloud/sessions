@@ -15,6 +15,29 @@ val tauriProperties = Properties().apply {
 
 val sessionsTestApp = providers.gradleProperty("sessionsTestApp").orNull == "true"
 
+// Release signing lives outside the repository (docs/ANDROID.md). The file is a
+// Java properties file with storeFile, storePassword, keyAlias and keyPassword.
+// Without it a release build is produced unsigned, and scripts/release-android.sh
+// refuses to continue.
+val releaseSigningFile = file(
+    providers.environmentVariable("SESSIONS_ANDROID_SIGNING_PROPERTIES").orNull
+        ?: "${System.getProperty("user.home")}/Library/Application Support/Sessions/signing/android-release.properties"
+)
+val releaseSigning = Properties().apply {
+    if (releaseSigningFile.isFile) releaseSigningFile.inputStream().use { load(it) }
+}
+
+// One monotonic versionCode for every build: 0.2.48 -> 20048. Each component
+// below the major version gets room for 100 minors and 10000 patches.
+fun sessionsVersionCode(versionName: String): Int {
+    val parts = versionName.substringBefore('-').substringBefore('+').split('.')
+    require(parts.size == 3) { "Sessions versions are MAJOR.MINOR.PATCH, got $versionName" }
+    val (major, minor, patch) = parts.map { it.toInt() }
+    require(minor < 100 && patch < 10000) { "versionCode cannot encode $versionName" }
+    return major * 1_000_000 + minor * 10_000 + patch
+}
+val sessionsVersionName = tauriProperties.getProperty("tauri.android.versionName", "0.0.1")
+
 android {
     compileSdk = 36
     namespace = "tech.somewhere.sessions"
@@ -29,8 +52,18 @@ android {
         applicationId = "tech.somewhere.sessions"
         minSdk = 24
         targetSdk = 36
-        versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
-        versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
+        versionCode = sessionsVersionCode(sessionsVersionName)
+        versionName = sessionsVersionName
+    }
+    signingConfigs {
+        if (releaseSigning.getProperty("storeFile") != null) {
+            create("release") {
+                storeFile = file(releaseSigning.getProperty("storeFile"))
+                storePassword = releaseSigning.getProperty("storePassword")
+                keyAlias = releaseSigning.getProperty("keyAlias")
+                keyPassword = releaseSigning.getProperty("keyPassword")
+            }
+        }
     }
     buildTypes {
         getByName("debug") {
@@ -49,6 +82,7 @@ android {
             }
         }
         getByName("release") {
+            signingConfigs.findByName("release")?.let { signingConfig = it }
             isMinifyEnabled = true
             proguardFiles(
                 *fileTree(".") { include("**/*.pro") }

@@ -2,4 +2,6 @@
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
   <external-path name="my_images" path="." />
   <cache-path name="my_cache_images" path="." />
+  <!-- Verified Sessions updates handed to Android's package installer. -->
+  <cache-path name="sessions_updates" path="updates/" />
 </paths>

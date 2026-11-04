@@ -23,3 +23,5 @@
 # Rust registers this app-owned native plugin by its stable class name.
 -keep class tech.somewhere.sessions.MachineCredentialsPlugin { *; }
 -keep class tech.somewhere.sessions.MachineCredentialSaveArgs { *; }
+-keep class tech.somewhere.sessions.UpdateInstallerPlugin { *; }
+-keep class tech.somewhere.sessions.UpdateInstallArgs { *; }

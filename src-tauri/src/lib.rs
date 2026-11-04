@@ -5,6 +5,8 @@
 
 #[cfg(target_os = "android")]
 mod android_credentials;
+#[cfg(target_os = "android")]
+mod android_update;
 #[cfg(any(target_os = "macos", target_os = "ios", test))]
 mod apple_credentials;
 mod lifecycle;
@@ -355,6 +357,15 @@ fn requested_integration_removal() -> bool {
     })
 }
 
+// Android reads the `android-<arch>` entry of the same signed release feed;
+// the plugin cannot name a platform for Android on its own.
+fn updater_plugin() -> tauri::plugin::TauriPlugin<tauri::Wry, tauri_plugin_updater::Config> {
+    let builder = tauri_plugin_updater::Builder::new();
+    #[cfg(target_os = "android")]
+    let builder = builder.target(android_update::updater_target());
+    builder.build()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[cfg(desktop)]
@@ -371,7 +382,7 @@ pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(updater_plugin())
         .manage(TrayState::default())
         .manage(StagedUpdate::default())
         .manage(native_links::PendingLaneLink::default())
@@ -411,6 +422,8 @@ pub fn run() {
             app.handle().plugin(tauri_plugin_barcode_scanner::init())?;
             #[cfg(target_os = "android")]
             app.handle().plugin(android_credentials::init())?;
+            #[cfg(target_os = "android")]
+            app.handle().plugin(android_update::init())?;
 
             // One answer to a corrupt connections.json, shared with every
             // reconcile path: fall back to the default port so the management

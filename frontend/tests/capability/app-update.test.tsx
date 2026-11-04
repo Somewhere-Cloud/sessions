@@ -6,10 +6,12 @@ const native = vi.hoisted(() => ({
   download: vi.fn(),
   install: vi.fn(),
   notify: vi.fn(),
+  android: false,
   menuHandler: null as null | (() => void)
 }));
 vi.mock('../../src/lib/tauriBridge', () => ({
   isTauri: () => true,
+  isNativeAndroidRuntime: () => native.android,
   checkForNativeUpdate: native.check,
   downloadNativeUpdate: native.download,
   installDownloadedNativeUpdate: native.install,
@@ -26,6 +28,7 @@ const info = { currentVersion: '0.2.45', version: '0.2.46', notes: null, publish
 describe('capability: Sessions updates download quietly and restart on request', () => {
   beforeEach(() => {
     resetAppUpdate();
+    native.android = false;
     native.check.mockReset().mockResolvedValue(info);
     native.download.mockReset().mockImplementation(async (progress?: (value: { downloadedBytes: number; totalBytes: number }) => void) => { progress?.({ downloadedBytes: 5, totalBytes: 10 }); });
     native.install.mockReset().mockResolvedValue(undefined);
@@ -87,5 +90,19 @@ describe('capability: Sessions updates download quietly and restart on request',
     await act(async () => { native.menuHandler?.(); });
     await screen.findByText('Sessions is up to date.');
     expect(native.download).not.toHaveBeenCalled();
+  });
+
+  it('on Android hands the verified APK to the installer and stays ready if the person cancels', async () => {
+    native.android = true;
+    await checkAppUpdate(false);
+    expect(useAppUpdate.getState().phase).toBe('ready');
+    render(<AppUpdateCard watch={false} />);
+    expect(screen.getByText('Android asks you to confirm. Sessions on your computers keep running.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Install Sessions 0.2.46' }));
+    await waitFor(() => expect(native.install).toHaveBeenCalledTimes(1));
+    // Android's installer is showing; cancelling it leaves the download ready for another try.
+    await waitFor(() => expect(useAppUpdate.getState().phase).toBe('ready'));
+    fireEvent.click(screen.getByRole('button', { name: 'Install Sessions 0.2.46' }));
+    await waitFor(() => expect(native.install).toHaveBeenCalledTimes(2));
   });
 });

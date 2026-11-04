@@ -2,7 +2,10 @@ import { FooterUsage, type FooterUsageProps } from './FooterUsage';
 import { ModalDialog } from './ui/ModalDialog';
 import { PageHeader } from './ui/Layout';
 import { Button } from './ui/Button';
-import { useState, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
+import { startAppUpdateWatcher, useAppUpdate } from '../lib/appUpdate';
+
+const AppUpdateCard = lazy(() => import('./SidebarUpdateCards').then((module) => ({ default: module.AppUpdateCard })));
 
 type MobileLayout = 'home' | 'tabs' | 'today' | 'fleet' | 'search' | 'usage' | 'accounts' | 'settings' | 'connections';
 
@@ -27,6 +30,10 @@ export function MobileNav({
   onShowSessions, usageScope
 }: Props): JSX.Element {
   const [moreOpen, setMoreOpen] = useState(false);
+  // Phones have no sidebar: the app-update schedule starts here, and the
+  // update card lives at the top of More, with a dot on More when one waits.
+  useEffect(() => startAppUpdateWatcher(), []);
+  const updateWaiting = useAppUpdate((state) => state.info !== null && state.phase !== 'current');
   const moreActive = layoutMode === 'fleet'
     || layoutMode === 'usage'
     || layoutMode === 'accounts'
@@ -44,13 +51,14 @@ export function MobileNav({
         <MobileDestination label="Sessions" icon={<SessionsIcon />} active={layoutMode === 'tabs'} onClick={onShowSessions} detail={showingSessionDetail} />
         <MobileDestination label="Search" icon={<SearchIcon />} active={layoutMode === 'search'} onClick={() => go('search')} />
         <FooterUsage usageScope={usageScope} onOpenUsage={() => go('usage')} onOpenDaily={() => go('today')} />
-        <MobileDestination label="More" icon={<MoreIcon />} active={moreActive || moreOpen} onClick={() => setMoreOpen(true)} />
+        <MobileDestination label="More" icon={<MoreIcon />} active={moreActive || moreOpen} onClick={() => setMoreOpen(true)} detail={updateWaiting} detailLabel={updateWaiting ? 'Open More — Sessions update available' : undefined} />
       </nav>
 
       {moreOpen ? (
         <ModalDialog className="dialog mobile-more-sheet" labelledBy="mobile-more-title" onClose={() => setMoreOpen(false)}>
             <div className="mobile-more-heading"><PageHeader title="More" titleId="mobile-more-title" level={2}
               actions={<Button variant="ghost" aria-label="Close" onClick={() => setMoreOpen(false)}>×</Button>} /></div>
+            <Suspense fallback={null}><AppUpdateCard watch={false} /></Suspense>
             <div className="mobile-more-grid">
               <MoreDestination title="Accounts & computers" detail="Sign-ins, computers, and connections" icon={<AccountsIcon />} onClick={() => go('accounts')} />
               <MoreDestination title="Settings" detail="Agents, access, and appearance" icon={<SettingsIcon />} onClick={() => go('settings')} />
@@ -73,20 +81,22 @@ function MobileDestination({
   icon,
   active,
   onClick,
-  detail = false
+  detail = false,
+  detailLabel
 }: {
   label: string;
   icon: ReactNode;
   active: boolean;
   onClick: () => void;
   detail?: boolean;
+  detailLabel?: string;
 }): JSX.Element {
   return (
     <Button variant="ghost"
       type="button"
       className={`mn-btn mn-destination${active ? ' is-active' : ''}`}
       onClick={onClick}
-      aria-label={detail ? `Back to ${label}` : `Open ${label}`}
+      aria-label={detailLabel ?? (detail ? `Back to ${label}` : `Open ${label}`)}
       aria-current={active ? 'page' : undefined}
     >
       <span className="mn-destination-icon" aria-hidden>{icon}</span>

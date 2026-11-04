@@ -46,3 +46,7 @@
     line-height: 1.4;
   }
 }
+
+/* The app-update card sits at the top of More on phones (no sidebar there). */
+.mobile-more-sheet .product-update-card { margin: 0 0 var(--space-3); }
+.mobile-more-sheet .product-update-card button { justify-self: start; }

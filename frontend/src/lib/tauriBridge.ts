@@ -324,6 +324,11 @@ export async function discoverNativeNearbyPeers(): Promise<NativeNearbyPeer[]> {
   return invoke<NativeNearbyPeer[]>('native_nearby_discover');
 }
 
+/** Sessions for Android: updates install through Android's package installer. */
+export function isNativeAndroidRuntime(): boolean {
+  return isTauri() && typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
+}
+
 export function isNativeMobileRuntime(): boolean {
   if (!isTauri() || typeof navigator === 'undefined') return false;
   return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
@@ -648,7 +653,15 @@ export async function checkForNativeUpdate(): Promise<NativeUpdateInfo | null> {
       downloadedUpdateVersion = null;
     }
     const { check } = await import('@tauri-apps/plugin-updater');
-    pendingUpdate = await check({ timeout: 12_000 });
+    try {
+      pendingUpdate = await check({ timeout: 12_000 });
+    } catch (error) {
+      // A release can reach the feed for macOS before its Android build; the
+      // plugin reports the missing platform as an error. For this phone that
+      // simply means there is nothing to install yet.
+      if (isNativeAndroidRuntime() && /was not found on the response .?platforms/i.test(String(error))) return null;
+      throw error;
+    }
     if (!pendingUpdate) return null;
     return {
       currentVersion: pendingUpdate.currentVersion,

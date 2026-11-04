@@ -87,7 +87,27 @@ async fn native_update_download(
     Ok(())
 }
 
+// Android: hand the verified APK to the system package installer. Android
+// asks the person to confirm and replaces the app; nothing restarts here. The
+// download is kept so a cancelled or not-yet-allowed install can be retried.
+#[cfg(target_os = "android")]
+#[tauri::command]
+async fn native_update_install(app: AppHandle) -> Result<(), String> {
+    let state = app.state::<StagedUpdate>();
+    let staged = state
+        .staged
+        .lock()
+        .map_err(|_| "update state is unavailable".to_string())?
+        .as_ref()
+        .map(|(update, bytes)| (update.version.clone(), bytes.clone()));
+    let Some((version, bytes)) = staged else {
+        return Err("Download the update first".to_string());
+    };
+    android_update::install(&app, &version, &bytes)
+}
+
 // Installs the downloaded update now and relaunches only this window.
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 fn native_update_install(app: AppHandle) -> Result<(), String> {
     let state = app.state::<StagedUpdate>();

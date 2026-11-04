@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Section as SettingsSection, Status, Surface } from './ui/Layout';
 import { Button } from './ui/Button';
-import { checkAppUpdate, downloadAppUpdate, downloadPercent, restartToUpdate, useAppUpdate } from '../lib/appUpdate';
+import { appUpdateWords, checkAppUpdate, downloadAppUpdate, downloadPercent, restartToUpdate, useAppUpdate } from '../lib/appUpdate';
+import { isNativeAndroidRuntime } from '../lib/tauriBridge';
 import { providerUpdateSentence } from '../lib/providerFleet';
 import { fetchProviderStatusReport, setProviderUpdateCheck, updateProvider, type ProviderStatus, type ProviderUpdateCheck } from '../api/sessionsd/operations';
 import { useServers } from '../lib/servers';
@@ -13,6 +14,7 @@ interface AppUpdateSettingsProps {
 }
 
 function sessionsLine(workingAgents: number | null, liveRunners: number | null): string {
+  if (isNativeAndroidRuntime()) return 'Installing replaces this app only. Agents and open sessions run on your computers and keep running.';
   if (workingAgents === null) return 'Restarting replaces this app only. Agents and open sessions on every computer keep running.';
   if (workingAgents > 0) return `${workingAgents} ${workingAgents === 1 ? 'agent is' : 'agents are'} working. They keep running on their current runners through the restart; new sessions use the updated runner.`;
   return `Nothing is working right now. Restarting keeps ${liveRunners === 1 ? 'your open session' : 'every open session'}.`;
@@ -23,16 +25,17 @@ export function AppUpdateSettings({ native, workingAgents, liveRunners }: AppUpd
   const { phase, info, progress, error, checkedAt } = useAppUpdate();
   const percent = downloadPercent(progress);
   const ready = phase === 'ready' || phase === 'installing' || (phase === 'error' && useAppUpdate.getState().errorStage === 'install');
-  const title = ready ? `Sessions ${info?.version} is ready — restart to update`
+  const words = appUpdateWords();
+  const title = ready ? `Sessions ${info?.version} is ready — ${words.install.toLowerCase()} to update`
     : phase === 'downloading' ? `Downloading Sessions ${info?.version}${percent === null ? '…' : ` · ${percent}%`}`
     : info ? `Sessions ${info.version} is available`
     : phase === 'current' ? 'Sessions is up to date' : 'Signed release channel';
   const control = ready
-    ? <Button type="button" variant="primary" disabled={!native || phase === 'installing'} onClick={() => void restartToUpdate()}>{phase === 'installing' ? 'Restarting…' : 'Restart to update'}</Button>
+    ? <Button type="button" variant="primary" disabled={!native || phase === 'installing'} onClick={() => void restartToUpdate()}>{phase === 'installing' ? words.installing : `${words.install} to update`}</Button>
     : info && phase !== 'downloading'
     ? <Button type="button" variant="primary" disabled={!native} onClick={() => void downloadAppUpdate(true)}>Download update</Button>
     : <Button type="button" variant="ghost" disabled={!native || phase === 'checking' || phase === 'downloading'} onClick={() => void checkAppUpdate(true)}>{phase === 'checking' ? 'Checking…' : 'Check now'}</Button>;
-  return <Surface><SettingsSection title={<>Sessions updates</>} description={<>Sessions checks the signed release feed hourly and downloads a new version in the background. Nothing changes until you restart.</>}>
+  return <Surface><SettingsSection title={<>Sessions updates</>} description={<>Sessions checks the signed release feed hourly and downloads a new version in the background. Nothing changes until you {words.install.toLowerCase()}.</>}>
     <div className="settings-static-row">
       <span><strong>{title}</strong><small>{sessionsLine(workingAgents, liveRunners)}</small></span>
       {control}
@@ -121,10 +124,11 @@ export function MenuAppUpdate({ workingAgents }: { workingAgents: number | null 
   const { phase, info, progress, error } = useAppUpdate();
   const percent = downloadPercent(progress);
   const ready = phase === 'ready' || phase === 'installing' || (phase === 'error' && useAppUpdate.getState().errorStage === 'install');
-  const label = ready ? `Restart to update to ${info?.version}`
+  const words = appUpdateWords();
+  const label = ready ? `${words.install} to update to ${info?.version}`
     : phase === 'downloading' ? `Downloading Sessions ${info?.version}`
     : info ? `Download Sessions ${info.version}` : 'Check for updates';
-  const value = phase === 'checking' ? 'Checking…' : phase === 'installing' ? 'Restarting…'
+  const value = phase === 'checking' ? 'Checking…' : phase === 'installing' ? words.installing
     : phase === 'downloading' ? (percent === null ? '' : `${percent}%`)
     : phase === 'current' ? 'Up to date'
     : ready ? (workingAgents === null ? 'Agents keep running' : workingAgents > 0 ? `${workingAgents} keep working` : 'Nothing working') : '';
@@ -139,6 +143,6 @@ export function MenuAppUpdate({ workingAgents }: { workingAgents: number | null 
     {error ? <div className="settings-menu-status" role="status">{error}</div> : null}
     {phase === 'downloading' && progress?.totalBytes ? <progress className="settings-menu-progress" value={progress.downloadedBytes} max={progress.totalBytes} aria-label="Update download progress" /> : null}
     {info?.notes ? <div className="settings-menu-update-notes">{info.notes}</div> : null}
-    {info ? <div className="settings-menu-update-safe">Only the window restarts. Your sessions keep running.</div> : null}
+    {info ? <div className="settings-menu-update-safe">{isNativeAndroidRuntime() ? words.safe : 'Only the window restarts. Your sessions keep running.'}</div> : null}
   </div>;
 }

@@ -59,3 +59,9 @@ runtime/dist-go/
 # Frontend build output embedded into sessionsd; produced by `npm run build`.
 /runtime/internal/webassets/dist/
 /runtime/internal/claudep/sdk-runtime/bridge.mjs
+
+# Android release signing material lives in ~/Library/Application Support/Sessions/signing
+# (docs/ANDROID.md). Keep any copy that lands in the tree out of Git.
+*.keystore
+*.jks
+android-release.properties

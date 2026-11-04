@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Button } from './ui/Button';
-import { APP_UPDATE_ANSWER_VISIBLE, appUpdateAnswerVisible, downloadPercent, restartToUpdate, startAppUpdateWatcher, useAppUpdate, downloadAppUpdate } from '../lib/appUpdate';
+import { APP_UPDATE_ANSWER_VISIBLE, appUpdateAnswerVisible, appUpdateWords, downloadPercent, restartToUpdate, startAppUpdateWatcher, useAppUpdate, downloadAppUpdate } from '../lib/appUpdate';
 import { isTauri, notifyProviderUpdate } from '../lib/tauriBridge';
 import {
   outdatedTargets,
@@ -30,10 +30,10 @@ const RECENT_RESULT = 10 * 60 * 1000;
  * Restart replaces the app and relaunches only this window.
  * CLI equivalent: `sessions update` (`--check` to only look).
  */
-export function AppUpdateCard(): JSX.Element | null {
+export function AppUpdateCard({ watch = true }: { watch?: boolean }): JSX.Element | null {
   const state = useAppUpdate();
   const { phase, info, progress, error, errorStage } = state;
-  useEffect(() => startAppUpdateWatcher(), []);
+  useEffect(() => (watch ? startAppUpdateWatcher() : undefined), [watch]);
   const [, setTick] = useState(0);
   useEffect(() => {
     if (state.requestedAt === null) return;
@@ -50,15 +50,16 @@ export function AppUpdateCard(): JSX.Element | null {
   if (!info || phase === 'current' || phase === 'idle' || phase === 'checking' || (phase === 'error' && errorStage === 'check')) return null;
   const percent = downloadPercent(progress);
   const title = phase === 'ready' || phase === 'installing' || errorStage === 'install' ? 'Update ready' : phase === 'downloading' ? 'Downloading update' : 'Update available';
-  const action = phase === 'installing' ? 'Restarting…'
+  const words = appUpdateWords();
+  const action = phase === 'installing' ? words.installing
     : phase === 'downloading' ? (percent === null ? 'Downloading…' : `${percent}%`)
-    : phase === 'available' || errorStage === 'download' ? 'Download' : 'Restart';
+    : phase === 'available' || errorStage === 'download' ? 'Download' : words.install;
   const run = (): void => { void (phase === 'available' || errorStage === 'download' ? downloadAppUpdate(true) : restartToUpdate()); };
   return <div className="product-update-card">
     <div><span>Sessions {info.version}</span><strong>{title}</strong></div>
     <Button variant="ghost" type="button" disabled={phase === 'downloading' || phase === 'installing'} onClick={run}
-      aria-label={action === 'Restart' ? `Restart to update to Sessions ${info.version}` : undefined}>{action}</Button>
-    <small className="product-update-safe">Only the window restarts, or it installs when you quit. Your sessions keep running.</small>
+      aria-label={action === words.install ? `${words.installLabel} ${info.version}` : undefined}>{action}</Button>
+    <small className="product-update-safe">{words.safe}</small>
     {error ? <small role="alert">{error}</small> : null}
   </div>;
 }
