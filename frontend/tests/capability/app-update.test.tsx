@@ -102,7 +102,12 @@ describe('capability: Sessions updates download quietly and restart on request',
     await waitFor(() => expect(native.install).toHaveBeenCalledTimes(1));
     // Android's installer is showing; cancelling it leaves the download ready for another try.
     await waitFor(() => expect(useAppUpdate.getState().phase).toBe('ready'));
+    // A native rejection is a plain string; its instruction reaches the person.
+    native.install.mockRejectedValueOnce('Allow Sessions to install apps (Install unknown apps), then tap Install again. The download is kept.');
     fireEvent.click(screen.getByRole('button', { name: 'Install Sessions 0.2.46' }));
     await waitFor(() => expect(native.install).toHaveBeenCalledTimes(2));
+    expect((await screen.findByRole('alert')).textContent).toBe('The update didn’t install: Allow Sessions to install apps (Install unknown apps), then tap Install again. The download is kept. Sessions is unchanged; tap Install to try again.');
+    fireEvent.click(screen.getByRole('button', { name: 'Install Sessions 0.2.46' }));
+    await waitFor(() => expect(native.install).toHaveBeenCalledTimes(3));
   });
 });

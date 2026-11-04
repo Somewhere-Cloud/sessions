@@ -107,20 +107,27 @@ function reportTerminalError(
 // fetches a bounded HTTP tail, then the WS resumes from that tail's end so
 // only race deltas replay. Hidden sessions attach without output or Claude
 // event frames and backfill when activated.
+const TERMINAL_FONT_SIZE = 13;
+
 /**
- * Android WebView before Chromium's standardized CSS zoom (M128) lays the
- * terminal out in unzoomed pixels but draws xterm's canvas unzoomed too, so
- * under the shell's --interface-scale the drawn rows fill only 1/scale of the
- * width fit() measured. Those WebViews also report unzoomed client rects,
- * which is how they are recognised; newer ones need no correction. Returns
- * the corrected column count, or null when fit() is already right.
+ * Android WebView before Chromium's standardized CSS zoom (M128) does not
+ * draw xterm's canvas consistently under the shell's --interface-scale zoom:
+ * depending on the last resize it is drawn zoomed or unzoomed, so fit() is
+ * either ~10% short or a few columns too wide. Those WebViews report
+ * unzoomed client rects, which is how they are recognised. There the
+ * terminal host cancels the inherited zoom and xterm's font carries the
+ * scale instead, so fit() measures exactly what is drawn. Newer WebViews
+ * (and every desktop) keep the plain zoom.
  */
-function legacyZoomColumns(container: HTMLElement, cols: number): number | null {
-  const scale = Number.parseFloat(getComputedStyle(container).getPropertyValue('--interface-scale')) || 1;
-  if (scale <= 1.001 || container.offsetWidth <= 0) return null;
-  const rectScale = container.getBoundingClientRect().width / container.offsetWidth;
-  if (rectScale > 1.001) return null;
-  return Math.floor(cols * scale);
+function neutralizeLegacyZoom(container: HTMLElement, term: { options: { fontSize?: number } }): void {
+  if (!isTauri() || !/Android/i.test(navigator.userAgent) || container.offsetWidth <= 0) return;
+  const scale = Number.parseFloat(getComputedStyle(container.parentElement ?? container).getPropertyValue('--interface-scale')) || 1;
+  const legacy = container.getBoundingClientRect().width / container.offsetWidth <= 1.001;
+  if (!legacy) return;
+  const zoom = scale > 1.001 ? String(1 / scale) : '';
+  if (container.style.zoom !== zoom) container.style.zoom = zoom;
+  const fontSize = Math.round(TERMINAL_FONT_SIZE * scale * 100) / 100;
+  if (term.options.fontSize !== fontSize) term.options.fontSize = fontSize;
 }
 
 export function useTerminal(sessionId: string | null, mountTerminal: boolean = true, isActive: boolean = true): UseTerminalResult {
@@ -246,7 +253,7 @@ export function useTerminal(sessionId: string | null, mountTerminal: boolean = t
           term = new Terminal({
             cursorBlink: true,
             fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-            fontSize: 13,
+            fontSize: TERMINAL_FONT_SIZE,
             scrollback: 5000,
             theme: {
               background: '#0a0a0a',
@@ -571,18 +578,9 @@ export function useTerminal(sessionId: string | null, mountTerminal: boolean = t
         if (!isActiveRef.current) return;
         beforeTerminalMutation();
         try {
+          const container = containerElRef.current;
+          if (container) neutralizeLegacyZoom(container, term);
           fit.fit();
-          // See legacyZoomColumns. The wider layout box must not scroll the
-          // host sideways, so the host clips it; what is drawn fits.
-          if (isTauri() && /Android/i.test(navigator.userAgent)) {
-            const container = containerElRef.current;
-            const columns = container ? legacyZoomColumns(container, term.cols) : null;
-            if (container && columns !== null) {
-              container.style.overflow = 'hidden';
-              container.scrollLeft = 0;
-              if (columns !== term.cols) term.resize(columns, term.rows);
-            }
-          }
         } catch {
           // Fit can throw if the container has zero dims (eg the pane is
           // display:none on an inactive tab). Ignore — when the pane is

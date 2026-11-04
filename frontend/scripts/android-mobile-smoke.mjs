@@ -81,9 +81,10 @@ try {
   assert.match(machineMark, /platform === 'darwin' \|\| platform === 'macos'/);
   assert.match(terminalHook, /visualViewport\?\.addEventListener\('resize', onResize\)/);
   assert.match(terminalHook, /visualViewport\?\.removeEventListener\('resize', onResize\)/);
-  assert.match(terminalHook, /function legacyZoomColumns[\s\S]*getBoundingClientRect\(\)\.width \/ container\.offsetWidth[\s\S]*Math\.floor\(cols \* scale\)/,
-    'only legacy-zoom WebViews widen the terminal by the shell scale');
-  assert.match(terminalHook, /container\.style\.overflow = 'hidden'/, 'the widened layout box never scrolls the host');
+  assert.match(terminalHook, /function neutralizeLegacyZoom[\s\S]*getBoundingClientRect\(\)\.width \/ container\.offsetWidth[\s\S]*container\.style\.zoom[\s\S]*term\.options\.fontSize = fontSize/,
+    'legacy-zoom WebViews take xterm out of the shell zoom and scale its font instead');
+  assert.match(terminalHook, /neutralizeLegacyZoom\(container, term\);\s*fit\.fit\(\)/, 'fit measures after the zoom is neutralized');
+  assert.doesNotMatch(terminalHook, /term\.cols \* scale|Math\.floor\(cols \* scale\)/);
   assert.match(terminalStyles, /\.terminal-host \.xterm \{[\s\S]*width: 100%;/);
   assert.doesNotMatch(newSession, /launcher-send-hint/, 'the launcher carries no keyboard hint line');
 

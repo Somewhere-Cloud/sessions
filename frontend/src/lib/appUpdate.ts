@@ -67,6 +67,8 @@ export function downloadPercent(progress: NativeUpdateProgress | null): number |
 }
 
 function message(error: unknown, fallback: string): string {
+  // Tauri commands reject with the native error string, not an Error.
+  if (typeof error === 'string' && error.trim()) return error.trim().replace(/\.$/, '');
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
@@ -129,7 +131,9 @@ export async function restartToUpdate(): Promise<void> {
   } catch (error) {
     useAppUpdate.setState({
       phase: 'error', errorStage: 'install',
-      error: `The update didn’t install: ${message(error, 'unknown error')}. Sessions is unchanged and your sessions keep running; try Restart again or run \`sessions update\`.`
+      error: isNativeAndroidRuntime()
+        ? `The update didn’t install: ${message(error, 'unknown error')}. Sessions is unchanged; tap Install to try again.`
+        : `The update didn’t install: ${message(error, 'unknown error')}. Sessions is unchanged and your sessions keep running; try Restart again or run \`sessions update\`.`
     });
   }
 }
