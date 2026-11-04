@@ -666,6 +666,8 @@ export interface AccountUsage {
   buckets?: AccountUsageBucket[];
   read_at?: number;
   stale?: boolean;
+  // This computer's usage cap for the provider, in percent, when it is on.
+  usage_cap?: number;
 }
 
 export interface ForgottenAccount {

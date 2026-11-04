@@ -43,6 +43,7 @@ func newLimitRecovery(server *Server, root string) *limitRecoveryService {
 		Store: store, Lanes: server.limitRecoveryLanes, Global: server.limitRecoveryGlobal,
 		Probe: server.probeLimitReset, Deliver: server.deliverLimitResume,
 		Publish: server.publishLimitRecovery, Discovering: server.registry.IsDiscovering,
+		SwitchTarget: server.usageCapSwitchTarget, Switch: server.usageCapSwitch,
 		Logf: log.Printf,
 	})
 	return &limitRecoveryService{store: store, scheduler: scheduler}
@@ -114,8 +115,12 @@ func (s *Server) limitRecoveryLanes() []limitrecovery.Lane {
 }
 
 // probeLimitReset reads the session's account usage for when every exhausted
-// window resets.
+// window resets, or, while the usage cap applies, when the account drops
+// below the cap again.
 func (s *Server) probeLimitReset(ctx context.Context, lane limitrecovery.Lane) (time.Time, bool) {
+	if at, held := s.usageCapHoldUntil(ctx, lane); held {
+		return at, true
+	}
 	service, ok := s.registry.(exactAccountUsageService)
 	if !ok {
 		return time.Time{}, false

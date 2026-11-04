@@ -207,6 +207,7 @@ func startAutomaticServices(handler *api.Server, remotePreview bool) func() {
 	handler.StartParentReports(accountContext, log.Printf)
 	handler.StartIdleCompaction(accountContext, log.Printf)
 	handler.StartLimitRecovery(accountContext, log.Printf)
+	handler.StartUsageCap(accountContext, log.Printf)
 	handler.StartSetAsideWake(accountContext, log.Printf)
 	handler.StartAutoTitles(accountContext)
 	handler.StartAutoArchive(accountContext, log.Printf)

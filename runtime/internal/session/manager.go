@@ -166,6 +166,9 @@ type Manager struct {
 	// accountUsage coalesces and briefly caches provider allowance reads. See
 	// account_usage.go.
 	accountUsage accountUsageCache
+	// createAccountGate lets the daemon's usage cap move or refuse a new
+	// start; see usage_cap_gate.go.
+	createAccountGate atomic.Pointer[CreateAccountGate]
 	// wakeMu serializes WakePaused so two first messages cannot kick one
 	// runner twice.
 	wakeMu   sync.Mutex

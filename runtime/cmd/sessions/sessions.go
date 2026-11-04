@@ -523,6 +523,12 @@ func sessionStateAt(value session, now time.Time) string {
 	case "other":
 		return "failed"
 	}
+	if hold := value.UsageCap; hold != nil && hold.State == "waiting" {
+		if hold.ResetsAt > 0 {
+			return "usage-wait " + time.UnixMilli(hold.ResetsAt).Local().Format("15:04")
+		}
+		return "usage-wait"
+	}
 	switch value.IdleReason {
 	case "needs-input":
 		return "needs-you"

@@ -9,14 +9,15 @@ import { freshestReading, sharesAllowance, type AccountGroup, type AccountPlacem
 // a stale one says so, and an account with no reading says why rather than
 // showing an empty meter that would read as "nothing used".
 
-function UsageMeter({ window, label }: { window: AccountUsageWindow; label: string }): JSX.Element {
+function UsageMeter({ window, label, cap }: { window: AccountUsageWindow; label: string; cap?: number }): JSX.Element {
   const used = Math.max(0, Math.min(100, window.used_percent));
   const name = windowName(window);
+  const capped = cap !== undefined && cap > 0 && cap < 100;
   return (
     <div className="account-usage-window">
       <div className="account-usage-line">
         <span>{name}</span>
-        <span>{used}% used · {resetText(window.resets_at)}</span>
+        <span>{used}% used{capped && used >= cap ? ` · at the ${cap}% cap, new turns wait` : ''} · {resetText(window.resets_at)}</span>
       </div>
       <div
         className="account-usage-meter"
@@ -24,6 +25,7 @@ function UsageMeter({ window, label }: { window: AccountUsageWindow; label: stri
         aria-label={`${label} ${name.toLowerCase()} used`}
       >
         <span style={{ width: `${used}%` }} />
+        {capped ? <i className="account-usage-cap" style={{ left: `${cap}%` }} title={`Usage cap ${cap}%`} aria-hidden="true" /> : null}
       </div>
     </div>
   );
@@ -72,7 +74,7 @@ export function AccountUsageSummary({ group, label }: { group: AccountGroup; lab
         return (
           <div key={bucket.limit_id ?? index} className="account-usage-bucket">
             {name ? <strong>{name}</strong> : null}
-            {bucket.windows.map((window) => <UsageMeter key={window.kind} window={window} label={name ? `${label} ${name}` : label} />)}
+            {bucket.windows.map((window) => <UsageMeter key={window.kind} window={window} label={name ? `${label} ${name}` : label} cap={reading.usage.usage_cap} />)}
             {bucket.reached ? <span className="account-usage-reached">Limit reached</span> : null}
           </div>
         );

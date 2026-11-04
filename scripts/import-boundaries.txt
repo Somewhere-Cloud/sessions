@@ -82,6 +82,7 @@ internal/api internal/tailscale
 internal/api internal/tokenstore
 internal/api internal/updatejob
 internal/api internal/usage
+internal/api internal/usagecap
 internal/api internal/verdict
 internal/api internal/watch
 internal/api internal/webassets

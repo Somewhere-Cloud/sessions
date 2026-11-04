@@ -42,5 +42,37 @@ the wrong browser account, add another account and select the intended login on
 the provider's page. **Remove** unregisters an account from the list but preserves
 its login and history; it does not end chats or cancel a subscription.
 
+## Usage cap and switching accounts
+
+Sessions keeps a run from using up an account: when any of its usage windows
+(the 5-hour session window, the weekly limit, or a model's weekly limit) reaches
+the usage cap, 90% unless you change it, Sessions stops starting new turns on
+that account. A turn that is already running always finishes.
+
+- A message to a chat on that account is not sent. It says which window is how
+  full and when it resets, so you or the agent can send it again later.
+- An idle chat on that account shows **Waiting for usage · resets 09:00**, with
+  **switch to …?** when another signed-in account has room. Switching copies the
+  conversation into a new chat on that account, like **Fork** does.
+- A new chat started without choosing an account starts on the signed-in account
+  of the same provider with the most room, and says so. If you chose the account
+  yourself, or no account has room, the start is refused with the reading.
+- A chat that stopped on a provider usage limit is continued on the account with
+  the most room: Sessions copies its conversation into a new chat there and sends
+  "Switched to account … Continue where you left off." once. The original chat
+  is left as it was. Without another account it waits for the reset, as
+  **Resume after usage limits** does, and never resumes while its account is
+  still over the cap.
+
+Switching happens only between accounts on the same computer. Credentials are
+never copied; each account stays in its own provider folder. Readings are the
+ones **Usage** shows, read at most once a minute; if Sessions has no current
+reading, nothing is held back. The Accounts page draws the cap as a line on each
+usage meter.
+
+Change it in **Settings → Usage cap**, or with `sessions cap`: `sessions cap set
+85`, `sessions cap set 95 --tool codex`, `sessions cap switch off`, `sessions cap
+off`, or `sessions cap off --lane ID` for one chat.
+
 The same operations are available through `sessions accounts`; see the
 [CLI reference](CLI.md) and [HTTP contract](../runtime/CONTRACT/http-api.md).

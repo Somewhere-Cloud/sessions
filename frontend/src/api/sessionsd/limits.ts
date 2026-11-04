@@ -16,7 +16,7 @@ export interface LimitRecoveryLane {
   enabled: boolean;
   reason?: string;
   next?: LimitRecoveryPlan;
-  last?: LimitRecoveryPlan & { state: string; detail?: string; updatedAtMs: number };
+  last?: LimitRecoveryPlan & { state: string; detail?: string; updatedAtMs: number; switchedTo?: string; switchedAccount?: string };
 }
 
 export interface LimitRecoveryStatus {

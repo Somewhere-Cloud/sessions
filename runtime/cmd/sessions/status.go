@@ -690,6 +690,11 @@ func (a *app) writeStatusWorkingSet(output statusOutput, current session) error 
 			return err
 		}
 	}
+	if hold := current.UsageCap; hold != nil {
+		if _, err := fmt.Fprintf(a.stdout, "  cap      %s\n", capHoldText(current.ID, *hold, now)); err != nil {
+			return err
+		}
+	}
 	recovery := current.LimitRecovery
 	if recovery == nil || (recovery.State != "scheduled" && recovery.State != "stopped") {
 		return nil

@@ -89,6 +89,7 @@ type Server struct {
 	storageScan        sync.Mutex
 	idleCompaction     *idleCompactionService
 	limitRecovery      *limitRecoveryService
+	usageCap           *usageCapService
 	autoTitles         *autotitle.Service
 	automations        *automation.Scheduler
 }

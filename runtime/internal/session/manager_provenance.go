@@ -576,6 +576,9 @@ func (m *Manager) finishCreate(ctx context.Context, id string, request state.Cre
 		return state.SessionInfo{}, &state.StartCreateFailedError{OperationID: request.OperationID, SessionID: id,
 			Err: fmt.Errorf("created session %s was not registered", id)}
 	}
+	if request.UsageCapNote != nil {
+		session.SetUsageCap(request.UsageCapNote)
+	}
 	runtime := m.manage(session)
 	runtime.expectProviderInput(request.InitialInput)
 	if strings.TrimSpace(request.InitialInput) != "" {

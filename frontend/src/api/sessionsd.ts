@@ -5,3 +5,4 @@ export * from './sessionsd/operations';
 export * from './sessionsd/team';
 export * from './sessionsd/pullRequests';
 export * from './sessionsd/limits';
+export * from './sessionsd/usageCap';

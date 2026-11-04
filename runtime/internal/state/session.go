@@ -342,6 +342,10 @@ func (s *Session) Info() SessionInfo {
 		recovery := *s.info.LimitRecovery
 		info.LimitRecovery = &recovery
 	}
+	if s.info.UsageCap != nil {
+		hold := *s.info.UsageCap
+		info.UsageCap = &hold
+	}
 	info.MemoryBytes = cloneUint64Pointer(s.info.MemoryBytes)
 	info.CPUPercent = cloneFloat64Pointer(s.info.CPUPercent)
 	info.ResourceProcesses = cloneIntPointer(s.info.ResourceProcesses)
@@ -439,6 +443,19 @@ func (s *Session) SetLimitRecovery(value *LimitRecovery) {
 	}
 	copy := *value
 	s.info.LimitRecovery = &copy
+}
+
+// SetUsageCap publishes the daemon's usage cap state for this session; nil
+// clears it.
+func (s *Session) SetUsageCap(value *UsageCapHold) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if value == nil {
+		s.info.UsageCap = nil
+		return
+	}
+	copy := *value
+	s.info.UsageCap = &copy
 }
 
 func (s *Session) setReadState(seenAt, attentionAt *int64, marked bool) {

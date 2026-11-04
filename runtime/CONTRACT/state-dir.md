@@ -73,6 +73,7 @@ control the user turn. Dispatch is not proof of provider acceptance or recall.
 ├── idle-compaction.json
 ├── automations.json
 ├── limit-recovery.json
+├── usage-cap.json
 ├── pull-request-settle.json
 ├── delivery-operations/
 │   └── <operation-id>.json
@@ -127,6 +128,7 @@ override:
 - `usage.sqlite3` and `errors.jsonl`;
 - `idle-compaction.json`, the idle compaction schedule and per-lane choices;
 - `limit-recovery.json`, usage-limit resume plans and per-session choices;
+- `usage-cap.json`, per-session usage cap choices;
 - `pull-request-settle.json`, which merges already set a session aside;
 - `automations.json`, scheduled agents and their run history;
 - `history-cache.json`, what the history listing has already computed about each
@@ -416,6 +418,25 @@ absent for ten minutes after startup discovery are forgotten. A file that
 cannot be read or decoded, or has another version, pauses idle compaction and
 is never overwritten; move it aside to reset. An older daemon ignores the file.
 
+### `usage-cap.json`
+
+Version-1, mode-0600 JSON written by the daemon's usage cap
+(`runtime/internal/usagecap/store.go`), replaced atomically through a synced
+temporary file. It follows `SESSIONS_STATE_DIR` and holds only each session's
+own choice; the machine setting lives in `settings.json` as `usageCap`
+(`{"enabled":true,"percent":90,"tools":{"codex":95},"switch":true}`; missing
+means on at 90% with switching on, `percent` 0 means the default, and `switch`
+missing means on).
+
+```json
+{"version":1,"overrides":{"<id>":false}}
+```
+
+Choices of sessions the daemon no longer knows are forgotten. A file that
+cannot be read or decoded, or has another version, is reported in
+`GET /api/usage-cap` and never overwritten; the machine setting then applies to
+every session. Move it aside to reset. An older daemon ignores the file.
+
 ### `limit-recovery.json`
 
 Version-1, mode-0600 JSON written by the daemon's limit recovery scheduler
@@ -433,8 +454,12 @@ default lives in `settings.json` as `limitRecovery.enabled` (missing means on).
 
 `lanes` holds each session's latest plan, keyed by the limited turn's failure
 time. `state` is `scheduled`, `sending` (written before delivery starts),
-`sent`, `unconfirmed`, `failed`, `cancelled`, or `stopped`. On startup a
-`sending` entry becomes `unconfirmed` and is never sent again; a `scheduled`
+`sent`, `unconfirmed`, `failed`, `cancelled`, `stopped`, `switching` (written
+before the usage cap continues the session on another account), or `switched`
+(with `switchedTo`, the new session, and `switchedAccount`); `switchTried`
+records that another account was tried for this limit, at most once. On
+startup a `sending` or `switching` entry becomes `unconfirmed` and is never
+sent or switched again; a `scheduled`
 entry whose time passed while no daemon ran is sent late, because the limit
 has reset. `sent` keeps at most 16 records per session for 30 days for
 transcript attribution; it stores only the fixed resume text and time.

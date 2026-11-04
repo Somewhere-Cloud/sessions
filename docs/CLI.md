@@ -118,6 +118,7 @@ Admin/operational:
   access                   review and decide machine access requests
   lan                      manage same-network access
   limits                   resume sessions when their provider usage limit resets
+  cap                      hold new turns when an account nears its usage limit, and switch accounts
   compaction               compact idle Claude lanes before their prompt cache expires
   notify                   configure session push notifications
   remote                   manage tailnet-only remote access
@@ -1733,7 +1734,7 @@ Usage:
 
 resume sessions when their provider usage limit resets
 
-Inspect or change limit recovery, which is on by default. When a Claude or Codex session's turn ends on a provider usage or rate limit and the automatic outage retries are done, Sessions plans a resume and, when the limit resets, sends "Continue where you left off." through the normal send path. The reset time comes from the provider's own message, then from the account's usage reading (`sessions accounts usage`); when neither says, Sessions tries again after 30 minutes, waiting 30 minutes longer each time, and rechecks the account's usage before every send so it never spends a turn while the account is still at its limit. Each limit is resumed at most once, and after 6 automatic resumes in a row Sessions stops and waits for you. Sending the session anything, turning the setting off, or the session ending cancels the plan. The resume appears in the conversation attributed to Limit recovery, not to you. Plans are saved, so a daemon restart neither loses nor repeats one. `sessions ls` shows a waiting session as resumes HH:MM, and `sessions --json status ID` carries limitRecovery. on and off change the machine default; with --lane they set that session's own choice, and default returns it to the machine default.
+Inspect or change limit recovery, which is on by default. When a Claude or Codex session's turn ends on a provider usage or rate limit and the automatic outage retries are done, Sessions plans a resume and, when the limit resets, sends "Continue where you left off." through the normal send path. The reset time comes from the provider's own message, then from the account's usage reading (`sessions accounts usage`); when neither says, Sessions tries again after 30 minutes, waiting 30 minutes longer each time, and rechecks the account's usage before every send so it never spends a turn while the account is still at its limit. Each limit is resumed at most once, and after 6 automatic resumes in a row Sessions stops and waits for you. Sending the session anything, turning the setting off, or the session ending cancels the plan. The resume appears in the conversation attributed to Limit recovery, not to you. Plans are saved, so a daemon restart neither loses nor repeats one. While the usage cap applies (`sessions cap`), a resume also waits until the account is under the cap, and with account switching on, a waiting session is instead continued once on another signed-in account with headroom. `sessions ls` shows a waiting session as resumes HH:MM, and `sessions --json status ID` carries limitRecovery. on and off change the machine default; with --lane they set that session's own choice, and default returns it to the machine default.
 
 Examples:
   sessions limits
@@ -1741,6 +1742,27 @@ Examples:
   sessions limits off --lane 1a2b3c4d
   sessions limits default --lane 1a2b3c4d
   sessions --json limits status
+
+--json may appear before the command or among its options. --machine, --direct, --host, and --port must appear before the command. Arguments after `sessions run --` always belong to the child command.
+```
+
+## `sessions cap`
+
+```text
+Usage:
+  sessions cap [status|set N|on|off|default|switch on|off] [--tool claude|codex] [--lane SESSION]
+
+hold new turns when an account nears its usage limit, and switch accounts
+
+Inspect or change the usage cap, which is on by default at 90%. Sessions reads each Claude and Codex account's metered windows (the 5-hour session window, weekly, and model-specific weekly limits, as `sessions accounts usage` shows them); when any window is at or past the cap, Sessions stops starting new turns on that account. It never stops a turn in progress. A message sent to a session on that account is not delivered and says why, with the reading and reset time, so the sender can send it again later; nothing reaches the provider. An idle session on that account is marked waiting for usage (`sessions ls` shows usage-wait HH:MM), and a session waiting on a provider limit is not resumed until its account is under the cap again. A new session start on that account moves to the signed-in account of the same provider with the most headroom when you did not name an account, and the start says so; when you named one, or no account has headroom, the start is refused with the reading and what to do. With switching on (the default), a session that stopped on a usage limit is continued on the account with the most headroom: Sessions copies its conversation into a new session in that account's own provider home, as `sessions fork ID --profile NAME` does, and sends "Switched to account NAME (...). Continue where you left off." there once. The original session is left as it was. Credentials are never copied. Readings come from the daemon's account usage cache, read from a provider at most once a minute; a stale or unavailable reading never holds anything back. set N sets the machine cap (1-100); with --tool it sets one provider's cap, and set 0 --tool returns that provider to the machine cap. on and off turn the cap on or off for the machine; with --lane they set one session's choice, and default returns it to the machine setting. switch on|off controls account switching.
+
+Examples:
+  sessions cap
+  sessions cap set 85
+  sessions cap set 95 --tool codex
+  sessions cap switch off
+  sessions cap off --lane 1a2b3c4d
+  sessions --json cap status
 
 --json may appear before the command or among its options. --machine, --direct, --host, and --port must appear before the command. Arguments after `sessions run --` always belong to the child command.
 ```

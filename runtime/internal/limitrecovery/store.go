@@ -35,6 +35,13 @@ const (
 	// StateStopped means the session stayed limited after MaxAttempts
 	// automatic resumes in a row; Sessions waits for a person.
 	StateStopped = "stopped"
+	// StateSwitching is written before Sessions continues the conversation
+	// on another account. Found after a restart, the outcome is unknown and
+	// the switch is never repeated.
+	StateSwitching = "switching"
+	// StateSwitched means another session continues this work on another
+	// account; this one is left as it was and is not resumed.
+	StateSwitched = "switched"
 )
 
 // Plan is one usage limit and when Sessions will resume after it.
@@ -48,6 +55,9 @@ type Plan struct {
 	// Attempt counts automatic resumes since a person last sent anything.
 	Attempt     int   `json:"attempt"`
 	CreatedAtMS int64 `json:"createdAtMs"`
+	// SwitchTried records that Sessions already tried another account for
+	// this limit; it is tried at most once per limit.
+	SwitchTried bool `json:"switchTried,omitempty"`
 }
 
 // Entry is a lane's latest plan and what became of it.
@@ -57,6 +67,9 @@ type Entry struct {
 	OperationID string `json:"operationId,omitempty"`
 	Detail      string `json:"detail,omitempty"`
 	UpdatedAtMS int64  `json:"updatedAtMs"`
+	// SwitchedTo is the session continuing this work on SwitchedAccount.
+	SwitchedTo      string `json:"switchedTo,omitempty"`
+	SwitchedAccount string `json:"switchedAccount,omitempty"`
 }
 
 // SentRecord lets a transcript reader attribute a delivered resume to
@@ -182,11 +195,15 @@ func (s *Store) AddSent(id string, record SentRecord) error {
 func (s *Store) Recover(now time.Time) error {
 	return s.update(func(document *storeDocument) {
 		for id, entry := range document.Lanes {
-			if entry.State != StateSending {
+			switch entry.State {
+			case StateSending:
+				entry.Detail = "Sessions stopped while sending the resume; inspect the conversation. It will not be sent again."
+			case StateSwitching:
+				entry.Detail = "Sessions stopped while continuing this work on another account; check `sessions ls` for the new session before continuing. It will not be repeated."
+			default:
 				continue
 			}
 			entry.State = StateUnconfirmed
-			entry.Detail = "Sessions stopped while sending the resume; inspect the conversation. It will not be sent again."
 			entry.UpdatedAtMS = now.UnixMilli()
 			document.Lanes[id] = entry
 		}

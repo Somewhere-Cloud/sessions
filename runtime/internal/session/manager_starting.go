@@ -91,7 +91,12 @@ func (m *Manager) prepareCreateRequest(ctx context.Context, request state.Create
 	}
 	// Settle the account before the Claude defaults read its home. The home is
 	// created only after a replayed operation id has been ruled out.
+	explicitAccount := request.Profile != "" || request.DefaultProfile
 	request, err := m.resolveRequestedProfile(ctx, request)
+	if err != nil {
+		return request, err
+	}
+	request, err = m.applyCreateAccountGate(ctx, request, explicitAccount)
 	if err != nil {
 		return request, err
 	}

@@ -25,7 +25,11 @@ const (
 // limit recovery and automations. All keep their state beside the delivery
 // receipts.
 func (s *Server) initScheduledWork(root string) {
-	s.idleCompaction, s.limitRecovery = newIdleCompaction(s, root), newLimitRecovery(s, root)
+	s.idleCompaction, s.usageCap = newIdleCompaction(s, root), newUsageCap(root)
+	s.limitRecovery = newLimitRecovery(s, root)
+	if gated, ok := s.registry.(usageCapGateInstaller); ok {
+		gated.SetCreateAccountGate(s.usageCapCreateGate)
+	}
 	s.automations = newAutomations(s, root)
 }
 

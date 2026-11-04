@@ -59,6 +59,7 @@ const GATE = [
   'shell-ui',
   'settings-machines',
   'auto-archive',
+  'usage-cap',
   'conversation-ui',
 
   'history-search-ui',

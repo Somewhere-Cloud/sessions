@@ -610,3 +610,8 @@
 .launcher-project-choices { display: grid; gap: 10px; margin-bottom: 10px; }
 .launcher-new-project { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 8px; align-items: center; }
 .launcher-new-project small { grid-column: 1 / -1; color: var(--fg-muted); font-size: 12px; }
+/* A session whose account is at the usage cap: routine, so it stays calm. */
+.usage-cap-chip { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; max-width: 100%; color: var(--fg-dim); font-size: 12px; }
+.usage-cap-chip-action { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.usage-cap-chip-action:disabled { color: var(--fg-faint); cursor: default; }
+.usage-cap-chip-error { color: var(--warn, #d08a3a); }

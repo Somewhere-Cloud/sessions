@@ -308,6 +308,48 @@ type Settings struct {
 	// its provider usage limit resets. Missing means on; per-session choices
 	// live with the plans in the state root.
 	LimitRecovery *LimitRecoverySettings `json:"limitRecovery,omitempty"`
+	// UsageCap holds back new turns on an account past a share of its
+	// metered allowance and switches to another account with headroom.
+	// Missing means on at the default percent, with switching on.
+	UsageCap *UsageCapSettings `json:"usageCap,omitempty"`
+}
+
+// UsageCapSettings is the machine-wide usage cap. Percent zero means the
+// default; Tools overrides it for one provider. Switch nil means on.
+type UsageCapSettings struct {
+	Enabled bool           `json:"enabled"`
+	Percent int            `json:"percent,omitempty"`
+	Tools   map[string]int `json:"tools,omitempty"`
+	Switch  *bool          `json:"switch,omitempty"`
+}
+
+// UsageCapDefaultPercent is the cap when none was chosen.
+const UsageCapDefaultPercent = 90
+
+// UsageCapEnabled reports the machine-wide cap, on unless turned off.
+func (s Settings) UsageCapEnabled() bool {
+	return s.UsageCap == nil || s.UsageCap.Enabled
+}
+
+// UsageCapPercent is the cap for tool: its own choice, else the machine's,
+// else the default.
+func (s Settings) UsageCapPercent(tool string) int {
+	if s.UsageCap == nil {
+		return UsageCapDefaultPercent
+	}
+	if percent := s.UsageCap.Tools[tool]; percent > 0 {
+		return percent
+	}
+	if s.UsageCap.Percent > 0 {
+		return s.UsageCap.Percent
+	}
+	return UsageCapDefaultPercent
+}
+
+// UsageCapSwitch reports whether Sessions moves work to another account with
+// headroom, on unless turned off.
+func (s Settings) UsageCapSwitch() bool {
+	return s.UsageCap == nil || s.UsageCap.Switch == nil || *s.UsageCap.Switch
 }
 
 type LimitRecoverySettings struct {

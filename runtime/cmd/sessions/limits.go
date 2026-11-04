@@ -15,6 +15,7 @@ type limitsPlan struct {
 	FireAtMS    int64  `json:"fireAtMs"`
 	Attempt     int    `json:"attempt"`
 	CreatedAtMS int64  `json:"createdAtMs"`
+	SwitchTried bool   `json:"switchTried,omitempty"`
 }
 
 type limitsEntry struct {
@@ -23,6 +24,9 @@ type limitsEntry struct {
 	OperationID string `json:"operationId,omitempty"`
 	Detail      string `json:"detail,omitempty"`
 	UpdatedAtMS int64  `json:"updatedAtMs"`
+	// SwitchedTo is the session continuing this work on SwitchedAccount.
+	SwitchedTo      string `json:"switchedTo,omitempty"`
+	SwitchedAccount string `json:"switchedAccount,omitempty"`
 }
 
 type limitsLane struct {
