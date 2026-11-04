@@ -318,7 +318,7 @@ export function ConnectionsView({ clientOnly = false, hostName }: { clientOnly?:
                   return (
                     <article key={peer.endpoint} className="tailnet-peer">
                       <div className="tailnet-peer-icon" aria-hidden="true">{peer.os.toLowerCase().includes('mac') ? '⌘' : '▣'}</div>
-                      <div><strong>{peer.name}</strong><span>{peer.transport === 'tailnet' ? 'Tailscale · encrypted' : 'Nearby · unencrypted'} · {peer.os || 'Sessions device'} · {peer.endpoint.replace(/^https?:\/\//, '')}</span></div>
+                      <div><strong>{peer.name}</strong><span>{peer.endpoint.replace(/^https?:\/\//, '')} · {peer.transport === 'tailnet' ? 'Tailscale · encrypted' : 'Nearby · unencrypted'} · {peer.os || 'Sessions device'}</span></div>
                       <Button type="button" className={waiting ? 'btn btn-ghost' : 'btn'} disabled={busy !== null || tailnetRequest !== null} onClick={() => void requestAccess(peer)}>
                         {waiting ? 'Waiting for approval…' : busy === `request:${peer.endpoint}` ? 'Sending…' : 'Request access'}
                       </Button>

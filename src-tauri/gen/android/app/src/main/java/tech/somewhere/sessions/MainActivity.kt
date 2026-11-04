@@ -10,7 +10,6 @@ import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
-import androidx.core.graphics.Insets
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -39,16 +38,19 @@ class MainActivity : TauriActivity() {
           isAppearanceLightStatusBars = !dark
           isAppearanceLightNavigationBars = !dark
         }
-        // The strip under the gesture handle matches the bottom navigation.
-        (webView.parent as? View)?.setBackgroundColor(if (dark) DARK_NAV else LIGHT_NAV)
+        // The status-bar and gesture-handle strips match the app surface.
+        findViewById<View>(android.R.id.content).setBackgroundColor(if (dark) DARK_NAV else LIGHT_NAV)
       }
     }
   }
 
   override fun onWebViewCreate(webView: WebView) {
     this.webView = webView
+    if (BuildConfig.SESSIONS_WEB_DEBUG) WebView.setWebContentsDebuggingEnabled(true)
     webView.addJavascriptInterface(SystemBarsBridge(), "SessionsAndroid")
-    keepAboveNavigationAndKeyboard(webView.parent as? View ?: webView)
+    // Wry calls this before setContentView, so the WebView has no parent yet;
+    // the activity's content frame is the container it is about to join.
+    keepAboveNavigationAndKeyboard(findViewById(android.R.id.content))
     onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
       override fun handleOnBackPressed() {
         if (dismissKeyboard()) {
@@ -80,21 +82,19 @@ class MainActivity : TauriActivity() {
     })
   }
 
-  // Edge-to-edge: the page draws under the status bar and reads that inset
-  // through env(safe-area-inset-top), but Android WebView does not report the
-  // navigation bar or the keyboard there. Shrink the WebView's container by
-  // them instead, so the bottom navigation clears the gesture handle and a
-  // focused field stays above the keyboard, and hand the WebView insets with
-  // those parts removed so a WebView that does report them cannot count twice.
+  // Edge-to-edge, with the insets applied natively: Android WebView versions
+  // disagree about which system insets reach env(safe-area-inset-*), and
+  // Chromium 113 reports none once insets are rewritten. Pad the WebView's
+  // container by the system bars, display cutout and keyboard, and hand the
+  // WebView consumed insets, so env() is zero on every WebView and nothing is
+  // counted twice. The keyboard shrinks the page, keeping focused fields and
+  // the terminal keys visible.
   private fun keepAboveNavigationAndKeyboard(host: View) {
     ViewCompat.setOnApplyWindowInsetsListener(host) { view, insets ->
-      val bars = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
+      val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
       val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
-      view.setPadding(bars.left, 0, bars.right, maxOf(bars.bottom, ime.bottom))
-      WindowInsetsCompat.Builder(insets)
-        .setInsets(WindowInsetsCompat.Type.navigationBars(), Insets.NONE)
-        .setInsets(WindowInsetsCompat.Type.ime(), Insets.NONE)
-        .build()
+      view.setPadding(bars.left, bars.top, bars.right, maxOf(bars.bottom, ime.bottom))
+      WindowInsetsCompat.CONSUMED
     }
     ViewCompat.requestApplyInsets(host)
   }
@@ -134,7 +134,7 @@ class MainActivity : TauriActivity() {
 
   companion object {
     private const val EXIT_CONFIRMATION_MS = 2_000L
-    private const val DARK_NAV = 0xFF191D20.toInt() // --bg-elev-1, dark theme
-    private const val LIGHT_NAV = 0xFFFFFFFF.toInt() // --bg-elev-1, light theme
+    private const val DARK_NAV = 0xFF131516.toInt() // --bg-base, dark theme
+    private const val LIGHT_NAV = 0xFFF7F8FA.toInt() // --bg-base, light theme
   }
 }

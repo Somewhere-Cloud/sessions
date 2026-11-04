@@ -14,6 +14,9 @@ val tauriProperties = Properties().apply {
 }
 
 val sessionsTestApp = providers.gradleProperty("sessionsTestApp").orNull == "true"
+// Local diagnosis only: ORG_GRADLE_PROJECT_sessionsWebDebug=true lets
+// chrome://inspect attach to a release build. Never set for a published APK.
+val sessionsWebDebug = providers.gradleProperty("sessionsWebDebug").orNull == "true"
 
 // Release signing lives outside the repository (docs/ANDROID.md). The file is a
 // Java properties file with storeFile, storePassword, keyAlias and keyPassword.
@@ -54,6 +57,7 @@ android {
         targetSdk = 36
         versionCode = sessionsVersionCode(sessionsVersionName)
         versionName = sessionsVersionName
+        buildConfigField("boolean", "SESSIONS_WEB_DEBUG", sessionsWebDebug.toString())
     }
     signingConfigs {
         if (releaseSigning.getProperty("storeFile") != null) {

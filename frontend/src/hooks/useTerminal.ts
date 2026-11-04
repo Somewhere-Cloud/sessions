@@ -107,17 +107,20 @@ function reportTerminalError(
 // fetches a bounded HTTP tail, then the WS resumes from that tail's end so
 // only race deltas replay. Hidden sessions attach without output or Claude
 // event frames and backfill when activated.
-/** Columns that fit the container, from the width xterm actually rendered. */
-function renderedColumns(container: HTMLElement, cols: number): number | null {
-  const screen = container.querySelector<HTMLElement>('.xterm-screen');
-  if (!screen || cols < 1 || container.offsetWidth <= 0) return null;
-  const cell = screen.getBoundingClientRect().width / cols;
-  if (!(cell > 0)) return null;
-  const box = container.getBoundingClientRect();
-  const style = getComputedStyle(container);
-  const zoom = box.width / container.offsetWidth;
-  const padding = (Number.parseFloat(style.paddingLeft) || 0) + (Number.parseFloat(style.paddingRight) || 0);
-  return Math.max(2, Math.floor((box.width - padding * zoom) / cell + 0.01));
+/**
+ * Android WebView before Chromium's standardized CSS zoom (M128) lays the
+ * terminal out in unzoomed pixels but draws xterm's canvas unzoomed too, so
+ * under the shell's --interface-scale the drawn rows fill only 1/scale of the
+ * width fit() measured. Those WebViews also report unzoomed client rects,
+ * which is how they are recognised; newer ones need no correction. Returns
+ * the corrected column count, or null when fit() is already right.
+ */
+function legacyZoomColumns(container: HTMLElement, cols: number): number | null {
+  const scale = Number.parseFloat(getComputedStyle(container).getPropertyValue('--interface-scale')) || 1;
+  if (scale <= 1.001 || container.offsetWidth <= 0) return null;
+  const rectScale = container.getBoundingClientRect().width / container.offsetWidth;
+  if (rectScale > 1.001) return null;
+  return Math.floor(cols * scale);
 }
 
 export function useTerminal(sessionId: string | null, mountTerminal: boolean = true, isActive: boolean = true): UseTerminalResult {
@@ -569,16 +572,16 @@ export function useTerminal(sessionId: string | null, mountTerminal: boolean = t
         beforeTerminalMutation();
         try {
           fit.fit();
-          // Android WebView's CSS zoom makes fit's character measurement
-          // disagree with what is drawn: September's WebView left ~10% of
-          // the row unused, and multiplying by --interface-scale overshot by
-          // two columns on another. Measure instead: the rendered screen and
-          // its container are compared in the same coordinate space, and the
-          // column count is whatever whole cells fit inside the padding.
+          // See legacyZoomColumns. The wider layout box must not scroll the
+          // host sideways, so the host clips it; what is drawn fits.
           if (isTauri() && /Android/i.test(navigator.userAgent)) {
             const container = containerElRef.current;
-            const columns = container ? renderedColumns(container, term.cols) : null;
-            if (columns !== null && columns !== term.cols) term.resize(columns, term.rows);
+            const columns = container ? legacyZoomColumns(container, term.cols) : null;
+            if (container && columns !== null) {
+              container.style.overflow = 'hidden';
+              container.scrollLeft = 0;
+              if (columns !== term.cols) term.resize(columns, term.rows);
+            }
           }
         } catch {
           // Fit can throw if the container has zero dims (eg the pane is

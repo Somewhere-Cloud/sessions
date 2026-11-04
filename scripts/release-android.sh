@@ -133,6 +133,10 @@ for tool in "$JAVA_HOME/bin/keytool" "$BUILD_TOOLS/apksigner" "$BUILD_TOOLS/aapt
 done
 export PATH="$JAVA_HOME/bin:$PATH"
 
+if [[ "${ORG_GRADLE_PROJECT_sessionsWebDebug:-}" == "true" ]]; then
+  echo "error: unset ORG_GRADLE_PROJECT_sessionsWebDebug; a release APK never allows WebView debugging" >&2
+  exit 1
+fi
 npm --prefix "$ROOT" exec tauri android build -- --target aarch64 --apk --ci
 
 if [[ ! -f "$BUILT_APK" ]]; then

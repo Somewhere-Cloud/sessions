@@ -69,7 +69,7 @@ try {
   assert.match(appBack, /dismissForemostModal\(\)/, 'Back closes any open shared modal before App navigation');
   assert.match(activity, /moveTaskToBack\(true\)/, 'root Back backgrounds the task instead of tearing down Tauri');
   assert.doesNotMatch(activity, /\bfinish\(\)/);
-  assert.match(activity, /setOnApplyWindowInsetsListener[\s\S]*navigationBars\(\)[\s\S]*Type\.ime\(\)/,
+  assert.match(activity, /setOnApplyWindowInsetsListener[\s\S]*systemBars\(\)[\s\S]*Type\.ime\(\)[\s\S]*WindowInsetsCompat\.CONSUMED/,
     'the WebView container clears the navigation bar and keyboard');
   assert.match(activity, /@JavascriptInterface[\s\S]*fun setSystemBarsDark/);
   assert.match(mobileNav, /mobile-more-heading/);
@@ -81,9 +81,9 @@ try {
   assert.match(machineMark, /platform === 'darwin' \|\| platform === 'macos'/);
   assert.match(terminalHook, /visualViewport\?\.addEventListener\('resize', onResize\)/);
   assert.match(terminalHook, /visualViewport\?\.removeEventListener\('resize', onResize\)/);
-  assert.match(terminalHook, /function renderedColumns[\s\S]*\.xterm-screen[\s\S]*getBoundingClientRect/,
-    'Android columns come from the rendered width, not a scale guess');
-  assert.doesNotMatch(terminalHook, /term\.cols \* scale/);
+  assert.match(terminalHook, /function legacyZoomColumns[\s\S]*getBoundingClientRect\(\)\.width \/ container\.offsetWidth[\s\S]*Math\.floor\(cols \* scale\)/,
+    'only legacy-zoom WebViews widen the terminal by the shell scale');
+  assert.match(terminalHook, /container\.style\.overflow = 'hidden'/, 'the widened layout box never scrolls the host');
   assert.match(terminalStyles, /\.terminal-host \.xterm \{[\s\S]*width: 100%;/);
   assert.doesNotMatch(newSession, /launcher-send-hint/, 'the launcher carries no keyboard hint line');
 
