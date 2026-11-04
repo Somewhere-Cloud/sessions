@@ -199,6 +199,13 @@ try {
     });
     assert.ok(connectScroll.client <= 844 && connectScroll.scroll > connectScroll.client,
       `the phone connect screen must scroll inside the viewport (${JSON.stringify(connectScroll)})`);
+    await page.setContent(`<style>${styles}</style><main class="connect-screen connect-screen-client">
+      <section class="connect-setup"><ol><li><span>Install</span><code>brew install somewhere-tech/tap/sessions &amp;&amp; sessions install</code></li></ol></section></main>`);
+    const setup = await page.evaluate(() => ({
+      card: document.querySelector('.connect-setup').getBoundingClientRect().right,
+      code: document.querySelector('.connect-setup code').getBoundingClientRect().right
+    }));
+    assert.ok(setup.code <= setup.card, `the setup command overflowed its card (${JSON.stringify(setup)})`);
     await page.setContent(`<style>${styles}</style><div class="settings-view" style="height: 600px">
       <aside class="settings-sections"><button>General</button></aside>
       <main class="settings-panel"><div id="last" style="height: 1500px"></div></main></div>`);

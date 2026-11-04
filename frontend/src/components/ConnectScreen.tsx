@@ -282,9 +282,9 @@ export function ConnectScreen({
         </section>
 
         <p className="connect-privacy">
-          Endpoint and revocable device token stay on this device. Native Windows
-          protects saved tokens for the signed-in user; URL-fragment connect links
-          are scrubbed before the app starts.
+          {isMobileClient
+            ? 'Endpoint and revocable device token stay on this device, in its protected credential store. Forget the machine to revoke it.'
+            : 'Endpoint and revocable device token stay on this device. Native Windows protects saved tokens for the signed-in user; URL-fragment connect links are scrubbed before the app starts.'}
         </p>
       </section>
     </main>
