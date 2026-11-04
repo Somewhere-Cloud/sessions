@@ -819,7 +819,7 @@ function SessionViewInner({ sessionId, onStatusChange, isActive = false, onResum
             }}
             onMakeMain={(childId) => onReparent(childId, null)}
             onEnd={endSession}
-            onApprove={(lane, decision) => approveSession(lane.id, decision)}
+            onApprove={(lane, decision) => approveSession(lane.id, decision)} onAnswer={async (lane, text) => { await submitAttributedMessage(lane.id, text); }}
             onHandBack={async (lane) => {
               await submitAttributedMessage(session.id, handBackMessage(lane), undefined, lane.id);
             }}

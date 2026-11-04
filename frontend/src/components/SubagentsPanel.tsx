@@ -7,6 +7,7 @@ import type { ApprovalDecision, SessionInfo } from '../types';
 import { normalizeProvider, ProviderMark } from './ProviderBadge';
 import { copyText } from '../lib/copyText';
 import { AccountBadge } from './AccountBadge';
+import { childQuestion, SubagentWaiting } from './SubagentWaiting';
 import { lastMessageLine } from '../lib/lastMessage';
 const TeamEvidence = lazy(() => import('./TeamEvidence').then((module) => ({ default: module.TeamEvidence })));
 
@@ -23,6 +24,8 @@ interface Props {
   onHandBack?: (lane: SessionInfo) => Promise<void>;
   // Answer the permission a lane is holding open without opening it.
   onApprove?: (lane: SessionInfo, decision: ApprovalDecision) => Promise<void>;
+  // Type an answer to the question a lane stopped to ask, as the person.
+  onAnswer?: (lane: SessionInfo, text: string) => Promise<void>;
 }
 
 function relativeTime(value: number): string {
@@ -55,7 +58,7 @@ function teamLastLine(member: TeamMember): string {
   return member.waiting?.trim() || member.summary?.trim() || '';
 }
 
-export function SubagentsPanel({ manager, subagents, onClose, onOpen, onMakeMain, onEnd, onHandBack, onApprove }: Props): JSX.Element {
+export function SubagentsPanel({ manager, subagents, onClose, onOpen, onMakeMain, onEnd, onHandBack, onApprove, onAnswer }: Props): JSX.Element {
   const [team, setTeam] = useState<TeamListing | null>(null);
   const [movingId, setMovingId] = useState<string | null>(null);
   const [handingBackId, setHandingBackId] = useState<string | null>(null);
@@ -66,7 +69,6 @@ export function SubagentsPanel({ manager, subagents, onClose, onOpen, onMakeMain
   const [copiedCleanupRequest, setCopiedCleanupRequest] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [teamError, setTeamError] = useState<string | null>(null);
-  const [approvingId, setApprovingId] = useState<string | null>(null);
   useEffect(() => {
     const controller = new AbortController();
     let current = true;
@@ -151,19 +153,6 @@ export function SubagentsPanel({ manager, subagents, onClose, onOpen, onMakeMain
     }
   };
 
-  const approve = async (session: SessionInfo, decision: ApprovalDecision): Promise<void> => {
-    if (!onApprove) return;
-    setApprovingId(session.id);
-    setError(null);
-    try {
-      await onApprove(session, decision);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'The answer did not reach the lane.');
-    } finally {
-      setApprovingId(null);
-    }
-  };
-
   const copyCleanupRequest = async (): Promise<void> => {
     const request = 'Clean up your subagents. End only delegated sessions whose work is complete; leave anything active or uncertain running.';
     try {
@@ -223,21 +212,10 @@ export function SubagentsPanel({ manager, subagents, onClose, onOpen, onMakeMain
               </div>
               <p>{purpose(session)}</p>
               <Suspense fallback={null}><TeamEvidence member={teamMember} session={session} /></Suspense>
-              {recentLine && recentLine !== purpose(session) ? (
+              {recentLine && recentLine !== purpose(session) && !(onAnswer && childQuestion(session, teamMember?.waiting)) ? (
                 <p className={`subagent-last${needsAttention ? ' is-attention' : ''}`}>{needsAttention ? 'Waiting: ' : ''}{recentLine}</p>
               ) : null}
-              {session.pendingApproval && onApprove ? (
-                <div className="subagent-approval" role="group" aria-label="Permission request">
-                  <span>Asks to {session.pendingApproval.summary.replace(/^Run /, 'run ').replace(/^Change /, 'change ').replace(/^Grant /, 'grant ')}</span>
-                  <span className="subagent-approval-actions">
-                    <button type="button" className="btn btn-secondary" disabled={approvingId !== null} onClick={() => void approve(session, 'allow')}>
-                      {approvingId === session.id ? 'Answering…' : 'Allow'}
-                    </button>
-                    <button type="button" className="btn btn-ghost" disabled={approvingId !== null} onClick={() => void approve(session, 'allow-session')}>Allow for session</button>
-                    <button type="button" className="btn btn-ghost" disabled={approvingId !== null} onClick={() => void approve(session, 'deny')}>Decline</button>
-                  </span>
-                </div>
-              ) : null}
+              <SubagentWaiting session={session} waiting={teamMember?.waiting} onApprove={onApprove} onAnswer={onAnswer} onError={setError} />
               <div className="subagent-card-actions">
                 <button type="button" className="btn btn-secondary" onClick={() => onOpen(session.id)}>Open</button>
                 {onHandBack && !session.exited ? (

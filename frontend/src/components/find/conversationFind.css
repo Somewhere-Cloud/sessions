@@ -1,0 +1,42 @@
+/* Find in conversation. Loaded with the find bar, never in the entry bundle. */
+.conversation-find {
+  position: absolute;
+  top: 8px;
+  right: 16px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: calc(100% - 32px);
+  padding: 4px 4px 4px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border, rgba(127, 127, 127, 0.35));
+  background: var(--bg-elev-2, var(--bg-base, #1c1c1c));
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  font-size: 13px;
+  color: var(--fg);
+}
+.conversation-find input {
+  width: 200px;
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+.conversation-find-count { min-width: 64px; text-align: right; color: var(--fg-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.conversation-find button {
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg-dim);
+  cursor: pointer;
+}
+.conversation-find button:hover:not(:disabled) { background: rgba(127, 127, 127, 0.15); color: var(--fg); }
+.conversation-find button:disabled { opacity: 0.4; cursor: default; }
+::highlight(sessions-find) { background-color: rgba(233, 180, 76, 0.35); color: inherit; }
+::highlight(sessions-find-current) { background-color: rgba(233, 180, 76, 0.85); color: #111; }
