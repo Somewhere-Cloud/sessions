@@ -43,6 +43,8 @@ type newStartResult struct {
 	Start        *state.StartReceipt `json:"start,omitempty"`
 	StartError   string              `json:"start_error,omitempty"`
 	Rerun        string              `json:"rerun,omitempty"`
+	// Defaults says which project and computer defaults shaped this start.
+	Defaults *projectLaunchReceipt `json:"defaults,omitempty"`
 }
 
 func (a *app) createAndStart(body createSessionRequest, initialInput string) error {
@@ -67,7 +69,7 @@ func (a *app) createAndStart(body createSessionRequest, initialInput string) err
 		return a.writeCreateFailure(createFailure{Outcome: createOutcomeUnknown, OperationID: body.OperationID,
 			Error: "sessionsd answered the create without a session id", Next: unknownCreateNext(body.OperationID)})
 	}
-	result := newStartResult{OK: true}
+	result := newStartResult{OK: true, Defaults: a.launchReceipt}
 	if strings.TrimSpace(initialInput) != "" {
 		promptOperationID := recordedPromptOperationID(info, body.PromptOperationID)
 		sent, sendErr := a.sendExplicitOperation(id, initialInput, "", promptOperationID, initialRequestTimeout, false)
@@ -270,6 +272,7 @@ func (a *app) writeNewStartResult(id string, info map[string]any, result newStar
 		return err
 	}
 	a.announceLaneLink(id)
+	a.writeLaunchReceipt()
 	if result.OK {
 		return nil
 	}

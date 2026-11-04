@@ -15,6 +15,7 @@ import {
 } from './core';
 import { normalizeSessionInfo } from './sessions';
 import { normalizeResumePreview } from './search';
+import type { ProjectDefaults } from './projectDefaults';
 
 export async function createSession(req: CreateSessionRequest, serverId?: string): Promise<SessionInfo> {
   const { creatorSessionId, ...body } = req;
@@ -939,6 +940,9 @@ export interface ProjectView {
   live: number;
   needs_input: number;
   updated_at?: number;
+  /** The same on every computer for the same work (git origin, else name). */
+  identity?: string;
+  defaults?: ProjectDefaults;
 }
 
 // The daemon groups sessions by the work they belong to (a folder, a git

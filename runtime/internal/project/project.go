@@ -47,11 +47,17 @@ type Resolution struct {
 	TopLevel  string `json:"top_level"`
 	GitHub    string `json:"github,omitempty"`
 	Somewhere string `json:"somewhere,omitempty"`
+	// Identity is the cross-computer key for this work (identity.go).
+	Identity string `json:"identity,omitempty"`
 }
 
+// Defaults are keyed by project identity rather than project ID, so a folder
+// nobody has named yet can carry them, and the same repository on another
+// computer looks them up under the same key.
 type projectFile struct {
-	Version  int       `json:"version"`
-	Projects []Project `json:"projects"`
+	Version  int                 `json:"version"`
+	Projects []Project           `json:"projects"`
+	Defaults map[string]Defaults `json:"defaults,omitempty"`
 }
 
 const fileVersion = 1
@@ -64,6 +70,7 @@ type Store struct {
 
 	mu          sync.Mutex
 	projects    []Project
+	defaults    map[string]Defaults
 	loaded      bool
 	scratchRoot string
 }
@@ -92,15 +99,22 @@ func (s *Store) load() error {
 		return fmt.Errorf("parse projects %s: %w", s.path, err)
 	}
 	s.projects = parsed.Projects
+	s.defaults = parsed.Defaults
 	s.loaded = true
 	return nil
 }
 
+// save writes projects together with the current defaults; saveDefaults
+// writes defaults with the current projects. Callers hold s.mu.
 func (s *Store) save(projects []Project) error {
+	return s.write(projects, s.defaults)
+}
+
+func (s *Store) write(projects []Project, defaults map[string]Defaults) error {
 	if err := os.MkdirAll(filepath.Dir(s.path), 0o700); err != nil {
 		return fmt.Errorf("create projects directory: %w", err)
 	}
-	encoded, err := json.MarshalIndent(projectFile{Version: fileVersion, Projects: projects}, "", "  ")
+	encoded, err := json.MarshalIndent(projectFile{Version: fileVersion, Projects: projects, Defaults: defaults}, "", "  ")
 	if err != nil {
 		return fmt.Errorf("encode projects: %w", err)
 	}
@@ -280,12 +294,13 @@ func (s *Store) resolveLocked(cwd string) Resolution {
 		}
 	}
 	if bestLen >= 0 {
-		return Resolution{ProjectID: best.ID, Name: best.Name, TopLevel: top, GitHub: best.GitHub, Somewhere: best.Somewhere}
+		return Resolution{ProjectID: best.ID, Name: best.Name, TopLevel: top, GitHub: best.GitHub, Somewhere: best.Somewhere,
+			Identity: Identity(repo.origin, best.Name, filepath.Base(top))}
 	}
 	if folder := s.scratchFolder(top); folder != "" {
 		// TopLevel stays the session's own scratch folder, so naming it
 		// claims that folder rather than every scratch session at once.
-		return Resolution{ProjectID: ScratchProjectID, Name: ScratchName, Implicit: true, TopLevel: folder}
+		return Resolution{ProjectID: ScratchProjectID, Name: ScratchName, Implicit: true, TopLevel: folder, Identity: ScratchIdentity}
 	}
 	name := repo.github
 	if name == "" {
@@ -294,7 +309,18 @@ func (s *Store) resolveLocked(cwd string) Resolution {
 	return Resolution{
 		ProjectID: "implicit:" + implicitID(top), Name: name, Implicit: true,
 		TopLevel: top, GitHub: repo.github, Somewhere: repo.somewhere,
+		Identity: Identity(repo.origin, "", filepath.Base(top)),
 	}
+}
+
+// IdentityOf is a stored project's identity, read from its first root: the
+// origin of the checkout there, else the stored name.
+func IdentityOf(stored Project) string {
+	origin := ""
+	if len(stored.Roots) > 0 {
+		origin = inspectRepository(stored.Roots[0]).origin
+	}
+	return Identity(origin, stored.Name, "")
 }
 
 // Suggest is what "Name this project" starts from for an implicit project:

@@ -781,6 +781,7 @@ button.session-tree-group-head { width: 100%; }
 .agent-project > header { display: flex; align-items: center; gap: 8px; padding: 4px 8px; }
 .agent-project > header button { border: 0; color: var(--fg-dim); background: transparent; }
 .agent-project > header .agent-project-disclosure { flex: 1; min-width: 0; gap: 6px; padding: 0; text-align: left; }
+.agent-row-machine { display: flex; align-items: center; gap: 4px; min-width: 0; padding: 2px 8px 0; color: var(--fg-dim); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .agent-project-name { flex: 1; min-width: 0; color: var(--fg); font-size: var(--type-body); font-weight: 650; overflow-wrap: anywhere; }
 .project-preview-toggle { min-height: 32px; }
 .agent-remote-row { position: relative; }

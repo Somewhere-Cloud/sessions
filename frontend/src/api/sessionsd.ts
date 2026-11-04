@@ -6,3 +6,4 @@ export * from './sessionsd/team';
 export * from './sessionsd/pullRequests';
 export * from './sessionsd/limits';
 export * from './sessionsd/continuation';
+export * from './sessionsd/projectDefaults';
