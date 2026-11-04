@@ -55,6 +55,7 @@ type session struct {
 	LastAgentMessageAt     *int64                     `json:"lastAgentMessageAt"`
 	IdleReason             string                     `json:"idleReason,omitempty"`
 	IdleDetail             string                     `json:"idleDetail,omitempty"`
+	PendingApproval        *state.ApprovalPrompt      `json:"pendingApproval,omitempty"`
 	IdleSince              *int64                     `json:"idleSince,omitempty"`
 	LastSummary            string                     `json:"lastSummary,omitempty"`
 	FailureKind            string                     `json:"failureKind,omitempty"`

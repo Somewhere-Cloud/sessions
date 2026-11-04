@@ -29,7 +29,9 @@ import { retryProviderSession } from '../api/sessionsd';
 import type { MessageSubmission } from '../lib/messageDelivery';
 import '../styles/queued-messages.css';
 import { SavedMessageList } from './SavedMessageList';
+import { useConversationFind } from '../hooks/useConversationFind';
 
+const ConversationFindBar = lazy(() => import('./find/ConversationFindBar').then((module) => ({ default: module.ConversationFindBar })));
 const LostConversationCard = lazy(() => import('./LostConversationCard').then((module) => ({ default: module.LostConversationCard })));
 
 function renderFileReference(path: string, cwd = ''): string {
@@ -263,6 +265,7 @@ export function RemoteView({
     return Array.from(files);
   }, [eventMessages]);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const find = useConversationFind(scrollRef);
   const initialPos = useMemo(
     () => readScrollPosition(sessionId, 'remote'),
     [sessionId]
@@ -473,20 +476,8 @@ export function RemoteView({
       {hasRecoverableLocalState && clearConfirm ? (
         <div className="remote-refresh-confirm">
           <span className="remote-refresh-confirm-label">Clear local sends?</span>
-          <Button
-            type="button"
-            className="remote-refresh-confirm-yes"
-            onClick={handleRefreshConfirm}
-          >
-            Clear
-          </Button>
-          <Button
-            type="button"
-            className="remote-refresh-confirm-no"
-            onClick={handleRefreshCancel}
-          >
-            Cancel
-          </Button>
+          <Button type="button" className="remote-refresh-confirm-yes" onClick={handleRefreshConfirm}>Clear</Button>
+          <Button type="button" className="remote-refresh-confirm-no" onClick={handleRefreshCancel}>Cancel</Button>
         </div>
       ) : hasRecoverableLocalState ? (
         <Button
@@ -499,6 +490,7 @@ export function RemoteView({
         </Button>
       ) : null}
       <ChangedFilesStrip files={changedFiles} cwd={cwd} />
+      {find.open ? <Suspense fallback={null}><ConversationFindBar scroller={scrollRef} request={find.request} onClose={find.close} /></Suspense> : null}
       <div
         className="remote-scroll"
         ref={scrollRef}

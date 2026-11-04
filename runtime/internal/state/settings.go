@@ -312,6 +312,14 @@ type Settings struct {
 	// session whose turn a reboot, update, or crash cut short. Missing means
 	// on; per-session choices live in the state root.
 	RestartContinuation *EnabledSetting `json:"restartContinuation,omitempty"`
+	// ChildQuestions tells a manager session when a lane it started stops to
+	// ask a question or for permission. Missing means on.
+	ChildQuestions *EnabledSetting `json:"childQuestions,omitempty"`
+}
+
+// ChildQuestionsEnabled reports the machine choice, on unless turned off.
+func (s Settings) ChildQuestionsEnabled() bool {
+	return s.ChildQuestions == nil || s.ChildQuestions.Enabled
 }
 
 type LimitRecoverySettings struct {

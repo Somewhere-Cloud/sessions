@@ -8,6 +8,7 @@ import { resolvedSessionLabel } from '../lib/tabLabels';
 import { classifySession } from '../lib/sessionStatus';
 import { normalizeProvider, ProviderMark } from './ProviderBadge';
 import type { ProductView } from './ProductSidebar';
+import { openConversationFind } from '../lib/conversationFind';
 
 interface Props {
   open: boolean;
@@ -38,6 +39,12 @@ const VIEW_ACTIONS: Array<{ view: ProductView; label: string; detail: string; ke
   { view: 'settings', label: 'Settings', detail: 'Agents, connections, updates, and appearance', keywords: 'preferences configuration' },
   { view: 'feedback', label: 'Send feedback', detail: 'Share an idea or report a problem', keywords: 'support bug issue' }
 ];
+
+function focusInbox(): void {
+  const tree = document.querySelector<HTMLElement>('.session-tree');
+  const row = tree?.querySelector<HTMLElement>('[role="treeitem"].is-active') ?? tree?.querySelector<HTMLElement>('[role="treeitem"]');
+  row?.focus();
+}
 
 function sessionSearchText(session: SessionInfo): string {
   return [
@@ -88,12 +95,9 @@ export function CommandPalette({
         detail: 'Then ↑↓ or j/k move, ↵ opens · ⌘J',
         group: 'Actions',
         keywords: 'sessions list keyboard focus navigate',
-        run: closeThen(() => {
-          const tree = document.querySelector<HTMLElement>('.session-tree');
-          const row = tree?.querySelector<HTMLElement>('[role="treeitem"].is-active') ?? tree?.querySelector<HTMLElement>('[role="treeitem"]');
-          row?.focus();
-        })
+        run: closeThen(focusInbox)
       },
+      { id: 'find', label: 'Find in conversation', detail: 'Search the open conversation · ⌘F', group: 'Actions', keywords: 'search text chat transcript', run: closeThen(openConversationFind) },
       {
         id: 'continue',
         label: 'Resume a conversation',

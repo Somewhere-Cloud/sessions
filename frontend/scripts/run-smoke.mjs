@@ -60,6 +60,7 @@ const GATE = [
   'settings-machines',
   'auto-archive',
   'conversation-ui',
+  'conversation-find',
 
   'history-search-ui',
   'account-login',

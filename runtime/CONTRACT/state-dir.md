@@ -79,6 +79,7 @@ control the user turn. Dispatch is not proof of provider acceptance or recall.
 │   └── <operation-id>.json
 ├── parent-reports/
 │   ├── subscriptions/<session-id>.json
+│   ├── questions/<session-id>.json
 │   └── outbox/<operation-id>.json
 ├── team-cursors/
 │   └── <32 hex cursor>.json
@@ -362,7 +363,16 @@ usual `delivery-operations/` receipt. A file is removed once its receipt is
 `accepted`, `unknown`, or `text-delivered`, once the parent ended or is
 unknown, or after 12 `not-delivered` retries; an uncertain delivery is never
 resent. Subscription and outbox files are written to a `.tmp` name and renamed
-into place. The directory follows `SESSIONS_STATE_DIR` like
+into place.
+
+Child questions use the same directory for every live child with a recorded
+`parentSessionId`, subscribed or not. `questions/<session-id>.json` records
+`child` and the waiting `episode` its parent was already told about
+(`approval:<approval id>` or `input:<idleSince ms>`), so a restart never asks
+twice; it is removed once the child is no longer waiting. A question's outbox
+file additionally carries `kind: "question"` and `episode`, and is removed
+without delivery when the child is no longer waiting on that episode or the
+parent ended, is unknown, or is set aside. The directory follows `SESSIONS_STATE_DIR` like
 `delivery-operations/`.
 
 ### `team-cursors/<cursor>.json`

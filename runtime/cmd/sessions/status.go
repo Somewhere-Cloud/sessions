@@ -31,41 +31,44 @@ type statusOutput struct {
 	// Record says what this document describes. `kind` is left to the session
 	// record below, where it means the session's own kind, exactly as
 	// `sessions ls --json` reports it.
-	Record            string                   `json:"record"`
-	Tool              string                   `json:"tool"`
-	State             string                   `json:"state"`
-	ExitCode          *int                     `json:"exit_code,omitempty"`
-	Cwd               string                   `json:"cwd"`
-	Profile           string                   `json:"profile,omitempty"`
-	ConfigDir         string                   `json:"config_dir,omitempty"`
-	WorktreePath      string                   `json:"worktree_path,omitempty"`
-	Branch            string                   `json:"branch,omitempty"`
-	Base              string                   `json:"base,omitempty"`
-	SourceRepo        string                   `json:"source_repo,omitempty"`
-	Git               *gitStatus               `json:"git"`
-	LastVerdict       *verdictprotocol.Summary `json:"last_verdict,omitempty"`
-	LastActivityAt    string                   `json:"last_activity_at"`
-	CreatedAt         string                   `json:"created_at"`
-	AgeMS             int64                    `json:"age_ms"`
-	IdleReason        string                   `json:"idle_reason,omitempty"`
-	IdleDetail        string                   `json:"idle_detail,omitempty"`
-	IdleSinceMS       *int64                   `json:"idle_since_ms,omitempty"`
-	LastSummary       string                   `json:"last_summary,omitempty"`
-	RunnerProtocol    int                      `json:"runner_protocol"`
-	RunnerVersion     string                   `json:"runner_version,omitempty"`
-	EndedByKind       string                   `json:"ended_by_kind,omitempty"`
-	EndedByID         string                   `json:"ended_by_id,omitempty"`
-	EndedByName       string                   `json:"ended_by_name,omitempty"`
-	EndedByClient     string                   `json:"ended_by_client,omitempty"`
-	EndReason         string                   `json:"end_reason,omitempty"`
-	EndOperationID    string                   `json:"end_operation_id,omitempty"`
-	SetAsideAtMS      *int64                   `json:"set_aside_at_ms,omitempty"`
-	Permissions       string                   `json:"permissions,omitempty"`
-	Lifecycle         string                   `json:"lifecycle,omitempty"`
-	Unreachable       bool                     `json:"unreachable,omitempty"`
-	UnreachableReason string                   `json:"unreachable_reason,omitempty"`
-	UnreachableSince  *int64                   `json:"unreachable_since_ms,omitempty"`
-	RunnerGone        bool                     `json:"runner_gone,omitempty"`
+	Record         string                   `json:"record"`
+	Tool           string                   `json:"tool"`
+	State          string                   `json:"state"`
+	ExitCode       *int                     `json:"exit_code,omitempty"`
+	Cwd            string                   `json:"cwd"`
+	Profile        string                   `json:"profile,omitempty"`
+	ConfigDir      string                   `json:"config_dir,omitempty"`
+	WorktreePath   string                   `json:"worktree_path,omitempty"`
+	Branch         string                   `json:"branch,omitempty"`
+	Base           string                   `json:"base,omitempty"`
+	SourceRepo     string                   `json:"source_repo,omitempty"`
+	Git            *gitStatus               `json:"git"`
+	LastVerdict    *verdictprotocol.Summary `json:"last_verdict,omitempty"`
+	LastActivityAt string                   `json:"last_activity_at"`
+	CreatedAt      string                   `json:"created_at"`
+	AgeMS          int64                    `json:"age_ms"`
+	IdleReason     string                   `json:"idle_reason,omitempty"`
+	IdleDetail     string                   `json:"idle_detail,omitempty"`
+	// WaitingFor is the question or permission a live session is waiting on
+	// a person for, the same line its manager is told.
+	WaitingFor        string `json:"waitingFor,omitempty"`
+	IdleSinceMS       *int64 `json:"idle_since_ms,omitempty"`
+	LastSummary       string `json:"last_summary,omitempty"`
+	RunnerProtocol    int    `json:"runner_protocol"`
+	RunnerVersion     string `json:"runner_version,omitempty"`
+	EndedByKind       string `json:"ended_by_kind,omitempty"`
+	EndedByID         string `json:"ended_by_id,omitempty"`
+	EndedByName       string `json:"ended_by_name,omitempty"`
+	EndedByClient     string `json:"ended_by_client,omitempty"`
+	EndReason         string `json:"end_reason,omitempty"`
+	EndOperationID    string `json:"end_operation_id,omitempty"`
+	SetAsideAtMS      *int64 `json:"set_aside_at_ms,omitempty"`
+	Permissions       string `json:"permissions,omitempty"`
+	Lifecycle         string `json:"lifecycle,omitempty"`
+	Unreachable       bool   `json:"unreachable,omitempty"`
+	UnreachableReason string `json:"unreachable_reason,omitempty"`
+	UnreachableSince  *int64 `json:"unreachable_since_ms,omitempty"`
+	RunnerGone        bool   `json:"runner_gone,omitempty"`
 
 	// LastActivityUnknown says last_activity_at is the creation time used as
 	// a floor because no activity was ever recorded for this session.
@@ -137,6 +140,7 @@ func (a *app) cmdStatus(args []string) error {
 		UnreachableSince: current.UnreachableSince, RunnerGone: current.RunnerGone,
 		LastActivityUnknown: activityUnknown,
 	}
+	output.WaitingFor = waitingForText(*current)
 	if current.Exited {
 		output.ExitCode = current.ExitCode
 	}
@@ -707,4 +711,13 @@ func (a *app) writeStatusWorkingSet(output statusOutput, current session) error 
 	}
 	_, err := fmt.Fprintf(a.stdout, "  %s\n", line)
 	return err
+}
+
+// waitingForText is the question or permission a live session waits on.
+func waitingForText(record session) string {
+	text, _ := state.WaitingFor(state.SessionInfo{
+		Exited: record.Exited, IdleReason: record.IdleReason, IdleDetail: record.IdleDetail,
+		PendingApproval: record.PendingApproval,
+	})
+	return text
 }

@@ -137,4 +137,46 @@ describe('capability: manage delegated work from its manager', () => {
     expect(screen.getByText('Waiting: Pick a client-side option')).toHaveClass('is-attention');
     expect(await screen.findByRole('alert')).toHaveTextContent('Team details could not be refreshed. sessionsd: authentication required');
   });
+
+  it('shows a waiting lane question inline and sends the typed answer to that lane', async () => {
+    const user = userEvent.setup();
+    const manager = makeSession({ id: 'manager', name: 'Platform review' });
+    const helper = makeSession({ id: 'helper', name: 'Migrate storage', parentSessionId: manager.id, idleReason: 'needs-input', idleDetail: 'Which database should the migration target?' });
+    const done = makeSession({ id: 'done', name: 'Finished audit', parentSessionId: manager.id, idleReason: 'completed' });
+    const machine = { id: 'local', name: 'Fixture Mac', host: 'localhost', port: 8787, isDefault: true, sessions: [manager, helper, done] };
+    installFakeDaemon([machine]);
+    useFakeMachines([machine]);
+    const onAnswer = vi.fn().mockResolvedValue(undefined);
+
+    render(<SubagentsPanel manager={manager} subagents={[helper, done]} onClose={() => {}} onOpen={() => {}} onMakeMain={async () => {}} onEnd={async () => {}} onAnswer={onAnswer} />);
+
+    const question = screen.getByRole('form', { name: 'Question from this lane' });
+    expect(question).toHaveTextContent('Which database should the migration target?');
+    // The question is shown once, in the answer box, not again as a one-line preview.
+    expect(screen.queryByText(/^Waiting: /)).not.toBeInTheDocument();
+    expect(screen.getAllByRole('textbox', { name: 'Answer this lane' })).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
+
+    await user.type(screen.getByRole('textbox', { name: 'Answer this lane' }), 'Postgres 17{Enter}');
+    expect(onAnswer).toHaveBeenCalledTimes(1);
+    expect(onAnswer.mock.calls[0]![0]).toMatchObject({ id: 'helper' });
+    expect(onAnswer.mock.calls[0]![1]).toBe('Postgres 17');
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Answer this lane' })).toHaveValue(''));
+  });
+
+  it('keeps the typed answer and says why when it does not reach the lane', async () => {
+    const user = userEvent.setup();
+    const manager = makeSession({ id: 'manager' });
+    const helper = makeSession({ id: 'helper', parentSessionId: manager.id, idleReason: 'needs-input', idleDetail: 'Continue?' });
+    const machine = { id: 'local', name: 'Fixture Mac', host: 'localhost', port: 8787, isDefault: true, sessions: [manager, helper] };
+    installFakeDaemon([machine]);
+    useFakeMachines([machine]);
+    const onAnswer = vi.fn().mockRejectedValue(new Error('This computer could not be reached.'));
+
+    render(<SubagentsPanel manager={manager} subagents={[helper]} onClose={() => {}} onOpen={() => {}} onMakeMain={async () => {}} onEnd={async () => {}} onAnswer={onAnswer} />);
+
+    await user.type(screen.getByRole('textbox', { name: 'Answer this lane' }), 'yes{Enter}');
+    expect(await screen.findByRole('alert')).toHaveTextContent('This computer could not be reached.');
+    expect(screen.getByRole('textbox', { name: 'Answer this lane' })).toHaveValue('yes');
+  });
 });

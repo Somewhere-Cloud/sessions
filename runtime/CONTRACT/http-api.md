@@ -4221,6 +4221,31 @@ preserved; adjacent text blocks are concatenated without inserted separators.
 Unreadable saved handoff receipts make discovery fail explicitly with the
 receipt filename, rather than silently returning an incomplete operation list.
 
+### `GET /api/team/questions`, `PUT /api/team/questions`
+
+Authenticated machine switch for child questions, on by default
+(`settings.json` `childQuestions.enabled`, missing means on). GET answers
+`{"enabled":true,"scope":"machine"}`; PUT requires `{"enabled":true|false}`
+(otherwise 400) and returns the same shape; wrong methods are 405.
+`sessions team questions [status|on|off]`, including `--json`, is equivalent.
+
+While on, a live child with a recorded parent that is waiting on a person
+(`idleReason: "needs-input"` or a `pendingApproval`) makes the daemon send its
+Claude or Codex parent one message through the parent-report outbox and the
+ordinary `/submit` path, attributed to the child (`sourceSessionId`, client
+`sessions-report`): `[sessions] Child <short id> (<name>) is waiting: <the
+question, or "needs permission for …">`, followed by how to answer with
+`sessions send <id> ...` or in the app. It is sent once per waiting episode (a
+new approval id, or a turn that ended on a question; a child that stays waiting
+on input, even when its blocked screen is classified again, stays in one
+episode), only when the parent is
+idle, never to a parent that has ended, is unknown, or is set aside, and is
+dropped if the child stops waiting first. Episodes seen while off are never
+replayed. Children created with `reportToParent` report their needs-input turn
+through this message instead of the outcome report while it is on
+([`internal/api/child_questions.go`](../internal/api/child_questions.go)).
+`sessions --json status <id>` carries the same waiting line as `waitingFor`.
+
 ### `GET /api/pull-request-watch`, `PUT /api/pull-request-watch`
 
 Authenticated machine-scoped background watch of linked pull requests, on by

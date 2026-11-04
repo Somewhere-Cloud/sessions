@@ -33,6 +33,7 @@ func (s *Server) StartParentReports(ctx context.Context, logf func(string, ...an
 			source.SetChildReportHandler(nil)
 		}()
 	}
+	s.startChildQuestions(ctx.Done(), logf)
 	go func() {
 		ticker := time.NewTicker(parentReportInterval)
 		defer ticker.Stop()
@@ -68,6 +69,11 @@ func (s *Server) subscribeParentReport(info state.SessionInfo) state.SessionInfo
 }
 
 func (s *Server) offerParentReport(report sessionruntime.ChildReport, logf func(string, ...any)) {
+	if report.IdleReason == state.IdleReasonNeedsInput && s.childQuestionsEnabled() {
+		// The question path tells the parent once per waiting episode.
+		s.scanChildQuestions(report.SessionID, logf)
+		return
+	}
 	parent, ok := s.parentReports.parentOf(report.SessionID)
 	if !ok || (report.ParentSessionID != "" && parent != report.ParentSessionID) {
 		return
@@ -94,6 +100,10 @@ func (s *Server) deliverParentReports(ctx context.Context, logf func(string, ...
 			return
 		}
 		if served[report.Parent] || report.NextAttemptMS > s.parentReports.now().UnixMilli() {
+			continue
+		}
+		if stale := s.staleChildQuestion(report); stale != "" {
+			s.parentReports.remove(report)
 			continue
 		}
 		ready, drop := s.parentReady(report.Parent)
